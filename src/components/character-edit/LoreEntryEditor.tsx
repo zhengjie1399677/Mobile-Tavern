@@ -58,6 +58,52 @@ export default function LoreEntryEditor({
           />
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-[10px] text-muted-foreground mb-1 font-bold">
+            {t("lore_editor.label_secondary_keys")}
+          </label>
+          <input
+            type="text"
+            placeholder={t("lore_editor.placeholder_secondary_keys")}
+            value={
+              editingLoreEntry.secondary_keys
+                ? Array.isArray(editingLoreEntry.secondary_keys)
+                  ? editingLoreEntry.secondary_keys.join(",")
+                  : (editingLoreEntry.secondary_keys as unknown as string)
+                : ""
+            }
+            onChange={(e) =>
+              setEditingLoreEntry({
+                ...editingLoreEntry,
+                secondary_keys: e.target.value as unknown as string[],
+              })
+            }
+            className="w-full bg-input border border-border rounded p-1.5 text-foreground text-xs font-semibold outline-none focus:border-primary"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] text-muted-foreground mb-1 font-bold">
+            {t("lore_editor.label_selective_logic")}
+          </label>
+          <select
+            value={editingLoreEntry.selectiveLogic || "AND_ANY"}
+            onChange={(e) =>
+              setEditingLoreEntry({
+                ...editingLoreEntry,
+                selectiveLogic: e.target.value as LorebookEntry["selectiveLogic"],
+              })
+            }
+            className="w-full bg-input border border-border rounded p-1.5 text-foreground text-xs font-semibold outline-none focus:border-primary"
+          >
+            <option className="bg-card text-foreground" value="AND_ANY">{t("lore_editor.logic_and_any")}</option>
+            <option className="bg-card text-foreground" value="AND_ALL">{t("lore_editor.logic_and_all")}</option>
+            <option className="bg-card text-foreground" value="NOT_ANY">{t("lore_editor.logic_not_any")}</option>
+            <option className="bg-card text-foreground" value="NOT_ALL">{t("lore_editor.logic_not_all")}</option>
+            <option className="bg-card text-foreground" value="NONE">NONE</option>
+          </select>
+        </div>
+      </div>
       <div>
         <label className="block text-[10px] text-muted-foreground mb-1 font-bold">
           {t("lore_editor.label_content")}
@@ -216,6 +262,98 @@ export default function LoreEntryEditor({
             }
             className="w-full bg-input border border-border rounded p-1 text-foreground font-semibold"
           />
+        </div>
+      </div>
+
+      <div className="p-2 bg-muted/20 border border-border/30 rounded space-y-2">
+        <div className="text-[10px] font-bold text-muted-foreground">
+          {t("lore_editor.timed_recursion_title")}
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-[10px]">
+          <div>
+            <label className="block text-muted-foreground mb-0.5">
+              {t("lore_editor.label_sticky")}
+            </label>
+            <input
+              type="number"
+              min="0"
+              placeholder="0"
+              value={editingLoreEntry.sticky ?? ""}
+              onChange={(e) =>
+                setEditingLoreEntry({
+                  ...editingLoreEntry,
+                  sticky: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+              className="w-full bg-input border border-border rounded p-1 text-foreground font-semibold"
+            />
+          </div>
+          <div>
+            <label className="block text-muted-foreground mb-0.5">
+              {t("lore_editor.label_cooldown")}
+            </label>
+            <input
+              type="number"
+              min="0"
+              placeholder="0"
+              value={editingLoreEntry.cooldown ?? ""}
+              onChange={(e) =>
+                setEditingLoreEntry({
+                  ...editingLoreEntry,
+                  cooldown: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+              className="w-full bg-input border border-border rounded p-1 text-foreground font-semibold"
+            />
+          </div>
+          <div>
+            <label className="block text-muted-foreground mb-0.5">
+              {t("lore_editor.label_delay")}
+            </label>
+            <input
+              type="number"
+              min="0"
+              placeholder="0"
+              value={editingLoreEntry.delay ?? ""}
+              onChange={(e) =>
+                setEditingLoreEntry({
+                  ...editingLoreEntry,
+                  delay: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+              className="w-full bg-input border border-border rounded p-1 text-foreground font-semibold"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
+          <label className="flex items-center gap-1 text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!editingLoreEntry.excludeRecursion}
+              onChange={(e) =>
+                setEditingLoreEntry({
+                  ...editingLoreEntry,
+                  excludeRecursion: e.target.checked,
+                })
+              }
+              className="accent-primary"
+            />
+            <span>{t("lore_editor.checkbox_exclude_recursion")}</span>
+          </label>
+          <label className="flex items-center gap-1 text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!editingLoreEntry.preventRecursion}
+              onChange={(e) =>
+                setEditingLoreEntry({
+                  ...editingLoreEntry,
+                  preventRecursion: e.target.checked,
+                })
+              }
+              className="accent-primary"
+            />
+            <span>{t("lore_editor.checkbox_prevent_recursion")}</span>
+          </label>
         </div>
       </div>
 

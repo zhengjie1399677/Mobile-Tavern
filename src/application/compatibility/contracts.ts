@@ -24,6 +24,9 @@ export interface CompatibilityTransformRequest {
   readonly globalRegexScripts?: readonly unknown[];
   readonly presetRegexScripts?: readonly unknown[];
   readonly messageIndex?: number;
+  readonly depth?: number;
+  readonly isEdit?: boolean;
+  readonly placement?: number;
   readonly enableLoopProtection?: boolean;
   readonly isStreamingLastMessage?: boolean;
 }
@@ -63,11 +66,26 @@ export interface CompatibilityPromptSectionDefinition {
   build(request: CompatibilityPromptSectionRequest): readonly PromptNode[];
 }
 
+export interface WorldInfoTimedEffect {
+  start: number;
+  end: number;
+  protected?: boolean;
+}
+
+export interface WorldInfoTimedState {
+  sticky: Record<string, WorldInfoTimedEffect>;
+  cooldown: Record<string, WorldInfoTimedEffect>;
+  delayCounters?: Record<string, number>;
+}
+
 export interface CompatibilityWorldInfoResolverRequest {
   readonly messages: readonly Message[];
   readonly userInput: string;
   readonly entries: readonly LorebookEntry[];
   readonly maxRecursionDepth?: number;
+  readonly recursive?: boolean;
+  readonly timedState?: WorldInfoTimedState;
+  readonly onUpdateTimedState?: (nextState: WorldInfoTimedState) => void;
   readonly conditionContext?: {
     readonly variables?: Record<string, unknown>;
     readonly session?: Record<string, unknown>;

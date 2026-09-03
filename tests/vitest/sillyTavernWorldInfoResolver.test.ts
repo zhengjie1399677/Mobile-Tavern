@@ -71,4 +71,138 @@ describe("SillyTavern Compatibility World Info resolver", () => {
 
     expect(result.map((item) => item.id)).toEqual(["超预算条目"]);
   });
+
+  it("支持 Sticky 持续激活并自动衔接 Cooldown 冷却", () => {
+    const drunkenEntry = entry("醉酒状态", {
+      keys: ["喝醉"],
+      content: "你感到天旋地转。",
+      sticky: 2,
+      cooldown: 1,
+    });
+
+    let timedState: any = undefined;
+
+    // 第 0 轮：包含关键词触发，设置 sticky: end = 2
+    const turn0 = resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "喝醉了酒",
+      entries: [drunkenEntry],
+      onUpdateTimedState: (state) => { timedState = state; },
+    });
+    expect(turn0.map((e) => e.id)).toEqual(["醉酒状态"]);
+    expect(timedState.sticky["醉酒状态"]).toMatchObject({ start: 0, end: 2 });
+
+    // 第 1 轮：无关键词，但消息数 = 1 < end(2)，强制保持激活
+    const turn1 = resolveSillyTavernWorldInfo({
+      messages: [{ id: "m1", sender: "user", content: "hi", timestamp: 0 }],
+      userInput: "今天天气真好",
+      entries: [drunkenEntry],
+      timedState,
+      onUpdateTimedState: (state) => { timedState = state; },
+    });
+    expect(turn1.map((e) => e.id)).toEqual(["醉酒状态"]);
+
+    // 第 2 轮：消息数 = 2 >= end(2)，Sticky 过期，自动衔接进入 Cooldown(2+1=3)
+    const turn2WithKeyword = resolveSillyTavernWorldInfo({
+      messages: [
+        { id: "m1", sender: "user", content: "hi", timestamp: 0 },
+        { id: "m2", sender: "assistant", content: "hello", timestamp: 1 },
+      ],
+      userInput: "我又喝醉了",
+      entries: [drunkenEntry],
+      timedState,
+      onUpdateTimedState: (state) => { timedState = state; },
+    });
+    // 在冷却期内，即使出现关键词也被抑制
+    expect(turn2WithKeyword.map((e) => e.id)).toEqual([]);
+    expect(timedState.cooldown["醉酒状态"]).toMatchObject({ start: 2, end: 3 });
+
+    // 第 3 轮：消息数 = 3 >= cooldown.end(3)，冷却结束，再次触发成功
+    const turn3 = resolveSillyTavernWorldInfo({
+      messages: [
+        { id: "m1", sender: "user", content: "hi", timestamp: 0 },
+        { id: "m2", sender: "assistant", content: "hello", timestamp: 1 },
+        { id: "m3", sender: "user", content: "ok", timestamp: 2 },
+      ],
+      userInput: "再次喝醉",
+      entries: [drunkenEntry],
+      timedState,
+      onUpdateTimedState: (state) => { timedState = state; },
+    });
+    expect(turn3.map((e) => e.id)).toEqual(["醉酒状态"]);
+  });
+
+  it("支持 Delay 延迟生效轮数", () => {
+    const delayedEntry = entry("蓄力技", {
+      keys: ["蓄力"],
+      content: "大招准备就绪！",
+      delay: 2,
+    });
+
+    let timedState: any = undefined;
+
+    // 第一次触发，计数器累积为 1 < 2，未达到生效要求
+    const run1 = resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "开始蓄力",
+      entries: [delayedEntry],
+      onUpdateTimedState: (state) => { timedState = state; },
+    });
+    expect(run1.map((e) => e.id)).toEqual([]);
+    expect(timedState.delayCounters["蓄力技"]).toBe(1);
+
+    // 第二次触发，计数器达到 2，成功激活
+    const run2 = resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "继续蓄力",
+      entries: [delayedEntry],
+      timedState,
+      onUpdateTimedState: (state) => { timedState = state; },
+    });
+    expect(run2.map((e) => e.id)).toEqual(["蓄力技"]);
+  });
+
+  it("支持多层级联递归检索及其抑制控制", () => {
+    const entryA = entry("帝国骑士团", {
+      keys: ["骑士团"],
+      content: "骑士团由副团长艾琳诺指挥。",
+    });
+    const entryB = entry("艾琳诺设定", {
+      keys: ["艾琳诺"],
+      content: "艾琳诺是一名光系大骑士。",
+    });
+
+    // 递归模式开启：提到骑士团自动递归激发艾琳诺
+    const resRecursive = resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "我来到骑士团驻地",
+      entries: [entryA, entryB],
+      recursive: true,
+      maxRecursionDepth: 3,
+    });
+    expect(resRecursive.map((e) => e.id)).toEqual(["帝国骑士团", "艾琳诺设定"]);
+
+    // 显式关闭递归模式：只激发第一层
+    const resNonRecursive = resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "我来到骑士团驻地",
+      entries: [entryA, entryB],
+      recursive: false,
+    });
+    expect(resNonRecursive.map((e) => e.id)).toEqual(["帝国骑士团"]);
+
+    // entryA 标记 preventRecursion 时，禁止由其内容向下引出递归
+    const entryAPrevent = entry("帝国骑士团", {
+      keys: ["骑士团"],
+      content: "骑士团由副团长艾琳诺指挥。",
+      preventRecursion: true,
+    });
+    const resPrevent = resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "我来到骑士团驻地",
+      entries: [entryAPrevent, entryB],
+      recursive: true,
+    });
+    expect(resPrevent.map((e) => e.id)).toEqual(["帝国骑士团"]);
+  });
 });

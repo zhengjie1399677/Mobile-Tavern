@@ -7,7 +7,7 @@ export interface LorebookEntry {
   id: string;
   keys: string[]; // Trigger keywords
   secondary_keys?: string[]; // Secondary triggers
-  selectiveLogic?: "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NONE"; // Secondary keys logic
+  selectiveLogic?: "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NOT_ALL" | "NONE"; // Secondary keys logic
   caseSensitive?: boolean; // Case sensitive keyword matching
   content: string; // The actual worldbook lore
   constant: boolean; // Always active in prompting context
@@ -23,6 +23,18 @@ export interface LorebookEntry {
   depth?: number; // Insertion depth (0 = at the end, > 0 = deep into history)
   scanDepth?: number; // Scan depth (how many of recent messages to inspect, >= 0)
   isGlobal?: boolean; // Whether this lorebook is global
+  /** 持续激活轮数 (Sticky) */
+  sticky?: number | null;
+  /** 冷却静默轮数 (Cooldown) */
+  cooldown?: number | null;
+  /** 延迟激活轮数 (Delay) */
+  delay?: number | null;
+  /** 排除递归扫描 */
+  excludeRecursion?: boolean;
+  /** 激活后禁止其内容引发下层递归 */
+  preventRecursion?: boolean;
+  /** 延迟到指定递归层级才激活 */
+  delayUntilRecursion?: number | null;
   /** 可选安全条件表达式；在关键词触发后根据 MVU 变量与会话状态二次过滤。 */
   condition?: string;
   /**

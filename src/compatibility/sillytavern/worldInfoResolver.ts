@@ -101,6 +101,7 @@ function scanTextFor(messages: readonly Message[], userInput: string, depth: num
 }
 
 function contributesToRecursion(entry: LorebookEntry): boolean {
+  if (entry.preventRecursion === true || entry.excludeRecursion === true) return false;
   return !(sourceBoolean(entry, "exclude_recursion", "excludeRecursion") === true ||
     sourceBoolean(entry, "prevent_recursion", "preventRecursion") === true);
 }
@@ -131,17 +132,48 @@ export function resolveSillyTavernWorldInfo(
 ): readonly LorebookEntry[] {
   if (request.entries.length === 0) return [];
 
+  const currentTurn = request.messages.length;
+  const rawTimed = request.timedState ??
+    (request.conditionContext?.session?.timedWorldInfo as CompatibilityWorldInfoResolverRequest["timedState"]);
+
+  const timedState = {
+    sticky: { ...(rawTimed?.sticky ?? {}) },
+    cooldown: { ...(rawTimed?.cooldown ?? {}) },
+    delayCounters: { ...(rawTimed?.delayCounters ?? {}) },
+  };
+
+  // 1. 清理过期并推进时效状态（Sticky 结束后若有 Cooldown 则无缝进入冷却）
+  for (const [id, effect] of Object.entries(timedState.sticky)) {
+    if (currentTurn >= effect.end) {
+      delete timedState.sticky[id];
+      const entry = request.entries.find((e) => e.id === id);
+      const cooldownRounds = entry ? (sourceNumber(entry, "cooldown") ?? entry.cooldown ?? 0) : 0;
+      if (cooldownRounds > 0) {
+        timedState.cooldown[id] = { start: currentTurn, end: currentTurn + cooldownRounds };
+      }
+    }
+  }
+
+  for (const [id, effect] of Object.entries(timedState.cooldown)) {
+    if (currentTurn >= effect.end) {
+      delete timedState.cooldown[id];
+    }
+  }
+
   const entries = request.entries
+    .filter((e) => !e.disabled && e.enabled && e.content)
     .map((entry, index) => ({ entry, index }))
     .sort((left, right) => entryOrder(right.entry) - entryOrder(left.entry) || left.index - right.index)
     .map(({ entry }) => entry);
+
   const activeEntries: LorebookEntry[] = [];
   const activeIds = new Set<string>();
   const scanCache = new Map<number, string>();
   let recursionText = "";
   let pass = 0;
   let triggered = true;
-  const maxPasses = Math.max(1, request.maxRecursionDepth ?? 3);
+  const isRecursiveAllowed = request.recursive !== false;
+  const maxPasses = isRecursiveAllowed ? Math.min(5, Math.max(1, request.maxRecursionDepth ?? 3)) : 1;
   const conditionContext = (request.conditionContext ?? {}) as VariableConditionContext;
 
   const getScanText = (depth: number): string => {
@@ -153,28 +185,85 @@ export function resolveSillyTavernWorldInfo(
   while (triggered && pass < maxPasses) {
     triggered = false;
     pass += 1;
+    const newEntriesInPass: LorebookEntry[] = [];
+
     for (const entry of entries) {
-      if (!entry.enabled || !entry.content || activeIds.has(entry.id)) continue;
+      if (activeIds.has(entry.id)) continue;
       if (!evaluateVariableCondition(entry.condition, conditionContext)) continue;
 
-      const delay = sourceNumber(entry, "delay_until_recursion", "delayUntilRecursion") ?? 0;
-      if (delay > pass) continue;
+      const isSticky = Boolean(timedState.sticky[entry.id] && currentTurn < timedState.sticky[entry.id].end);
+      const isCooldown = Boolean(timedState.cooldown[entry.id] && currentTurn < timedState.cooldown[entry.id].end);
+
+      // 冷却中且非强制 Sticky 时静默跳过
+      if (isCooldown && !isSticky) continue;
+
+      // 递归阶段特定过滤
+      if (pass > 1) {
+        const excludeRecursion = sourceBoolean(entry, "exclude_recursion", "excludeRecursion") ?? entry.excludeRecursion ?? false;
+        if (excludeRecursion && !isSticky) continue;
+
+        const delayUntil = sourceNumber(entry, "delay_until_recursion", "delayUntilRecursion") ?? entry.delayUntilRecursion ?? 0;
+        if (delayUntil > pass && !isSticky) continue;
+      }
 
       const isConstant = entry.constant || sourceBoolean(entry, "constant_active") === true;
-      const scanDepth = sourceNumber(entry, "scan_depth", "scanDepth") ?? entry.scanDepth ?? 10;
-      const scanText = getScanText(scanDepth);
-      const match = (key: string) => matchesKey(key, entry, scanText);
-      if (!isConstant && (scanDepth === 0 || !entry.keys.some(match) || !passesSecondaryKeys(entry, match))) continue;
+      let isTriggered = isConstant || isSticky;
 
-      const useProbability = sourceBoolean(entry, "useProbability", "use_probability") ?? true;
-      const probability = sourceNumber(entry, "probability") ?? entry.probability ?? 100;
-      if (useProbability && probability < 100 && Math.random() * 100 > probability) continue;
+      if (!isTriggered) {
+        const scanDepth = sourceNumber(entry, "scan_depth", "scanDepth") ?? entry.scanDepth ?? 10;
+        const scanText = getScanText(scanDepth);
+        const match = (key: string) => matchesKey(key, entry, scanText);
+        const hasMatch = scanDepth > 0 && entry.keys.some(match) && passesSecondaryKeys(entry, match);
 
-      activeEntries.push(entry);
-      activeIds.add(entry.id);
-      if (contributesToRecursion(entry)) recursionText += `\n${entry.content}`;
-      triggered = true;
+        if (hasMatch) {
+          const delayReq = sourceNumber(entry, "delay") ?? entry.delay ?? 0;
+          if (delayReq > 0) {
+            const currentCounter = (timedState.delayCounters[entry.id] ?? 0) + 1;
+            timedState.delayCounters[entry.id] = currentCounter;
+            if (currentCounter < delayReq) continue;
+            timedState.delayCounters[entry.id] = 0;
+          }
+
+          const useProbability = sourceBoolean(entry, "useProbability", "use_probability") ?? true;
+          const probability = sourceNumber(entry, "probability") ?? entry.probability ?? 100;
+          if (!useProbability || probability >= 100 || Math.random() * 100 <= probability) {
+            isTriggered = true;
+          }
+        }
+      }
+
+      if (isTriggered) {
+        activeEntries.push(entry);
+        activeIds.add(entry.id);
+        newEntriesInPass.push(entry);
+
+        // 如果新触发且具有 sticky 或 cooldown，设置时效
+        const stickyRounds = sourceNumber(entry, "sticky") ?? entry.sticky ?? 0;
+        const cooldownRounds = sourceNumber(entry, "cooldown") ?? entry.cooldown ?? 0;
+
+        if (stickyRounds > 0 && !timedState.sticky[entry.id]) {
+          timedState.sticky[entry.id] = { start: currentTurn, end: currentTurn + stickyRounds };
+        } else if (cooldownRounds > 0 && !timedState.sticky[entry.id] && !timedState.cooldown[entry.id]) {
+          timedState.cooldown[entry.id] = { start: currentTurn, end: currentTurn + cooldownRounds };
+        }
+      }
     }
+
+    // 仅当允许递归且本轮产生有效内容条目时，追加进后续轮次扫描缓冲
+    if (isRecursiveAllowed && newEntriesInPass.length > 0 && pass < maxPasses) {
+      for (const entry of newEntriesInPass) {
+        if (contributesToRecursion(entry)) {
+          recursionText += `\n${entry.content}`;
+          triggered = true;
+        }
+      }
+    }
+  }
+
+  // 同步时效状态给调用方
+  request.onUpdateTimedState?.(timedState);
+  if (request.conditionContext?.session) {
+    (request.conditionContext.session as Record<string, unknown>).timedWorldInfo = timedState;
   }
 
   let budgetUsed = 0;

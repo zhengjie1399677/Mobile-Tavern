@@ -11,11 +11,17 @@ export function checkPromptAssemblyAborted(...signals: Array<AbortSignal | undef
 }
 
 export function createLorebookSessionContext(chat: ChatSession): Record<string, unknown> {
+  const pluginState = chat.runtimePluginState?.["mobile-tavern.sillytavern-compat"];
+  const timedWorldInfo = pluginState && typeof pluginState === "object" && !Array.isArray(pluginState)
+    ? (pluginState as Record<string, unknown>).timedWorldInfo
+    : undefined;
+
   return {
     id: chat.id,
     title: chat.title,
     characterId: chat.characterId,
     messageCount: chat.messages?.length ?? 0,
     parentSessionId: chat.parentSessionId,
+    timedWorldInfo,
   };
 }
