@@ -101,12 +101,22 @@ const AppContext =
   createContext<AppContextType | undefined>(undefined);
 appContextRegistry[APP_CONTEXT_REGISTRY_KEY] = AppContext;
 
+const VALID_TABS: readonly TabType[] = [
+  "characters",
+  "community",
+  "chat",
+  "chat-history",
+  "workbench",
+  "settings",
+  "global-worldbook",
+  "playground",
+];
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace("#/", "");
-      const validTabs: TabType[] = ["characters", "chat", "chat-history", "settings", "global-worldbook", "playground"];
-      if (validTabs.includes(hash as TabType)) {
+      if (VALID_TABS.includes(hash as TabType)) {
         return hash as TabType;
       }
     }
@@ -151,8 +161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace("#/", "");
-      const validTabs: TabType[] = ["characters", "community", "chat", "chat-history", "settings", "global-worldbook", "playground"];
-      if (validTabs.includes(hash as TabType)) {
+      if (VALID_TABS.includes(hash as TabType)) {
         commitActiveTab(hash as TabType);
       }
     };
