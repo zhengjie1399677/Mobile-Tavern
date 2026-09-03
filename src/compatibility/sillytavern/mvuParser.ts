@@ -1,5 +1,8 @@
 /** SillyTavern Compatibility Runtime 的 MVU 解析入口。 */
-import { applyCharacterRegexScripts } from "../../utils/tavernHelper/mvuParser";
+import {
+  applySillyTavernRegexEngine,
+  type RegexEngineScript,
+} from "./regexEngine";
 
 export * from "../../utils/tavernHelper/mvuParser";
 
@@ -50,6 +53,9 @@ function mergeRegexScripts(...sources: unknown[]): unknown[] {
 export interface SillyTavernRegexTransformOptions {
   readonly globalRegexScripts?: readonly unknown[];
   readonly presetRegexScripts?: readonly unknown[];
+  readonly depth?: number;
+  readonly isEdit?: boolean;
+  readonly placement?: number;
 }
 
 /**
@@ -76,16 +82,18 @@ export function applySillyTavernRegexScripts(
     options.presetRegexScripts,
     extensions.regex_scripts,
   );
-  return applyCharacterRegexScripts(
+  return applySillyTavernRegexEngine(
     text,
+    mergedScripts as readonly RegexEngineScript[],
     {
-      ...characterRecord,
-      extensions: { ...extensions, regex_scripts: mergedScripts },
+      isAiMessage,
+      charName,
+      userName,
+      mode,
+      signal,
+      depth: options.depth,
+      isEdit: options.isEdit,
+      placement: options.placement,
     },
-    isAiMessage,
-    charName,
-    userName,
-    mode,
-    signal,
   );
 }

@@ -120,16 +120,23 @@ const FormattedText = memo(function FormattedText({
     compatibilityRenderer,
     scriptSecurityMode,
     compatibilityRuntime
-      ? (value) => compatibilityRuntime.transformText({
-        text: value,
-        character: activeCharacter ?? null,
-        mode: "display",
-        isAiMessage,
-        charName,
-        userName,
-        globalRegexScripts: context.settings.globalRegexScripts,
-        presetRegexScripts: context.settings.presetRegexScripts,
-      })
+      ? (value) => {
+        const totalMessages = activeSession?.messages?.length ?? 0;
+        const depth = messageIndex !== undefined && totalMessages > 0
+          ? Math.max(0, totalMessages - 1 - messageIndex)
+          : undefined;
+        return compatibilityRuntime.transformText({
+          text: value,
+          character: activeCharacter ?? null,
+          mode: "display",
+          isAiMessage,
+          charName,
+          userName,
+          depth,
+          globalRegexScripts: context.settings.globalRegexScripts,
+          presetRegexScripts: context.settings.presetRegexScripts,
+        });
+      }
       : undefined,
     activeSession?.id,
   );

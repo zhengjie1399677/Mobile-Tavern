@@ -18,6 +18,10 @@ import lodashGet from "lodash/get";
 import lodashSet from "lodash/set";
 import lodashUnset from "lodash/unset";
 import JSON5 from "json5";
+import {
+  applySillyTavernRegexEngine,
+  type RegexEngineScript,
+} from "../../compatibility/sillytavern/regexEngine";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // AbortSignal 协作式中断检查点（DESIGN-NOTE）
@@ -640,103 +644,25 @@ export function applyCharacterRegexScripts(
   charName?: string,
   userName?: string,
   mode?: "render" | "prompt" | "store",
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  depth?: number,
+  isEdit?: boolean,
 ): string {
   if (!text || !character) return text;
 
   const ext = character.extensions || {};
   const rawCharScripts = ext.regex_scripts;
-  const charRegexScripts = Array.isArray(rawCharScripts)
+  const charRegexScripts: RegexEngineScript[] = Array.isArray(rawCharScripts)
     ? rawCharScripts
     : (rawCharScripts && typeof rawCharScripts === "object" ? Object.values(rawCharScripts) : []);
 
-  let processed = text;
-
-  const finalCharName = charName || character.name || "";
-  const finalUserName = userName || "user";
-
-  console.log(`[applyCharacterRegexScripts] processing character: ${character.name}, text length: ${text.length}, scripts count: ${charRegexScripts.length}, isAiMessage: ${isAiMessage}, mode: ${mode || "default"}`);
-
-  for (const script of charRegexScripts) {
-    if (!script || script.disabled) continue;
-    checkAborted(signal);
-    // 按 mode 区分 markdownOnly / promptOnly 脚本的应用时机：
-    // - render: 渲染时应用 markdownOnly + 无标记脚本，跳过 promptOnly
-    // - prompt: 发送给AI时应用 promptOnly + 无标记脚本，跳过 markdownOnly
-    // - store: 存储时只应用无标记脚本，跳过 markdownOnly 和 promptOnly（保存原始内容）
-    // - 默认（无 mode）: 向后兼容，跳过 promptOnly，应用 markdownOnly + 无标记
-    if (mode === "store") {
-      if (script.promptOnly || script.markdownOnly) continue;
-    } else if (mode === "prompt") {
-      if (script.markdownOnly) continue;
-    } else {
-      if (script.promptOnly) continue;
-    }
-    
-    const placement = script.placement;
-    let isAllowedPlacement = true;
-    if (placement !== undefined && placement !== null) {
-      if (Array.isArray(placement)) {
-        if (placement.length > 0) {
-          const targetPlacement = isAiMessage === true ? 2 : (isAiMessage === false ? 1 : null);
-          if (targetPlacement !== null) {
-            if (!placement.includes(targetPlacement)) {
-              isAllowedPlacement = false;
-            }
-          } else {
-            if (!placement.includes(1) && !placement.includes(2)) {
-              isAllowedPlacement = false;
-            }
-          }
-        }
-      } else if (typeof placement === "number") {
-        const targetPlacement = isAiMessage === true ? 2 : (isAiMessage === false ? 1 : null);
-        if (targetPlacement !== null) {
-          if (placement !== targetPlacement) {
-            isAllowedPlacement = false;
-          }
-        } else {
-          if (placement !== 1 && placement !== 2) {
-            isAllowedPlacement = false;
-          }
-        }
-      }
-    }
-    if (!isAllowedPlacement) {
-      continue;
-    }
-    
-    let findRegexStr = script.findRegex;
-    const replaceString = script.replaceString || "";
-    if (!findRegexStr) continue;
-    
-    // 关键功能实现：支持 SillyTavern 标准的 "Substitute (raw)" 宏替换功能。
-    findRegexStr = findRegexStr
-      .replace(/\{\{char\}\}/gi, finalCharName)
-      .replace(/<BOT>/gi, finalCharName)
-      .replace(/\{\{user\}\}/gi, finalUserName)
-      .replace(/<USER>/gi, finalUserName);
-      
-    try {
-      let regex: RegExp;
-      const match = findRegexStr.match(/^\/(.*)\/([gimsuy]*)$/);
-      if (match) {
-        regex = new RegExp(match[1], match[2]);
-      } else {
-        regex = new RegExp(findRegexStr, "gi");
-      }
-      
-      const beforeLen = processed.length;
-      processed = processed.replace(regex, replaceString);
-      const afterLen = processed.length;
-      
-      if (beforeLen !== afterLen) {
-        console.log(`[applyCharacterRegexScripts] script: "${script.scriptName}", replaced! beforeLen: ${beforeLen}, afterLen: ${afterLen}`);
-      }
-    } catch (err) {
-      console.warn("[applyCharacterRegexScripts] Failed to apply regex:", findRegexStr, err);
-    }
-  }
-  
-  return processed;
+  return applySillyTavernRegexEngine(text, charRegexScripts, {
+    isAiMessage,
+    charName: charName || character.name || "",
+    userName: userName || "user",
+    mode,
+    signal,
+    depth,
+    isEdit,
+  });
 }

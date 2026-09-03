@@ -22,7 +22,7 @@ export interface PromptCompositionRuntimeParams {
   settings: UserSettings;
   triggeredLorebook: LorebookEntry[];
   recalledMemories: unknown[];
-  cleanHistoryContent?: (message: Message) => string;
+  cleanHistoryContent?: (message: Message, depth: number) => string;
 }
 
 /**
@@ -82,23 +82,26 @@ function mapHistory(
   messages: Message[],
   settings: UserSettings,
   character: CharacterCard,
-  cleanHistoryContent?: (message: Message) => string
+  cleanHistoryContent?: (message: Message, depth: number) => string
 ): PromptMessage[] {
-  return messages.map((message) => ({
-    role: message.sender === "assistant"
-      ? "assistant"
-      : message.sender === "system"
-        ? "system"
-        : "user",
-    content: cleanHistoryContent ? cleanHistoryContent(message) : message.content,
-    name: settings.api.sendNames
-      ? message.sender === "system"
-        ? undefined
-        : message.sender === "assistant"
-          ? sanitizeName(character.name || "char")
-          : sanitizeName(settings.userName || "user")
-      : undefined,
-  }));
+  return messages.map((message, index) => {
+    const depth = messages.length - 1 - index;
+    return {
+      role: message.sender === "assistant"
+        ? "assistant"
+        : message.sender === "system"
+          ? "system"
+          : "user",
+      content: cleanHistoryContent ? cleanHistoryContent(message, depth) : message.content,
+      name: settings.api.sendNames
+        ? message.sender === "system"
+          ? undefined
+          : message.sender === "assistant"
+            ? sanitizeName(character.name || "char")
+            : sanitizeName(settings.userName || "user")
+        : undefined,
+    };
+  });
 }
 
 function sanitizeName(value: string): string | undefined {

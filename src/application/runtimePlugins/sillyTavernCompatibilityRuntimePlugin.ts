@@ -365,6 +365,9 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
           {
             globalRegexScripts: request.globalRegexScripts,
             presetRegexScripts: request.presetRegexScripts,
+            depth: request.depth,
+            isEdit: request.isEdit,
+            placement: request.placement,
           },
         );
       },

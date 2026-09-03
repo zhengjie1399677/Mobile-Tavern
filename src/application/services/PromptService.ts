@@ -177,7 +177,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         settings,
         triggeredLorebook,
         recalledMemories,
-        cleanHistoryContent: (message) => {
+        cleanHistoryContent: (message, depth) => {
           if (!hasConfiguredRegexScripts(character, settings)) return message.content;
           return this.getCompatibilityRuntime()?.transformText({
             text: message.content,
@@ -186,6 +186,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
             charName: character.name,
             userName: settings.userName,
             mode: "prompt",
+            depth,
             signal: operationSignal,
             globalRegexScripts: settings.globalRegexScripts,
             presetRegexScripts: settings.presetRegexScripts,
@@ -987,11 +988,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
   }
 
   private getCompatibilityRuntime(): ICompatibilityRuntimeService | null {
-    if (
-      !this.kernel
-      || typeof this.kernel.hasService !== "function"
-      || !this.kernel.hasService(KernelServices.CompatibilityRuntime)
-    ) {
+    if (!this.kernel || typeof this.kernel.hasService !== "function" || !this.kernel.hasService(KernelServices.CompatibilityRuntime)) {
       return null;
     }
     return this.kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime);
