@@ -28,10 +28,10 @@ export default function WorkbenchTab(): React.JSX.Element {
   return (
     <div
       data-ui="workbench-tab"
-      className="relative flex flex-1 min-h-0 flex-col overflow-y-auto overflow-x-hidden bg-background pb-20 pt-2 px-3 text-foreground"
+      className="relative min-h-full space-y-3.5 px-3 pt-2 pb-14 text-foreground"
     >
-      {/* 🌟 真实毛玻璃底层：环境光晕与点阵画布 (Ambient Mesh Glow Orbs) */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      {/* 🌟 真实毛玻璃底层：环境光晕与点阵画布 (Fixed Ambient Mesh Glow Orbs) */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
         {/* 右上方幽紫环境光团 */}
         <div className="absolute -top-12 -right-12 h-72 w-72 rounded-full bg-purple-600/18 blur-[90px] animate-pulse" />
         {/* 左下方青蓝环境光团 */}
