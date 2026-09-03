@@ -3,14 +3,24 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import WorkbenchTab from "../../src/tabs/WorkbenchTab";
 import { HostCalendarWidget } from "../../src/components/workbench/HostCalendarWidget";
-import { TimeLapseVisualizerWidget } from "../../src/components/workbench/TimeLapseVisualizerWidget";
+import { ActivityRingsOrbitWidget } from "../../src/components/workbench/ActivityRingsOrbitWidget";
+import { TrendSparklineWaveWidget } from "../../src/components/workbench/TrendSparklineWaveWidget";
 import { HostStorageMetricsWidget } from "../../src/components/workbench/HostStorageMetricsWidget";
 
 // Mock useUnifiedApp
 vi.mock("../../src/UnifiedAppContext", () => ({
   useUnifiedApp: (selector: (state: any) => any) =>
     selector({
-      sessions: [{ id: "session-1", name: "Test Session" }],
+      sessions: [
+        {
+          id: "session-1",
+          name: "Test Session",
+          messages: [
+            { id: "m1", sender: "user", content: "Hello", timestamp: Date.now() },
+            { id: "m2", sender: "assistant", content: "Hi there!", timestamp: Date.now() },
+          ],
+        },
+      ],
       characters: [{ id: "char-1", name: "Test Char" }],
       showCustomAlert: vi.fn(),
       showCustomConfirm: vi.fn(),
@@ -39,16 +49,16 @@ vi.mock("../../src/application/useCases/toolPluginManagementUseCases", () => ({
 }));
 
 describe("WorkbenchTab (宿主工作台)", () => {
-  it("应该正确挂载工作台与其 4 个核心可视化小组件", () => {
+  it("应该正确挂载工作台与其核心纯可视化小组件", () => {
     render(<WorkbenchTab />);
     expect(screen.getByText("宿主工作台")).toBeInTheDocument();
     expect(screen.getByText("Host Engine Ready")).toBeInTheDocument();
     expect(screen.getByText("LOCAL TIME")).toBeInTheDocument();
   });
 
-  it("日历组件能够正常渲染并支持今天与月份切换", () => {
+  it("日历热力矩阵能够正常渲染并支持切换今天", () => {
     render(<HostCalendarWidget />);
-    expect(screen.getByText("系统时空日历")).toBeInTheDocument();
+    expect(screen.getByText("时空活跃热力日历")).toBeInTheDocument();
     expect(screen.getByText("今天")).toBeInTheDocument();
 
     const todayBtn = screen.getByText("今天");
@@ -56,16 +66,18 @@ describe("WorkbenchTab (宿主工作台)", () => {
     expect(todayBtn).toBeInTheDocument();
   });
 
-  it("时空流逝等待组件能够正常切换时长与计时状态", () => {
-    render(<TimeLapseVisualizerWidget />);
-    expect(screen.getByText("时空流逝与等待")).toBeInTheDocument();
-    expect(screen.getByText("5分")).toBeInTheDocument();
-    expect(screen.getByText("15分")).toBeInTheDocument();
-    expect(screen.getByText("25分")).toBeInTheDocument();
+  it("活跃流光罗盘能正常渲染双环与昼夜时相盘", () => {
+    render(<ActivityRingsOrbitWidget />);
+    expect(screen.getByText("宿主活跃脉搏")).toBeInTheDocument();
+    expect(screen.getByText("今日交互")).toBeInTheDocument();
+    expect(screen.getByText("会话深度")).toBeInTheDocument();
+    expect(screen.getByText("24H 昼夜分布")).toBeInTheDocument();
+  });
 
-    // 切换为 5 分钟预设
-    fireEvent.click(screen.getByText("5分"));
-    expect(screen.getByText("05:00")).toBeInTheDocument();
+  it("7日活跃波形图组件能正常渲染平滑流光波形", () => {
+    render(<TrendSparklineWaveWidget />);
+    expect(screen.getByText("7日活跃脉冲波形")).toBeInTheDocument();
+    expect(screen.getByText("近一周流动")).toBeInTheDocument();
   });
 
   it("本地存储指标组件能正常展示会话与实体统计", () => {

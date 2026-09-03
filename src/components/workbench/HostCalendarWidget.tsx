@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Flame } from "lucide-react";
+import { useActivityMetrics } from "./useActivityMetrics";
 
 interface HostCalendarWidgetProps {
   className?: string;
@@ -8,6 +9,8 @@ interface HostCalendarWidgetProps {
 export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ className = "" }) => {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+
+  const { dailyHeatmap, maxDailyCount } = useActivityMetrics();
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -18,11 +21,18 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
   ];
   const weekDays = ["日", "一", "二", "三", "四", "五", "六"];
 
-  // 计算当月日历网格
+  // 计算当月日历网格及每个日期的活跃度
   const calendarGrid = useMemo(() => {
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+    const formatDateKey = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
 
     const days: Array<{
       day: number;
@@ -30,20 +40,9 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
       date: Date;
       isToday: boolean;
       isSelected: boolean;
+      activityCount: number;
+      activityLevel: 0 | 1 | 2 | 3;
     }> = [];
-
-    // 上个月的补位天数
-    for (let i = firstDay - 1; i >= 0; i--) {
-      const d = daysInPrevMonth - i;
-      const date = new Date(year, month - 1, d);
-      days.push({
-        day: d,
-        isCurrentMonth: false,
-        date,
-        isToday: false,
-        isSelected: false,
-      });
-    }
 
     const today = new Date();
     const isSameDate = (d1: Date, d2: Date) =>
@@ -51,33 +50,65 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
       d1.getMonth() === d2.getMonth() &&
       d1.getDate() === d2.getDate();
 
-    // 当月天数
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(year, month, d);
-      days.push({
-        day: d,
-        isCurrentMonth: true,
-        date,
-        isToday: isSameDate(date, today),
-        isSelected: isSameDate(date, selectedDate),
-      });
-    }
+    const getActivityLevel = (count: number): 0 | 1 | 2 | 3 => {
+      if (count <= 0) return 0;
+      if (count <= 5) return 1;
+      if (count <= 15) return 2;
+      return 3;
+    };
 
-    // 下个月的补位天数（凑满 35 或 42 格）
-    const remaining = (7 - (days.length % 7)) % 7;
-    for (let d = 1; d <= remaining; d++) {
-      const date = new Date(year, month + 1, d);
+    // 上个月的补位天数
+    for (let i = firstDay - 1; i >= 0; i--) {
+      const d = daysInPrevMonth - i;
+      const date = new Date(year, month - 1, d);
+      const key = formatDateKey(date);
+      const count = dailyHeatmap.get(key) ?? 0;
       days.push({
         day: d,
         isCurrentMonth: false,
         date,
         isToday: false,
         isSelected: false,
+        activityCount: count,
+        activityLevel: getActivityLevel(count),
+      });
+    }
+
+    // 当月天数
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      const key = formatDateKey(date);
+      const count = dailyHeatmap.get(key) ?? 0;
+      days.push({
+        day: d,
+        isCurrentMonth: true,
+        date,
+        isToday: isSameDate(date, today),
+        isSelected: isSameDate(date, selectedDate),
+        activityCount: count,
+        activityLevel: getActivityLevel(count),
+      });
+    }
+
+    // 下个月的补位天数
+    const remaining = (7 - (days.length % 7)) % 7;
+    for (let d = 1; d <= remaining; d++) {
+      const date = new Date(year, month + 1, d);
+      const key = formatDateKey(date);
+      const count = dailyHeatmap.get(key) ?? 0;
+      days.push({
+        day: d,
+        isCurrentMonth: false,
+        date,
+        isToday: false,
+        isSelected: false,
+        activityCount: count,
+        activityLevel: getActivityLevel(count),
       });
     }
 
     return days;
-  }, [year, month, selectedDate]);
+  }, [year, month, selectedDate, dailyHeatmap]);
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -93,25 +124,34 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
     setSelectedDate(now);
   };
 
+  const selectedKey = useMemo(() => {
+    const y = selectedDate.getFullYear();
+    const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
+    const d = String(selectedDate.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }, [selectedDate]);
+
+  const selectedCount = dailyHeatmap.get(selectedKey) ?? 0;
+
   return (
     <div
       data-ui="host-calendar-widget"
       className={`relative overflow-hidden rounded-2xl border border-white/10 bg-card/40 p-4 backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] transition-all ${className}`}
     >
       {/* 顶部晶体高光线 */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent" />
 
       {/* 头部标题与月份切换 */}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15 text-primary">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-400">
             <CalendarIcon className="h-4 w-4" />
           </div>
           <div>
             <h3 className="text-xs font-bold tracking-tight text-foreground">
               {year} 年 {monthNames[month]}
             </h3>
-            <p className="text-[10px] text-muted-foreground">系统时空日历</p>
+            <p className="text-[10px] text-muted-foreground">时空活跃热力日历</p>
           </div>
         </div>
 
@@ -148,7 +188,7 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
           <span
             key={w}
             className={`text-[10px] font-medium ${
-              idx === 0 || idx === 6 ? "text-primary/70" : "text-muted-foreground/80"
+              idx === 0 || idx === 6 ? "text-cyan-400/80" : "text-muted-foreground/80"
             }`}
           >
             {w}
@@ -156,19 +196,36 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
         ))}
       </div>
 
-      {/* 日期网格 */}
+      {/* 日期热力网格 */}
       <div className="grid grid-cols-7 gap-1 text-center">
         {calendarGrid.map((item, index) => {
           let cellStyle = "text-muted-foreground/30 hover:bg-white/5";
+          let glowDot = null;
+
           if (item.isCurrentMonth) {
             if (item.isSelected) {
               cellStyle =
-                "bg-primary text-primary-foreground font-bold shadow-[0_0_12px_rgba(139,92,246,0.6)]";
+                "border border-cyan-400 bg-cyan-500/20 text-cyan-200 font-bold shadow-[0_0_12px_rgba(6,182,212,0.5)]";
             } else if (item.isToday) {
               cellStyle =
-                "border border-cyan-400/50 bg-cyan-500/15 text-cyan-300 font-bold shadow-[0_0_8px_rgba(6,182,212,0.3)]";
+                "border border-white/30 bg-white/10 text-foreground font-bold shadow-[0_0_8px_rgba(255,255,255,0.2)]";
             } else {
-              cellStyle = "text-foreground/90 hover:bg-white/10 hover:text-foreground";
+              cellStyle = "text-foreground/90 hover:bg-white/10";
+            }
+
+            // 纯图表化热力微光点表达活跃度
+            if (item.activityLevel === 1) {
+              glowDot = (
+                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-cyan-400 shadow-[0_0_4px_#22d3ee]" />
+              );
+            } else if (item.activityLevel === 2) {
+              glowDot = (
+                <span className="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_#818cf8]" />
+              );
+            } else if (item.activityLevel === 3) {
+              glowDot = (
+                <span className="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-gradient-to-tr from-cyan-400 to-purple-400 shadow-[0_0_8px_#c084fc] animate-pulse" />
+              );
             }
           }
 
@@ -182,23 +239,41 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
                   setSelectedDate(item.date);
                 }
               }}
-              className={`flex h-7.5 w-full items-center justify-center rounded-lg text-xs transition-all active:scale-95 ${cellStyle}`}
+              className={`relative flex h-8 w-full flex-col items-center justify-center rounded-lg text-xs transition-all active:scale-95 ${cellStyle}`}
             >
-              <span>{item.day}</span>
+              <span className={glowDot ? "-translate-y-0.5" : ""}>{item.day}</span>
+              {glowDot}
             </button>
           );
         })}
       </div>
 
-      {/* 底部选中日期状态 */}
-      <div className="mt-2.5 flex items-center justify-between border-t border-white/5 pt-2 text-[10px] text-muted-foreground">
-        <span>
-          选中：{selectedDate.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}
-        </span>
-        <span className="flex items-center gap-1 text-cyan-400/90 font-mono">
-          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          系统时钟同步
-        </span>
+      {/* 底部热力渐变标尺 (纯图表表达，无文字冗余) */}
+      <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <Flame className="h-3 w-3 text-cyan-400" />
+          <div className="flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-white/20" title="无活跃" />
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_4px_#22d3ee]" title="轻度" />
+            <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_#818cf8]" title="活跃" />
+            <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shadow-[0_0_8px_#c084fc]" title="密集" />
+          </div>
+        </div>
+
+        {/* 选中项的纯图表光环量感 */}
+        <div className="flex items-center gap-2 font-mono">
+          <span className="text-[10px] text-muted-foreground/80">
+            {selectedDate.getMonth() + 1}月{selectedDate.getDate()}日
+          </span>
+          <div className="flex h-2 w-16 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400 transition-all duration-300"
+              style={{
+                width: `${Math.min(100, Math.max(selectedCount > 0 ? 15 : 0, (selectedCount / Math.max(maxDailyCount, 1)) * 100))}%`,
+              }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
