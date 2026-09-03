@@ -12,6 +12,7 @@ import {
   Loader2,
   Play,
   AudioWaveform,
+  Terminal,
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
@@ -29,6 +30,7 @@ import {
 import { resolveBuiltinProviderId } from "@/src/application/runtimePlugins/agentSpineRuntimePlugin";
 import { getSessionRuntimeProfileId } from "@/src/application/useCases/runtimeProfileSession";
 import {
+  BUILTIN_COMPOSER_COMMANDS,
   filterComposerCommandSuggestions,
   resolveComposerCommandInvocation,
 } from "@/src/application/useCases/composerCommandUseCases";
@@ -87,6 +89,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     triggerScroll,
     getKernelService,
     messageHydrationStatus,
+    handleStartNewSession,
+    createNewBranch,
+    handleAutoSummaryCheck,
+    showCustomConfirm,
   } = useUnifiedApp((state) => ({
     isSending: state.isSending,
     setIsSending: state.setIsSending,
@@ -108,6 +114,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     triggerScroll: state.triggerScroll,
     getKernelService: state.getKernelService,
     messageHydrationStatus: state.messageHydrationStatus,
+    handleStartNewSession: state.handleStartNewSession,
+    createNewBranch: state.createNewBranch,
+    handleAutoSummaryCheck: state.handleAutoSummaryCheck,
+    showCustomConfirm: state.showCustomConfirm,
   }));
   const compatibilityVariables = activeSession
     ? getKernelService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
@@ -432,22 +442,126 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     [activeSession],
   );
   const composerCommands = React.useMemo<ToolPluginComposerCommand[]>(() => {
-    if (!composerProfileId) return [];
-    try {
-      return getKernelService<IToolPluginRuntimeService>(KernelServices.ToolConnectors)
-        .listComposerCommands(composerProfileId);
-    } catch {
-      // Tool Plugin Runtime 是可降级服务；缺失时输入框维持普通文本行为。
-      return [];
+    let pluginCommands: ToolPluginComposerCommand[] = [];
+    if (composerProfileId) {
+      try {
+        pluginCommands = getKernelService<IToolPluginRuntimeService>(KernelServices.ToolConnectors)
+          .listComposerCommands(composerProfileId);
+      } catch {
+        // Tool Plugin Runtime 是可降级服务；缺失时输入框维持普通文本行为。
+        pluginCommands = [];
+      }
     }
+    const map = new Map<string, ToolPluginComposerCommand>();
+    for (const cmd of BUILTIN_COMPOSER_COMMANDS) {
+      map.set(cmd.name, cmd);
+    }
+    for (const cmd of pluginCommands) {
+      map.set(cmd.name, cmd);
+    }
+    return Array.from(map.values());
   }, [composerProfileId, getKernelService]);
   const composerCommandSuggestions = filterComposerCommandSuggestions(localInput, composerCommands);
+  const [selectedCommandIndex, setSelectedCommandIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    setSelectedCommandIndex(0);
+  }, [localInput]);
 
   const executeComposerCommand = React.useCallback(async (
     command: ToolPluginComposerCommand,
     argument: string,
   ): Promise<void> => {
-    if (!activeSession || !composerProfileId || isExecutingComposerCommand) return;
+    if (!activeSession || isExecutingComposerCommand) return;
+
+    if (command.pluginId === "host.builtin") {
+      switch (command.name) {
+        case "continue": {
+          setLocalInput("");
+          setUserInputMessage("");
+          setReplySuggestions([]);
+          await handleSendMessage(t("chat_input.continue"));
+          return;
+        }
+        case "reroll": {
+          setLocalInput("");
+          setUserInputMessage("");
+          setReplySuggestions([]);
+          await handleRerollLast();
+          return;
+        }
+        case "clear": {
+          const confirmed = await showCustomConfirm(
+            "确认清空当前对话记录并开启新一轮会话吗？此操作不可撤销。",
+            "清空会话",
+          );
+          if (confirmed) {
+            setLocalInput("");
+            setUserInputMessage("");
+            setReplySuggestions([]);
+            await handleStartNewSession();
+          }
+          return;
+        }
+        case "branch": {
+          setLocalInput("");
+          setUserInputMessage("");
+          setReplySuggestions([]);
+          await createNewBranch();
+          return;
+        }
+        case "sys": {
+          if (!argument) {
+            const nextInput = "/sys ";
+            setLocalInput(nextInput);
+            setUserInputMessage(nextInput);
+            requestAnimationFrame(() => textareaRef.current?.focus());
+            return;
+          }
+          setLocalInput("");
+          setUserInputMessage("");
+          setReplySuggestions([]);
+          await handleSendMessage(`[系统状态/旁白]: ${argument}`);
+          return;
+        }
+        case "send":
+        case "say": {
+          if (!argument) {
+            const nextInput = `/${command.name} `;
+            setLocalInput(nextInput);
+            setUserInputMessage(nextInput);
+            requestAnimationFrame(() => textareaRef.current?.focus());
+            return;
+          }
+          setLocalInput("");
+          setUserInputMessage("");
+          setReplySuggestions([]);
+          await handleSendMessage(argument);
+          return;
+        }
+        case "memo": {
+          setLocalInput("");
+          setUserInputMessage("");
+          setReplySuggestions([]);
+          await handleAutoSummaryCheck(activeSession, true);
+          await showCustomAlert("已立即触发当前会话的历史摘要与长期记忆提炼。", "记忆提取");
+          return;
+        }
+        case "help": {
+          setLocalInput("");
+          setUserInputMessage("");
+          setReplySuggestions([]);
+          const helpLines = composerCommands.map(
+            (cmd) => `/${cmd.name}${cmd.acceptsArgument ? " <参数>" : ""} - ${cmd.label}：${cmd.description}`
+          );
+          await showCustomAlert(helpLines.join("\n\n"), "斜杠命令列表与说明");
+          return;
+        }
+      }
+      return;
+    }
+
+    if (!composerProfileId) return;
     if (command.acceptsArgument && !argument) {
       await showCustomAlert(`/${command.name} 需要在命令后输入参数。`, "命令参数缺失");
       return;
@@ -477,13 +591,21 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     }
   }, [
     activeSession,
+    composerCommands,
     composerProfileId,
+    createNewBranch,
     getKernelService,
+    handleAutoSummaryCheck,
+    handleRerollLast,
+    handleSendMessage,
+    handleStartNewSession,
     isExecutingComposerCommand,
     setLocalInput,
     setReplySuggestions,
     setUserInputMessage,
     showCustomAlert,
+    showCustomConfirm,
+    t,
   ]);
 
   const executeComposerCommandIfPresent = React.useCallback(async (): Promise<boolean> => {
@@ -767,33 +889,60 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         </div>
       )}
       {!isSending && composerCommandSuggestions.length > 0 && (
-        <div className="chat-composer-popover flex w-full max-w-3xl flex-col gap-1 rounded-2xl p-2 animate-fadeIn">
-          <div className="px-1 text-xs font-medium text-muted-foreground">输入框命令</div>
-          {composerCommandSuggestions.map((command) => (
-            <button
-              key={`${command.pluginId}:${command.name}`}
-              type="button"
-              disabled={isExecutingComposerCommand}
-              onClick={() => {
-                if (command.acceptsArgument) {
-                  const nextInput = `/${command.name} `;
-                  setLocalInput(nextInput);
-                  setUserInputMessage(nextInput);
-                  requestAnimationFrame(() => textareaRef.current?.focus());
-                } else {
-                  void executeComposerCommand(command, "");
-                }
-              }}
-              className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-primary/10 active:scale-[0.99] disabled:opacity-50"
-            >
-              <span className="shrink-0 font-mono text-sm font-semibold text-primary">/{command.name}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-medium text-foreground">{command.label}</span>
-                <span className="block truncate text-[10px] text-muted-foreground">{command.description}</span>
-              </span>
-              {isExecutingComposerCommand && <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />}
-            </button>
-          ))}
+        <div className="chat-composer-popover flex w-full max-w-3xl flex-col gap-1 rounded-2xl p-2 animate-fadeIn shadow-2xl border border-primary/20 backdrop-blur-xl">
+          <div className="flex items-center justify-between px-1.5 py-0.5 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground flex items-center gap-1.5">
+              <Terminal className="size-3.5 text-primary" />
+              斜杠命令
+            </span>
+            <span className="text-[10px] text-muted-foreground/80 font-mono">
+              ↑↓ 切换 · Enter / 点击 选取 · Esc 取消
+            </span>
+          </div>
+          <div className="max-h-60 overflow-y-auto space-y-0.5 pr-0.5">
+            {composerCommandSuggestions.map((command, idx) => {
+              const isSelected = idx === selectedCommandIndex;
+              return (
+                <button
+                  key={`${command.pluginId}:${command.name}`}
+                  type="button"
+                  disabled={isExecutingComposerCommand}
+                  onClick={() => {
+                    if (command.acceptsArgument) {
+                      const nextInput = `/${command.name} `;
+                      setLocalInput(nextInput);
+                      setUserInputMessage(nextInput);
+                      requestAnimationFrame(() => textareaRef.current?.focus());
+                    } else {
+                      void executeComposerCommand(command, "");
+                    }
+                  }}
+                  onMouseEnter={() => setSelectedCommandIndex(idx)}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition ${
+                    isSelected
+                      ? "bg-primary/15 border border-primary/30 shadow-sm text-primary"
+                      : "hover:bg-muted/50 border border-transparent text-foreground"
+                  } active:scale-[0.99] disabled:opacity-50`}
+                >
+                  <span className="shrink-0 font-mono text-sm font-semibold text-primary">/{command.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-xs font-semibold">{command.label}</span>
+                      {command.pluginId === "host.builtin" ? (
+                        <span className="rounded bg-primary/10 px-1 py-0.2 text-[8px] font-medium text-primary">内置</span>
+                      ) : (
+                        <span className="rounded bg-muted px-1 py-0.2 text-[8px] font-medium text-muted-foreground font-mono">插件</span>
+                      )}
+                    </span>
+                    <span className="block truncate text-[10px] text-muted-foreground">{command.description}</span>
+                  </span>
+                  {isExecutingComposerCommand && isSelected && (
+                    <Loader2 className="size-4 shrink-0 animate-spin text-primary" aria-hidden="true" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
       <PendingAttachmentStrip
@@ -811,12 +960,51 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           quickActionsVisible={showQuickActions}
           onSelect={handleSelectAttachments}
           onToggleQuickActions={() => setShowQuickActions((current) => !current)}
+          onTriggerSlash={() => {
+            setLocalInput("/");
+            setUserInputMessage("/");
+            requestAnimationFrame(() => textareaRef.current?.focus());
+          }}
         />
         <textarea
           ref={textareaRef}
           value={localInput}
           onChange={(e) => setLocalInput(e.target.value)}
           onKeyDown={(e) => {
+            if (composerCommandSuggestions.length > 0) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSelectedCommandIndex((prev) => (prev + 1) % composerCommandSuggestions.length);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSelectedCommandIndex((prev) => (prev - 1 + composerCommandSuggestions.length) % composerCommandSuggestions.length);
+                return;
+              }
+              if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                const targetCmd = composerCommandSuggestions[selectedCommandIndex] || composerCommandSuggestions[0];
+                if (targetCmd) {
+                  e.preventDefault();
+                  if (targetCmd.acceptsArgument) {
+                    const nextInput = `/${targetCmd.name} `;
+                    setLocalInput(nextInput);
+                    setUserInputMessage(nextInput);
+                    requestAnimationFrame(() => textareaRef.current?.focus());
+                  } else {
+                    void executeComposerCommand(targetCmd, "");
+                  }
+                  return;
+                }
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setLocalInput("");
+                setUserInputMessage("");
+                return;
+              }
+            }
+
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               if (settings.enableMultiMessageQueue) {

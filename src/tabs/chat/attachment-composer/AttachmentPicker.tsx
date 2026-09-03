@@ -4,6 +4,7 @@ import {
   ImagePlus,
   Plus,
   SlidersHorizontal,
+  Terminal,
   Video,
 } from "lucide-react";
 import type { AttachmentKind } from "../../../domain/attachments/types";
@@ -15,6 +16,7 @@ interface AttachmentPickerProps {
   quickActionsVisible: boolean;
   onSelect: (files: readonly File[]) => void;
   onToggleQuickActions: () => void;
+  onTriggerSlash?: () => void;
 }
 interface AttachmentChoice {
   kind: Extract<AttachmentKind, "image" | "audio" | "video">;
@@ -51,6 +53,7 @@ export function AttachmentPicker({
   quickActionsVisible,
   onSelect,
   onToggleQuickActions,
+  onTriggerSlash,
 }: AttachmentPickerProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   const inputRefs = React.useRef<Partial<Record<AttachmentChoice["kind"], HTMLInputElement>>>({});
@@ -92,7 +95,9 @@ export function AttachmentPicker({
           id="attachment-source-menu"
           role="menu"
           aria-label="添加内容与输入工具"
-          className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 grid w-full grid-cols-4 gap-1 rounded-2xl border border-border/70 bg-popover p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2"
+          className={`absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 grid w-full ${
+            onTriggerSlash ? "grid-cols-5" : "grid-cols-4"
+          } gap-1 rounded-2xl border border-border/70 bg-popover p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2`}
         >
           <button
             type="button"
@@ -111,6 +116,20 @@ export function AttachmentPicker({
             <SlidersHorizontal className="size-3.5" aria-hidden="true" />
             <span>快捷栏</span>
           </button>
+          {onTriggerSlash && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onTriggerSlash();
+                setOpen(false);
+              }}
+              className="flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+            >
+              <Terminal className="size-3.5" aria-hidden="true" />
+              <span>命令 /</span>
+            </button>
+          )}
           {CHOICES.map((choice) => {
             const Icon = choice.icon;
             return (

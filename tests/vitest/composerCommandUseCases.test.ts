@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUILTIN_COMPOSER_COMMANDS,
   filterComposerCommandSuggestions,
+  normalizeSlashInput,
   resolveComposerCommandInvocation,
 } from "../../src/application/useCases/composerCommandUseCases";
 import type { ToolPluginComposerCommand } from "../../src/domain/toolPlugins";
@@ -42,5 +44,38 @@ describe("Composer Command Use Cases", () => {
     expect(filterComposerCommandSuggestions("/t", commands)).toEqual([commands[1]]);
     expect(filterComposerCommandSuggestions("/echo 参数", commands)).toEqual([]);
     expect(filterComposerCommandSuggestions("普通文本", commands)).toEqual([]);
+  });
+
+  it("只输入斜杠 / 时应该完整列出所有候选命令", () => {
+    expect(filterComposerCommandSuggestions("/", commands)).toEqual(commands);
+  });
+
+  it("兼容全角斜杠（中文输入法／）的唤起与命令解析", () => {
+    expect(normalizeSlashInput("／")).toBe("/");
+    expect(normalizeSlashInput("／time")).toBe("/time");
+    expect(filterComposerCommandSuggestions("／t", commands)).toEqual([commands[1]]);
+    expect(resolveComposerCommandInvocation("／echo 测试内容", commands)).toEqual({
+      command: commands[0],
+      argument: "测试内容",
+    });
+  });
+
+  it("内置宿主命令清单 BUILTIN_COMPOSER_COMMANDS 完备且包含常用对话控制", () => {
+    const builtinNames = BUILTIN_COMPOSER_COMMANDS.map((c) => c.name);
+    expect(builtinNames).toContain("continue");
+    expect(builtinNames).toContain("reroll");
+    expect(builtinNames).toContain("clear");
+    expect(builtinNames).toContain("branch");
+    expect(builtinNames).toContain("sys");
+    expect(builtinNames).toContain("memo");
+    expect(builtinNames).toContain("help");
+    expect(builtinNames).toContain("send");
+    expect(builtinNames).toContain("say");
+
+    // 默认内置命令全部属于 host.builtin 命名空间
+    for (const cmd of BUILTIN_COMPOSER_COMMANDS) {
+      expect(cmd.pluginId).toBe("host.builtin");
+      expect(cmd.toolName).toMatch(/^host\.builtin\./);
+    }
   });
 });
