@@ -15,7 +15,7 @@ import {
 } from "../../../components/ui/select";
 import { compressImage } from "../../utils/imageCompressor";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
-import { Upload, Download, Trash2, Check, Plus, Edit, Globe } from "lucide-react";
+import { Upload, Download, Trash2, Check, Plus, Edit, Globe, Sparkles } from "lucide-react";
 import {
   applyThemePackage,
   detectCriticalNavigationHiding,
@@ -235,6 +235,70 @@ export default function ThemeConfigSection({
             />
             <div className="checkBox-transition" />
           </label>
+        </section>
+
+        {/* 背景流光与毛玻璃强度调节 (拉到最左即为纯色模式) */}
+        <section data-ui="ambient-glow-intensity-settings" className="mb-4 rounded-xl border border-border/60 bg-card/35 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Sparkles className="w-4 h-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-foreground">
+                  背景流光与透光强度
+                </h4>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {(settings.ambientGlowIntensity ?? 0.6) === 0
+                    ? "当前为完全纯色模式（已关闭所有流光）"
+                    : "调节全局环境光晕明度；拉到最左（0%）即为完全纯色"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="font-mono text-xs font-bold text-primary">
+                {Math.round((settings.ambientGlowIntensity ?? 0.6) * 100)}%
+              </span>
+              {(settings.ambientGlowIntensity ?? 0.6) > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => updateSettings(prev => ({ ...prev, ambientGlowIntensity: 0 }))}
+                  className="rounded-md border border-border/60 bg-card/50 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground active:scale-95"
+                  title="一键切换为纯色背景"
+                >
+                  一键纯色
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => updateSettings(prev => ({ ...prev, ambientGlowIntensity: 0.6 }))}
+                  className="rounded-md border border-primary/40 bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/25 active:scale-95"
+                  title="恢复默认流光"
+                >
+                  恢复流光
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <span className="text-[10px] font-medium text-muted-foreground shrink-0">
+              0% 纯色
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={Math.round((settings.ambientGlowIntensity ?? 0.6) * 100)}
+              onChange={(e) => {
+                const val = Number(e.target.value) / 100;
+                updateSettings(prev => ({ ...prev, ambientGlowIntensity: val }));
+              }}
+              className="h-1.5 flex-1 cursor-pointer appearance-none rounded-lg bg-white/10 accent-primary"
+            />
+            <span className="text-[10px] font-medium text-muted-foreground shrink-0">
+              100% 饱满
+            </span>
+          </div>
         </section>
 
         {/* 多语言切换 (Interface Language) */}

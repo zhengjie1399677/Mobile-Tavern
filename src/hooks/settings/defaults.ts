@@ -516,4 +516,5 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
   lastBackupTime: 0,
   enableFloatingCharacter: false,
+  ambientGlowIntensity: 0.6,
 };

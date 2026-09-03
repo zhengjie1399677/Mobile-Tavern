@@ -416,6 +416,7 @@ export interface UserSettings {
   hiddenMainTabs?: string[]; // 仅隐藏底栏入口；角色与设置为恢复入口，不能隐藏
   themeMediaEnabled?: boolean; // 用户明确允许主题播放本地音视频；默认关闭
   enableFloatingCharacter?: boolean; // 启用应用内悬浮角色助手（显示当前角色立绘 + 情绪 + 聊天气泡）
+  ambientGlowIntensity?: number; // 背景流光与毛玻璃强度 (0~1，0 为完全纯色模式)
 }
 
 export interface ImageGenApiConfig {

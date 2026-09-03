@@ -235,15 +235,21 @@ export default function MainLayout() {
           mediaEnabled={settings.themeMediaEnabled ?? false}
         />
 
-        {/* 全局环境光晕：为全站提供平滑、纯净的流体透光背景（无点阵噪点，点阵仅保留在工作台） */}
-        <div className="pointer-events-none fixed inset-0 overflow-hidden z-0" aria-hidden="true">
-          <div className="absolute -top-12 -right-12 h-80 w-80 rounded-full bg-purple-600/18 blur-[90px] animate-pulse" />
+        {/* 全局环境光晕：由 settings.ambientGlowIntensity 动态调节，拉到最低 0 时完全关闭呈现纯色模式 */}
+        {(settings.ambientGlowIntensity ?? 0.6) > 0 && (
           <div
-            className="absolute top-96 -left-16 h-88 w-88 rounded-full bg-cyan-500/16 blur-[100px] animate-pulse"
-            style={{ animationDuration: "4s" }}
-          />
-          <div className="absolute -bottom-10 right-10 h-72 w-72 rounded-full bg-indigo-500/14 blur-[90px]" />
-        </div>
+            className="pointer-events-none fixed inset-0 overflow-hidden z-0 transition-opacity duration-300"
+            style={{ opacity: settings.ambientGlowIntensity ?? 0.6 }}
+            aria-hidden="true"
+          >
+            <div className="absolute -top-12 -right-12 h-80 w-80 rounded-full bg-purple-600/28 blur-[90px] animate-pulse" />
+            <div
+              className="absolute top-96 -left-16 h-88 w-88 rounded-full bg-cyan-500/24 blur-[100px] animate-pulse"
+              style={{ animationDuration: "4s" }}
+            />
+            <div className="absolute -bottom-10 right-10 h-72 w-72 rounded-full bg-indigo-500/22 blur-[90px]" />
+          </div>
+        )}
 
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
         {activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive && (
@@ -252,7 +258,11 @@ export default function MainLayout() {
             aria-label="底栏导航页签"
             data-ui="main-tab-bar"
             style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
-            className="absolute left-2.5 right-2.5 h-12 rounded-2xl bg-card/45 backdrop-blur-2xl border border-white/12 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transition-all"
+            className={`absolute left-2.5 right-2.5 h-12 rounded-2xl border border-white/12 flex items-center justify-around z-20 shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transition-all ${
+              (settings.ambientGlowIntensity ?? 0.6) > 0
+                ? "bg-card/45 backdrop-blur-2xl"
+                : "bg-card"
+            }`}
           >
             {bottomBarTabs.map((tab, index) => {
               const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as LucideIcon;
