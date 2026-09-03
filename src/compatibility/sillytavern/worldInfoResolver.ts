@@ -107,7 +107,12 @@ function contributesToRecursion(entry: LorebookEntry): boolean {
 }
 
 function passesSecondaryKeys(entry: LorebookEntry, match: (key: string) => boolean): boolean {
-  const keys = entry.secondary_keys ?? [];
+  const rawKeys = entry.secondary_keys;
+  const keys = Array.isArray(rawKeys)
+    ? rawKeys
+    : typeof rawKeys === "string"
+      ? (rawKeys as string).split(",").map((k) => k.trim()).filter(Boolean)
+      : [];
   if (keys.length === 0) return true;
   const matched = keys.map(match);
   switch (selectiveLogic(entry)) {

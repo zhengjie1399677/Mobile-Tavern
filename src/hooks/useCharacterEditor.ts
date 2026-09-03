@@ -171,6 +171,14 @@ export const useCharacterEditor = () => {
               .map((k) => k.trim())
               .filter(Boolean)
           : [],
+      secondary_keys: Array.isArray(editingLoreEntry.secondary_keys)
+        ? editingLoreEntry.secondary_keys
+        : typeof editingLoreEntry.secondary_keys === "string"
+          ? (editingLoreEntry.secondary_keys as string)
+              .split(",")
+              .map((k) => k.trim())
+              .filter(Boolean)
+          : undefined,
       content: editingLoreEntry.content.trim(),
       constant: !!editingLoreEntry.constant,
       disabled: !!editingLoreEntry.disabled,
@@ -227,6 +235,14 @@ export const useCharacterEditor = () => {
         editingActiveCharLoreEntry.id ||
         "le_" + Math.random().toString(36).substring(2, 9),
       keys: keysArr,
+      secondary_keys: Array.isArray(editingActiveCharLoreEntry.secondary_keys)
+        ? editingActiveCharLoreEntry.secondary_keys
+        : typeof editingActiveCharLoreEntry.secondary_keys === "string"
+          ? (editingActiveCharLoreEntry.secondary_keys as string)
+              .split(",")
+              .map((k) => k.trim())
+              .filter(Boolean)
+          : undefined,
       content: editingActiveCharLoreEntry.content.trim(),
       constant: !!editingActiveCharLoreEntry.constant,
       disabled: !!editingActiveCharLoreEntry.disabled,
