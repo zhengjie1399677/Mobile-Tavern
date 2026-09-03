@@ -235,7 +235,7 @@ export default function MainLayout() {
           mediaEnabled={settings.themeMediaEnabled ?? false}
         />
 
-        {/* 全局环境光晕与点阵画布：为全站所有页面的毛玻璃（底栏、顶栏、卡片）提供真实透光背景 */}
+        {/* 全局环境光晕：为全站提供平滑、纯净的流体透光背景（无点阵噪点，点阵仅保留在工作台） */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden z-0" aria-hidden="true">
           <div className="absolute -top-12 -right-12 h-80 w-80 rounded-full bg-purple-600/18 blur-[90px] animate-pulse" />
           <div
@@ -243,13 +243,6 @@ export default function MainLayout() {
             style={{ animationDuration: "4s" }}
           />
           <div className="absolute -bottom-10 right-10 h-72 w-72 rounded-full bg-indigo-500/14 blur-[90px]" />
-          <div
-            className="absolute inset-0 opacity-[0.035] dark:opacity-[0.06]"
-            style={{
-              backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)",
-              backgroundSize: "16px 16px",
-            }}
-          />
         </div>
 
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
