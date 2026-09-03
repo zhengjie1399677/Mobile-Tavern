@@ -15,7 +15,9 @@ import {
 } from "../../../components/ui/select";
 import { compressImage } from "../../utils/imageCompressor";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
-import { Upload, Download, Trash2, Check, Plus, Edit, Globe, Sparkles } from "lucide-react";
+import { Upload, Download, Trash2, Check, Plus, Edit, Globe, Sparkles, FolderArchive } from "lucide-react";
+import { importThemeZipPackage, exportThemeZipPackage } from "../../domain/themes/themeZipPackage";
+import { KernelServices, type ILocalResourceService } from "../../application/serviceContracts";
 import {
   applyThemePackage,
   detectCriticalNavigationHiding,
@@ -89,12 +91,55 @@ export default function ThemeConfigSection({
   // 主题包导入 / 导出 / 删除 / 应用
   // ──────────────────────────────────────────────────────────────────────────
 
-  /** 导入主题包：读取 .tavern-theme.json，校验后写入 settings.customThemes */
+  /** 导入主题包：支持 .tavern-theme.json 与包含多媒体资源的 .zip / .tavern-theme.zip 压缩包 */
   const handleImportTheme = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     // 重置 input value 允许重复导入同一文件
     e.target.value = "";
+
+    const isZip = file.name.toLowerCase().endsWith(".zip") ||
+      file.name.toLowerCase().endsWith(".tavern-theme.zip") ||
+      file.type === "application/zip" ||
+      file.type === "application/x-zip-compressed";
+
+    if (isZip) {
+      try {
+        const localResourceService = kernel.getService<ILocalResourceService>(KernelServices.LocalResources);
+        const arrayBuffer = await file.arrayBuffer();
+        const { theme: pkg, importedResourcesCount } = await importThemeZipPackage(arrayBuffer, localResourceService);
+
+        const navigationRisks = detectCriticalNavigationHiding(pkg.customCss ?? "");
+        if (navigationRisks.length > 0) {
+          const confirmed = await showCustomConfirm(
+            `检测到主题 CSS 可能隐藏${navigationRisks.join("、")}。应用后可能无法进入角色页或设置页恢复主题，仍要导入吗？`,
+            "导航恢复风险",
+          );
+          if (!confirmed) return;
+        }
+
+        const existingIdx = customThemes.findIndex(t => t.id === pkg.id);
+        let nextThemes: CustomThemePackage[];
+        if (existingIdx >= 0) {
+          nextThemes = [...customThemes];
+          nextThemes[existingIdx] = pkg;
+        } else {
+          nextThemes = [...customThemes, pkg];
+        }
+        updateSettings({ ...settings, customThemes: nextThemes });
+        applyThemePackage(pkg);
+        await showCustomAlert(
+          `主题「${pkg.name}」v${pkg.version} 压缩包导入成功！共自动收录 ${importedResourcesCount} 个关联多媒体素材。${existingIdx >= 0 ? "（已覆盖同名旧版本）" : ""}`,
+          "导入成功"
+        );
+      } catch (err) {
+        await showCustomAlert(
+          `导入主题压缩包失败：${(err as Error).message}`,
+          "导入失败"
+        );
+      }
+      return;
+    }
 
     try {
       const text = await file.text();
@@ -154,6 +199,25 @@ export default function ThemeConfigSection({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  /** 打包导出为包含关联多媒体资源的 .tavern-theme.zip 压缩包 */
+  const handleExportThemeZip = async (theme: CustomThemePackage) => {
+    try {
+      const localResourceService = kernel.getService<ILocalResourceService>(KernelServices.LocalResources);
+      const blob = await exportThemeZipPackage(theme, localResourceService);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = theme.name.replace(/[^\w\u4e00-\u9fa5]/g, "_").slice(0, 20) || "theme";
+      a.download = `${safeName}_${theme.version}.tavern-theme.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      await showCustomAlert(`导出主题 ZIP 失败：${(err as Error).message}`);
+    }
   };
 
   /** 删除已导入的自定义主题 */
@@ -418,7 +482,7 @@ export default function ThemeConfigSection({
                 {t("theme.import")}
                 <input
                   type="file"
-                  accept=".json,application/json"
+                  accept=".json,.zip,.tavern-theme.zip,application/json,application/zip,application/x-zip-compressed"
                   className="hidden"
                   onChange={handleImportTheme}
                 />
@@ -490,6 +554,14 @@ export default function ThemeConfigSection({
                         title="导出为 .tavern-theme.json"
                       >
                         <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleExportThemeZip(theme)}
+                        className="w-8 h-8 rounded-md border border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary transition flex items-center justify-center shrink-0"
+                        title="打包导出为包含多媒体素材的 ZIP 压缩包"
+                      >
+                        <FolderArchive className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"

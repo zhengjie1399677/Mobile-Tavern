@@ -4,6 +4,7 @@ import { useUnifiedApp } from "../../UnifiedAppContext";
 import { KernelServices, type ILocalResourceService } from "../../application/serviceContracts";
 import type { LocalResourceMetadata } from "../../domain/resources/types";
 import { useTranslation } from "../../contexts/LanguageContext";
+import { extractMediaFilesFromZip } from "../../domain/themes/themeZipPackage";
 
 interface LocalResourceManagerProps {
   showCustomAlert: (message: string, title?: string) => Promise<void>;
@@ -46,9 +47,28 @@ export default function LocalResourceManager({ showCustomAlert, showCustomConfir
     event.target.value = "";
     if (files.length === 0) return;
     setBusy(true);
+    let importedCount = 0;
     try {
-      for (const file of files) await getService().importFile(file);
+      for (const file of files) {
+        const isZip = file.name.toLowerCase().endsWith(".zip") ||
+          file.type === "application/zip" ||
+          file.type === "application/x-zip-compressed";
+
+        if (isZip) {
+          const mediaFiles = await extractMediaFilesFromZip(await file.arrayBuffer());
+          for (const m of mediaFiles) {
+            await getService().importFile(m);
+            importedCount++;
+          }
+        } else {
+          await getService().importFile(file);
+          importedCount++;
+        }
+      }
       await refresh();
+      if (files.some(f => f.name.toLowerCase().endsWith(".zip") || f.type.includes("zip"))) {
+        await showCustomAlert(`成功从所选文件/压缩包中导入 ${importedCount} 个本地多媒体资源！`, "导入成功");
+      }
     } catch (reason) {
       await showCustomAlert(normalizeResourceError(reason), t("local_resources.import_failed"));
     } finally {
@@ -104,7 +124,7 @@ export default function LocalResourceManager({ showCustomAlert, showCustomConfir
         <label className="flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-[10px] font-bold text-primary active:scale-95">
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
           {t("local_resources.import")}
-          <input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif,image/avif,video/*,audio/*" className="hidden" disabled={busy} onChange={event => void handleImport(event)} />
+          <input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif,image/avif,video/*,audio/*,.zip,application/zip,application/x-zip-compressed" className="hidden" disabled={busy} onChange={event => void handleImport(event)} />
         </label>
       </div>
 
