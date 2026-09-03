@@ -22,6 +22,9 @@ import type { MemoryServiceTyped } from "../application/services/memory";
 import { prepareRuntimeProfileSessionResume } from "../application/useCases/runtimeProfileSessionResume";
 
 import { getErrorMessage } from '../utils/errorUtils';
+import { Logger } from "../utils/logger";
+
+const logger = Logger.create("ChatContext");
 // P0-1: 启动时分页加载会话，避免一次性 getAll() 全量反序列化阻塞首屏。
 // 默认每页 50 条（覆盖 95% 用户的会话总数），超出部分由 loadMoreSessions 滚动加载。
 const SESSIONS_PAGE_SIZE = 50;
@@ -248,7 +251,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setHasMoreSessions(result.hasMore);
       }
     } catch (e: unknown) {
-      console.error("Failed to load sessions from IndexedDB:", e);
+      logger.error("Failed to load sessions from IndexedDB", e);
       if (isMountedRef.current) {
         showCustomAlert(tChat("chat.load_sessions_failed", getErrorMessage(e)));
       }
@@ -273,7 +276,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setHasMoreSessions(result.hasMore);
       }
     } catch (e: unknown) {
-      console.error("Failed to load more sessions from IndexedDB:", e);
+      logger.error("Failed to load more sessions from IndexedDB", e);
       if (isMountedRef.current) {
         showCustomAlert(tChat("chat.load_more_sessions_failed", getErrorMessage(e)));
       }
@@ -297,7 +300,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAreSessionCountsReady(true);
       totalCountRef.current = statistics.total;
     } catch (error: unknown) {
-      console.error("Failed to refresh session statistics:", error);
+      logger.warn("Failed to refresh session statistics", { error: getErrorMessage(error) });
     }
   }, [chatSessionUseCases]);
 
@@ -375,7 +378,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setMessageHydrationStatus(status);
     if (status !== "error") {
       void hydrateSessionMessages(activeSessionId).catch((error: unknown) => {
-        console.error("Failed to hydrate messages for active session:", error);
+        logger.error("Failed to hydrate messages for active session", error, { activeSessionId });
       });
     }
   }, [activeSessionId, hydrateSessionMessages]);
@@ -398,7 +401,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session.id === sessionId ? { ...session, ...patch } : session
       ));
     } catch (e: unknown) {
-      console.error("Failed to save session to IndexedDB:", e);
+      logger.error("Failed to save session to IndexedDB", e, { sessionId });
       showCustomAlert(tChat("chat.save_session_failed", getErrorMessage(e)));
       throw e;
     }
@@ -439,7 +442,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       }
     } catch (e: unknown) {
-      console.error("Failed to load more messages for active session:", e);
+      logger.error("Failed to load more messages for active session", e, { activeSessionId });
       if (isMountedRef.current) {
         showCustomAlert(tChat("chat.load_more_messages_failed", getErrorMessage(e)));
       }

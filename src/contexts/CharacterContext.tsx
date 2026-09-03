@@ -5,8 +5,11 @@ import { ICharacterService } from "@/src/application/serviceContracts";
 import { createCharacterUseCases } from "../application/useCases/characterUseCases";
 import { useApp } from "./AppContext";
 import { TRANSLATIONS } from "../locales/index";
+import { Logger } from "../utils/logger";
+import { getErrorMessage } from "../utils/errorUtils";
 
-import { getErrorMessage } from '../utils/errorUtils';
+const logger = Logger.create("CharacterContext");
+
 /** CharacterProvider 在 LanguageProvider 上方，无法使用 useTranslation hook。直接从 TRANSLATIONS 读当前语言翻译。 */
 function tChar(key: string, errorMessage = ""): string {
   const lang = (typeof window !== "undefined" && localStorage.getItem("mobile_tavern_language")) || "zh-CN";
@@ -63,7 +66,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsDBReady(true);
       }
     } catch (e: unknown) {
-      console.error("Failed to load characters from IndexedDB:", e);
+      logger.error("Failed to load characters from IndexedDB", e);
       if (isMountedRef.current) {
         showCustomAlert(tChar("chat.load_characters_failed", getErrorMessage(e)));
       }
@@ -87,7 +90,7 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return [...prev, cleaned];
       });
     } catch (e: unknown) {
-      console.error("Failed to save character to IndexedDB:", e);
+      logger.error("Failed to save character to IndexedDB", e, { characterId: char.id, characterName: char.name });
       showCustomAlert(tChar("chat.save_character_failed", getErrorMessage(e)));
       throw e;
     }
@@ -113,11 +116,14 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setActiveCharId(null);
       }
     } catch (e: unknown) {
-      console.error("Failed to delete character from IndexedDB:", e);
       const message = getErrorMessage(e);
-      showCustomAlert(message.includes("CHARACTER_DELETE_REQUIRES_SESSION_CLEANUP")
-        ? tChar("chat.delete_character_session_guard")
-        : tChar("chat.delete_character_failed", message));
+      if (message.includes("CHARACTER_DELETE_REQUIRES_SESSION_CLEANUP")) {
+        logger.warn("Character deletion blocked: character still has active sessions", { characterId: id });
+        showCustomAlert(tChar("chat.delete_character_session_guard"));
+      } else {
+        logger.error("Failed to delete character from IndexedDB", e, { characterId: id });
+        showCustomAlert(tChar("chat.delete_character_failed", message));
+      }
       throw e;
     }
   };
@@ -143,10 +149,12 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   );
 };
 
-export const useCharactersState = () => {
+export const useCharacter = () => {
   const context = useContext(CharacterContext);
   if (!context) {
-    throw new Error("useCharactersState must be used within a CharacterProvider");
+    throw new Error("useCharacter must be used within a CharacterProvider");
   }
   return context;
 };
+
+export const useCharactersState = useCharacter;
