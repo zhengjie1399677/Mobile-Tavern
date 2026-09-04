@@ -234,7 +234,7 @@ describe("usePresetBundles 预设导入", () => {
     expect(latestSettings.promptConfig.composition?.id).toBe(storedBundle.promptPlan?.composition?.id);
   });
 
-  it("加载无版本旧预设时明确回到传统模式并生成独立迁移快照", () => {
+  it("加载无版本旧预设时明确回到传统模式并生成独立迁移快照", async () => {
     const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
     initial.promptConfig.usePromptComposition = true;
     initial.promptConfig.composition = {
@@ -274,7 +274,9 @@ describe("usePresetBundles 预设导入", () => {
       })
     );
 
-    act(() => result.current.handleLoadPresetBundle("legacy-bundle"));
+    await act(async () => {
+      await result.current.handleLoadPresetBundle("legacy-bundle");
+    });
 
     expect(latestSettings.promptConfig.mainPrompt).toBe("旧预设主 Prompt");
     expect(latestSettings.promptConfig.usePromptComposition).toBe(false);
@@ -282,7 +284,7 @@ describe("usePresetBundles 预设导入", () => {
     expect(latestSettings.promptConfig.composition?.compatibility?.source).toBe("mobile-tavern-legacy");
   });
 
-  it("加载携带编排的预设时整体切换自由编排与编排快照", () => {
+  it("加载携带编排的预设时整体切换自由编排与编排快照", async () => {
     const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
     initial.promptConfig.usePromptComposition = false;
     initial.promptConfig.composition = {
@@ -328,12 +330,55 @@ describe("usePresetBundles 预设导入", () => {
       })
     );
 
-    act(() => result.current.handleLoadPresetBundle("bundle-with-composition"));
+    await act(async () => {
+      await result.current.handleLoadPresetBundle("bundle-with-composition");
+    });
 
     expect(latestSettings.preset.id).toBe("preset-with-composition");
     expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
     expect(latestSettings.promptConfig.composition?.id).toBe("preset-composition");
     expect(latestSettings.promptConfig.composition?.blocks[0]?.name).toBe("区块 A");
+  });
+
+  it("状态 updater 延后执行时，切换前仍先持久化当前自定义预设", async () => {
+    const initial = structuredClone(DEFAULT_SETTINGS);
+    const currentBundle: SavedPresetBundle = {
+      id: "current-bundle",
+      preset: { ...initial.preset, id: "current-preset", name: "当前自定义预设" },
+      promptConfig: structuredClone(initial.promptConfig),
+    };
+    const targetBundle: SavedPresetBundle = {
+      id: "target-bundle",
+      preset: { ...initial.preset, id: "target-preset", name: "目标预设" },
+      promptConfig: structuredClone(initial.promptConfig),
+      isBuiltin: true,
+    };
+    initial.preset = currentBundle.preset;
+    initial.promptConfig.mainPrompt = "切换前尚未写入 bundle 的修改";
+    initial.savedPresets = [currentBundle, targetBundle];
+
+    const queuedUpdaters: Array<(prev: UserSettings) => UserSettings> = [];
+    const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+      if (typeof next === "function") queuedUpdaters.push(next);
+    });
+    const { result } = renderHook(() => usePresetBundles({
+      settings: initial,
+      updateSettings,
+      showCustomAlert: vi.fn(async () => undefined),
+      showCustomPrompt: vi.fn(async () => null),
+      showCustomConfirm: vi.fn(async () => true),
+    }));
+
+    await act(async () => {
+      await result.current.handleLoadPresetBundle(targetBundle.id);
+    });
+
+    expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1);
+    const persisted = mocks.saveStoredSavedPresets.mock.calls[0][0];
+    expect(persisted.find((bundle) => bundle.id === currentBundle.id)?.promptConfig.mainPrompt)
+      .toBe("切换前尚未写入 bundle 的修改");
+    expect(queuedUpdaters).toHaveLength(1);
+    expect(queuedUpdaters[0](initial).preset.id).toBe(targetBundle.preset.id);
   });
 
   it("保存新预设时携带当前自由编排状态与编排快照", async () => {

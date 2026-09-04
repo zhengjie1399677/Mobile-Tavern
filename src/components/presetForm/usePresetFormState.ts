@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { UserSettings, CharacterCard, RegexScript, CustomPromptBlock } from "../../types";
+import {
+  isJailbreakPromptBlock,
+  isMainPromptBlock,
+  matchesPromptBlockReference,
+} from "../../application/useCases/promptConfigBlockSync";
 
 export type RegexEditorScope = "global" | "preset" | "character";
 export type EditableRegexScript = RegexScript & { scope?: RegexEditorScope };
@@ -218,8 +223,12 @@ export function usePresetFormState({
     updateSettings((prev) => {
       const hasMain = selectedPromptIds.includes("built-in-main-prompt");
       const hasJailbreak = selectedPromptIds.includes("built-in-jailbreak-prompt");
-      const remainingCustoms = (prev.promptConfig.customPrompts || []).filter(
-        (p: CustomPromptBlock) => !selectedPromptIds.includes(p.id)
+      const currentCustoms = prev.promptConfig.customPrompts || [];
+      const selectedCustoms = currentCustoms.filter(
+        (prompt: CustomPromptBlock) => selectedPromptIds.includes(prompt.id),
+      );
+      const remainingCustoms = currentCustoms.filter(
+        (prompt: CustomPromptBlock) => !selectedPromptIds.includes(prompt.id),
       );
 
       const nextPromptConfig = {
@@ -235,16 +244,13 @@ export function usePresetFormState({
         nextPromptConfig.composition = {
           ...prev.promptConfig.composition,
           blocks: prev.promptConfig.composition.blocks.filter((b) => {
-            if (hasMain && (b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main")) {
+            if (hasMain && isMainPromptBlock(b)) {
               return false;
             }
-            if (hasJailbreak && (b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt")) {
+            if (hasJailbreak && isJailbreakPromptBlock(b)) {
               return false;
             }
-            if (selectedPromptIds.includes(b.id)) {
-              return false;
-            }
-            if (b.compatibility?.originalIdentifier && selectedPromptIds.includes(b.compatibility.originalIdentifier)) {
+            if (selectedCustoms.some((prompt) => matchesPromptBlockReference(b, prompt))) {
               return false;
             }
             return true;

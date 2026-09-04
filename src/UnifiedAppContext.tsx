@@ -101,11 +101,11 @@ export interface UnifiedAppContextProps {
   handleImportPresetJSON: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleExportPresetJSON: () => void;
   handleSaveNewPresetBundle: () => Promise<void>;
-  handleLoadPresetBundle: (bundleId: string) => void;
+  handleLoadPresetBundle: (bundleId: string) => Promise<void>;
   handleDeletePresetBundle: (presetId: string) => Promise<void>;
   handleDeletePresetBundles: (presetIds: string[]) => Promise<void>;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
-  handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
+  handleUpdateCustomPrompt: (id: string, name: string, role: CustomPromptBlock["role"], content: string) => void;
   handleAddNewCustomPrompt: () => void;
   handleDeleteCustomPrompt: (id: string) => Promise<void>;
   backupPass: string;

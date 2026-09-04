@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Brain, ChevronDown, ChevronUp, HelpCircle, Plus, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
 import { useTranslation } from "../../contexts/LanguageContext";
@@ -14,12 +14,17 @@ import { Input } from "../../../components/ui/input";
 import { Textarea } from "../../../components/ui/textarea";
 import { cn } from "../../../lib/utils";
 import type { UserSettings } from "../../types";
+import type { CustomPromptBlock } from "../../types";
+import {
+  isJailbreakPromptBlock,
+  isMainPromptBlock,
+} from "../../application/useCases/promptConfigBlockSync";
 
 interface PromptsConfigSectionProps {
   settings: UserSettings;
   updateSettings: (newSet: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
-  handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
+  handleUpdateCustomPrompt: (id: string, name: string, role: CustomPromptBlock["role"], content: string) => void;
   handleAddNewCustomPrompt: () => void;
   handleDeleteCustomPrompt: (id: string) => Promise<void>;
   isPromptsFolded: boolean;
@@ -75,7 +80,7 @@ export default function PromptsConfigSection({
 
     // 1. 系统扮演指令（若存在内容或明确启用）
     if (settings.promptConfig.useMainPrompt !== false || (settings.promptConfig.mainPrompt && settings.promptConfig.mainPrompt.trim().length > 0)) {
-      const mainBlock = findBlock((b) => b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main");
+      const mainBlock = findBlock(isMainPromptBlock);
       list.push({
         id: "built-in-main-prompt",
         name: t("prompts.system_prompt") || "底层扮演系统指令",
@@ -87,7 +92,7 @@ export default function PromptsConfigSection({
 
     // 2. 规则提示词（若存在内容或明确启用）
     if (settings.promptConfig.useJailbreak !== false || (settings.promptConfig.jailbreakPrompt && settings.promptConfig.jailbreakPrompt.trim().length > 0)) {
-      const jbBlock = findBlock((b) => b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt");
+      const jbBlock = findBlock(isJailbreakPromptBlock);
       list.push({
         id: "built-in-jailbreak-prompt",
         name: t("prompts.jailbreak") || "规则提示词",
@@ -126,7 +131,7 @@ export default function PromptsConfigSection({
           nextConfig.composition = {
             ...prev.promptConfig.composition,
             blocks: prev.promptConfig.composition.blocks.map((b) =>
-              b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main"
+              isMainPromptBlock(b)
                 ? { ...b, enabled }
                 : b
             ),
@@ -144,7 +149,7 @@ export default function PromptsConfigSection({
           nextConfig.composition = {
             ...prev.promptConfig.composition,
             blocks: prev.promptConfig.composition.blocks.map((b) =>
-              b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt"
+              isJailbreakPromptBlock(b)
                 ? { ...b, enabled }
                 : b
             ),
@@ -168,7 +173,7 @@ export default function PromptsConfigSection({
           nextConfig.composition = {
             ...prev.promptConfig.composition,
             blocks: prev.promptConfig.composition.blocks.map((b) =>
-              b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main"
+              isMainPromptBlock(b)
                 ? { ...b, template: content }
                 : b
             ),
@@ -186,7 +191,7 @@ export default function PromptsConfigSection({
           nextConfig.composition = {
             ...prev.promptConfig.composition,
             blocks: prev.promptConfig.composition.blocks.map((b) =>
-              b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt"
+              isJailbreakPromptBlock(b)
                 ? { ...b, template: content }
                 : b
             ),
@@ -211,7 +216,7 @@ export default function PromptsConfigSection({
           nextConfig.composition = {
             ...prev.promptConfig.composition,
             blocks: prev.promptConfig.composition.blocks.map((b) =>
-              b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main"
+              isMainPromptBlock(b)
                 ? { ...b, enabled: false, template: "" }
                 : b
             ),
@@ -230,7 +235,7 @@ export default function PromptsConfigSection({
           nextConfig.composition = {
             ...prev.promptConfig.composition,
             blocks: prev.promptConfig.composition.blocks.map((b) =>
-              b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt"
+              isJailbreakPromptBlock(b)
                 ? { ...b, enabled: false, template: "" }
                 : b
             ),

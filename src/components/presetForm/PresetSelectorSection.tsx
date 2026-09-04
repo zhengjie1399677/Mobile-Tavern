@@ -10,7 +10,7 @@ interface PresetSelectorSectionProps {
   handleImportPresetJSON: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleExportPresetJSON: () => void;
   handleSaveNewPresetBundle: () => Promise<void>;
-  handleLoadPresetBundle: (bundleId: string) => void;
+  handleLoadPresetBundle: (bundleId: string) => Promise<void>;
   handleDeletePresetBundle: (presetId: string) => Promise<void>;
 }
 
@@ -38,7 +38,7 @@ export default function PresetSelectorSection({
             aria-label={t("preset_selector.active_preset", { name: "" })}
             className="flex-1 bg-muted/40 border border-border text-xs text-foreground rounded-md px-3 font-semibold h-9 outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
             value={activeBundleId}
-            onChange={(e) => handleLoadPresetBundle(e.target.value)}
+            onChange={(e) => void handleLoadPresetBundle(e.target.value)}
           >
             <option className="bg-card text-foreground" value="" disabled>
               {t("preset_selector.active_preset", { name: settings.preset.name })}

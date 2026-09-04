@@ -4,6 +4,7 @@ import {
   createPromptPresetPlan,
   normalizeSavedPresetPromptPlan,
   resolvePromptPresetPlan,
+  shouldFillDefaultCustomPrompts,
   toPresetPromptConfig,
 } from "../../src/application/useCases/presetPromptConfig";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
@@ -90,5 +91,20 @@ describe("版本化预设 Prompt 快照", () => {
       mode: "composition",
       source: "native",
     });
+  });
+
+  it("只为空的内置预设补全默认词条，保留空自定义预设", () => {
+    const builtin = {
+      ...createBundle(),
+      isBuiltin: true,
+    };
+    const custom = {
+      ...createBundle(),
+      id: "custom-bundle",
+      preset: { ...DEFAULT_SETTINGS.preset, id: "custom-preset", name: "空自定义预设" },
+    };
+
+    expect(shouldFillDefaultCustomPrompts(builtin.preset.id, [builtin, custom], [])).toBe(true);
+    expect(shouldFillDefaultCustomPrompts(custom.preset.id, [builtin, custom], [])).toBe(false);
   });
 });

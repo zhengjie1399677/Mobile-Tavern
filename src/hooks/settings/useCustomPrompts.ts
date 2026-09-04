@@ -1,7 +1,8 @@
 import type * as React from "react";
 import { useCallback } from "react";
-import { CustomPromptBlock, UserSettings } from "../../types";
+import type { CustomPromptBlock, UserSettings } from "../../types";
 import type { PromptBlock } from "../../domain/prompt-composition";
+import { matchesPromptBlockReference } from "../../application/useCases/promptConfigBlockSync";
 
 interface UseCustomPromptsDeps {
   settings: UserSettings;
@@ -17,18 +18,11 @@ interface UseCustomPromptsReturn {
   handleUpdateCustomPrompt: (
     id: string,
     name: string,
-    role: any,
+    role: CustomPromptBlock["role"],
     content: string
   ) => void;
   handleAddNewCustomPrompt: () => void;
   handleDeleteCustomPrompt: (id: string) => Promise<void>;
-}
-
-function matchesBlock(b: PromptBlock, promptId: string, itemIdentifier?: string): boolean {
-  if (b.id === promptId) return true;
-  if (b.compatibility?.originalIdentifier && b.compatibility.originalIdentifier === promptId) return true;
-  if (itemIdentifier && b.compatibility?.originalIdentifier && b.compatibility.originalIdentifier === itemIdentifier) return true;
-  return false;
 }
 
 /**
@@ -58,7 +52,7 @@ export const useCustomPrompts = ({
         nextPromptConfig.composition = {
           ...prev.promptConfig.composition,
           blocks: prev.promptConfig.composition.blocks.map((b) =>
-            matchesBlock(b, id, targetItem?.identifier) ? { ...b, enabled } : b
+            matchesPromptBlockReference(b, targetItem ?? { id }) ? { ...b, enabled } : b
           ),
         };
       }
@@ -73,7 +67,7 @@ export const useCustomPrompts = ({
   const handleUpdateCustomPrompt = useCallback((
     id: string,
     name: string,
-    _role: any,
+    _role: CustomPromptBlock["role"],
     content: string,
   ) => {
     updateSettings((prev) => {
@@ -92,7 +86,7 @@ export const useCustomPrompts = ({
         nextPromptConfig.composition = {
           ...prev.promptConfig.composition,
           blocks: prev.promptConfig.composition.blocks.map((b) =>
-            matchesBlock(b, id, targetItem?.identifier) ? { ...b, name, template: content } : b
+            matchesPromptBlockReference(b, targetItem ?? { id }) ? { ...b, name, template: content } : b
           ),
         };
       }
@@ -174,7 +168,7 @@ export const useCustomPrompts = ({
         nextPromptConfig.composition = {
           ...prev.promptConfig.composition,
           blocks: prev.promptConfig.composition.blocks.filter(
-            (b) => !matchesBlock(b, id, targetItem?.identifier)
+            (b) => !matchesPromptBlockReference(b, targetItem ?? { id })
           ),
         };
       }

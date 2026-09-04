@@ -1,7 +1,7 @@
 import type * as React from "react";
 import { useEffect } from "react";
 import { UserSettings, LorebookEntry, CustomWorldbook, SavedPresetBundle } from "../../types";
-import { toPresetPromptConfig } from "./presetPromptConfig";
+import { shouldFillDefaultCustomPrompts, toPresetPromptConfig } from "./presetPromptConfig";
 import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
@@ -253,8 +253,12 @@ export const useSettingsLoader = ({
             return nextPrompt;
           });
 
-          // 仅当用户没有任何词条（首次初始化）时，才补充默认词条；避免对自定义预设或用户有意精简的词条进行强制污染注入
-          if (userPrompts.length === 0) {
+          // 只补全当前内置预设的首次空配置；自定义预设允许用户主动保持空列表。
+          if (shouldFillDefaultCustomPrompts(
+            storedSet.preset?.id,
+            mergedSavedPresets,
+            userPrompts,
+          )) {
             for (const dp of defaultPrompts) {
               if (!mergedCustomPrompts.some((up: any) => up.id === dp.id)) {
                 mergedCustomPrompts.push(dp);

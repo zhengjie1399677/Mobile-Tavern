@@ -5,6 +5,8 @@ import PromptsConfigSection from "../../src/components/presetForm/PromptsConfigS
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { UserSettings } from "../../src/types";
+import type { CustomPromptBlock } from "../../src/types";
+import { listPromptCompositionScenePresets } from "../../src/domain/prompt-composition";
 
 function Harness({
   initial,
@@ -15,7 +17,7 @@ function Harness({
 }: {
   initial: UserSettings;
   onToggleCustomPrompt?: (id: string, enabled: boolean) => void;
-  onUpdateCustomPrompt?: (id: string, name: string, role: any, content: string) => void;
+  onUpdateCustomPrompt?: (id: string, name: string, role: CustomPromptBlock["role"], content: string) => void;
   onAddNewCustomPrompt?: () => void;
   onDeleteCustomPrompt?: (id: string) => Promise<void>;
 }) {
@@ -112,24 +114,8 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
     settings.promptConfig.usePromptComposition = true;
     settings.promptConfig.useMainPrompt = true;
     settings.promptConfig.mainPrompt = "系统核心指令";
-    settings.promptConfig.composition = {
-      id: "comp_1",
-      name: "测试编排",
-      version: 1,
-      blocks: [
-        {
-          id: "built-in-main-prompt",
-          name: "底层扮演系统指令",
-          enabled: true,
-          role: "system",
-          source: { type: "template" },
-          template: "系统核心指令",
-          order: 100,
-          placement: { type: "ordered" },
-          compatibility: { source: "sillytavern", originalIdentifier: "main" },
-        },
-      ],
-    };
+    settings.promptConfig.composition = listPromptCompositionScenePresets()
+      .find((preset) => preset.id === "lightweight_chat")!.composition;
 
     function CompositionHarness() {
       const [localSettings, setLocalSettings] = useState<UserSettings>(settings);
@@ -166,6 +152,7 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
     fireEvent.click(mainSwitch);
 
     expect(currentSettings!.promptConfig.useMainPrompt).toBe(false);
-    expect(currentSettings!.promptConfig.composition?.blocks[0].enabled).toBe(false);
+    expect(currentSettings!.promptConfig.composition?.blocks.find((block) => block.id === "light_main")?.enabled)
+      .toBe(false);
   });
 });

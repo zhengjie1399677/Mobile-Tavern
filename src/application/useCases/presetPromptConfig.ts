@@ -1,4 +1,5 @@
 import type {
+  CustomPromptBlock,
   PresetPromptConfig,
   PromptConfig,
   PromptPresetPlan,
@@ -28,6 +29,18 @@ export function applyPresetPromptConfig(
     composition: current.composition,
     usePromptComposition: current.usePromptComposition,
   };
+}
+
+/** 仅为当前内置预设的首次空配置补全默认词条；自定义预设允许主动保持空列表。 */
+export function shouldFillDefaultCustomPrompts(
+  activePresetId: string | undefined,
+  savedPresets: ReadonlyArray<Pick<SavedPresetBundle, "isBuiltin" | "preset">>,
+  customPrompts: readonly CustomPromptBlock[] | undefined,
+): boolean {
+  if ((customPrompts?.length ?? 0) > 0) return false;
+  return savedPresets.some(
+    (bundle) => bundle.isBuiltin === true && bundle.preset.id === activePresetId,
+  );
 }
 
 /**

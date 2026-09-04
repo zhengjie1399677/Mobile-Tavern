@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import type { SavedPresetBundle, UserSettings } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IPresetService } from "@/src/application/serviceContracts";
@@ -51,7 +51,7 @@ interface UsePresetBundlesReturn {
   handleImportPresetJSON: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleExportPresetJSON: () => void;
   handleSaveNewPresetBundle: () => Promise<void>;
-  handleLoadPresetBundle: (bundleId: string) => void;
+  handleLoadPresetBundle: (bundleId: string) => Promise<void>;
   handleDeletePresetBundle: (presetId: string) => Promise<void>;
   handleDeletePresetBundles: (bundleIds: string[]) => Promise<void>;
 }
@@ -70,6 +70,26 @@ export const usePresetBundles = ({
     kernel,
     SILLY_TAVERN_PROMPT_PRESET_FORMAT,
   );
+  const latestSettingsRef = useRef(settings);
+  useEffect(() => {
+    latestSettingsRef.current = settings;
+  }, [settings]);
+
+  const commitSettingsSnapshot = useCallback((next: UserSettings) => {
+    latestSettingsRef.current = next;
+    updateSettings(() => next);
+  }, [updateSettings]);
+
+  const persistSavedPresets = useCallback(async (bundles: SavedPresetBundle[]): Promise<boolean> => {
+    try {
+      await presetService.saveStoredSavedPresets(bundles);
+      return true;
+    } catch (error: unknown) {
+      console.error("Failed to save preset bundles:", error);
+      await showCustomAlert("预设保存失败，已保留当前界面状态，请稍后重试。", "保存失败");
+      return false;
+    }
+  }, [presetService, showCustomAlert]);
 
   const handleImportPresetJSON = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -215,141 +235,122 @@ export const usePresetBundles = ({
     }
   }, [settings, showCustomPrompt, updateSettings, showCustomAlert, presetService]);
 
-  const handleLoadPresetBundle = useCallback((bundleId: string) => {
-    let nextSavedToStore: SavedPresetBundle[] | null = null;
-    updateSettings((prev) => {
-      const currentSaved = prev.savedPresets || [];
-      // 1. 如果当前活跃预设是用户自定义/导入预设（非内置），在切换前同步其最新状态到 savedPresets
-      let updatedSaved = currentSaved;
-      const currentActiveId = prev.preset.id;
-      const currentBundleIdx = updatedSaved.findIndex(
-        (b) => b.preset.id === currentActiveId && !b.isBuiltin,
-      );
-      if (currentBundleIdx !== -1) {
-        const currentBundle = updatedSaved[currentBundleIdx];
-        const updatedBundle: SavedPresetBundle = {
-          ...currentBundle,
-          preset: { ...prev.preset },
-          promptConfig: toPresetPromptConfig(prev.promptConfig),
-          promptPlan: createPromptPresetPlan(prev.promptConfig, currentBundle.promptPlan?.source ?? "native"),
-          presetRegexScripts: prev.presetRegexScripts ? [...prev.presetRegexScripts] : [],
-        };
-        updatedSaved = [...updatedSaved];
-        updatedSaved[currentBundleIdx] = updatedBundle;
-        nextSavedToStore = updatedSaved;
-      }
+  const handleLoadPresetBundle = useCallback(async (bundleId: string) => {
+    const current = latestSettingsRef.current;
+    const currentSaved = current.savedPresets || [];
+    if (!currentSaved.some((candidate) => candidate.id === bundleId)) return;
 
-      const bundle = updatedSaved.find((candidate) => candidate.id === bundleId);
-      if (!bundle) return prev;
-
-      // 2. 以干净的 DEFAULT_PROMPT_CONFIG 为基准应用目标预设，切断旧预设残留污染
-      const promptConfig = applyPresetCompositionToPromptConfig(
-        applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, bundle.promptConfig),
-        bundle,
-      );
-
-      return {
-        ...prev,
-        preset: { ...DEFAULT_SETTINGS.preset, ...bundle.preset },
-        promptConfig,
-        presetRegexScripts: bundle.presetRegexScripts ? [...bundle.presetRegexScripts] : [],
-        savedPresets: updatedSaved,
+    // 如果当前活跃预设是用户自定义/导入预设（非内置），切换前先持久化最新状态。
+    let updatedSaved = currentSaved;
+    const currentBundleIdx = currentSaved.findIndex(
+      (bundle) => bundle.preset.id === current.preset.id && !bundle.isBuiltin,
+    );
+    if (currentBundleIdx !== -1) {
+      const currentBundle = currentSaved[currentBundleIdx];
+      const updatedBundle: SavedPresetBundle = {
+        ...currentBundle,
+        preset: { ...current.preset },
+        promptConfig: toPresetPromptConfig(current.promptConfig),
+        promptPlan: createPromptPresetPlan(current.promptConfig, currentBundle.promptPlan?.source ?? "native"),
+        presetRegexScripts: current.presetRegexScripts ? [...current.presetRegexScripts] : [],
       };
-    });
-
-    if (nextSavedToStore) {
-      void presetService.saveStoredSavedPresets(nextSavedToStore);
+      updatedSaved = [...currentSaved];
+      updatedSaved[currentBundleIdx] = updatedBundle;
+      if (!await persistSavedPresets(updatedSaved)) return;
     }
-  }, [updateSettings, presetService]);
+
+    const bundle = updatedSaved.find((candidate) => candidate.id === bundleId);
+    if (!bundle) return;
+    const promptConfig = applyPresetCompositionToPromptConfig(
+      applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, bundle.promptConfig),
+      bundle,
+    );
+    commitSettingsSnapshot({
+      ...current,
+      preset: { ...DEFAULT_SETTINGS.preset, ...bundle.preset },
+      promptConfig,
+      presetRegexScripts: bundle.presetRegexScripts ? [...bundle.presetRegexScripts] : [],
+      savedPresets: updatedSaved,
+    });
+  }, [commitSettingsSnapshot, persistSavedPresets]);
 
   const handleDeletePresetBundle = useCallback(async (presetId: string) => {
     const ok = await showCustomConfirm("确定要删除这个本地保存的预设吗？");
     if (!ok) return;
 
-    let nextSavedToStore: SavedPresetBundle[] | null = null;
-    updateSettings((prev) => {
-      const currentSaved = prev.savedPresets || [];
-      const bundleId = currentSaved.find((bundle) => bundle.preset.id === presetId)?.id;
-      if (!bundleId) return prev;
+    const current = latestSettingsRef.current;
+    const currentSaved = current.savedPresets || [];
+    const bundleId = currentSaved.find((bundle) => bundle.preset.id === presetId)?.id;
+    if (!bundleId) return;
 
-      const nextSaved = currentSaved.filter((bundle) => bundle.id !== bundleId);
-      const nextPreset = nextSaved.length > 0 ? nextSaved[0].preset : DEFAULT_SETTINGS.preset;
-      const fallbackBundle = nextSaved.length > 0
-        ? nextSaved[0]
-        : {
-            promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
-            promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
-          };
-      const nextPromptConfig = applyPresetCompositionToPromptConfig(
-        applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, fallbackBundle.promptConfig),
-        fallbackBundle,
-      );
-      nextSavedToStore = nextSaved;
-      return {
-        ...prev,
-        preset: nextPreset,
-        promptConfig: nextPromptConfig,
-        savedPresets: nextSaved,
-      };
+    const nextSaved = currentSaved.filter((bundle) => bundle.id !== bundleId);
+    const fallbackBundle = nextSaved.length > 0
+      ? nextSaved[0]
+      : {
+          preset: DEFAULT_SETTINGS.preset,
+          promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+          promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
+          presetRegexScripts: [],
+        };
+    const nextPromptConfig = applyPresetCompositionToPromptConfig(
+      applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, fallbackBundle.promptConfig),
+      fallbackBundle,
+    );
+    if (!await persistSavedPresets(nextSaved)) return;
+    commitSettingsSnapshot({
+      ...current,
+      preset: { ...DEFAULT_SETTINGS.preset, ...fallbackBundle.preset },
+      promptConfig: nextPromptConfig,
+      presetRegexScripts: fallbackBundle.presetRegexScripts
+        ? [...fallbackBundle.presetRegexScripts]
+        : [],
+      savedPresets: nextSaved,
     });
-
-    if (nextSavedToStore) {
-      await presetService.saveStoredSavedPresets(nextSavedToStore);
-    }
-  }, [showCustomConfirm, updateSettings, presetService]);
+  }, [showCustomConfirm, commitSettingsSnapshot, persistSavedPresets]);
 
   const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
     if (bundleIds.length === 0) return;
     if (!await showCustomConfirm(`确定要批量删除这 ${bundleIds.length} 个本地预设包吗？`)) return;
 
-    let nextSavedToStore: SavedPresetBundle[] | null = null;
-    updateSettings((prev) => {
-      const currentSaved = prev.savedPresets || [];
-      const nextSaved = currentSaved.filter(
-        (bundle) => !bundleIds.includes(bundle.id),
-      );
-      let nextPreset = prev.preset;
-      let nextPromptConfig = prev.promptConfig;
-      let nextRegex = prev.presetRegexScripts;
-      const isCurrentDeleted = bundleIds.includes(prev.preset.id)
-        || currentSaved.some((bundle) =>
-          bundle.preset.id === prev.preset.id && bundleIds.includes(bundle.id));
-      if (isCurrentDeleted) {
-        if (nextSaved.length > 0) {
-          nextPreset = nextSaved[0].preset;
-          nextPromptConfig = applyPresetCompositionToPromptConfig(
-            applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, nextSaved[0].promptConfig),
-            nextSaved[0],
-          );
-          nextRegex = nextSaved[0].presetRegexScripts || [];
-        } else {
-          nextPreset = DEFAULT_SETTINGS.preset;
-          const defaultBundle = {
-            promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
-            promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
-          };
-          nextPromptConfig = applyPresetCompositionToPromptConfig(
-            applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, defaultBundle.promptConfig),
-            defaultBundle,
-          );
-          nextRegex = [];
-        }
+    const current = latestSettingsRef.current;
+    const currentSaved = current.savedPresets || [];
+    const nextSaved = currentSaved.filter((bundle) => !bundleIds.includes(bundle.id));
+    let nextPreset = current.preset;
+    let nextPromptConfig = current.promptConfig;
+    let nextRegex = current.presetRegexScripts;
+    const isCurrentDeleted = currentSaved.some((bundle) =>
+      bundle.preset.id === current.preset.id && bundleIds.includes(bundle.id));
+    if (isCurrentDeleted) {
+      if (nextSaved.length > 0) {
+        nextPreset = nextSaved[0].preset;
+        nextPromptConfig = applyPresetCompositionToPromptConfig(
+          applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, nextSaved[0].promptConfig),
+          nextSaved[0],
+        );
+        nextRegex = nextSaved[0].presetRegexScripts || [];
+      } else {
+        nextPreset = DEFAULT_SETTINGS.preset;
+        const defaultBundle = {
+          promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+          promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
+        };
+        nextPromptConfig = applyPresetCompositionToPromptConfig(
+          applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, defaultBundle.promptConfig),
+          defaultBundle,
+        );
+        nextRegex = [];
       }
-      nextSavedToStore = nextSaved;
-      return {
-        ...prev,
-        preset: nextPreset,
-        promptConfig: nextPromptConfig,
-        presetRegexScripts: nextRegex,
-        savedPresets: nextSaved,
-      };
-    });
-
-    if (nextSavedToStore) {
-      await presetService.saveStoredSavedPresets(nextSavedToStore);
     }
+    if (!await persistSavedPresets(nextSaved)) return;
+    commitSettingsSnapshot({
+      ...current,
+      preset: nextPreset,
+      promptConfig: nextPromptConfig,
+      presetRegexScripts: nextRegex ? [...nextRegex] : [],
+      savedPresets: nextSaved,
+    });
     await showCustomAlert("🎉 批量删除成功！");
-  }, [showCustomConfirm, updateSettings, showCustomAlert, presetService]);
+  }, [showCustomConfirm, commitSettingsSnapshot, persistSavedPresets, showCustomAlert]);
 
   return {
     handleImportPresetJSON,
