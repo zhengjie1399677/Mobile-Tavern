@@ -49,7 +49,12 @@ export const ComposerCommandSuggestions: React.FC<ComposerCommandSuggestionsProp
                   : "hover:bg-muted/50 border border-transparent text-foreground"
               } active:scale-[0.99] disabled:opacity-50`}
             >
-              <span className="shrink-0 font-mono text-sm font-semibold text-primary">/{command.name}</span>
+              <span
+                title={`/${command.name}`}
+                className="w-24 max-w-[6rem] sm:w-28 sm:max-w-[7rem] shrink-0 font-mono text-xs sm:text-sm font-semibold text-primary truncate"
+              >
+                /{command.name}
+              </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <span className="truncate text-xs font-semibold">{command.label}</span>

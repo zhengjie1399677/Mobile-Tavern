@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, expect, it } from "vitest";
 import {
   BUILTIN_COMPOSER_COMMANDS,
@@ -77,5 +78,25 @@ describe("Composer Command Use Cases", () => {
       expect(cmd.pluginId).toBe("host.builtin");
       expect(cmd.toolName).toMatch(/^host\.builtin\./);
     }
+  });
+
+  it("ComposerCommandSuggestions 渲染时英文字段具有固定宽度与上限截断，保证中文名统一起始列", async () => {
+    const { render, screen } = await import("@testing-library/react");
+    const { ComposerCommandSuggestions } = await import("../../src/tabs/chat/ComposerCommandSuggestions");
+
+    const { container } = render(
+      React.createElement(ComposerCommandSuggestions, {
+        suggestions: commands,
+        selectedIndex: 0,
+        isExecuting: false,
+        onSelectCommand: () => {},
+        onHoverIndex: () => {},
+      })
+    );
+
+    const echoName = screen.getByText("/echo");
+    expect(echoName.className).toContain("w-24");
+    expect(echoName.className).toContain("truncate");
+    expect(echoName.getAttribute("title")).toBe("/echo");
   });
 });
