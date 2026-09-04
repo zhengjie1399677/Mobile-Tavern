@@ -185,11 +185,11 @@ export default function CharactersTab() {
   }, [characters, getKernelService, openCharacter]);
 
   return (
-    <div className="relative min-h-screen space-y-3.5 px-4 pb-8 pt-3">
-      <section className="relative overflow-hidden rounded-3xl border border-white/12 bg-card/45 backdrop-blur-2xl p-4 shadow-[0_8px_32px_0_rgba(0,0,0,0.25),inset_0_1px_1px_0_rgba(255,255,255,0.15)]">
+    <div className="relative min-h-screen space-y-2.5 px-4 pb-8 pt-2.5">
+      <section className="relative overflow-hidden rounded-2xl border border-white/12 bg-card/45 backdrop-blur-2xl px-3.5 py-3 shadow-[0_8px_32px_0_rgba(0,0,0,0.25),inset_0_1px_1px_0_rgba(255,255,255,0.15)]">
         <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-primary/15 blur-2xl" />
 
-        <div className="relative flex items-start justify-between gap-3">
+        <div className="relative flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="flex items-center gap-1.5 text-base font-bold tracking-tight text-foreground">
               <span className="truncate">Mobile Tavern</span>
@@ -197,10 +197,7 @@ export default function CharactersTab() {
                 Lite
               </span>
             </h1>
-            <p className="mt-0.5 max-w-[190px] truncate text-xs font-light text-muted-foreground">
-              {t("characters_tab.subtitle")}
-            </p>
-            <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span>{displayCharacters.length}</span>
               <span>{t("nav.characters")}</span>
               <span className="text-muted-foreground/40">·</span>
@@ -211,12 +208,12 @@ export default function CharactersTab() {
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={() => setScannerOpen(true)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]"
+              className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]"
               title={t("characters_tab.scan_title")}
             >
               <FolderSearch className="h-4 w-4" />
             </button>
-            <label className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]" title={t("characters_tab.import_title")}>
+            <label className="flex h-8.5 w-8.5 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-sm transition-colors hover:text-foreground active:scale-[0.96]" title={t("characters_tab.import_title")}>
               <FileUp className="h-4 w-4" />
               <input
                 type="file"
@@ -227,7 +224,7 @@ export default function CharactersTab() {
             </label>
             <button
               onClick={handleAddNewCharacter}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary font-medium text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] transition-colors hover:bg-primary/90 active:scale-[0.96]"
+              className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-xl bg-primary font-medium text-primary-foreground shadow-[0_8px_20px_-10px_var(--primary)] transition-colors hover:bg-primary/90 active:scale-[0.96]"
               title={t("characters_tab.create_title")}
             >
               <Plus className="h-4 w-4" />
@@ -241,25 +238,25 @@ export default function CharactersTab() {
       <button
         type="button"
         onClick={handleOpenPureAgent}
-        className="group relative flex w-full items-center justify-between gap-2.5 overflow-hidden rounded-2xl border border-primary/30 bg-card/45 backdrop-blur-xl p-2.5 text-left shadow-[0_4px_20px_0_rgba(0,0,0,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.12)] transition-all hover:border-primary/50 hover:bg-card/60 focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
+        className="group relative flex w-full items-center justify-between gap-2.5 overflow-hidden rounded-2xl border border-primary/25 bg-card/45 backdrop-blur-xl px-3 py-2 text-left shadow-[0_4px_16px_0_rgba(0,0,0,0.15),inset_0_1px_1px_0_rgba(255,255,255,0.1)] transition-all hover:border-primary/45 hover:bg-card/60 focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
-            <Bot className="size-4.5" />
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+            <Bot className="size-4" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h2 className="text-sm font-bold text-foreground truncate">通用 AI 助手</h2>
-              <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+              <h2 className="text-xs font-bold text-foreground truncate">通用 AI 助手</h2>
+              <span className="rounded bg-primary/20 px-1 py-0.2 font-mono text-[9px] font-semibold text-primary">
                 Base Agent
               </span>
             </div>
-            <p className="mt-0.5 truncate text-xs font-light text-muted-foreground">
-              无角色人设 / 无预设提示词，直连大模型问答与代码辅助
+            <p className="truncate text-[11px] font-light text-muted-foreground">
+              直连大模型问答 · 无预设角色人设
             </p>
           </div>
         </div>
-        <div className="flex h-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-all group-hover:bg-primary group-hover:text-primary-foreground">
+        <div className="flex h-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 px-2 text-[11px] font-medium text-primary transition-all group-hover:bg-primary group-hover:text-primary-foreground">
           开启对话
         </div>
       </button>
@@ -278,11 +275,10 @@ export default function CharactersTab() {
               onClick={() => changeCharacterLayout(layout)}
               aria-pressed={characterLayout === layout}
               title={t(labelKey)}
-              className={`flex size-8 items-center justify-center rounded-lg border transition-colors active:scale-95 ${
-                characterLayout === layout
+              className={`flex size-8 items-center justify-center rounded-lg border transition-colors active:scale-95 ${characterLayout === layout
                   ? "border-primary/40 bg-primary/15 text-primary"
                   : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
+                }`}
             >
               <Icon className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="sr-only">{t(labelKey)}</span>
@@ -299,7 +295,7 @@ export default function CharactersTab() {
             ? "grid grid-cols-3 gap-3"
             : "grid grid-cols-2 gap-4"
       }>
-      {/* characters array is pre-sorted by last chat time via useMemo in LegacyAppContextProvider */}
+        {/* characters array is pre-sorted by last chat time via useMemo in LegacyAppContextProvider */}
         {displayCharacters.map((char, index) => {
           const isPluginCard = !!char.extensions?.mt_plugin;
           const branchCount = sessionCountsByCharacter[char.id] ?? 0;
@@ -319,17 +315,15 @@ export default function CharactersTab() {
               tabIndex={0}
               aria-busy={isOpening}
               style={{ "--card-index": Math.min(index, 6) } as React.CSSProperties}
-              className={`mobile-list-item relative flex h-auto cursor-pointer select-none rounded-2xl border border-white/10 bg-card/45 backdrop-blur-xl shadow-[0_8px_24px_0_rgba(0,0,0,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.1)] spring-press-effect outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-white/20 hover:bg-card/60 transition-all ${index < 8 ? "animate-card-fade-in" : ""} ${
-                characterLayout === "list"
+              className={`mobile-list-item relative flex h-auto cursor-pointer select-none rounded-2xl border border-white/10 bg-card/45 backdrop-blur-xl shadow-[0_8px_24px_0_rgba(0,0,0,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.1)] spring-press-effect outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-white/20 hover:bg-card/60 transition-all ${index < 8 ? "animate-card-fade-in" : ""} ${characterLayout === "list"
                   ? "items-center gap-3 min-h-[84px] p-2.5"
                   : characterLayout === "shelf"
                     ? "flex-col items-stretch gap-1.5 p-1.5 min-h-[140px]"
                     : "flex-col items-stretch gap-2 p-2 min-h-[200px]"
-              } ${
-                isActive
+                } ${isActive
                   ? "border-primary/50 ring-1 ring-primary/20 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.25)] bg-primary/[0.08]"
                   : "hover:shadow-[0_10px_28px_-5px_rgba(0,0,0,0.25)] hover:-translate-y-0.5"
-              }`}
+                }`}
             >
               {isOpening && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center gap-2 rounded-xl bg-card/85 text-xs font-semibold text-primary">
@@ -345,14 +339,12 @@ export default function CharactersTab() {
                 </div>
               )}
               {/* Character Avatar Grid */}
-              <div 
-                className={`${
-                  characterLayout === "list"
+              <div
+                className={`${characterLayout === "list"
                     ? "w-13 h-16 shrink-0"
                     : "w-full aspect-[3/4]"
-                } rounded-2xl overflow-hidden border border-border/40 flex items-center justify-center relative ${
-                  char.avatar ? "bg-muted/30" : getAvatarGradientClass(char.name)
-                }`}
+                  } rounded-2xl overflow-hidden border border-border/40 flex items-center justify-center relative ${char.avatar ? "bg-muted/30" : getAvatarGradientClass(char.name)
+                  }`}
               >
                 {char.avatar ? (
                   <img
@@ -441,9 +433,8 @@ export default function CharactersTab() {
 
             {/* 角色基本信息预览 */}
             <div className="px-5 pb-4 border-b border-border/40 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-border ${
-                actionMenuChar.avatar ? "bg-muted" : getAvatarGradientClass(actionMenuChar.name)
-              }`}>
+              <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-border ${actionMenuChar.avatar ? "bg-muted" : getAvatarGradientClass(actionMenuChar.name)
+                }`}>
                 {actionMenuChar.avatar ? (
                   <img src={actionMenuChar.avatar} alt={actionMenuChar.name} decoding="async" className="w-full h-full object-cover" />
                 ) : (
