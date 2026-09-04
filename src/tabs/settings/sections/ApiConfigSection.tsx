@@ -125,63 +125,65 @@ export default function ApiConfigSection({
               {t("api.select_profile")}
             </label>
             <div className="flex flex-col gap-2">
-              <div className="flex gap-1.5">
-                <Select
-                  aria-label={t("api.select_profile")}
-                  value={settings.currentApiProfileId || "temp"}
-                  onValueChange={(val) => {
-                    if (val === "temp") {
-                      updateSettings((prev) => ({
-                        ...prev,
-                        currentApiProfileId: "",
-                      }));
-                    } else {
-                      const target = (settings.savedApiProfiles || []).find((p) => p.id === val);
-                      if (target) {
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex-1 min-w-0">
+                  <Select
+                    aria-label={t("api.select_profile")}
+                    value={settings.currentApiProfileId || "temp"}
+                    onValueChange={(val) => {
+                      if (val === "temp") {
                         updateSettings((prev) => ({
                           ...prev,
-                          currentApiProfileId: val ?? "",
-                          api: {
-                            ...prev.api,
-                            type: target.type,
-                            baseUrl: target.baseUrl,
-                            apiKey: target.apiKey,
-                            modelName: target.modelName,
-                            chatPath: target.chatPath,
-                            modelsPath: target.modelsPath,
-                            bypassProxy: target.bypassProxy,
-                            disableReasoning: target.disableReasoning,
-                            forceBasicParams: target.forceBasicParams,
-                            supportsVision: target.supportsVision,
-                            supportsAudioInput: target.supportsAudioInput,
-                          },
+                          currentApiProfileId: "",
                         }));
+                      } else {
+                        const target = (settings.savedApiProfiles || []).find((p) => p.id === val);
+                        if (target) {
+                          updateSettings((prev) => ({
+                            ...prev,
+                            currentApiProfileId: val ?? "",
+                            api: {
+                              ...prev.api,
+                              type: target.type,
+                              baseUrl: target.baseUrl,
+                              apiKey: target.apiKey,
+                              modelName: target.modelName,
+                              chatPath: target.chatPath,
+                              modelsPath: target.modelsPath,
+                              bypassProxy: target.bypassProxy,
+                              disableReasoning: target.disableReasoning,
+                              forceBasicParams: target.forceBasicParams,
+                              supportsVision: target.supportsVision,
+                              supportsAudioInput: target.supportsAudioInput,
+                            },
+                          }));
+                        }
                       }
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-8.5 rounded-xl bg-background/80 border-border/70 text-xs flex-1 truncate shadow-2xs font-medium">
-                    <SelectValue placeholder={t("api.select_profile")}>
-                      {(() => {
-                        if (!settings.currentApiProfileId) return t("api.temp_profile");
-                        const currentProf = (settings.savedApiProfiles || []).find(
-                          (p) => p.id === settings.currentApiProfileId
-                        );
-                        return currentProf ? `🔌 ${currentProf.name}` : t("api.temp_profile");
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="temp" className="text-xs">
-                      {t("api.temp_profile")}
-                    </SelectItem>
-                    {(settings.savedApiProfiles || []).map((prof) => (
-                      <SelectItem key={prof.id} value={prof.id} className="text-xs font-mono">
-                        🔌 {prof.name}
+                    }}
+                  >
+                    <SelectTrigger className="h-9 rounded-xl bg-background/80 border-border/70 text-xs w-full truncate shadow-2xs font-medium">
+                      <SelectValue placeholder={t("api.select_profile")}>
+                        {(() => {
+                          if (!settings.currentApiProfileId) return t("api.temp_profile");
+                          const currentProf = (settings.savedApiProfiles || []).find(
+                            (p) => p.id === settings.currentApiProfileId
+                          );
+                          return currentProf ? `🔌 ${currentProf.name}` : t("api.temp_profile");
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="temp" className="text-xs">
+                        {t("api.temp_profile")}
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      {(settings.savedApiProfiles || []).map((prof) => (
+                        <SelectItem key={prof.id} value={prof.id} className="text-xs font-mono">
+                          🔌 {prof.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <button
                   type="button"
@@ -214,9 +216,10 @@ export default function ApiConfigSection({
                       }));
                     }
                   }}
-                  className="h-8.5 px-3 bg-primary/10 border border-primary/25 text-primary text-xs font-bold rounded-xl hover:bg-primary/20 transition shrink-0 active:scale-95 shadow-2xs"
+                  className="h-9 px-3.5 bg-primary/10 border border-primary/25 text-primary text-xs font-bold rounded-xl hover:bg-primary/20 transition shrink-0 active:scale-95 shadow-2xs flex items-center justify-center gap-1.5"
                 >
-                  {t("api.save_profile")}
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{t("api.save_profile")}</span>
                 </button>
               </div>
 

@@ -106,21 +106,21 @@ export function PromptCompositionHeader({
   return (
     <header className="space-y-2 pb-2.5 border-b border-border/60">
       {/* 顶部标题与工具快捷栏 */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1 sm:max-w-xs">
           <PromptComposerInput
             value={composition.name}
             onChange={(event) => onUpdateName(event.target.value)}
             aria-label={t("prompt_composer.composition_name")}
-            className="h-8.5 text-xs font-bold min-w-[130px] max-w-[240px] flex-1 bg-background/80 focus-visible:bg-background"
+            className="h-8.5 text-xs font-bold w-full bg-background/80 focus-visible:bg-background"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto">
           <PromptComposerButton
             type="button"
             onClick={onOpenPreview}
-            className="h-8 gap-1.5 border-primary/30 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/20 hover:border-primary/40 shadow-xs"
+            className="h-8 flex-1 sm:flex-initial gap-1.5 border-primary/30 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/20 hover:border-primary/40 shadow-xs justify-center"
           >
             <Eye className="h-3.5 w-3.5" />
             <span>{t("prompt_composer.preview")}</span>
@@ -129,7 +129,7 @@ export function PromptCompositionHeader({
           <PromptComposerButton
             type="button"
             onClick={onOpenTutorial}
-            className="h-8 gap-1.5 border-border/80 bg-background/80 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background shadow-xs"
+            className="h-8 flex-1 sm:flex-initial gap-1.5 border-border/80 bg-background/80 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background shadow-xs justify-center"
           >
             <HelpCircle className="h-3.5 w-3.5" />
             <span>{t("prompt_composer.tutorial")}</span>
@@ -140,7 +140,7 @@ export function PromptCompositionHeader({
               type="button"
               aria-expanded={showAdvancedOptions}
               onClick={onToggleAdvancedOptions}
-              className={`h-8 gap-1.5 px-2.5 text-xs font-medium transition-all shadow-xs ${
+              className={`h-8 flex-1 sm:flex-initial gap-1.5 px-2.5 text-xs font-medium transition-all shadow-xs justify-center ${
                 showAdvancedOptions
                   ? "border-primary/40 bg-primary/15 text-primary font-bold shadow-xs ring-1 ring-primary/20"
                   : "border-border/80 bg-background/80 text-muted-foreground hover:text-foreground"
