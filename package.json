@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.ts",
+    "headless": "tsx headless/main.ts",
+    "headless:dev": "tsx watch headless/main.ts",
     "build": "npm run build:web && npm run build:server",
     "build:web": "npm run build:examples && vite build",
     "build:mobile": "npm run build:web && npm run check:mobile-assets",

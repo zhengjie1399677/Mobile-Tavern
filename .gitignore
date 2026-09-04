@@ -73,3 +73,6 @@ data-analysis-report.html
 
 # ESLint 全仓库扫描产物（一次性）
 .eslint-scan.json
+
+# Headless 模式本地持久化数据目录
+data/headless/
