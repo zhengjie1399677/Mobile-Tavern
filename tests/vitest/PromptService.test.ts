@@ -568,4 +568,40 @@ describe("PromptService prompt compilation", () => {
     expect(result.systemInstruction).toContain("User: Hi!");
     expect(result.systemInstruction).toContain("Char: *smiles* Hello!");
   });
+
+  it("useMainPrompt 为 false 时，assemblePrompt 不拼入 mainPrompt", () => {
+    const promptService = new PromptService();
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.mainPrompt = "THIS_IS_MAIN_PROMPT_SECRET_CONTENT";
+    settings.promptConfig.useMainPrompt = false;
+
+    const character = {
+      id: "test-char",
+      name: "测试角色",
+      description: "角色描述",
+      personality: "",
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+      extensions: {},
+    } as CharacterCard;
+    const chat = {
+      id: "test-chat",
+      characterId: character.id,
+      title: "Chat",
+      createdAt: 1,
+      messages: [{ id: "m1", sender: "user", content: "hello", timestamp: 1 }],
+      summaries: [],
+    } as ChatSession;
+
+    const result = promptService.assemblePrompt({
+      character,
+      chat,
+      userInput: "hello",
+      settings,
+    });
+
+    expect(result.systemInstruction).not.toContain("THIS_IS_MAIN_PROMPT_SECRET_CONTENT");
+    expect(result.messages.some((m) => m.content.includes("THIS_IS_MAIN_PROMPT_SECRET_CONTENT"))).toBe(false);
+  });
 });

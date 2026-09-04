@@ -106,7 +106,7 @@ export function applyPresetCompositionToPromptConfig(
   return {
     ...current,
     usePromptComposition: plan.mode === "composition",
-    composition: plan.composition ?? current.composition,
+    composition: plan.composition ?? (bundle.promptConfig ? createLegacyCompositionSnapshot(bundle.promptConfig) : current.composition),
   };
 }
 

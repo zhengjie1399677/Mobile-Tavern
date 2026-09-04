@@ -113,20 +113,19 @@ export const usePresetBundles = ({
         const currentSavedFromDB = (await presetService.getStoredSavedPresets()) || [];
         const nextSaved = [...currentSavedFromDB, importedBundle];
         updateSettings((prev) => {
-          const promptConfig = applyPresetPromptConfig(
-            prev.promptConfig,
-            importedBundle.promptConfig,
-          );
-          const appliedPromptConfig = applyPresetCompositionToPromptConfig(
-            promptConfig,
+          const promptConfig = applyPresetCompositionToPromptConfig(
+            applyPresetPromptConfig(
+              DEFAULT_PROMPT_CONFIG,
+              importedBundle.promptConfig,
+            ),
             importedBundle,
           );
           return {
             ...prev,
-            preset: importedBundle.preset,
+            preset: { ...DEFAULT_SETTINGS.preset, ...importedBundle.preset },
             presetRegexScripts: importedRegexScripts,
             savedPresets: nextSaved,
-            promptConfig: appliedPromptConfig,
+            promptConfig,
           };
         });
         await presetService.saveStoredSavedPresets(nextSaved);
@@ -217,92 +216,140 @@ export const usePresetBundles = ({
   }, [settings, showCustomPrompt, updateSettings, showCustomAlert, presetService]);
 
   const handleLoadPresetBundle = useCallback((bundleId: string) => {
-    const bundle = (settings.savedPresets || []).find((candidate) => candidate.id === bundleId);
-    if (!bundle) return;
-    const promptConfig = applyPresetCompositionToPromptConfig(
-      applyPresetPromptConfig(settings.promptConfig, bundle.promptConfig),
-      bundle,
-    );
-    updateSettings({
-      ...settings,
-      preset: { ...DEFAULT_SETTINGS.preset, ...bundle.preset },
-      promptConfig,
-      presetRegexScripts: bundle.presetRegexScripts || [],
+    let nextSavedToStore: SavedPresetBundle[] | null = null;
+    updateSettings((prev) => {
+      const currentSaved = prev.savedPresets || [];
+      // 1. 如果当前活跃预设是用户自定义/导入预设（非内置），在切换前同步其最新状态到 savedPresets
+      let updatedSaved = currentSaved;
+      const currentActiveId = prev.preset.id;
+      const currentBundleIdx = updatedSaved.findIndex(
+        (b) => b.preset.id === currentActiveId && !b.isBuiltin,
+      );
+      if (currentBundleIdx !== -1) {
+        const currentBundle = updatedSaved[currentBundleIdx];
+        const updatedBundle: SavedPresetBundle = {
+          ...currentBundle,
+          preset: { ...prev.preset },
+          promptConfig: toPresetPromptConfig(prev.promptConfig),
+          promptPlan: createPromptPresetPlan(prev.promptConfig, currentBundle.promptPlan?.source ?? "native"),
+          presetRegexScripts: prev.presetRegexScripts ? [...prev.presetRegexScripts] : [],
+        };
+        updatedSaved = [...updatedSaved];
+        updatedSaved[currentBundleIdx] = updatedBundle;
+        nextSavedToStore = updatedSaved;
+      }
+
+      const bundle = updatedSaved.find((candidate) => candidate.id === bundleId);
+      if (!bundle) return prev;
+
+      // 2. 以干净的 DEFAULT_PROMPT_CONFIG 为基准应用目标预设，切断旧预设残留污染
+      const promptConfig = applyPresetCompositionToPromptConfig(
+        applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, bundle.promptConfig),
+        bundle,
+      );
+
+      return {
+        ...prev,
+        preset: { ...DEFAULT_SETTINGS.preset, ...bundle.preset },
+        promptConfig,
+        presetRegexScripts: bundle.presetRegexScripts ? [...bundle.presetRegexScripts] : [],
+        savedPresets: updatedSaved,
+      };
     });
-  }, [settings, updateSettings]);
+
+    if (nextSavedToStore) {
+      void presetService.saveStoredSavedPresets(nextSavedToStore);
+    }
+  }, [updateSettings, presetService]);
 
   const handleDeletePresetBundle = useCallback(async (presetId: string) => {
-    const bundleId = (settings.savedPresets || []).find(
-      (bundle) => bundle.preset.id === presetId,
-    )?.id;
-    if (!bundleId) return;
-    if (!await showCustomConfirm("确定要删除这个本地保存的预设吗？")) return;
+    const ok = await showCustomConfirm("确定要删除这个本地保存的预设吗？");
+    if (!ok) return;
 
-    const nextSaved = (settings.savedPresets || []).filter((bundle) => bundle.id !== bundleId);
-    const nextPreset = nextSaved.length > 0 ? nextSaved[0].preset : DEFAULT_SETTINGS.preset;
-    const fallbackBundle = nextSaved.length > 0
-      ? nextSaved[0]
-      : {
-          promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
-          promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
-        };
-    const nextPromptConfig = applyPresetCompositionToPromptConfig(
-      applyPresetPromptConfig(settings.promptConfig, fallbackBundle.promptConfig),
-      fallbackBundle,
-    );
-    updateSettings({
-      ...settings,
-      preset: nextPreset,
-      promptConfig: nextPromptConfig,
-      savedPresets: nextSaved,
+    let nextSavedToStore: SavedPresetBundle[] | null = null;
+    updateSettings((prev) => {
+      const currentSaved = prev.savedPresets || [];
+      const bundleId = currentSaved.find((bundle) => bundle.preset.id === presetId)?.id;
+      if (!bundleId) return prev;
+
+      const nextSaved = currentSaved.filter((bundle) => bundle.id !== bundleId);
+      const nextPreset = nextSaved.length > 0 ? nextSaved[0].preset : DEFAULT_SETTINGS.preset;
+      const fallbackBundle = nextSaved.length > 0
+        ? nextSaved[0]
+        : {
+            promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+            promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
+          };
+      const nextPromptConfig = applyPresetCompositionToPromptConfig(
+        applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, fallbackBundle.promptConfig),
+        fallbackBundle,
+      );
+      nextSavedToStore = nextSaved;
+      return {
+        ...prev,
+        preset: nextPreset,
+        promptConfig: nextPromptConfig,
+        savedPresets: nextSaved,
+      };
     });
-    await presetService.saveStoredSavedPresets(nextSaved);
-  }, [settings, showCustomConfirm, updateSettings, presetService]);
+
+    if (nextSavedToStore) {
+      await presetService.saveStoredSavedPresets(nextSavedToStore);
+    }
+  }, [showCustomConfirm, updateSettings, presetService]);
 
   const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
     if (bundleIds.length === 0) return;
     if (!await showCustomConfirm(`确定要批量删除这 ${bundleIds.length} 个本地预设包吗？`)) return;
 
-    const nextSaved = (settings.savedPresets || []).filter(
-      (bundle) => !bundleIds.includes(bundle.id),
-    );
-    let nextPreset = settings.preset;
-    let nextPromptConfig = settings.promptConfig;
-    let nextRegex = settings.presetRegexScripts;
-    const isCurrentDeleted = bundleIds.includes(settings.preset.id)
-      || (settings.savedPresets || []).some((bundle) =>
-        bundle.preset.id === settings.preset.id && bundleIds.includes(bundle.id));
-    if (isCurrentDeleted) {
-      if (nextSaved.length > 0) {
-        nextPreset = nextSaved[0].preset;
-        nextPromptConfig = applyPresetCompositionToPromptConfig(
-          applyPresetPromptConfig(settings.promptConfig, nextSaved[0].promptConfig),
-          nextSaved[0],
-        );
-        nextRegex = nextSaved[0].presetRegexScripts || [];
-      } else {
-        nextPreset = DEFAULT_SETTINGS.preset;
-        const defaultBundle = {
-          promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
-          promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
-        };
-        nextPromptConfig = applyPresetCompositionToPromptConfig(
-          applyPresetPromptConfig(settings.promptConfig, defaultBundle.promptConfig),
-          defaultBundle,
-        );
-        nextRegex = [];
+    let nextSavedToStore: SavedPresetBundle[] | null = null;
+    updateSettings((prev) => {
+      const currentSaved = prev.savedPresets || [];
+      const nextSaved = currentSaved.filter(
+        (bundle) => !bundleIds.includes(bundle.id),
+      );
+      let nextPreset = prev.preset;
+      let nextPromptConfig = prev.promptConfig;
+      let nextRegex = prev.presetRegexScripts;
+      const isCurrentDeleted = bundleIds.includes(prev.preset.id)
+        || currentSaved.some((bundle) =>
+          bundle.preset.id === prev.preset.id && bundleIds.includes(bundle.id));
+      if (isCurrentDeleted) {
+        if (nextSaved.length > 0) {
+          nextPreset = nextSaved[0].preset;
+          nextPromptConfig = applyPresetCompositionToPromptConfig(
+            applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, nextSaved[0].promptConfig),
+            nextSaved[0],
+          );
+          nextRegex = nextSaved[0].presetRegexScripts || [];
+        } else {
+          nextPreset = DEFAULT_SETTINGS.preset;
+          const defaultBundle = {
+            promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+            promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
+          };
+          nextPromptConfig = applyPresetCompositionToPromptConfig(
+            applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, defaultBundle.promptConfig),
+            defaultBundle,
+          );
+          nextRegex = [];
+        }
       }
-    }
-    updateSettings({
-      ...settings,
-      preset: nextPreset,
-      promptConfig: nextPromptConfig,
-      presetRegexScripts: nextRegex,
-      savedPresets: nextSaved,
+      nextSavedToStore = nextSaved;
+      return {
+        ...prev,
+        preset: nextPreset,
+        promptConfig: nextPromptConfig,
+        presetRegexScripts: nextRegex,
+        savedPresets: nextSaved,
+      };
     });
-    await presetService.saveStoredSavedPresets(nextSaved);
+
+    if (nextSavedToStore) {
+      await presetService.saveStoredSavedPresets(nextSavedToStore);
+    }
     await showCustomAlert("🎉 批量删除成功！");
-  }, [settings, showCustomConfirm, updateSettings, showCustomAlert, presetService]);
+  }, [showCustomConfirm, updateSettings, showCustomAlert, presetService]);
 
   return {
     handleImportPresetJSON,

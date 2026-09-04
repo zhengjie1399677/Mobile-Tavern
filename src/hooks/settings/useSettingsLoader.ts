@@ -151,6 +151,9 @@ export const useSettingsLoader = ({
           didInject = true;
 
           nextMergedPresets = nextMergedPresets.map((b: any) => {
+            if (b.id !== "bundle_mobile_tavern_basic") {
+              return b;
+            }
             const res = fillEmptyCustomPrompts(
               b.promptConfig?.customPrompts,
               MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts || []
@@ -250,10 +253,13 @@ export const useSettingsLoader = ({
             return nextPrompt;
           });
 
-          for (const dp of defaultPrompts) {
-            if (!mergedCustomPrompts.some((up: any) => up.id === dp.id)) {
-              mergedCustomPrompts.push(dp);
-              customPromptsUpdated = true;
+          // 仅当用户没有任何词条（首次初始化）时，才补充默认词条；避免对自定义预设或用户有意精简的词条进行强制污染注入
+          if (userPrompts.length === 0) {
+            for (const dp of defaultPrompts) {
+              if (!mergedCustomPrompts.some((up: any) => up.id === dp.id)) {
+                mergedCustomPrompts.push(dp);
+                customPromptsUpdated = true;
+              }
             }
           }
           if (customPromptsUpdated || roleUpdated) {

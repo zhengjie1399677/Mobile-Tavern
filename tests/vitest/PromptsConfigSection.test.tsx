@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PromptsConfigSection from "../../src/components/presetForm/PromptsConfigSection";
@@ -104,5 +104,68 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "删除提示词 第一人称约束" }));
     expect(handleDelete).toHaveBeenCalledWith("custom-1");
+  });
+
+  it("自由编排模式下，切换系统提示词开关会同步更新 composition.blocks", () => {
+    let currentSettings: UserSettings | null = null;
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.usePromptComposition = true;
+    settings.promptConfig.useMainPrompt = true;
+    settings.promptConfig.mainPrompt = "系统核心指令";
+    settings.promptConfig.composition = {
+      id: "comp_1",
+      name: "测试编排",
+      version: 1,
+      blocks: [
+        {
+          id: "built-in-main-prompt",
+          name: "底层扮演系统指令",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "系统核心指令",
+          order: 100,
+          placement: { type: "ordered" },
+          compatibility: { source: "sillytavern", originalIdentifier: "main" },
+        },
+      ],
+    };
+
+    function CompositionHarness() {
+      const [localSettings, setLocalSettings] = useState<UserSettings>(settings);
+      useEffect(() => {
+        currentSettings = localSettings;
+      }, [localSettings]);
+      return (
+        <LanguageProvider>
+          <PromptsConfigSection
+            settings={localSettings}
+            updateSettings={(next) => setLocalSettings((prev) => (typeof next === "function" ? next(prev) : next))}
+            handleToggleCustomPrompt={vi.fn()}
+            handleUpdateCustomPrompt={vi.fn()}
+            handleAddNewCustomPrompt={vi.fn()}
+            handleDeleteCustomPrompt={vi.fn(async () => undefined)}
+            isPromptsFolded={false}
+            handleTogglePromptsFold={vi.fn()}
+            coreStatusText="1/1"
+            activeCustomPrompts={0}
+            selectedPromptIds={[]}
+            setSelectedPromptIds={vi.fn()}
+            isBatchDeletingPrompts={false}
+            setIsBatchDeletingPrompts={vi.fn()}
+            handleBatchDeletePrompts={vi.fn(async () => undefined)}
+          />
+        </LanguageProvider>
+      );
+    }
+
+    render(<CompositionHarness />);
+    const mainSwitch = screen.getByRole("switch", { name: /启用提示词.*底层扮演/ });
+    expect(mainSwitch).toBeChecked();
+
+    fireEvent.click(mainSwitch);
+
+    expect(currentSettings!.promptConfig.useMainPrompt).toBe(false);
+    expect(currentSettings!.promptConfig.composition?.blocks[0].enabled).toBe(false);
   });
 });

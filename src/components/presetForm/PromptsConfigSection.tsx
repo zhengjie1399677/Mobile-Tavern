@@ -67,25 +67,32 @@ export default function PromptsConfigSection({
   // 将内置提示词与自定义提示词收拢为完全对等的统一列表
   const unifiedPrompts = useMemo<UnifiedPromptItem[]>(() => {
     const list: UnifiedPromptItem[] = [];
+    const isComp = settings.promptConfig.usePromptComposition && !!settings.promptConfig.composition?.blocks;
+    const blocks = settings.promptConfig.composition?.blocks || [];
+
+    const findBlock = (predicate: (b: (typeof blocks)[number]) => boolean) =>
+      isComp ? blocks.find(predicate) : undefined;
 
     // 1. 系统扮演指令（若存在内容或明确启用）
     if (settings.promptConfig.useMainPrompt !== false || (settings.promptConfig.mainPrompt && settings.promptConfig.mainPrompt.trim().length > 0)) {
+      const mainBlock = findBlock((b) => b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main");
       list.push({
         id: "built-in-main-prompt",
         name: t("prompts.system_prompt") || "底层扮演系统指令",
         content: settings.promptConfig.mainPrompt || "",
-        enabled: settings.promptConfig.useMainPrompt ?? true,
+        enabled: mainBlock ? mainBlock.enabled : (settings.promptConfig.useMainPrompt ?? true),
         type: "main",
       });
     }
 
     // 2. 规则提示词（若存在内容或明确启用）
     if (settings.promptConfig.useJailbreak !== false || (settings.promptConfig.jailbreakPrompt && settings.promptConfig.jailbreakPrompt.trim().length > 0)) {
+      const jbBlock = findBlock((b) => b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt");
       list.push({
         id: "built-in-jailbreak-prompt",
         name: t("prompts.jailbreak") || "规则提示词",
         content: settings.promptConfig.jailbreakPrompt || "",
-        enabled: settings.promptConfig.useJailbreak ?? true,
+        enabled: jbBlock ? jbBlock.enabled : (settings.promptConfig.useJailbreak ?? true),
         type: "jailbreak",
       });
     }
@@ -93,11 +100,12 @@ export default function PromptsConfigSection({
     // 3. 所有用户提示词
     const customs = settings.promptConfig.customPrompts || [];
     for (const c of customs) {
+      const customBlock = findBlock((b) => b.id === c.id || Boolean(b.compatibility?.originalIdentifier && (b.compatibility.originalIdentifier === c.id || b.compatibility.originalIdentifier === c.identifier)));
       list.push({
         id: c.id,
         name: c.name,
         content: c.content,
-        enabled: c.enabled,
+        enabled: customBlock ? customBlock.enabled : c.enabled,
         type: "custom",
       });
     }
@@ -109,15 +117,41 @@ export default function PromptsConfigSection({
 
   const handleToggle = (item: UnifiedPromptItem, enabled: boolean) => {
     if (item.type === "main") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, useMainPrompt: enabled },
-      }));
+      updateSettings((prev) => {
+        const nextConfig = {
+          ...prev.promptConfig,
+          useMainPrompt: enabled,
+        };
+        if (prev.promptConfig.composition?.blocks) {
+          nextConfig.composition = {
+            ...prev.promptConfig.composition,
+            blocks: prev.promptConfig.composition.blocks.map((b) =>
+              b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main"
+                ? { ...b, enabled }
+                : b
+            ),
+          };
+        }
+        return { ...prev, promptConfig: nextConfig };
+      });
     } else if (item.type === "jailbreak") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, useJailbreak: enabled },
-      }));
+      updateSettings((prev) => {
+        const nextConfig = {
+          ...prev.promptConfig,
+          useJailbreak: enabled,
+        };
+        if (prev.promptConfig.composition?.blocks) {
+          nextConfig.composition = {
+            ...prev.promptConfig.composition,
+            blocks: prev.promptConfig.composition.blocks.map((b) =>
+              b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt"
+                ? { ...b, enabled }
+                : b
+            ),
+          };
+        }
+        return { ...prev, promptConfig: nextConfig };
+      });
     } else {
       handleToggleCustomPrompt(item.id, enabled);
     }
@@ -125,15 +159,41 @@ export default function PromptsConfigSection({
 
   const handleUpdate = (item: UnifiedPromptItem, name: string, content: string) => {
     if (item.type === "main") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, mainPrompt: content },
-      }));
+      updateSettings((prev) => {
+        const nextConfig = {
+          ...prev.promptConfig,
+          mainPrompt: content,
+        };
+        if (prev.promptConfig.composition?.blocks) {
+          nextConfig.composition = {
+            ...prev.promptConfig.composition,
+            blocks: prev.promptConfig.composition.blocks.map((b) =>
+              b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main"
+                ? { ...b, template: content }
+                : b
+            ),
+          };
+        }
+        return { ...prev, promptConfig: nextConfig };
+      });
     } else if (item.type === "jailbreak") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, jailbreakPrompt: content },
-      }));
+      updateSettings((prev) => {
+        const nextConfig = {
+          ...prev.promptConfig,
+          jailbreakPrompt: content,
+        };
+        if (prev.promptConfig.composition?.blocks) {
+          nextConfig.composition = {
+            ...prev.promptConfig.composition,
+            blocks: prev.promptConfig.composition.blocks.map((b) =>
+              b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt"
+                ? { ...b, template: content }
+                : b
+            ),
+          };
+        }
+        return { ...prev, promptConfig: nextConfig };
+      });
     } else {
       handleUpdateCustomPrompt(item.id, name, "system", content);
     }
@@ -141,15 +201,43 @@ export default function PromptsConfigSection({
 
   const handleDelete = async (item: UnifiedPromptItem) => {
     if (item.type === "main") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, useMainPrompt: false, mainPrompt: "" },
-      }));
+      updateSettings((prev) => {
+        const nextConfig = {
+          ...prev.promptConfig,
+          useMainPrompt: false,
+          mainPrompt: "",
+        };
+        if (prev.promptConfig.composition?.blocks) {
+          nextConfig.composition = {
+            ...prev.promptConfig.composition,
+            blocks: prev.promptConfig.composition.blocks.map((b) =>
+              b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main"
+                ? { ...b, enabled: false, template: "" }
+                : b
+            ),
+          };
+        }
+        return { ...prev, promptConfig: nextConfig };
+      });
     } else if (item.type === "jailbreak") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, useJailbreak: false, jailbreakPrompt: "" },
-      }));
+      updateSettings((prev) => {
+        const nextConfig = {
+          ...prev.promptConfig,
+          useJailbreak: false,
+          jailbreakPrompt: "",
+        };
+        if (prev.promptConfig.composition?.blocks) {
+          nextConfig.composition = {
+            ...prev.promptConfig.composition,
+            blocks: prev.promptConfig.composition.blocks.map((b) =>
+              b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt"
+                ? { ...b, enabled: false, template: "" }
+                : b
+            ),
+          };
+        }
+        return { ...prev, promptConfig: nextConfig };
+      });
     } else {
       await handleDeleteCustomPrompt(item.id);
     }

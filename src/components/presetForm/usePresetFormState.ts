@@ -215,15 +215,48 @@ export function usePresetFormState({
     if (selectedPromptIds.length === 0) return;
     const ok = await showCustomConfirm(t("preset_form.confirm_batch_delete_prompts", { count: String(selectedPromptIds.length) }));
     if (!ok) return;
-    updateSettings((prev) => ({
-      ...prev,
-      promptConfig: {
+    updateSettings((prev) => {
+      const hasMain = selectedPromptIds.includes("built-in-main-prompt");
+      const hasJailbreak = selectedPromptIds.includes("built-in-jailbreak-prompt");
+      const remainingCustoms = (prev.promptConfig.customPrompts || []).filter(
+        (p: CustomPromptBlock) => !selectedPromptIds.includes(p.id)
+      );
+
+      const nextPromptConfig = {
         ...prev.promptConfig,
-        customPrompts: (prev.promptConfig.customPrompts || []).filter(
-          (p: CustomPromptBlock) => !selectedPromptIds.includes(p.id)
-        ),
-      },
-    }));
+        mainPrompt: hasMain ? "" : prev.promptConfig.mainPrompt,
+        useMainPrompt: hasMain ? false : prev.promptConfig.useMainPrompt,
+        jailbreakPrompt: hasJailbreak ? "" : prev.promptConfig.jailbreakPrompt,
+        useJailbreak: hasJailbreak ? false : prev.promptConfig.useJailbreak,
+        customPrompts: remainingCustoms,
+      };
+
+      if (prev.promptConfig.composition?.blocks) {
+        nextPromptConfig.composition = {
+          ...prev.promptConfig.composition,
+          blocks: prev.promptConfig.composition.blocks.filter((b) => {
+            if (hasMain && (b.compatibility?.originalIdentifier === "main" || b.id === "built-in-main-prompt" || b.id === "example_main")) {
+              return false;
+            }
+            if (hasJailbreak && (b.compatibility?.originalIdentifier === "jailbreak" || b.id === "built-in-jailbreak-prompt")) {
+              return false;
+            }
+            if (selectedPromptIds.includes(b.id)) {
+              return false;
+            }
+            if (b.compatibility?.originalIdentifier && selectedPromptIds.includes(b.compatibility.originalIdentifier)) {
+              return false;
+            }
+            return true;
+          }),
+        };
+      }
+
+      return {
+        ...prev,
+        promptConfig: nextPromptConfig,
+      };
+    });
     setSelectedPromptIds([]);
     setIsBatchDeletingPrompts(false);
   };
