@@ -30,8 +30,8 @@ export const BUILTIN_COMPOSER_COMMANDS: readonly ToolPluginComposerCommand[] = [
   },
   {
     name: "clear",
-    label: "清空上下文",
-    description: "清空当前会话消息记录（重置当前对话）",
+    label: "新建会话",
+    description: "保留当前会话，并为当前角色新建一轮会话",
     pluginId: "host.builtin",
     toolName: "host.builtin.clear",
     acceptsArgument: false,
@@ -43,14 +43,6 @@ export const BUILTIN_COMPOSER_COMMANDS: readonly ToolPluginComposerCommand[] = [
     pluginId: "host.builtin",
     toolName: "host.builtin.branch",
     acceptsArgument: false,
-  },
-  {
-    name: "sys",
-    label: "系统旁白 / 指令",
-    description: "以系统视角发送剧情旁白或注入临时设定",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.sys",
-    acceptsArgument: true,
   },
   {
     name: "memo",
@@ -108,6 +100,22 @@ export function filterComposerCommandSuggestions(
   if (!match) return [];
   const prefix = match[1].toLowerCase();
   return commands.filter((command) => command.name.toLowerCase().startsWith(prefix));
+}
+
+/** 合并内置与插件命令；内置命令保留宿主语义，名称按大小写不敏感去重。 */
+export function mergeComposerCommands(
+  builtins: readonly ToolPluginComposerCommand[],
+  pluginCommands: readonly ToolPluginComposerCommand[],
+): ToolPluginComposerCommand[] {
+  const commands = [...builtins];
+  const names = new Set(builtins.map((command) => command.name.toLowerCase()));
+  for (const command of pluginCommands) {
+    const name = command.name.toLowerCase();
+    if (names.has(name)) continue;
+    names.add(name);
+    commands.push(command);
+  }
+  return commands;
 }
 
 export interface ExecuteBuiltinComposerCommandContext {
@@ -168,8 +176,8 @@ export async function executeBuiltinComposerCommand(
     }
     case "clear": {
       const confirmed = await showCustomConfirm(
-        "确认清空当前对话记录并开启新一轮会话吗？此操作不可撤销。",
-        "清空会话",
+        "当前会话会保留。确认要为此角色新建一轮会话吗？",
+        "新建会话",
       );
       if (confirmed) {
         setLocalInput("");
@@ -184,20 +192,6 @@ export async function executeBuiltinComposerCommand(
       setUserInputMessage("");
       setReplySuggestions();
       await createNewBranch();
-      return;
-    }
-    case "sys": {
-      if (!argument) {
-        const nextInput = "/sys ";
-        setLocalInput(nextInput);
-        setUserInputMessage(nextInput);
-        requestAnimationFrame(focusTextarea);
-        return;
-      }
-      setLocalInput("");
-      setUserInputMessage("");
-      setReplySuggestions();
-      await handleSendMessage(`[系统状态/旁白]: ${argument}`);
       return;
     }
     case "send":

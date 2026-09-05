@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   BUILTIN_COMPOSER_COMMANDS,
+  executeBuiltinComposerCommand,
   filterComposerCommandSuggestions,
+  mergeComposerCommands,
   normalizeSlashInput,
   resolveComposerCommandInvocation,
 } from "../../src/application/useCases/composerCommandUseCases";
@@ -66,7 +68,7 @@ describe("Composer Command Use Cases", () => {
     expect(builtinNames).toContain("reroll");
     expect(builtinNames).toContain("clear");
     expect(builtinNames).toContain("branch");
-    expect(builtinNames).toContain("sys");
+    expect(builtinNames).not.toContain("sys");
     expect(builtinNames).toContain("memo");
     expect(builtinNames).toContain("help");
     expect(builtinNames).toContain("send");
@@ -77,5 +79,46 @@ describe("Composer Command Use Cases", () => {
       expect(cmd.pluginId).toBe("host.builtin");
       expect(cmd.toolName).toMatch(/^host\.builtin\./);
     }
+  });
+
+  it("内置命令优先于大小写不同的同名插件命令", () => {
+    const merged = mergeComposerCommands(BUILTIN_COMPOSER_COMMANDS, [
+      { ...commands[0], name: "CLEAR" },
+      commands[0],
+    ]);
+
+    expect(merged.filter((command) => command.name.toLowerCase() === "clear")).toEqual([
+      expect.objectContaining({ pluginId: "host.builtin" }),
+    ]);
+    expect(merged).toContain(commands[0]);
+  });
+
+  it("/clear 明确保留当前会话并在确认后新建会话", async () => {
+    const showCustomConfirm = vi.fn(async () => true);
+    const handleStartNewSession = vi.fn(async () => undefined);
+    await executeBuiltinComposerCommand({
+      commandName: "clear",
+      argument: "",
+      hasActiveSession: true,
+      continueText: "继续",
+      handleSendMessage: vi.fn(),
+      handleRerollLast: vi.fn(),
+      handleStartNewSession,
+      createNewBranch: vi.fn(),
+      handleAutoSummaryCheck: vi.fn(),
+      showCustomConfirm,
+      showCustomAlert: vi.fn(),
+      setLocalInput: vi.fn(),
+      setUserInputMessage: vi.fn(),
+      setReplySuggestions: vi.fn(),
+      focusTextarea: vi.fn(),
+      availableCommands: BUILTIN_COMPOSER_COMMANDS,
+    });
+
+    expect(showCustomConfirm).toHaveBeenCalledWith(
+      expect.stringContaining("当前会话会保留"),
+      "新建会话",
+    );
+    expect(handleStartNewSession).toHaveBeenCalledOnce();
   });
 });

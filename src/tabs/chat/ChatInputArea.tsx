@@ -33,13 +33,14 @@ import {
   BUILTIN_COMPOSER_COMMANDS,
   executeBuiltinComposerCommand,
   filterComposerCommandSuggestions,
+  mergeComposerCommands,
   resolveComposerCommandInvocation,
 } from "@/src/application/useCases/composerCommandUseCases";
 import type { ToolPluginComposerCommand } from "@/src/domain/toolPlugins";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { AttachmentMetadata } from "../../domain/attachments/types";
-import type { MessageContentPart } from "../../domain/messages/messageContent";
 import { AttachmentPicker } from "./attachment-composer/AttachmentPicker";
+import { toMessageAttachmentPart } from "./attachment-composer/attachmentMessagePart";
 import {
   PendingAttachmentStrip,
   type PendingAttachment,
@@ -51,20 +52,6 @@ import { ComposerCommandSuggestions } from "./ComposerCommandSuggestions";
  * 以区分 touchstart 与 mousedown 事件，避免移动端重复触发。
  */
 type TouchTrackedElement = Element & { _touched?: boolean };
-
-function toMessageAttachmentPart(item: PendingAttachment): MessageContentPart {
-  const { metadata } = item;
-  if (metadata.kind === "image") return { type: "image", assetId: metadata.id };
-  if (metadata.kind === "audio") {
-    return {
-      type: "audio",
-      assetId: metadata.id,
-      purpose: item.purpose === "model-input" ? "model-input" : undefined,
-    };
-  }
-  if (metadata.kind === "video") return { type: "video", assetId: metadata.id };
-  return { type: "file", assetId: metadata.id, displayName: metadata.originalName };
-}
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
@@ -454,14 +441,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         pluginCommands = [];
       }
     }
-    const map = new Map<string, ToolPluginComposerCommand>();
-    for (const cmd of BUILTIN_COMPOSER_COMMANDS) {
-      map.set(cmd.name, cmd);
-    }
-    for (const cmd of pluginCommands) {
-      map.set(cmd.name, cmd);
-    }
-    return Array.from(map.values());
+    return mergeComposerCommands(BUILTIN_COMPOSER_COMMANDS, pluginCommands);
   }, [composerProfileId, getKernelService]);
   const composerCommandSuggestions = filterComposerCommandSuggestions(localInput, composerCommands);
   const [selectedCommandIndex, setSelectedCommandIndex] = React.useState(0);
