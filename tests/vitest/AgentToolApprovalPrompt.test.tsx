@@ -2,15 +2,15 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import AgentToolActivity from "../../src/tabs/chat/message-bubble/AgentToolActivity";
+import AgentToolApprovalPrompt from "../../src/tabs/chat/message-bubble/AgentToolApprovalPrompt";
 import { KernelProvider } from "../../src/contexts/KernelContext";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import type { IAgentRuntimeService } from "../../src/application/serviceContracts";
 import type { AgentToolApprovalRequest } from "../../src/domain/agents/contracts";
 import type { IKernel } from "../../src/kernel";
 
-describe("AgentToolActivity", () => {
-  it("在聊天内展示具体风险和参数，并只提交一次性审批决定", async () => {
+describe("AgentToolApprovalPrompt", () => {
+  it("只在需要决定时展示具体风险和参数，并提交一次性审批决定", async () => {
     const request: AgentToolApprovalRequest = {
       id: "approval-1",
       sessionId: "session-1",
@@ -31,9 +31,7 @@ describe("AgentToolActivity", () => {
     });
     const runtime = {
       listPendingToolApprovals: () => pending,
-      listJournalBySession: vi.fn().mockResolvedValue([]),
       subscribeToolApprovals: vi.fn(() => () => undefined),
-      subscribeJournal: vi.fn(() => () => undefined),
       resolveToolApproval,
     } as unknown as IAgentRuntimeService;
     const kernel = {
@@ -44,7 +42,7 @@ describe("AgentToolActivity", () => {
     render(
       <LanguageProvider>
         <KernelProvider kernel={kernel}>
-          <AgentToolActivity sessionId="session-1" />
+          <AgentToolApprovalPrompt sessionId="session-1" />
         </KernelProvider>
       </LanguageProvider>,
     );

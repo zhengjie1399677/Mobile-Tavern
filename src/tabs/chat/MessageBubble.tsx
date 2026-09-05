@@ -26,7 +26,6 @@ import { ReasoningBlock } from "./message-bubble/ReasoningBlock";
 import { GeneratedImageBlock } from "./message-bubble/GeneratedImageBlock";
 import { MessageTimestamp } from "./message-bubble/MessageTimestamp";
 import { MessageAttachmentParts } from "./message-bubble/MessageAttachmentParts";
-import { ToolCallBlock } from "./message-bubble/ToolCallBlock";
 
 interface MessageBubbleProps {
   message: Message;
@@ -705,8 +704,6 @@ const MessageBubble = ({
                     setCopiedIds={setCopiedReasoningIds}
                   />
                 )}
-
-              <ToolCallBlock events={message.extra?.journalEvents} />
 
               <MessageAttachmentParts parts={message.parts ?? []} />
 

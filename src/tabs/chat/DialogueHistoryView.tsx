@@ -17,7 +17,7 @@ import { useOptionalKernel } from "../../contexts/KernelContext";
 import { getCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import ChatInputArea from "./ChatInputArea";
 import MessageBubble from "./MessageBubble";
-import AgentToolActivity from "./message-bubble/AgentToolActivity";
+import AgentToolApprovalPrompt from "./message-bubble/AgentToolApprovalPrompt";
 import type { Message } from "../../types";
 
 interface DialogueHistoryViewProps {
@@ -342,7 +342,7 @@ const DialogueHistoryView = ({
           </div>
         )}
 
-        {activeSession?.id && <AgentToolActivity sessionId={activeSession.id} />}
+        {activeSession?.id && <AgentToolApprovalPrompt sessionId={activeSession.id} />}
 
         <div ref={chatBottomRef} />
       </div>
