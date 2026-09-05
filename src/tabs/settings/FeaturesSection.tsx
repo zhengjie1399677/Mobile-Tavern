@@ -64,6 +64,8 @@ export default function FeaturesSection({
                   { value: "ja", label: "日本語 (Japanese)" },
                   { value: "ru", label: "Русский (Russian)" },
                   { value: "es", label: "Español (Spanish)" },
+                  { value: "ko", label: "한국어 (Korean)" },
+                  { value: "pt-BR", label: "Português (Brasil)" },
                 ]}
               />
             </div>

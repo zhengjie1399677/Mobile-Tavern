@@ -388,7 +388,11 @@ export default function ThemeConfigSection({
                           ? "Русский"
                           : language === "es"
                             ? "Español"
-                            : language}
+                            : language === "ko"
+                              ? "한국어"
+                              : language === "pt-BR"
+                                ? "Português (Brasil)"
+                                : language}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -398,6 +402,8 @@ export default function ThemeConfigSection({
               <SelectItem value="ja" label="日本語" className="text-xs">日本語</SelectItem>
               <SelectItem value="ru" label="Русский" className="text-xs">Русский</SelectItem>
               <SelectItem value="es" label="Español" className="text-xs">Español</SelectItem>
+              <SelectItem value="ko" label="한국어" className="text-xs">한국어</SelectItem>
+              <SelectItem value="pt-BR" label="Português (Brasil)" className="text-xs">Português (Brasil)</SelectItem>
             </SelectContent>
           </Select>
         </section>

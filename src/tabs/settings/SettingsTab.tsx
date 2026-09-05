@@ -27,15 +27,15 @@ import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusCont
 import { getErrorMessage } from "../../utils/errorUtils";
 
 const PresetForm = React.lazy(() => import("../../components/PresetForm"));
-import GeneralConfigSection from "./GeneralConfigSection";
-import ThemeConfigSection from "./ThemeConfigSection";
-import PersonaConfigSection from "./PersonaConfigSection";
+const GeneralConfigSection = React.lazy(() => import("./GeneralConfigSection"));
+const ThemeConfigSection = React.lazy(() => import("./ThemeConfigSection"));
+const PersonaConfigSection = React.lazy(() => import("./PersonaConfigSection"));
 const FeaturesSection = React.lazy(() => import("./FeaturesSection"));
-import MemoryStorageSection from "./MemoryStorageSection";
-import SystemReportSection from "./sections/SystemReportSection";
-import PluginManagerSection from "../../components/plugins/PluginManagerSection";
-import ToolPluginManagerSection from "../../components/plugins/ToolPluginManagerSection";
-import RuntimeProfileManagerSection from "../../components/plugins/RuntimeProfileManagerSection";
+const MemoryStorageSection = React.lazy(() => import("./MemoryStorageSection"));
+const SystemReportSection = React.lazy(() => import("./sections/SystemReportSection"));
+const PluginManagerSection = React.lazy(() => import("../../components/plugins/PluginManagerSection"));
+const ToolPluginManagerSection = React.lazy(() => import("../../components/plugins/ToolPluginManagerSection"));
+const RuntimeProfileManagerSection = React.lazy(() => import("../../components/plugins/RuntimeProfileManagerSection"));
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -311,12 +311,19 @@ export default function SettingsTab() {
       case "plugins":
         return (
           <div className="space-y-3 pb-2">
-            {/* 顶部三合一分段导航胶囊 */}
-            <div className="flex rounded-xl bg-muted/60 p-1 border border-border/50">
+            <div
+              role="tablist"
+              aria-label="插件管理分类"
+              className="flex rounded-xl bg-muted/60 p-1 border border-border/50"
+            >
               <button
                 type="button"
+                id="settings-plugin-tab-profiles"
+                role="tab"
+                aria-selected={pluginsSubTab === "profiles"}
+                aria-controls="settings-plugin-panel"
                 onClick={() => setPluginsSubTab("profiles")}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg text-center text-xs font-bold transition-all ${
                   pluginsSubTab === "profiles"
                     ? "bg-background text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -327,8 +334,12 @@ export default function SettingsTab() {
               </button>
               <button
                 type="button"
+                id="settings-plugin-tab-tools"
+                role="tab"
+                aria-selected={pluginsSubTab === "tools"}
+                aria-controls="settings-plugin-panel"
                 onClick={() => setPluginsSubTab("tools")}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg text-center text-xs font-bold transition-all ${
                   pluginsSubTab === "tools"
                     ? "bg-background text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -339,8 +350,12 @@ export default function SettingsTab() {
               </button>
               <button
                 type="button"
+                id="settings-plugin-tab-apps"
+                role="tab"
+                aria-selected={pluginsSubTab === "apps"}
+                aria-controls="settings-plugin-panel"
                 onClick={() => setPluginsSubTab("apps")}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg text-center text-xs font-bold transition-all ${
                   pluginsSubTab === "apps"
                     ? "bg-background text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -351,10 +366,15 @@ export default function SettingsTab() {
               </button>
             </div>
 
-            {/* 内容按 Tab 独立挂载，彻底告别三巨头堆叠 */}
-            {pluginsSubTab === "profiles" && <RuntimeProfileManagerSection />}
-            {pluginsSubTab === "tools" && <ToolPluginManagerSection />}
-            {pluginsSubTab === "apps" && <PluginManagerSection />}
+            <div
+              id="settings-plugin-panel"
+              role="tabpanel"
+              aria-labelledby={`settings-plugin-tab-${pluginsSubTab}`}
+            >
+              {pluginsSubTab === "profiles" && <RuntimeProfileManagerSection />}
+              {pluginsSubTab === "tools" && <ToolPluginManagerSection />}
+              {pluginsSubTab === "apps" && <PluginManagerSection />}
+            </div>
           </div>
         );
       case "advanced":
