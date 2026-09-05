@@ -118,12 +118,19 @@ function updateDownloadPage(content, targetVersion) {
     "docs/index.html",
     "版本标签",
   );
-  return replaceRequired(
+  const versionTextUpdated = replaceRequired(
     badgeUpdated,
     /(下载 Android APK \(v)\d+\.\d+\.\d+(\))/g,
     `$1${targetVersion}$2`,
     "docs/index.html",
     "带版本号的下载按钮",
+  );
+  return replaceRequired(
+    versionTextUpdated,
+    /(<a id="android-apk-download" href=")[^"]+(" download=")[^"]+("[ \t]+class=)/g,
+    "$1https://github.com/zhengjie1399677/Mobile-Tavern/releases/latest/download/MobileTavern.apk$2MobileTavern.apk$3",
+    "docs/index.html",
+    "固定 Android Release 下载入口",
   );
 }
 
