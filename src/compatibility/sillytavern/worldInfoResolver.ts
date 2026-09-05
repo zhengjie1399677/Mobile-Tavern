@@ -56,7 +56,7 @@ function isPotentiallyCatastrophicRegex(pattern: string): boolean {
 function selectiveLogic(entry: LorebookEntry): SelectiveLogic {
   const raw = sourceValue(entry, "selectiveLogic") ?? entry.selectiveLogic;
   if (typeof raw === "number") {
-    return ({ 1: "AND_ANY", 2: "AND_ALL", 3: "NOT_ANY", 4: "NOT_ALL" } as const)[raw] ?? "NONE";
+    return ({ 0: "AND_ANY", 1: "NOT_ALL", 2: "NOT_ANY", 3: "AND_ALL" } as const)[raw] ?? "NONE";
   }
   if (typeof raw !== "string") return "NONE";
   const normalized = raw.toUpperCase();
@@ -101,15 +101,14 @@ function scanTextFor(messages: readonly Message[], userInput: string, depth: num
 }
 
 function contributesToRecursion(entry: LorebookEntry): boolean {
-  if (entry.preventRecursion === true || entry.excludeRecursion === true) return false;
-  return !(sourceBoolean(entry, "exclude_recursion", "excludeRecursion") === true ||
-    sourceBoolean(entry, "prevent_recursion", "preventRecursion") === true);
+  if (entry.preventRecursion === true) return false;
+  return sourceBoolean(entry, "prevent_recursion", "preventRecursion") !== true;
 }
 
 function passesSecondaryKeys(entry: LorebookEntry, match: (key: string) => boolean): boolean {
   const rawKeys = entry.secondary_keys;
   const keys = Array.isArray(rawKeys)
-    ? rawKeys
+    ? rawKeys.filter((key): key is string => typeof key === "string")
     : typeof rawKeys === "string"
       ? (rawKeys as string).split(",").map((k) => k.trim()).filter(Boolean)
       : [];
@@ -137,18 +136,21 @@ export function resolveSillyTavernWorldInfo(
 ): readonly LorebookEntry[] {
   if (request.entries.length === 0) return [];
 
-  const currentTurn = request.messages.length;
+  const currentTurn = request.messages.reduce((max, message) =>
+    typeof message.turnIndex === "number" && Number.isFinite(message.turnIndex)
+      ? Math.max(max, message.turnIndex + 1) : max, request.messages.length);
   const rawTimed = request.timedState ??
     (request.conditionContext?.session?.timedWorldInfo as CompatibilityWorldInfoResolverRequest["timedState"]);
 
   const timedState = {
-    sticky: { ...(rawTimed?.sticky ?? {}) },
-    cooldown: { ...(rawTimed?.cooldown ?? {}) },
+    sticky: normalizeTimedEffects(rawTimed?.sticky),
+    cooldown: normalizeTimedEffects(rawTimed?.cooldown),
     delayCounters: { ...(rawTimed?.delayCounters ?? {}) },
   };
 
   // 1. 清理过期并推进时效状态（Sticky 结束后若有 Cooldown 则无缝进入冷却）
   for (const [id, effect] of Object.entries(timedState.sticky)) {
+    if (currentTurn < effect.start) { delete timedState.sticky[id]; continue; }
     if (currentTurn >= effect.end) {
       delete timedState.sticky[id];
       const entry = request.entries.find((e) => e.id === id);
@@ -160,7 +162,7 @@ export function resolveSillyTavernWorldInfo(
   }
 
   for (const [id, effect] of Object.entries(timedState.cooldown)) {
-    if (currentTurn >= effect.end) {
+    if (currentTurn < effect.start || currentTurn >= effect.end) {
       delete timedState.cooldown[id];
     }
   }
@@ -175,6 +177,8 @@ export function resolveSillyTavernWorldInfo(
   const activeIds = new Set<string>();
   const scanCache = new Map<number, string>();
   let recursionText = "";
+  let budgetUsed = 0;
+  const probabilityFailed = new Set<string>();
   let pass = 0;
   let triggered = true;
   const isRecursiveAllowed = request.recursive !== false;
@@ -193,7 +197,7 @@ export function resolveSillyTavernWorldInfo(
     const newEntriesInPass: LorebookEntry[] = [];
 
     for (const entry of entries) {
-      if (activeIds.has(entry.id)) continue;
+      if (activeIds.has(entry.id) || probabilityFailed.has(entry.id)) continue;
       if (!evaluateVariableCondition(entry.condition, conditionContext)) continue;
 
       const isSticky = Boolean(timedState.sticky[entry.id] && currentTurn < timedState.sticky[entry.id].end);
@@ -202,14 +206,16 @@ export function resolveSillyTavernWorldInfo(
       // 冷却中且非强制 Sticky 时静默跳过
       if (isCooldown && !isSticky) continue;
 
-      // 递归阶段特定过滤
-      if (pass > 1) {
-        const excludeRecursion = sourceBoolean(entry, "exclude_recursion", "excludeRecursion") ?? entry.excludeRecursion ?? false;
-        if (excludeRecursion && !isSticky) continue;
-
-        const delayUntil = sourceNumber(entry, "delay_until_recursion", "delayUntilRecursion") ?? entry.delayUntilRecursion ?? 0;
-        if (delayUntil > pass && !isSticky) continue;
+      const delay = sourceNumber(entry, "delay") ?? entry.delay ?? 0;
+      if (currentTurn < delay) continue;
+      const rawDelay = sourceValue(entry, "delay_until_recursion") ?? sourceValue(entry, "delayUntilRecursion") ?? entry.delayUntilRecursion;
+      const recursionDelay = rawDelay === true ? 1 : typeof rawDelay === "number" ? rawDelay : 0;
+      if (recursionDelay > 0 && pass <= recursionDelay && !isSticky) {
+        if (isRecursiveAllowed) triggered = true;
+        continue;
       }
+      const excludeRecursion = sourceBoolean(entry, "exclude_recursion", "excludeRecursion") ?? entry.excludeRecursion ?? false;
+      if (pass > 1 && excludeRecursion && !isSticky) continue;
 
       const isConstant = entry.constant || sourceBoolean(entry, "constant_active") === true;
       let isTriggered = isConstant || isSticky;
@@ -218,26 +224,23 @@ export function resolveSillyTavernWorldInfo(
         const scanDepth = sourceNumber(entry, "scan_depth", "scanDepth") ?? entry.scanDepth ?? 10;
         const scanText = getScanText(scanDepth);
         const match = (key: string) => matchesKey(key, entry, scanText);
-        const hasMatch = scanDepth > 0 && entry.keys.some(match) && passesSecondaryKeys(entry, match);
+        const hasMatch = scanDepth > 0 && Array.isArray(entry.keys) && entry.keys.filter((key): key is string => typeof key === "string").some(match) && passesSecondaryKeys(entry, match);
 
         if (hasMatch) {
-          const delayReq = sourceNumber(entry, "delay") ?? entry.delay ?? 0;
-          if (delayReq > 0) {
-            const currentCounter = (timedState.delayCounters[entry.id] ?? 0) + 1;
-            timedState.delayCounters[entry.id] = currentCounter;
-            if (currentCounter < delayReq) continue;
-            timedState.delayCounters[entry.id] = 0;
-          }
-
           const useProbability = sourceBoolean(entry, "useProbability", "use_probability") ?? true;
           const probability = sourceNumber(entry, "probability") ?? entry.probability ?? 100;
-          if (!useProbability || probability >= 100 || Math.random() * 100 <= probability) {
+          if (!useProbability || probability >= 100 || Math.random() * 100 < probability) {
             isTriggered = true;
+          } else {
+            probabilityFailed.add(entry.id);
           }
         }
       }
 
       if (isTriggered) {
+        const ignoreBudget = sourceBoolean(entry, "ignore_budget", "ignoreBudget") === true;
+        if (!ignoreBudget && budgetUsed + entry.content.length > DEFAULT_PROMPT_BUDGET_CHARS) continue;
+        if (!ignoreBudget) budgetUsed += entry.content.length;
         activeEntries.push(entry);
         activeIds.add(entry.id);
         newEntriesInPass.push(entry);
@@ -267,17 +270,14 @@ export function resolveSillyTavernWorldInfo(
 
   // 同步时效状态给调用方
   request.onUpdateTimedState?.(timedState);
-  if (request.conditionContext?.session) {
-    (request.conditionContext.session as Record<string, unknown>).timedWorldInfo = timedState;
-  }
+  return activeEntries;
+}
 
-  let budgetUsed = 0;
-  return activeEntries.filter((entry) => {
-    const ignoreBudget = sourceBoolean(entry, "ignore_budget", "ignoreBudget") === true;
-    if (ignoreBudget) return true;
-    const length = entry.content.length;
-    if (length > DEFAULT_PROMPT_BUDGET_CHARS || budgetUsed + length > DEFAULT_PROMPT_BUDGET_CHARS) return false;
-    budgetUsed += length;
-    return true;
-  });
+function normalizeTimedEffects(input: unknown): Record<string, { start: number; end: number }> {
+  return Object.fromEntries(Object.entries(asRecord(input)).flatMap(([id, raw]) => {
+    const effect = asRecord(raw);
+    return typeof effect.start === "number" && Number.isFinite(effect.start)
+      && typeof effect.end === "number" && Number.isFinite(effect.end) && effect.end >= effect.start
+      ? [[id, { start: effect.start, end: effect.end }]] : [];
+  }));
 }

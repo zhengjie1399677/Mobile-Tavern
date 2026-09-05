@@ -23,7 +23,7 @@ import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipel
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
-import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
+import { assembleAuthoritativePromptEnvelope, applyPromptRuntimeState } from "../../application/useCases/assemblePromptEnvelopeUseCase";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
 import {
@@ -207,6 +207,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       currentSession.summaries,
       currentSession.lastSummarizedMessageId
     );
+    let promptStatePatch: Record<string, Record<string, unknown>> | undefined;
     let updatedSession = {
       ...currentSession,
       messages: nextMsgs,
@@ -337,6 +338,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         signal: controller.signal,
         traceId,
       });
+      promptStatePatch = promptPayload.runtimePluginStatePatch;
       const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages;
       const baseProviderMessages = preserveAssistantReasoning(
         assembledProviderMessages,
@@ -503,7 +505,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         p.setReplySuggestions(replyChoices);
       }
 
-      const trueFinalSession = replacePlaceholderMessage(latestSession, finalAiMsg);
+      const trueFinalSession = replacePlaceholderMessage(applyPromptRuntimeState(latestSession, promptStatePatch), finalAiMsg);
       const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
 
       if (isStillActive) {
@@ -584,7 +586,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: parsed.content, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
-          const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
+          const trueFinalSession = replacePlaceholderMessage(applyPromptRuntimeState(latestSession, promptStatePatch), finishedAiMsg);
           if (isStillActive) {
             await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, reasoningText: parsed.reasoningContent || "", settings: effectiveSettings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
           } else {
@@ -602,7 +604,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };
-          const trueFinalSession = replacePlaceholderMessage(latestSession, finishedAiMsg);
+          const trueFinalSession = replacePlaceholderMessage(applyPromptRuntimeState(latestSession, promptStatePatch), finishedAiMsg);
           if (isStillActive) {
             await runOutputPipelineAndSave({ kernel: p.kernel, session: trueFinalSession, responseText: parsed.content, responseSuffix: CONNECTION_INTERRUPTED_SUFFIX, reasoningText: parsed.reasoningContent || "", settings: effectiveSettings, activeCharacter: p.activeCharacter!, controller, isStillActive, isBisonConsecutive: false, bisonRemainingCount: 0, setSessionViews: p.setSessionViews, databaseService: p.databaseService, persistSession: persistRerollSession, traceId });
           } else {

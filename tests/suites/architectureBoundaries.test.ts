@@ -869,5 +869,12 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "FormattedText、SystemReportSection 与 MessageBubble 必须保持职责拆分，不能重新合并为接近千行的单体组件"
   );
 
+  assert(
+    !read("src/application/services/prompt/PromptAssemblySupport.ts").includes("timedWorldInfo")
+      && !promptService.includes("timedWorldInfo")
+      && sendMessage.includes("applyPromptRuntimeState")
+      && rerollMessage.includes("applyPromptRuntimeState"),
+    "Prompt 与聊天只传递通用插件增量，世界书时效必须留在兼容插件边界并随输出提交"
+  );
   console.log("✔ 内核架构边界守卫通过");
 }

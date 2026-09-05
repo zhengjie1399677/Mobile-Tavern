@@ -89,6 +89,8 @@ export interface CompatibilityWorldInfoResolverRequest {
   readonly conditionContext?: {
     readonly variables?: Record<string, unknown>;
     readonly session?: Record<string, unknown>;
+    readonly runtimePluginState?: Record<string, unknown>;
+    readonly onUpdateRuntimePluginState?: (patch: Record<string, Record<string, unknown>>) => void;
   };
 }
 

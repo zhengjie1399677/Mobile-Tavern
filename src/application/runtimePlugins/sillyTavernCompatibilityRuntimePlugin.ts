@@ -29,6 +29,7 @@ import {
   type CompatibilityBackgroundScript,
   type CompatibilityBridgeParams,
   type CompatibilityPromptSectionRequest,
+  type CompatibilityWorldInfoResolverRequest,
   type CompatibilityRendererDefinition,
   type CompatibilityStateUpdater,
   type ICompatibilityRuntimeService,
@@ -390,7 +391,7 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
       scope.add(runtime.registerWorldInfoResolver({
         id: "compat.sillytavern.world-info",
         version: CONTRIBUTION_VERSION,
-        resolve: resolveSillyTavernWorldInfo,
+        resolve: resolveSillyTavernWorldInfoState,
       }));
     }
     if (isContributionEnabled(profile, "compat.prompt-section", "compat.sillytavern.prompt.mvu-state")) {
@@ -550,5 +551,17 @@ function readBackgroundScripts(character: CharacterCard | null): CompatibilityBa
       content: script.content,
       enabled: script.enabled !== false,
     }];
+  });
+}
+
+export function resolveSillyTavernWorldInfoState(request: CompatibilityWorldInfoResolverRequest) {
+  const context = request.conditionContext;
+  const state = asRecord(context?.runtimePluginState?.[STATE_NAMESPACE]);
+  return resolveSillyTavernWorldInfo({
+    ...request,
+    timedState: state.timedWorldInfo as typeof request.timedState,
+    onUpdateTimedState: timedWorldInfo => context?.onUpdateRuntimePluginState?.({
+      [STATE_NAMESPACE]: { timedWorldInfo },
+    }),
   });
 }

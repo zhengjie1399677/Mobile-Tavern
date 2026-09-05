@@ -76,9 +76,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
   /**
    * 清洗名称以适配 API 的角色命名限制（只允许数字、字母、下划线及横杠，最大长度 64）
    */
-  cleanNameForApi(name: string | undefined, fallback: string): string | undefined {
-    return cleanPromptNameForApi(name, fallback);
-  }
+  cleanNameForApi(name: string | undefined, fallback: string): string | undefined { return cleanPromptNameForApi(name, fallback); }
 
   estimateTokens(text: string): number {
     return estimatePromptTokens(text);
@@ -97,7 +95,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     userInput: string,
     entries: LorebookEntry[],
     maxRecursionDepth: number = 3,
-    conditionContext: { variables?: Record<string, unknown>; session?: Record<string, unknown> } = {},
+    conditionContext: { variables?: Record<string, unknown>; session?: Record<string, unknown>; runtimePluginState?: Record<string, unknown>; onUpdateRuntimePluginState?: (patch: Record<string, Record<string, unknown>>) => void } = {},
   ): LorebookEntry[] {
     const compatibilityResolver = this.getCompatibilityRuntime()?.getWorldInfoResolver();
     if (compatibilityResolver) {
@@ -126,6 +124,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
   }
 
   assemblePrompt(params: {
+    onUpdateRuntimePluginState?: (patch: Record<string, Record<string, unknown>>) => void;
     character: CharacterCard;
     chat: ChatSession;
     userInput: string;
@@ -168,7 +167,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         allEntries,
         3,
-        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
+        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat), runtimePluginState: chat.runtimePluginState, onUpdateRuntimePluginState: params.onUpdateRuntimePluginState },
       );
       const runtime = buildPromptCompositionRuntimeData({
         character,
@@ -333,7 +332,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         allEntries,
         3,
-        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
+        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat), runtimePluginState: chat.runtimePluginState, onUpdateRuntimePluginState: params.onUpdateRuntimePluginState },
       );
       const compatibilityRuntime = this.getCompatibilityRuntime();
       const hasCompatibilityWorldInfo = Boolean(compatibilityRuntime?.getWorldInfoResolver());
@@ -544,7 +543,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       userInput,
       allEntries,
       3,
-      { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
+      { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat), runtimePluginState: chat.runtimePluginState, onUpdateRuntimePluginState: params.onUpdateRuntimePluginState },
     );
     const compatibilityRuntime = this.getCompatibilityRuntime();
     const hasCompatibilityWorldInfo = Boolean(compatibilityRuntime?.getWorldInfoResolver());

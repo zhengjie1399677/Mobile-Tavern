@@ -1,3 +1,4 @@
+import type { WorldInfoTimedState } from "../../src/application/compatibility/contracts";
 import { describe, expect, it } from "vitest";
 import { resolveSillyTavernWorldInfo } from "../../src/compatibility/sillytavern/worldInfoResolver";
 import type { LorebookEntry } from "../../src/types";
@@ -24,7 +25,7 @@ describe("SillyTavern Compatibility World Info resolver", () => {
           keys: ["城门"],
           order: 20,
           secondary_keys: ["不存在", "城门"],
-          sourceMetadata: { extensions: { selectiveLogic: 4 } },
+          sourceMetadata: { extensions: { selectiveLogic: 1 } },
         }),
       ],
     });
@@ -43,7 +44,7 @@ describe("SillyTavern Compatibility World Info resolver", () => {
           content: "解锁词",
           sourceMetadata: { extensions: { exclude_recursion: true } },
         }),
-        entry("不应递归触发", { keys: ["解锁词"] }),
+        entry("允许传播的递归条目", { keys: ["解锁词"] }),
         entry("延迟条目", {
           keys: ["种子"],
           content: "延迟内容",
@@ -52,8 +53,7 @@ describe("SillyTavern Compatibility World Info resolver", () => {
       ],
     });
 
-    expect(result.map((item) => item.id)).toEqual(["种子条目", "延迟条目"]);
-    expect(result.some((item) => item.id === "不应递归触发")).toBe(false);
+    expect(result.map((item) => item.id)).toEqual(["种子条目", "允许传播的递归条目", "延迟条目"]);
   });
 
   it("允许 ignore_budget 条目越过兼容插件的默认预算", () => {
@@ -80,7 +80,7 @@ describe("SillyTavern Compatibility World Info resolver", () => {
       cooldown: 1,
     });
 
-    let timedState: any = undefined;
+    let timedState: WorldInfoTimedState | undefined;
 
     // 第 0 轮：包含关键词触发，设置 sticky: end = 2
     const turn0 = resolveSillyTavernWorldInfo({
@@ -90,7 +90,7 @@ describe("SillyTavern Compatibility World Info resolver", () => {
       onUpdateTimedState: (state) => { timedState = state; },
     });
     expect(turn0.map((e) => e.id)).toEqual(["醉酒状态"]);
-    expect(timedState.sticky["醉酒状态"]).toMatchObject({ start: 0, end: 2 });
+    expect(timedState!.sticky["醉酒状态"]).toMatchObject({ start: 0, end: 2 });
 
     // 第 1 轮：无关键词，但消息数 = 1 < end(2)，强制保持激活
     const turn1 = resolveSillyTavernWorldInfo({
@@ -115,7 +115,7 @@ describe("SillyTavern Compatibility World Info resolver", () => {
     });
     // 在冷却期内，即使出现关键词也被抑制
     expect(turn2WithKeyword.map((e) => e.id)).toEqual([]);
-    expect(timedState.cooldown["醉酒状态"]).toMatchObject({ start: 2, end: 3 });
+    expect(timedState!.cooldown["醉酒状态"]).toMatchObject({ start: 2, end: 3 });
 
     // 第 3 轮：消息数 = 3 >= cooldown.end(3)，冷却结束，再次触发成功
     const turn3 = resolveSillyTavernWorldInfo({
@@ -132,34 +132,30 @@ describe("SillyTavern Compatibility World Info resolver", () => {
     expect(turn3.map((e) => e.id)).toEqual(["醉酒状态"]);
   });
 
-  it("支持 Delay 延迟生效轮数", () => {
-    const delayedEntry = entry("蓄力技", {
-      keys: ["蓄力"],
-      content: "大招准备就绪！",
-      delay: 2,
-    });
+  it("Delay 按会话绝对消息位置解锁，同一轮重复扫描不累加", () => {
+    const delayed = entry("延迟", { keys: ["触发"], delay: 20 });
+    const request = { entries: [delayed], userInput: "触发", messages: [{ id: "last", sender: "user" as const, content: "触发", timestamp: 0, turnIndex: 18 }] };
+    expect(resolveSillyTavernWorldInfo(request)).toEqual([]);
+    expect(resolveSillyTavernWorldInfo(request)).toEqual([]);
+    expect(resolveSillyTavernWorldInfo({ ...request, messages: [{ ...request.messages[0], turnIndex: 19 }] })).toEqual([delayed]);
+  });
 
-    let timedState: any = undefined;
+  it.each([[0, false], [1, true], [2, true], [3, false]])("外部选择逻辑 %i 遵循 ST 枚举", (logic, active) => {
+    const result = resolveSillyTavernWorldInfo({ messages: [], userInput: "主关键词", entries: [entry("条件", {
+      keys: ["主关键词"], secondary_keys: ["缺失"], sourceMetadata: { selectiveLogic: logic },
+    })] });
+    expect(result.length > 0).toBe(active);
+  });
 
-    // 第一次触发，计数器累积为 1 < 2，未达到生效要求
-    const run1 = resolveSillyTavernWorldInfo({
-      messages: [],
-      userInput: "开始蓄力",
-      entries: [delayedEntry],
-      onUpdateTimedState: (state) => { timedState = state; },
-    });
-    expect(run1.map((e) => e.id)).toEqual([]);
-    expect(timedState.delayCounters["蓄力技"]).toBe(1);
-
-    // 第二次触发，计数器达到 2，成功激活
-    const run2 = resolveSillyTavernWorldInfo({
-      messages: [],
-      userInput: "继续蓄力",
-      entries: [delayedEntry],
-      timedState,
-      onUpdateTimedState: (state) => { timedState = state; },
-    });
-    expect(run2.map((e) => e.id)).toEqual(["蓄力技"]);
+  it("预算排除的条目不递归、不启动时效，延迟递归不会在首轮触发", () => {
+    let state: WorldInfoTimedState | undefined;
+    const result = resolveSillyTavernWorldInfo({ messages: [], userInput: "触发", recursive: false,
+      onUpdateTimedState: next => { state = next; }, entries: [
+        entry("超量", { keys: ["触发"], content: "x".repeat(7000), sticky: 4 }),
+        entry("延迟递归", { keys: ["触发"], delayUntilRecursion: 1 }),
+      ] });
+    expect(result).toEqual([]);
+    expect(state?.sticky).toEqual({});
   });
 
   it("支持多层级联递归检索及其抑制控制", () => {

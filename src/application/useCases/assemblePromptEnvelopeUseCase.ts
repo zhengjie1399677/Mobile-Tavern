@@ -21,7 +21,7 @@ type PromptDatabaseService = IDatabaseService<
 
 export interface AssemblePromptEnvelopeParams {
   databaseService: PromptDatabaseService;
-  promptService: IPromptService;
+  promptService: Pick<IPromptService<CharacterCard, ChatSession, UserSettings, LorebookEntry>, "assemblePrompt">;
   character: CharacterCard;
   session: ChatSession;
   userInput: string;
@@ -48,7 +48,14 @@ export async function assembleAuthoritativePromptEnvelope(
     params.settings,
     params.beforeMessageId,
   );
+  let runtimePluginStatePatch: PromptAssemblyResult["runtimePluginStatePatch"];
   const promptEnvelope = params.promptService.assemblePrompt({
+    onUpdateRuntimePluginState: patch => {
+      runtimePluginStatePatch ??= {};
+      for (const [id, changes] of Object.entries(patch)) {
+        runtimePluginStatePatch[id] = { ...runtimePluginStatePatch[id], ...changes };
+      }
+    },
     character: params.character,
     chat: promptSession,
     userInput: params.userInput,
@@ -58,5 +65,22 @@ export async function assembleAuthoritativePromptEnvelope(
     signal: params.signal,
     traceId: params.traceId,
   });
-  return { promptSession, promptEnvelope };
+  return { promptSession, promptEnvelope: { ...promptEnvelope, runtimePluginStatePatch } };
+}
+
+/** 提交生成结果时才合并插件增量，保留生成期间更新的其他插件字段。 */
+export function applyPromptRuntimeState(
+  session: ChatSession,
+  patch: PromptAssemblyResult["runtimePluginStatePatch"],
+): ChatSession {
+  if (!patch) return session;
+  const runtimePluginState = { ...session.runtimePluginState };
+  for (const [id, changes] of Object.entries(patch)) {
+    const previous = runtimePluginState[id];
+    runtimePluginState[id] = {
+      ...(previous && typeof previous === "object" && !Array.isArray(previous) ? previous : {}),
+      ...changes,
+    };
+  }
+  return { ...session, runtimePluginState };
 }

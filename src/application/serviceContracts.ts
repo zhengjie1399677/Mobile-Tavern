@@ -397,6 +397,7 @@ export interface ILLMService extends IKernelService {
  */
 export interface IPromptService<TCharacter = unknown, TSession = unknown, TSettings = unknown, TLorebook = unknown> extends IKernelService {
   assemblePrompt(params: {
+    onUpdateRuntimePluginState?: (patch: Record<string, Record<string, unknown>>) => void;
     character: TCharacter;
     chat: TSession;
     userInput: string;
