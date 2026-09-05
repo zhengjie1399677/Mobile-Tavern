@@ -242,9 +242,9 @@ export default function MainLayout() {
             style={{ opacity: settings.ambientGlowIntensity ?? 0.6 }}
             aria-hidden="true"
           >
-            <div className="absolute -top-12 -right-12 h-80 w-80 rounded-full bg-purple-600/28 blur-[90px] animate-pulse" />
+            <div className="absolute -top-12 -right-12 h-80 w-80 rounded-full bg-purple-600/28 blur-[90px] animate-pulse motion-reduce:animate-none" />
             <div
-              className="absolute top-96 -left-16 h-88 w-88 rounded-full bg-cyan-500/24 blur-[100px] animate-pulse"
+              className="absolute top-96 -left-16 h-88 w-88 rounded-full bg-cyan-500/24 blur-[100px] animate-pulse motion-reduce:animate-none"
               style={{ animationDuration: "4s" }}
             />
             <div className="absolute -bottom-10 right-10 h-72 w-72 rounded-full bg-indigo-500/22 blur-[90px]" />
@@ -277,6 +277,7 @@ export default function MainLayout() {
                   data-ui="main-tab"
                   data-tab-id={tab.id}
                   aria-selected={selected}
+                  aria-controls={`main-tabpanel-${tab.id}`}
                   aria-label={`${localizedName}${selected ? " (selected)" : ""}`}
                   tabIndex={selected ? 0 : -1}
                   onKeyDown={(event) => handleBottomTabKeyDown(event, index)}
@@ -314,7 +315,7 @@ export default function MainLayout() {
                 key={tab.id}
                 role="tabpanel"
                 id={`main-tabpanel-${tab.id}`}
-                aria-labelledby={`main-tab-${tab.id}`}
+                aria-label={t(`nav.${tab.id}`)}
                 aria-hidden={!isCurrent}
                 style={{
                   display: isCurrent ? undefined : "none",
