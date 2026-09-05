@@ -260,7 +260,7 @@ export const useSettingsLoader = ({
             userPrompts,
           )) {
             for (const dp of defaultPrompts) {
-              if (!mergedCustomPrompts.some((up: any) => up.id === dp.id)) {
+              if (!mergedCustomPrompts.some((up) => up.id === dp.id)) {
                 mergedCustomPrompts.push(dp);
                 customPromptsUpdated = true;
               }
