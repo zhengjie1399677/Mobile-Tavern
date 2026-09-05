@@ -22,6 +22,7 @@
 | 应用用例层 | `src/application/useCases/` | 业务初始化、分页、级联流程和跨 Service 协调 | 不保存 React State，不直接渲染界面 |
 | 本地界面资源服务 | `src/application/services/LocalResourceService.ts` | 校验用户导入的图片、视频与音频，管理受控 Blob URL 和 CSS 资源变量 | 不把媒体字节写入 settings，不开放任意远程 URL |
 | 本地界面资源存储 | `src/infrastructure/resources/localResourceStorage.ts` | 在独立数据库中物理分轨资源元数据与文件字节 | 不被 React 组件直接调用，不与插件包存储混用 |
+| 主题 ZIP 导入导出 | `src/application/useCases/themeZipPackage.ts` | 编排资源读取、导入与失败回滚，序列化可移植主题 | `src/domain/themes/themeZipPackage.ts` 只负责归档校验与解包，不访问资源服务；导出必须走原生保存入口 |
 | 消息附件应用服务 | `src/application/services/AttachmentService.ts` | 校验附件魔数与配额，管理引用状态、备份字节和受控 Blob URL | 不承载 Provider 方言，不借用主题资源数据库 |
 | 消息附件存储 | `src/infrastructure/attachments/attachmentStorage.ts` | 在独立数据库中分轨消息附件元数据和字节，执行引用重建与 GC | 不被 React Hook/组件直接调用，不把媒体塞入主消息记录 |
 | 多模态 Provider 投影 | `src/application/useCases/multimodalProviderProjection.ts` | 把通用 Content Parts 按已确认能力投影为请求方言 | 不修改领域消息，不把 Provider 格式持久化 |

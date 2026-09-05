@@ -13,10 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
+import { saveBlobViaBridgeOrDownload } from "../../utils/characterPngExporter";
 import { compressImage } from "../../utils/imageCompressor";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 import { Upload, Download, Trash2, Check, Plus, Edit, Globe, Sparkles, FolderArchive } from "lucide-react";
-import { importThemeZipPackage, exportThemeZipPackage } from "../../domain/themes/themeZipPackage";
+import { importThemeZipPackage, exportThemeZipPackage } from "../../application/useCases/themeZipPackage";
 import { KernelServices, type ILocalResourceService } from "../../application/serviceContracts";
 import {
   applyThemePackage,
@@ -206,15 +207,10 @@ export default function ThemeConfigSection({
     try {
       const localResourceService = kernel.getService<ILocalResourceService>(KernelServices.LocalResources);
       const blob = await exportThemeZipPackage(theme, localResourceService);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
       const safeName = theme.name.replace(/[^\w\u4e00-\u9fa5]/g, "_").slice(0, 20) || "theme";
-      a.download = `${safeName}_${theme.version}.tavern-theme.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      saveBlobViaBridgeOrDownload(blob, `${safeName}_${theme.version}.tavern-theme.zip`, "application/zip",
+        path => { void showCustomAlert(path ? `主题 ZIP 已保存至：${path}` : "主题 ZIP 下载已开始。"); },
+        message => { void showCustomAlert(`导出主题 ZIP 失败：${message}`); });
     } catch (err) {
       await showCustomAlert(`导出主题 ZIP 失败：${(err as Error).message}`);
     }

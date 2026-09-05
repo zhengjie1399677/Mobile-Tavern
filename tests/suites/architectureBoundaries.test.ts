@@ -224,6 +224,11 @@ export async function testArchitectureBoundaries(): Promise<void> {
   );
 
   const toolPluginStorage = read("src/infrastructure/toolPlugins/toolPluginStorage.ts");
+  const themeArchive = read("src/domain/themes/themeZipPackage.ts");
+  assert(!themeArchive.includes("application/") && !themeArchive.includes("importFile("),
+    "主题 ZIP 领域模块只处理归档，资源读写与回滚必须留在应用用例");
+  assert(read("src/tabs/settings/ThemeConfigSection.tsx").includes("saveBlobViaBridgeOrDownload"),
+    "主题 ZIP 导出必须经过原生文件保存入口");
   const toolPluginUseCases = read("src/application/useCases/toolPluginManagementUseCases.ts");
   const toolPluginManager = read("src/components/plugins/ToolPluginManagerSection.tsx");
   assert(

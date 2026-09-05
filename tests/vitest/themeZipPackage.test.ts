@@ -1,16 +1,57 @@
-import { describe, it, expect, vi } from "vitest";
+import { importThemeZipPackage, exportThemeZipPackage } from "../../src/application/useCases/themeZipPackage";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { zipSync } from "fflate";
 import {
   unpackThemeZip,
   extractMediaFilesFromZip,
-  importThemeZipPackage,
-  exportThemeZipPackage,
   validateZipEntryPath,
 } from "../../src/domain/themes/themeZipPackage";
 import type { ILocalResourceService } from "../../src/application/serviceContracts";
 import type { CustomThemePackage } from "../../src/utils/themePackage";
 
 describe("Theme & Media ZIP Package Engine", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("包含 CSS 图片和 MP3 的导出包保持合法 JSON，并能重新导入", async () => {
+    const theme: CustomThemePackage = {
+      schemaVersion: "1.1", name: "资源往返", version: "1.0.0", isDark: true,
+      variables: { "--background": "var(--tavern-resource-r_image)" },
+      customCss: '.hero { background: var(--tavern-resource-r_image); }',
+      media: { music: { type: "audio", src: "tavern-resource://r_audio", loop: true, volume: 1, preload: "metadata" } },
+    };
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(
+      new Blob(["media"], { type: url.includes("audio") ? "audio/mpeg" : "image/png" }),
+    )));
+    const resources = {
+      getObjectUrl: vi.fn(async (id: string) => `blob:${id}`),
+      importFile: vi.fn(async (file: File) => ({ id: file.type === "audio/mpeg" ? "r_new_audio" : "r_new_image" })),
+      getResourceReference: (id: string) => `tavern-resource://${id}`,
+      getCssReference: (id: string) => `var(--tavern-resource-${id})`,
+      deleteResource: vi.fn(async () => undefined),
+    } as unknown as ILocalResourceService;
+    const exported = await exportThemeZipPackage(theme, resources);
+    const unpacked = await unpackThemeZip(await exported.arrayBuffer());
+    expect(() => JSON.parse(unpacked.rawThemeJson)).not.toThrow();
+    expect(unpacked.mediaFiles.map(media => media.file.type)).toContain("audio/mpeg");
+    const imported = await importThemeZipPackage(await exported.arrayBuffer(), resources);
+    expect(imported.theme.variables["--background"]).toBe("var(--tavern-resource-r_new_image)");
+    expect(imported.theme.media?.music.src).toBe("tavern-resource://r_new_audio");
+  });
+
+  it("主题验证失败时回收本次导入的资源，缺失导出资源时明确失败", async () => {
+    const resources = {
+      importFile: vi.fn(async () => ({ id: "r_new" })),
+      deleteResource: vi.fn(async () => undefined),
+      getObjectUrl: vi.fn(async () => ""),
+    } as unknown as ILocalResourceService;
+    const bytes = zipSync({ "theme.json": new TextEncoder().encode('{"name":"invalid"}'), "image.png": new Uint8Array([1]) });
+    await expect(importThemeZipPackage(bytes, resources)).rejects.toThrow("THEME_VALIDATION_FAILED");
+    expect(resources.deleteResource).toHaveBeenCalledWith("r_new");
+    await expect(exportThemeZipPackage({
+      schemaVersion: "1.1", name: "资源缺失", version: "1.0.0", isDark: true,
+      variables: { "--background": "var(--tavern-resource-r_missing)" },
+    }, resources)).rejects.toThrow("THEME_ZIP_RESOURCE_MISSING");
+  });
   it("validateZipEntryPath 应该严格拦截危险的目录穿越与非法路径", () => {
     expect(() => validateZipEntryPath("../evil.sh")).toThrow("THEME_ZIP_UNSAFE_PATH");
     expect(() => validateZipEntryPath("sub/../../evil.sh")).toThrow("THEME_ZIP_UNSAFE_PATH");
