@@ -114,7 +114,7 @@ export const usePresetBundles = ({
         const prepared = preparePresetBundleImport({
           input: parsed,
           fallbackName: file.name.replace(/\.json$/i, ""),
-          currentPromptConfig: settings.promptConfig,
+          currentPromptConfig: DEFAULT_PROMPT_CONFIG,
           compatibilityCodec,
         });
         const importedComposition = prepared.composition;

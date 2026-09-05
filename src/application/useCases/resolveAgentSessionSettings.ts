@@ -1,3 +1,4 @@
+import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "../../defaults/settings";
 import type { AgentCompositionSnapshot } from "../../domain/agents/contracts";
 import type { SamplerPreset, UserSettings } from "../../types";
 import { readAgentSettingsFromComposition } from "../runtimeProfiles/agentSettings";
@@ -27,12 +28,12 @@ export function resolveAgentSessionSettings(
 
   const promptConfig = promptPreset
     ? applyPresetCompositionToPromptConfig(
-        applyPresetPromptConfig(settings.promptConfig, promptPreset.promptConfig),
+        applyPresetPromptConfig(DEFAULT_PROMPT_CONFIG, promptPreset.promptConfig),
         promptPreset,
       )
     : settings.promptConfig;
   const preset = applySampling(
-    promptPreset ? { ...settings.preset, ...promptPreset.preset } : settings.preset,
+    promptPreset ? { ...DEFAULT_SETTINGS.preset, ...promptPreset.preset } : settings.preset,
     agent.sampling,
   );
 
@@ -40,7 +41,7 @@ export function resolveAgentSessionSettings(
     ...settings,
     preset,
     promptConfig,
-    presetRegexScripts: promptPreset?.presetRegexScripts ?? settings.presetRegexScripts,
+    presetRegexScripts: promptPreset ? promptPreset.presetRegexScripts ?? [] : settings.presetRegexScripts,
   };
 }
 

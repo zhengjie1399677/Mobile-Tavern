@@ -50,14 +50,16 @@ describe("usePresetBundles 预设导入", () => {
   });
 
   it("导入后立即加入 savedPresets、持久化并激活", async () => {
+    const initial = structuredClone(DEFAULT_SETTINGS);
+    initial.promptConfig.assistantPrefix = "当前预设的私有前缀";
     let latestSettings: UserSettings | undefined;
     const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
-      latestSettings = typeof next === "function" ? next(DEFAULT_SETTINGS) : next;
+      latestSettings = typeof next === "function" ? next(initial) : next;
     });
     const showCustomAlert = vi.fn(async () => undefined);
     const { result } = renderHook(() =>
       usePresetBundles({
-        settings: DEFAULT_SETTINGS,
+        settings: initial,
         updateSettings,
         showCustomAlert,
         showCustomPrompt: vi.fn(async () => null),
@@ -83,6 +85,7 @@ describe("usePresetBundles 预设导入", () => {
       (bundle) => bundle.preset.name === "导入测试预设"
     );
     expect(imported).toBeDefined();
+    expect(imported?.promptConfig.assistantPrefix).toBe(DEFAULT_SETTINGS.promptConfig.assistantPrefix);
     // 导入的预设不标记为内置（来源标识：内置仅限出厂 bundle）
     expect(imported?.isBuiltin).toBeFalsy();
     expect(latestSettings?.preset.id).toBe(imported?.preset.id);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AGENT_PROFILE_SETTINGS_DECISION_ID } from "../../src/application/runtimeProfiles/agentSettings";
 import { resolveAgentSessionSettings } from "../../src/application/useCases/resolveAgentSessionSettings";
 import type { AgentCompositionSnapshot } from "../../src/domain/agents/contracts";
-import type { UserSettings } from "../../src/types";
+import type { PresetPromptConfig, SamplerPreset, UserSettings } from "../../src/types";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 
 function createSnapshot(decision: unknown): AgentCompositionSnapshot {
@@ -92,4 +92,17 @@ describe("resolveAgentSessionSettings", () => {
       promptPresetId: "preset-missing",
     }))).toThrow("AGENT_PROMPT_PRESET_NOT_FOUND: preset-missing");
   });
+});
+
+it("Agent 的旧预设缺失字段时不继承当前全局预设", () => {
+  const settings = structuredClone(DEFAULT_SETTINGS);
+  settings.promptConfig.assistantPrefix = "另一个预设的前缀";
+  settings.preset.frequencyPenalty = 1.7;
+  settings.presetRegexScripts = [{ id: "global-preset", scriptName: "其他预设", findRegex: "a", replaceString: "b", disabled: false, placement: [1] }];
+  settings.savedPresets = [{ id: "legacy-preset", preset: { id: "legacy", name: "旧版" } as SamplerPreset, promptConfig: { mainPrompt: "自己的正文" } as PresetPromptConfig }];
+  const result = resolveAgentSessionSettings(settings, createSnapshot({ toolMounts: [], promptPresetId: "legacy-preset" }));
+  expect(result.promptConfig.mainPrompt).toBe("自己的正文");
+  expect(result.promptConfig.assistantPrefix).toBe(DEFAULT_SETTINGS.promptConfig.assistantPrefix);
+  expect(result.preset.frequencyPenalty).toBe(DEFAULT_SETTINGS.preset.frequencyPenalty);
+  expect(result.presetRegexScripts).toEqual([]);
 });

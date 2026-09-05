@@ -876,5 +876,11 @@ export async function testArchitectureBoundaries(): Promise<void> {
       && rerollMessage.includes("applyPromptRuntimeState"),
     "Prompt 与聊天只传递通用插件增量，世界书时效必须留在兼容插件边界并随输出提交"
   );
+  assert(
+    read("src/hooks/settings/defaults.ts").includes('export * from "../../defaults/settings"')
+      && !read("src/defaults/settings.ts").includes("hooks/")
+      && !read("src/application/useCases/resolveAgentSessionSettings.ts").includes("hooks/"),
+    "默认设置必须保持单一来源，Agent 用例不能反向依赖 Hook 层"
+  );
   console.log("✔ 内核架构边界守卫通过");
 }
