@@ -369,7 +369,7 @@ export let MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
 
 【错误示例 - 严禁模仿】
 <think>
-*我好紧张，{{user}}问我话了...* 
+*我好紧张，{{user}}问我话了...*
 我觉得应该表现得顺从一点，让他开心...
 她心里想着，也许可以介绍一下壁炉...
 </think>

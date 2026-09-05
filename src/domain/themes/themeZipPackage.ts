@@ -41,7 +41,6 @@ export interface UnpackedThemeZipResult {
   mediaFiles: ExtractedMediaFile[];
 }
 
-
 /**
  * 校验并清理 ZIP 内部文件路径，防止目录穿越与空字符攻击
  */
@@ -221,4 +220,3 @@ export async function extractMediaFilesFromZip(input: Uint8Array | ArrayBuffer):
 
   return mediaList;
 }
-

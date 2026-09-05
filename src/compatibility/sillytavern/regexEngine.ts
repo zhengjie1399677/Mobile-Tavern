@@ -1,6 +1,6 @@
 /**
  * SillyTavern 正则引擎（Compatibility Runtime 专用）
- * 
+ *
  * 对齐 SillyTavern 官方扩展 public/scripts/extensions/regex/engine.js：
  * 1. 1000 容量的 LRU 正则编译缓存（RegexProvider）与 lastIndex 安全重置；
  * 2. 宏替换模式支持（0: NONE, 1: RAW, 2: ESCAPED 安全转义）；
