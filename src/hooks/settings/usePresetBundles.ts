@@ -75,10 +75,19 @@ export const usePresetBundles = ({
     latestSettingsRef.current = settings;
   }, [settings]);
 
-  const commitSettingsSnapshot = useCallback((next: UserSettings) => {
-    latestSettingsRef.current = next;
-    updateSettings(() => next);
+  const commitSettingsSnapshot = useCallback((next: Partial<Pick<UserSettings,
+    "preset" | "promptConfig" | "presetRegexScripts" | "savedPresets"
+  >>) => {
+    latestSettingsRef.current = { ...latestSettingsRef.current, ...next };
+    updateSettings((prev) => ({ ...prev, ...next }));
   }, [updateSettings]);
+
+  const pendingOperationRef = useRef<Promise<void>>(Promise.resolve());
+  const enqueuePresetOperation = useCallback((operation: () => Promise<void>) => {
+    const pending = pendingOperationRef.current.then(operation);
+    pendingOperationRef.current = pending.catch(() => undefined);
+    return pending;
+  }, []);
 
   const persistSavedPresets = useCallback(async (bundles: SavedPresetBundle[]): Promise<boolean> => {
     try {
@@ -96,9 +105,12 @@ export const usePresetBundles = ({
     if (!file) return;
     const input = event.target;
     const reader = new FileReader();
-    reader.onload = async (loadEvent) => {
+    reader.onload = () => {
+      const fileContent = reader.result;
+      void enqueuePresetOperation(async () => {
       try {
-        const parsed: unknown = JSON.parse(loadEvent.target?.result as string);
+        if (typeof fileContent !== "string") throw new Error("PRESET_FILE_NOT_TEXT");
+        const parsed: unknown = JSON.parse(fileContent);
         const prepared = preparePresetBundleImport({
           input: parsed,
           fallbackName: file.name.replace(/\.json$/i, ""),
@@ -132,7 +144,7 @@ export const usePresetBundles = ({
         // DB 是 savedPresets 的单一事实来源，避免陈旧闭包回退已保存预设。
         const currentSavedFromDB = (await presetService.getStoredSavedPresets()) || [];
         const nextSaved = [...currentSavedFromDB, importedBundle];
-        updateSettings((prev) => {
+        {
           const promptConfig = applyPresetCompositionToPromptConfig(
             applyPresetPromptConfig(
               DEFAULT_PROMPT_CONFIG,
@@ -140,15 +152,14 @@ export const usePresetBundles = ({
             ),
             importedBundle,
           );
-          return {
-            ...prev,
+          await presetService.saveStoredSavedPresets(nextSaved);
+          commitSettingsSnapshot({
             preset: { ...DEFAULT_SETTINGS.preset, ...importedBundle.preset },
             presetRegexScripts: importedRegexScripts,
             savedPresets: nextSaved,
             promptConfig,
-          };
-        });
-        await presetService.saveStoredSavedPresets(nextSaved);
+          });
+        }
         await showCustomAlert(
           `预设已导入\n[${prepared.name}]${importReportText ? `\n\n${importReportText}` : ""}`,
         );
@@ -157,9 +168,10 @@ export const usePresetBundles = ({
       } finally {
         input.value = "";
       }
+      });
     };
     reader.readAsText(file);
-  }, [settings.promptConfig, updateSettings, showCustomAlert, showCustomConfirm, presetService, compatibilityCodec]);
+  }, [settings.promptConfig, commitSettingsSnapshot, enqueuePresetOperation, showCustomAlert, showCustomConfirm, presetService, compatibilityCodec]);
 
   const handleExportPresetJSON = useCallback(() => {
     const prepared = preparePresetBundleExport({
@@ -196,46 +208,46 @@ export const usePresetBundles = ({
     showCustomAlert(`📂 预设配置导出成功！\n文件已触发下载，请前往您的系统“下载 (Downloads)”目录查找文件名：\n${fileName}${reportText ? `\n\n${reportText}` : ""}`);
   }, [settings, showCustomAlert, compatibilityCodec]);
 
-  const handleSaveNewPresetBundle = useCallback(async () => {
+  const handleSaveNewPresetBundle = useCallback(() => enqueuePresetOperation(async () => {
+    const current = latestSettingsRef.current;
     const name = await showCustomPrompt(
       "请输入新预设的名称",
-      settings.preset.name + " 的副本",
+      current.preset.name + " 的副本",
     );
     if (!name) return;
 
     const newBundle: SavedPresetBundle = {
       id: "bundle_" + Math.random().toString(36).substring(2, 9),
       preset: {
-        ...settings.preset,
+        ...current.preset,
         id: "preset_" + Math.random().toString(36).substring(2, 9),
         name,
       },
-      promptConfig: toPresetPromptConfig(settings.promptConfig),
-      promptPlan: createPromptPresetPlan(settings.promptConfig, "native"),
-      presetRegexScripts: settings.presetRegexScripts ? [...settings.presetRegexScripts] : [],
+      promptConfig: toPresetPromptConfig(current.promptConfig),
+      promptPlan: createPromptPresetPlan(current.promptConfig, "native"),
+      presetRegexScripts: current.presetRegexScripts ? [...current.presetRegexScripts] : [],
     };
     try {
       // Preset Store 是保存列表的单一来源。设置页可能仍持有启动阶段的旧快照，
-      // 直接从 settings.savedPresets 追加会覆盖刚导入或刚保存的预设。
+      // 直接从 current.savedPresets 追加会覆盖刚导入或刚保存的预设。
       const stored = await presetService.getStoredSavedPresets();
-      const currentSaved = stored ?? settings.savedPresets ?? [];
+      const currentSaved = stored ?? current.savedPresets ?? [];
       const nextSaved = [...currentSaved, newBundle];
       await presetService.saveStoredSavedPresets(nextSaved);
-      updateSettings((prev) => ({
-        ...prev,
+      commitSettingsSnapshot({
         preset: newBundle.preset,
-        promptConfig: applyPresetPromptConfig(prev.promptConfig, newBundle.promptConfig),
+        promptConfig: applyPresetPromptConfig(current.promptConfig, newBundle.promptConfig),
         presetRegexScripts: newBundle.presetRegexScripts,
         savedPresets: nextSaved,
-      }));
+      });
       await showCustomAlert(`成功保存新预设：${name}`);
     } catch (error: unknown) {
       console.error("Failed to save preset bundle:", error);
       await showCustomAlert("新预设保存失败，请稍后重试。", "保存失败");
     }
-  }, [settings, showCustomPrompt, updateSettings, showCustomAlert, presetService]);
+  }), [showCustomPrompt, commitSettingsSnapshot, enqueuePresetOperation, showCustomAlert, presetService]);
 
-  const handleLoadPresetBundle = useCallback(async (bundleId: string) => {
+  const handleLoadPresetBundle = useCallback((bundleId: string) => enqueuePresetOperation(async () => {
     const current = latestSettingsRef.current;
     const currentSaved = current.savedPresets || [];
     if (!currentSaved.some((candidate) => candidate.id === bundleId)) return;
@@ -257,6 +269,13 @@ export const usePresetBundles = ({
       updatedSaved = [...currentSaved];
       updatedSaved[currentBundleIdx] = updatedBundle;
       if (!await persistSavedPresets(updatedSaved)) return;
+      // 保存期间仍允许编辑；发生新编辑时保留当前预设，避免用切换前快照覆盖。
+      const latest = latestSettingsRef.current;
+      if (latest.promptConfig !== current.promptConfig || latest.preset !== current.preset
+        || latest.presetRegexScripts !== current.presetRegexScripts) {
+        await showCustomAlert("保存期间预设内容已更新，已保留最新编辑，请重新选择目标预设。", "预设已更新");
+        return;
+      }
     }
 
     const bundle = updatedSaved.find((candidate) => candidate.id === bundleId);
@@ -266,15 +285,14 @@ export const usePresetBundles = ({
       bundle,
     );
     commitSettingsSnapshot({
-      ...current,
       preset: { ...DEFAULT_SETTINGS.preset, ...bundle.preset },
       promptConfig,
       presetRegexScripts: bundle.presetRegexScripts ? [...bundle.presetRegexScripts] : [],
       savedPresets: updatedSaved,
     });
-  }, [commitSettingsSnapshot, persistSavedPresets]);
+  }), [commitSettingsSnapshot, persistSavedPresets, enqueuePresetOperation, showCustomAlert]);
 
-  const handleDeletePresetBundle = useCallback(async (presetId: string) => {
+  const handleDeletePresetBundle = useCallback((presetId: string) => enqueuePresetOperation(async () => {
     const ok = await showCustomConfirm("确定要删除这个本地保存的预设吗？");
     if (!ok) return;
 
@@ -284,6 +302,10 @@ export const usePresetBundles = ({
     if (!bundleId) return;
 
     const nextSaved = currentSaved.filter((bundle) => bundle.id !== bundleId);
+    if (current.preset.id !== presetId) {
+      if (await persistSavedPresets(nextSaved)) commitSettingsSnapshot({ savedPresets: nextSaved });
+      return;
+    }
     const fallbackBundle = nextSaved.length > 0
       ? nextSaved[0]
       : {
@@ -298,7 +320,6 @@ export const usePresetBundles = ({
     );
     if (!await persistSavedPresets(nextSaved)) return;
     commitSettingsSnapshot({
-      ...current,
       preset: { ...DEFAULT_SETTINGS.preset, ...fallbackBundle.preset },
       promptConfig: nextPromptConfig,
       presetRegexScripts: fallbackBundle.presetRegexScripts
@@ -306,9 +327,9 @@ export const usePresetBundles = ({
         : [],
       savedPresets: nextSaved,
     });
-  }, [showCustomConfirm, commitSettingsSnapshot, persistSavedPresets]);
+  }), [showCustomConfirm, commitSettingsSnapshot, persistSavedPresets, enqueuePresetOperation]);
 
-  const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
+  const handleDeletePresetBundles = useCallback((bundleIds: string[]) => enqueuePresetOperation(async () => {
     if (bundleIds.length === 0) return;
     if (!await showCustomConfirm(`确定要批量删除这 ${bundleIds.length} 个本地预设包吗？`)) return;
 
@@ -343,14 +364,15 @@ export const usePresetBundles = ({
     }
     if (!await persistSavedPresets(nextSaved)) return;
     commitSettingsSnapshot({
-      ...current,
-      preset: nextPreset,
-      promptConfig: nextPromptConfig,
-      presetRegexScripts: nextRegex ? [...nextRegex] : [],
+      ...(isCurrentDeleted ? {
+        preset: nextPreset,
+        promptConfig: nextPromptConfig,
+        presetRegexScripts: nextRegex ? [...nextRegex] : [],
+      } : {}),
       savedPresets: nextSaved,
     });
     await showCustomAlert("🎉 批量删除成功！");
-  }, [showCustomConfirm, commitSettingsSnapshot, persistSavedPresets, showCustomAlert]);
+  }), [showCustomConfirm, commitSettingsSnapshot, persistSavedPresets, showCustomAlert, enqueuePresetOperation]);
 
   return {
     handleImportPresetJSON,
