@@ -288,7 +288,7 @@ export default function MainLayout() {
                   }`}
                 >
                   <IconComp className={`w-4 h-4 mb-0.5 transition-[filter] ${selected ? "drop-shadow-[0_0_4px_var(--primary)]" : ""}`} aria-hidden="true" />
-                  <span className="text-[10px] font-medium leading-none landscape:hidden">{localizedName}</span>
+                  <span className="text-xs font-medium leading-none landscape:hidden">{localizedName}</span>
                   {selected && (
                     <span className="absolute bottom-0.5 h-0.5 w-4 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />
                   )}

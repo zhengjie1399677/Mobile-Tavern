@@ -52,7 +52,8 @@ test.describe("世界书角色导入持久化", () => {
 
     // 进入世界书 Tab，名录应显示内置角色
     await page.getByRole("tab", { name: "世界书" }).click();
-    const charCard = page.getByText("Lina Schneider");
+    const worldbookPanel = page.locator("#main-tabpanel-global-worldbook");
+    const charCard = worldbookPanel.getByText("Lina Schneider");
     await expect(charCard).toBeVisible({ timeout: 30_000 });
     await charCard.click();
 
@@ -77,7 +78,7 @@ test.describe("世界书角色导入持久化", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator("#root")).toBeVisible({ timeout: 60_000 });
     await page.getByRole("tab", { name: "世界书" }).click();
-    const charAfter = page.getByText("Lina Schneider");
+    const charAfter = page.locator("#main-tabpanel-global-worldbook").getByText("Lina Schneider");
     await expect(charAfter).toBeVisible({ timeout: 30_000 });
     await charAfter.click();
 
