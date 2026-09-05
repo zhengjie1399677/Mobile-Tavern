@@ -18,6 +18,7 @@ import type { CustomPromptBlock } from "../../types";
 import {
   isJailbreakPromptBlock,
   isMainPromptBlock,
+  updatePromptDataSourceBlock,
 } from "../../application/useCases/promptConfigBlockSync";
 
 interface PromptsConfigSectionProps {
@@ -174,7 +175,7 @@ export default function PromptsConfigSection({
             ...prev.promptConfig.composition,
             blocks: prev.promptConfig.composition.blocks.map((b) =>
               isMainPromptBlock(b)
-                ? { ...b, template: content }
+                ? updatePromptDataSourceBlock(b, "prompt.main", content)
                 : b
             ),
           };
@@ -192,7 +193,7 @@ export default function PromptsConfigSection({
             ...prev.promptConfig.composition,
             blocks: prev.promptConfig.composition.blocks.map((b) =>
               isJailbreakPromptBlock(b)
-                ? { ...b, template: content }
+                ? updatePromptDataSourceBlock(b, "prompt.jailbreak", content)
                 : b
             ),
           };

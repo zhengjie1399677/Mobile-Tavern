@@ -12,6 +12,11 @@ function templateUsesMacro(block: PromptBlock, macro: string): boolean {
   return block.source.type === "template" && block.template.includes(`{{${macro}}}`);
 }
 
+/** 数据源模板继续动态读取配置；仅更新历史内联正文，保留组合宏及关联。 */
+export function updatePromptDataSourceBlock(block: PromptBlock, macro: string, content: string): PromptBlock {
+  return templateUsesMacro(block, macro) ? block : { ...block, template: content };
+}
+
 /** 识别消费通用主 Prompt 数据源的区块，不解释外部兼容 identifier。 */
 export function isMainPromptBlock(block: PromptBlock): boolean {
   return MAIN_PROMPT_BLOCK_IDS.has(block.id) || templateUsesMacro(block, "prompt.main");

@@ -86,7 +86,9 @@ export const useCustomPrompts = ({
         nextPromptConfig.composition = {
           ...prev.promptConfig.composition,
           blocks: prev.promptConfig.composition.blocks.map((b) =>
-            matchesPromptBlockReference(b, targetItem ?? { id }) ? { ...b, name, template: content } : b
+            matchesPromptBlockReference(b, targetItem ?? { id })
+              ? { ...b, name, ...(targetItem && content !== targetItem.content ? { template: content } : {}) }
+              : b
           ),
         };
       }
