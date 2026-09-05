@@ -1,5 +1,10 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import {
+  readWorkbenchMoodRecords,
+  saveWorkbenchMoodRecord,
+  type WorkbenchMoodPoint,
+} from "../../application/useCases/workbenchMoodRecords";
 
 export interface DayMetric {
   dateStr: string; // YYYY-MM-DD
@@ -7,11 +12,7 @@ export interface DayMetric {
   count: number;
 }
 
-export interface MoodPoint {
-  x: number; // -1 (负向) .. 1 (正向)
-  y: number; // -1 (低能) .. 1 (高能)
-  updatedAt: number;
-}
+export type MoodPoint = WorkbenchMoodPoint;
 
 export interface ActivityMetricsResult {
   dailyHeatmap: Map<string, number>;
@@ -25,9 +26,7 @@ export interface ActivityMetricsResult {
   saveMood: (point: { x: number; y: number }, dateKey?: string) => void;
 }
 
-const STORAGE_KEY = "mobile_tavern_workbench_moods_v1";
 const MOOD_CHANGED_EVENT = "mobileTavernWorkbenchMoodChanged";
-let memoryMoodRecords: Record<string, MoodPoint> = {};
 
 const formatDateKey = (date: Date): string => {
   const y = date.getFullYear();
@@ -79,10 +78,10 @@ export function useActivityMetrics(): ActivityMetricsResult {
   }));
 
   // 本地持久化心相记录
-  const [moodRecords, setMoodRecords] = useState<Record<string, MoodPoint>>(readMoodRecords);
+  const [moodRecords, setMoodRecords] = useState<Record<string, MoodPoint>>(readWorkbenchMoodRecords);
 
   useEffect(() => {
-    const sync = () => setMoodRecords(readMoodRecords());
+    const sync = () => setMoodRecords(readWorkbenchMoodRecords());
     window.addEventListener(MOOD_CHANGED_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
@@ -109,18 +108,7 @@ export function useActivityMetrics(): ActivityMetricsResult {
 
   const saveMood = useCallback(
     (point: { x: number; y: number }, targetDateKey = todayKey) => {
-      const updated: MoodPoint = {
-        x: Math.max(-1, Math.min(1, Number(point.x.toFixed(2)))),
-        y: Math.max(-1, Math.min(1, Number(point.y.toFixed(2)))),
-        updatedAt: Date.now(),
-      };
-      const next = { ...readMoodRecords(), [targetDateKey]: updated };
-      memoryMoodRecords = next;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // 存储不可用时仍保留当前页面状态。
-      }
+      const next = saveWorkbenchMoodRecord(targetDateKey, point);
       setMoodRecords(next);
       window.dispatchEvent(new Event(MOOD_CHANGED_EVENT));
     },
@@ -193,30 +181,4 @@ export function useActivityMetrics(): ActivityMetricsResult {
       saveMood,
     };
   }, [sessions, dailyMoods, todayKey, todayMood, saveMood]);
-}
-
-function readMoodRecords(): Record<string, MoodPoint> {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return memoryMoodRecords;
-    const records = Object.fromEntries(Object.entries(parsed).flatMap(([dateKey, value]) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !value || typeof value !== "object" || Array.isArray(value)) {
-        return [];
-      }
-      const point = value as Record<string, unknown>;
-      return typeof point.x === "number" && Number.isFinite(point.x)
-        && typeof point.y === "number" && Number.isFinite(point.y)
-        && typeof point.updatedAt === "number" && Number.isFinite(point.updatedAt)
-        ? [[dateKey, {
-            x: Math.max(-1, Math.min(1, point.x)),
-            y: Math.max(-1, Math.min(1, point.y)),
-            updatedAt: point.updatedAt,
-          } satisfies MoodPoint]]
-        : [];
-    }));
-    memoryMoodRecords = records;
-    return records;
-  } catch {
-    return memoryMoodRecords;
-  }
 }
