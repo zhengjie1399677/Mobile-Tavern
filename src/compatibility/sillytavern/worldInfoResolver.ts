@@ -54,7 +54,7 @@ function isPotentiallyCatastrophicRegex(pattern: string): boolean {
 }
 
 function selectiveLogic(entry: LorebookEntry): SelectiveLogic {
-  const raw = sourceValue(entry, "selectiveLogic") ?? entry.selectiveLogic;
+  const raw = entry.selectiveLogic ?? sourceValue(entry, "selectiveLogic");
   if (typeof raw === "number") {
     return ({ 0: "AND_ANY", 1: "NOT_ALL", 2: "NOT_ANY", 3: "AND_ALL" } as const)[raw] ?? "NONE";
   }
@@ -69,8 +69,8 @@ function selectiveLogic(entry: LorebookEntry): SelectiveLogic {
 function matchesKey(key: string, entry: LorebookEntry, scanText: string): boolean {
   const trimmed = key.trim();
   if (!trimmed) return false;
-  const caseSensitive = sourceBoolean(entry, "case_sensitive", "caseSensitive") ?? entry.caseSensitive ?? false;
-  const useRegex = sourceBoolean(entry, "use_regex", "useRegex") ?? entry.useRegex ?? false;
+  const caseSensitive = entry.caseSensitive ?? sourceBoolean(entry, "case_sensitive", "caseSensitive") ?? false;
+  const useRegex = entry.useRegex ?? sourceBoolean(entry, "use_regex", "useRegex") ?? false;
   if (!useRegex) {
     return caseSensitive
       ? scanText.includes(trimmed)
@@ -101,7 +101,7 @@ function scanTextFor(messages: readonly Message[], userInput: string, depth: num
 }
 
 function contributesToRecursion(entry: LorebookEntry): boolean {
-  if (entry.preventRecursion === true) return false;
+  if (entry.preventRecursion !== undefined) return !entry.preventRecursion;
   return sourceBoolean(entry, "prevent_recursion", "preventRecursion") !== true;
 }
 
@@ -124,7 +124,7 @@ function passesSecondaryKeys(entry: LorebookEntry, match: (key: string) => boole
 }
 
 function entryOrder(entry: LorebookEntry): number {
-  return sourceNumber(entry, "order") ?? entry.order ?? 100;
+  return entry.order ?? sourceNumber(entry, "order") ?? 100;
 }
 
 /**
@@ -154,7 +154,7 @@ export function resolveSillyTavernWorldInfo(
     if (currentTurn >= effect.end) {
       delete timedState.sticky[id];
       const entry = request.entries.find((e) => e.id === id);
-      const cooldownRounds = entry ? (sourceNumber(entry, "cooldown") ?? entry.cooldown ?? 0) : 0;
+      const cooldownRounds = entry ? (entry.cooldown ?? sourceNumber(entry, "cooldown") ?? 0) : 0;
       if (cooldownRounds > 0) {
         timedState.cooldown[id] = { start: currentTurn, end: currentTurn + cooldownRounds };
       }
@@ -206,29 +206,31 @@ export function resolveSillyTavernWorldInfo(
       // 冷却中且非强制 Sticky 时静默跳过
       if (isCooldown && !isSticky) continue;
 
-      const delay = sourceNumber(entry, "delay") ?? entry.delay ?? 0;
+      const delay = entry.delay ?? sourceNumber(entry, "delay") ?? 0;
       if (currentTurn < delay) continue;
-      const rawDelay = sourceValue(entry, "delay_until_recursion") ?? sourceValue(entry, "delayUntilRecursion") ?? entry.delayUntilRecursion;
+      const rawDelay = entry.delayUntilRecursion ?? sourceValue(entry, "delay_until_recursion") ?? sourceValue(entry, "delayUntilRecursion");
       const recursionDelay = rawDelay === true ? 1 : typeof rawDelay === "number" ? rawDelay : 0;
       if (recursionDelay > 0 && pass <= recursionDelay && !isSticky) {
         if (isRecursiveAllowed) triggered = true;
         continue;
       }
-      const excludeRecursion = sourceBoolean(entry, "exclude_recursion", "excludeRecursion") ?? entry.excludeRecursion ?? false;
+      const excludeRecursion = entry.excludeRecursion ?? sourceBoolean(entry, "exclude_recursion", "excludeRecursion") ?? false;
       if (pass > 1 && excludeRecursion && !isSticky) continue;
 
-      const isConstant = entry.constant || sourceBoolean(entry, "constant_active") === true;
+      const isConstant = typeof entry.constant === "boolean"
+        ? entry.constant
+        : sourceBoolean(entry, "constant_active") === true;
       let isTriggered = isConstant || isSticky;
 
       if (!isTriggered) {
-        const scanDepth = sourceNumber(entry, "scan_depth", "scanDepth") ?? entry.scanDepth ?? 10;
+        const scanDepth = entry.scanDepth ?? sourceNumber(entry, "scan_depth", "scanDepth") ?? 10;
         const scanText = getScanText(scanDepth);
         const match = (key: string) => matchesKey(key, entry, scanText);
         const hasMatch = scanDepth > 0 && Array.isArray(entry.keys) && entry.keys.filter((key): key is string => typeof key === "string").some(match) && passesSecondaryKeys(entry, match);
 
         if (hasMatch) {
           const useProbability = sourceBoolean(entry, "useProbability", "use_probability") ?? true;
-          const probability = sourceNumber(entry, "probability") ?? entry.probability ?? 100;
+          const probability = entry.probability ?? sourceNumber(entry, "probability") ?? 100;
           if (!useProbability || probability >= 100 || Math.random() * 100 < probability) {
             isTriggered = true;
           } else {
@@ -246,8 +248,8 @@ export function resolveSillyTavernWorldInfo(
         newEntriesInPass.push(entry);
 
         // 如果新触发且具有 sticky 或 cooldown，设置时效
-        const stickyRounds = sourceNumber(entry, "sticky") ?? entry.sticky ?? 0;
-        const cooldownRounds = sourceNumber(entry, "cooldown") ?? entry.cooldown ?? 0;
+        const stickyRounds = entry.sticky ?? sourceNumber(entry, "sticky") ?? 0;
+        const cooldownRounds = entry.cooldown ?? sourceNumber(entry, "cooldown") ?? 0;
 
         if (stickyRounds > 0 && !timedState.sticky[entry.id]) {
           timedState.sticky[entry.id] = { start: currentTurn, end: currentTurn + stickyRounds };

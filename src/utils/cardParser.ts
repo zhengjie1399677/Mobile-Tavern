@@ -386,12 +386,14 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
     }
   }
 
-  let depth = entry.depth !== undefined ? Number(entry.depth) : 4;
-  const order = entry.order !== undefined ? Number(entry.order) : 100;
-  const probability = entry.probability !== undefined ? Number(entry.probability) : 100;
+  let depth = readOptionalNumber(entry.depth) ?? 4;
+  const order = readOptionalNumber(entry.order) ?? 100;
+  const probability = readOptionalNumber(entry.probability) ?? 100;
   const addMemo = !!entry.addMemo;
 
-  const extensions = entry.extensions || {};
+  const extensions = entry.extensions && typeof entry.extensions === "object" && !Array.isArray(entry.extensions)
+    ? entry.extensions
+    : {};
   if (extensions.position !== undefined) {
     const numExtPos = Number(extensions.position);
     if (!isNaN(numExtPos)) {
@@ -405,30 +407,45 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
       }
     }
   }
-  if (extensions.depth !== undefined) depth = Number(extensions.depth);
+  if (extensions.depth !== undefined) depth = readOptionalNumber(extensions.depth) ?? depth;
 
   // Advanced Lorebook Extraction
-  const secondaryKeys = Array.isArray(entry.secondary_keys) ? entry.secondary_keys : [];
-  let selectiveLogic: "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NONE" = "NONE";
+  const secondaryKeys = (Array.isArray(entry.secondary_keys)
+    ? entry.secondary_keys
+    : typeof entry.secondary_keys === "string"
+      ? entry.secondary_keys.split(",")
+      : [])
+    .filter((key: unknown): key is string => typeof key === "string")
+    .map((key: string) => key.trim())
+    .filter(Boolean);
+  let selectiveLogic: LorebookEntry["selectiveLogic"] = "NONE";
   const rawSelLogic = extensions.selectiveLogic !== undefined ? extensions.selectiveLogic : entry.selectiveLogic;
   if (rawSelLogic !== undefined) {
     if (typeof rawSelLogic === "number") {
       switch (rawSelLogic) {
-        case 1: selectiveLogic = "AND_ANY"; break;
-        case 2: selectiveLogic = "AND_ALL"; break;
-        case 3: selectiveLogic = "NOT_ANY"; break;
+        case 0: selectiveLogic = "AND_ANY"; break;
+        case 1: selectiveLogic = "NOT_ALL"; break;
+        case 2: selectiveLogic = "NOT_ANY"; break;
+        case 3: selectiveLogic = "AND_ALL"; break;
         default: selectiveLogic = "NONE"; break;
       }
     } else if (typeof rawSelLogic === "string") {
       const strLogic = rawSelLogic as string;
-      if (strLogic === "AND_ANY" || strLogic === "AND_ALL" || strLogic === "NOT_ANY" || strLogic === "NONE") {
+      if (strLogic === "AND_ANY" || strLogic === "AND_ALL" || strLogic === "NOT_ANY" || strLogic === "NOT_ALL" || strLogic === "NONE") {
         selectiveLogic = strLogic;
       }
     }
   }
   const caseSensitive = !!(extensions.case_sensitive ?? entry.case_sensitive ?? entry.caseSensitive);
   const useRegex = !!(entry.use_regex ?? entry.useRegex);
-  const scanDepth = extensions.scan_depth !== undefined ? Number(extensions.scan_depth) : (entry.scan_depth !== undefined ? Number(entry.scan_depth) : undefined);
+  const scanDepth = readOptionalNumber(extensions.scan_depth ?? entry.scan_depth);
+  const sticky = readOptionalNumber(entry.sticky ?? extensions.sticky);
+  const cooldown = readOptionalNumber(entry.cooldown ?? extensions.cooldown);
+  const delay = readOptionalNumber(entry.delay ?? extensions.delay);
+  const delayUntilRecursion = readOptionalNumber(
+    entry.delayUntilRecursion ?? entry.delay_until_recursion
+      ?? extensions.delayUntilRecursion ?? extensions.delay_until_recursion,
+  );
 
   return {
     id: entry.id || Math.random().toString(36).substring(2, 9),
@@ -438,6 +455,12 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
     caseSensitive,
     useRegex,
     scanDepth,
+    sticky,
+    cooldown,
+    delay,
+    excludeRecursion: !!(entry.excludeRecursion ?? entry.exclude_recursion ?? extensions.excludeRecursion ?? extensions.exclude_recursion),
+    preventRecursion: !!(entry.preventRecursion ?? entry.prevent_recursion ?? extensions.preventRecursion ?? extensions.prevent_recursion),
+    delayUntilRecursion,
     content: entry.content || entry.value || "",
     constant: !!(entry.constant || entry.constant_active),
     enabled: entry.enabled !== false,
@@ -452,6 +475,12 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
     // 这里只保存经过防腐清洗的快照，不让通用 Prompt 层读取其语义。
     sourceMetadata: sanitizeExtensions(entry),
   };
+}
+
+function readOptionalNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : undefined;
 }
 
 /**
@@ -537,16 +566,16 @@ export function injectPngMetadata(
                 ? sourceExtensions as Record<string, unknown>
                 : {};
             let selectiveLogicVal = 0;
-            if (e.selectiveLogic === "AND_ANY") selectiveLogicVal = 1;
-            else if (e.selectiveLogic === "AND_ALL") selectiveLogicVal = 2;
-            else if (e.selectiveLogic === "NOT_ANY") selectiveLogicVal = 3;
+            if (e.selectiveLogic === "NOT_ALL") selectiveLogicVal = 1;
+            else if (e.selectiveLogic === "NOT_ANY") selectiveLogicVal = 2;
+            else if (e.selectiveLogic === "AND_ALL") selectiveLogicVal = 3;
 
             let stPosStr = "after_char";
             let stPosNum = 1;
             if (e.position === "before_char_def") {
               stPosStr = "before_char";
               stPosNum = 0;
-            } else if (e.position === "in_chat") {
+            } else if (e.position === "in_chat" || e.position === "before_last_mes") {
               stPosStr = "in_chat";
               stPosNum = 4;
             } else if (e.position === "top") {
@@ -564,14 +593,28 @@ export function injectPngMetadata(
               comment: e.comment || "",
               position: stPosStr,
               use_regex: !!e.useRegex,
+              selectiveLogic: selectiveLogicVal,
+              caseSensitive: !!e.caseSensitive,
+              sticky: e.sticky,
+              cooldown: e.cooldown,
+              delay: e.delay,
+              excludeRecursion: !!e.excludeRecursion,
+              preventRecursion: !!e.preventRecursion,
+              delayUntilRecursion: e.delayUntilRecursion,
               extensions: {
                 ...normalizedSourceExtensions,
                 position: stPosNum,
                 probability: e.probability !== undefined ? e.probability : 100,
-                depth: e.depth !== undefined ? e.depth : 4,
+                depth: e.position === "before_last_mes" ? 1 : e.depth !== undefined ? e.depth : 4,
                 selectiveLogic: selectiveLogicVal,
                 scan_depth: e.scanDepth,
                 case_sensitive: !!e.caseSensitive,
+                sticky: e.sticky,
+                cooldown: e.cooldown,
+                delay: e.delay,
+                exclude_recursion: !!e.excludeRecursion,
+                prevent_recursion: !!e.preventRecursion,
+                delay_until_recursion: e.delayUntilRecursion,
               }
             };
           }) || [],

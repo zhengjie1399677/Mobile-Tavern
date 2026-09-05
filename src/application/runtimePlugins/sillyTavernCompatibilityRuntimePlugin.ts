@@ -38,6 +38,7 @@ import {
   formatMvuVariablesForPrompt,
   replacePromptMacros,
 } from "../services/prompt/PromptMacroFormatter";
+import type { PromptNode } from "../services/prompt/types";
 import { registerRuntimeCapabilities } from "../bootstrap/capabilityRegistry";
 import { KernelServices } from "../serviceContracts";
 import { defineRuntimePlugin } from "./contracts";
@@ -265,6 +266,71 @@ export function buildSillyTavernInjectionPromptSections(
   });
 }
 
+/** 将已触发的 World Info 映射为兼容插件专用的结构化 Prompt Nodes。 */
+export function buildSillyTavernWorldInfoPromptSections(
+  request: CompatibilityPromptSectionRequest,
+): PromptNode[] {
+  const entries = request.triggeredLorebookEntries ?? [];
+  if (entries.length === 0) return [];
+  const variables = readNamespacedState(request.chat);
+  const macroParams = {
+    char: request.character.name,
+    user: request.settings.userName || "user",
+    description: request.character.description || "无",
+    personality: request.character.personality || "无",
+    scenario: request.character.scenario || "无",
+    userPersona: request.settings.userInfo || "无",
+    mes_example: request.character.mes_example || "",
+    variables,
+  };
+  const format = (entry: (typeof entries)[number]): string => {
+    const content = replacePromptMacros(entry.content, macroParams);
+    return entry.addMemo && entry.comment
+      ? `[设定及备注: ${entry.comment}]\n${content}`
+      : content;
+  };
+  const groups = new Map<string, string[]>();
+  const inChatNodes: PromptNode[] = [];
+  for (const entry of entries) {
+    const isInChat = entry.position === "in_chat" || entry.position === "before_last_mes";
+    const group = isInChat
+      ? "in_chat"
+      : entry.position === "before_char_def" || entry.position === "top"
+        ? "before_char_def"
+        : "after_char_def";
+    const content = format(entry);
+    if (!content) continue;
+    if (isInChat) {
+      inChatNodes.push({
+        id: `sillytavern_world_info_in_chat_${entry.id}`,
+        phase: "Context",
+        type: "Context",
+        priority: "Normal",
+        mutable: true,
+        title: "World Info (in_chat)",
+        content,
+        metadata: {
+          position: "in_chat",
+          depth: entry.position === "before_last_mes" ? 1 : entry.depth ?? 4,
+          order: entry.order ?? 100,
+          role: "system",
+        },
+      });
+    } else {
+      groups.set(group, [...(groups.get(group) ?? []), content]);
+    }
+  }
+  return [...groups.entries()].map(([group, contents]): PromptNode => ({
+    id: `sillytavern_world_info_${group}`,
+    phase: "Context",
+    type: "Context",
+    priority: group === "before_char_def" ? "High" : "Normal",
+    mutable: true,
+    title: `World Info (${group})`,
+    content: contents.join("\n\n"),
+  })).concat(inChatNodes);
+}
+
 /** 受信 SillyTavern Compatibility Runtime；与用户安装的沙箱插件物理分离。 */
 export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
   id: SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID,
@@ -419,45 +485,7 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
       scope.add(runtime.registerPromptSection({
         id: "compat.sillytavern.prompt.world-info",
         version: CONTRIBUTION_VERSION,
-        build({ character, chat, settings, triggeredLorebookEntries = [] }) {
-          if (triggeredLorebookEntries.length === 0) return [];
-          const variables = readNamespacedState(chat);
-          const macroParams = {
-            char: character.name,
-            user: settings.userName || "user",
-            description: character.description || "无",
-            personality: character.personality || "无",
-            scenario: character.scenario || "无",
-            userPersona: settings.userInfo || "无",
-            mes_example: character.mes_example || "",
-            variables,
-          };
-          const format = (entry: (typeof triggeredLorebookEntries)[number]): string => {
-            const content = replacePromptMacros(entry.content, macroParams);
-            return entry.addMemo && entry.comment
-              ? `[设定及备注: ${entry.comment}]\n${content}`
-              : content;
-          };
-          const groups = new Map<string, string[]>();
-          for (const entry of triggeredLorebookEntries) {
-            const group = entry.position === "in_chat"
-              ? "in_chat"
-              : entry.position === "before_char_def" || entry.position === "top"
-                ? "before_char_def"
-                : "after_char_def";
-            const content = format(entry);
-            if (content) groups.set(group, [...(groups.get(group) ?? []), content]);
-          }
-          return [...groups.entries()].map(([group, contents]) => ({
-            id: `sillytavern_world_info_${group}`,
-            phase: "Context" as const,
-            type: "Context" as const,
-            priority: group === "before_char_def" ? "High" as const : "Normal" as const,
-            mutable: true,
-            title: `World Info (${group})`,
-            content: contents.join("\n\n"),
-          }));
-        },
+        build: buildSillyTavernWorldInfoPromptSections,
       }));
     }
     if (isContributionEnabled(profile, "compat.prompt-section", "compat.sillytavern.prompt.injection-prompts")) {

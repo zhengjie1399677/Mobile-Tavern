@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSillyTavernInjectionPromptSections,
+  buildSillyTavernWorldInfoPromptSections,
 } from "../../src/application/runtimePlugins/sillyTavernCompatibilityRuntimePlugin";
 import { SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID } from "../../src/application/compatibility/contracts";
 import type { CharacterCard, ChatSession, UserSettings } from "../../src/types";
@@ -72,5 +73,63 @@ describe("SillyTavern Compatibility Character Note / Depth Prompt", () => {
         allowWIScan: true,
       },
     });
+  });
+
+  it("把 in_chat 与 before_last_mes 世界书条目保留为深度注入节点", () => {
+    const character = {
+      id: "character-world-info",
+      name: "角色",
+      description: "",
+      personality: "",
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+    } as CharacterCard;
+    const chat = {
+      id: "session-world-info",
+      characterId: character.id,
+      title: "世界书测试",
+      createdAt: 1,
+      messages: [],
+      summaries: [],
+    } as ChatSession;
+
+    const nodes = buildSillyTavernWorldInfoPromptSections({
+      character,
+      chat,
+      settings: { userName: "用户" } as UserSettings,
+      hasVariableListEntry: false,
+      triggeredLorebookEntries: [
+        {
+          id: "deep",
+          keys: [],
+          content: "深层设定 {{char}}",
+          constant: true,
+          enabled: true,
+          position: "in_chat",
+          depth: 3,
+          order: 80,
+        },
+        {
+          id: "last",
+          keys: [],
+          content: "最后消息前",
+          constant: true,
+          enabled: true,
+          position: "before_last_mes",
+        },
+      ],
+    });
+
+    expect(nodes).toMatchObject([
+      {
+        content: "深层设定 角色",
+        metadata: { position: "in_chat", depth: 3, order: 80, role: "system" },
+      },
+      {
+        content: "最后消息前",
+        metadata: { position: "in_chat", depth: 1, role: "system" },
+      },
+    ]);
   });
 });

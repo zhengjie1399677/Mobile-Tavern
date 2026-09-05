@@ -42,6 +42,53 @@ describe("角色卡世界书键名归一化", () => {
     }).keys).toEqual([]);
   });
 
+  it.each([
+    [0, "AND_ANY"],
+    [1, "NOT_ALL"],
+    [2, "NOT_ANY"],
+    [3, "AND_ALL"],
+  ] as const)("按 SillyTavern 枚举映射 selectiveLogic=%i", (raw, expected) => {
+    expect(mapSillyTavernLorebookEntry({
+      key: "城门",
+      secondary_keys: " 白天, 守卫 ",
+      content: "设定",
+      selectiveLogic: raw,
+    })).toMatchObject({
+      secondary_keys: ["白天", "守卫"],
+      selectiveLogic: expected,
+    });
+  });
+
+  it("把时效和递归字段归一化，并忽略无效数值", () => {
+    expect(mapSillyTavernLorebookEntry({
+      key: "城门",
+      content: "设定",
+      depth: "invalid",
+      order: "invalid",
+      probability: "invalid",
+      extensions: {
+        sticky: "3",
+        cooldown: 2,
+        delay: "1",
+        delay_until_recursion: "2",
+        exclude_recursion: true,
+        prevent_recursion: true,
+        scan_depth: "invalid",
+      },
+    })).toMatchObject({
+      depth: 4,
+      order: 100,
+      probability: 100,
+      sticky: 3,
+      cooldown: 2,
+      delay: 1,
+      delayUntilRecursion: 2,
+      excludeRecursion: true,
+      preventRecursion: true,
+      scanDepth: undefined,
+    });
+  });
+
   it("保留未归一化的 SillyTavern 条目字段供兼容插件恢复", () => {
     const entry = mapSillyTavernLorebookEntry({
       uid: 42,
@@ -111,6 +158,17 @@ describe("角色卡来源字段保真", () => {
       mes_example: parsed.mes_example ?? "",
       ...parsed,
     };
+    character.lorebookEntries = character.lorebookEntries?.map((entry) => ({
+      ...entry,
+      selectiveLogic: "NOT_ANY",
+      caseSensitive: true,
+      sticky: 3,
+      cooldown: 2,
+      delay: 1,
+      excludeRecursion: false,
+      preventRecursion: true,
+      delayUntilRecursion: 2,
+    }));
     const basePng = Uint8Array.from(atob(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
     ), (value) => value.charCodeAt(0)).buffer;
@@ -123,7 +181,22 @@ describe("角色卡来源字段保真", () => {
     expect(exported.data.character_book.custom_book_field).toBe("keep-me");
     expect(exported.data.character_book.entries[0]).toMatchObject({
       uid: 42,
-      extensions: { exclude_recursion: true, group: "location" },
+      selectiveLogic: 2,
+      caseSensitive: true,
+      sticky: 3,
+      cooldown: 2,
+      delay: 1,
+      excludeRecursion: false,
+      preventRecursion: true,
+      delayUntilRecursion: 2,
+      extensions: {
+        exclude_recursion: false,
+        prevent_recursion: true,
+        delay_until_recursion: 2,
+        group: "location",
+        selectiveLogic: 2,
+        case_sensitive: true,
+      },
     });
   });
 });

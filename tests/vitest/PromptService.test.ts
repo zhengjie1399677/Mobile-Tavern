@@ -4,6 +4,10 @@ import { CharacterCard, ChatSession, UserSettings } from "../../src/types";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import { createKernel } from "../../src/kernel/Kernel";
 import { CompatibilityRuntimeService } from "../../src/application/services/CompatibilityRuntimeService";
+import {
+  buildSillyTavernInjectionPromptSections,
+  buildSillyTavernWorldInfoPromptSections,
+} from "../../src/application/runtimePlugins/sillyTavernCompatibilityRuntimePlugin";
 
 describe("PromptService prompt compilation", () => {
   it("仅配置 global/preset Regex 时也通过 Compatibility Runtime 进入 Prompt Transform", async () => {
@@ -244,6 +248,98 @@ describe("PromptService prompt compilation", () => {
       settings,
     });
     expect(missingCompositionResult.messages).toEqual([]);
+  });
+
+  it("自由编排把兼容插件的深度提示和 in_chat 世界书插入历史且不重复展开", async () => {
+    const kernel = createKernel();
+    const compatibilityRuntime = new CompatibilityRuntimeService();
+    await kernel.registerService(compatibilityRuntime.name, compatibilityRuntime);
+    compatibilityRuntime.registerPromptSection({
+      id: "compat.test.world-info-section",
+      version: "1.0.0",
+      build: buildSillyTavernWorldInfoPromptSections,
+    });
+    compatibilityRuntime.registerPromptSection({
+      id: "compat.test.injection-section",
+      version: "1.0.0",
+      build: buildSillyTavernInjectionPromptSections,
+    });
+    const promptService = new PromptService();
+    promptService.init(kernel);
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.usePromptComposition = true;
+    settings.promptConfig.composition = {
+      id: "compat-in-chat",
+      name: "兼容深度注入",
+      version: 1,
+      blocks: [
+        {
+          id: "world-after",
+          name: "角色定义后世界书",
+          enabled: true,
+          role: "system",
+          source: { type: "template" },
+          template: "{{worldbook.after}}",
+          order: 1,
+          placement: { type: "ordered" },
+        },
+        {
+          id: "history",
+          name: "历史",
+          enabled: true,
+          role: "system",
+          source: { type: "chat_history" },
+          template: "",
+          order: 2,
+          placement: { type: "ordered" },
+        },
+      ],
+    };
+    const character = {
+      id: "compat-character",
+      name: "角色",
+      description: "",
+      personality: "",
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+      extensions: {
+        depth_prompt: { prompt: "角色深度提示", depth: 1, role: "assistant" },
+      },
+      lorebookEntries: [{
+        id: "deep-lore",
+        keys: [],
+        content: "深层世界书",
+        constant: true,
+        enabled: true,
+        position: "in_chat",
+        depth: 1,
+        order: 80,
+      }],
+    } as CharacterCard;
+    const chat = {
+      id: "compat-chat",
+      characterId: character.id,
+      title: "兼容",
+      createdAt: 1,
+      summaries: [],
+      messages: [
+        { id: "u1", sender: "user", content: "历史用户", timestamp: 1 },
+        { id: "a1", sender: "assistant", content: "历史助手", timestamp: 2 },
+      ],
+    } as ChatSession;
+
+    const result = promptService.assemblePrompt({ character, chat, userInput: "继续", settings });
+
+    expect(result.messages).toEqual([
+      { role: "user", content: "历史用户", name: undefined },
+      { role: "system", content: "深层世界书" },
+      { role: "assistant", content: "角色深度提示" },
+      { role: "assistant", content: "历史助手", name: undefined },
+    ]);
+    expect(result.messages.filter((message) => message.content === "深层世界书")).toHaveLength(1);
+    promptService.destroy();
+    await compatibilityRuntime.destroy();
   });
 
   it("applies the configured Prompt token budget before returning the final send payload", () => {

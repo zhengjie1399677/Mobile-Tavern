@@ -22,6 +22,7 @@ export interface PromptCompositionRuntimeParams {
   settings: UserSettings;
   triggeredLorebook: LorebookEntry[];
   recalledMemories: unknown[];
+  excludeInChatLorebook?: boolean;
   cleanHistoryContent?: (message: Message, depth: number) => string;
 }
 
@@ -33,8 +34,13 @@ export function buildPromptCompositionRuntimeData(
   params: PromptCompositionRuntimeParams
 ): PromptCompositionRuntimeData {
   const { character, chat, userInput, settings, triggeredLorebook, recalledMemories } = params;
-  const beforeLore = triggeredLorebook.filter((entry) => entry.position === "before_char_def");
-  const afterLore = triggeredLorebook.filter((entry) => entry.position !== "before_char_def");
+  const visibleLorebook = params.excludeInChatLorebook
+    ? triggeredLorebook.filter((entry) => entry.position !== "in_chat" && entry.position !== "before_last_mes")
+    : triggeredLorebook;
+  const beforeLore = visibleLorebook.filter((entry) =>
+    entry.position === "before_char_def" || entry.position === "top");
+  const afterLore = visibleLorebook.filter((entry) =>
+    entry.position !== "before_char_def" && entry.position !== "top");
   const summaries = (chat.summaries ?? [])
     .map((summary) => `[${summary.timeTag} | ${summary.location}] ${summary.content}`)
     .join("\n");
@@ -50,7 +56,7 @@ export function buildPromptCompositionRuntimeData(
     "character.examples": character.mes_example || "",
     "persona.name": settings.userName || "",
     "persona.description": settings.userInfo || "",
-    "worldbook.triggered": triggeredLorebook.map((entry) => entry.content).join("\n\n"),
+    "worldbook.triggered": visibleLorebook.map((entry) => entry.content).join("\n\n"),
     "worldbook.before": beforeLore.map((entry) => entry.content).join("\n\n"),
     "worldbook.after": afterLore.map((entry) => entry.content).join("\n\n"),
     "memory.summaries": summaries,

@@ -1,4 +1,5 @@
 import type {
+  PromptBlock,
   PromptComposition,
   PromptCompositionRuntimeData,
 } from "../../../domain/prompt-composition";
@@ -18,7 +19,15 @@ export interface PromptCompositionAssemblyParams {
   userInput: string;
   settings: UserSettings;
   estimateTokens: (text: string) => number;
+  runtimePromptNodes?: readonly RuntimePromptNode[];
   reportDiagnostic?: (code: string, message: string) => void;
+}
+
+interface RuntimePromptNode {
+  readonly id: string;
+  readonly title: string;
+  readonly content: string;
+  readonly metadata?: Record<string, unknown>;
 }
 
 /**
@@ -31,7 +40,11 @@ export function assemblePromptComposition(
   const { composition, runtime, settings, estimateTokens } = params;
   const tokenBudget = resolvePromptTokenBudget(composition, settings);
   const sceneResolution = applyPromptSceneProfile(composition, params.activeSceneProfileId);
-  let compiled = compilePromptComposition(sceneResolution.composition, runtime, {
+  const runtimeComposition = appendRuntimePromptNodes(
+    sceneResolution.composition,
+    params.runtimePromptNodes ?? [],
+  );
+  let compiled = compilePromptComposition(runtimeComposition, runtime, {
     tokenBudget,
     estimateTokens,
   });
@@ -43,7 +56,7 @@ export function assemblePromptComposition(
   if (tokenBudget && compiled.budget && originalShapedTokens > tokenBudget) {
     const shapingOverhead = Math.max(0, originalShapedTokens - compiled.budget.used);
     if (shapingOverhead > 0) {
-      compiled = compilePromptComposition(sceneResolution.composition, runtime, {
+      compiled = compilePromptComposition(runtimeComposition, runtime, {
         tokenBudget: Math.max(1, tokenBudget - shapingOverhead),
         estimateTokens,
       });
@@ -98,6 +111,46 @@ export function assemblePromptComposition(
     stopSequences: shaped.stopSequences,
     requestShaping: shaped.report,
   };
+}
+
+function appendRuntimePromptNodes(
+  composition: PromptComposition,
+  nodes: readonly RuntimePromptNode[],
+): PromptComposition {
+  const inChatNodes = nodes.filter((node) =>
+    node.metadata?.position === "in_chat" && node.content.trim().length > 0);
+  if (inChatNodes.length === 0) return composition;
+  const usedIds = new Set(composition.blocks.map((block) => block.id));
+  const blocks: PromptBlock[] = inChatNodes.map((node, index) => {
+    const baseId = `runtime_prompt_${index}_${node.id}`;
+    let id = baseId;
+    let suffix = 1;
+    while (usedIds.has(id)) {
+      id = `${baseId}_${suffix}`;
+      suffix += 1;
+    }
+    usedIds.add(id);
+    const rawDepth = node.metadata?.depth;
+    const depth = typeof rawDepth === "number" && Number.isFinite(rawDepth)
+      ? Math.max(0, Math.floor(rawDepth))
+      : 0;
+    const rawOrder = node.metadata?.order;
+    const order = typeof rawOrder === "number" && Number.isFinite(rawOrder) ? rawOrder : 100;
+    const rawRole = node.metadata?.role;
+    const role = rawRole === "user" || rawRole === "assistant" ? rawRole : "system";
+    return {
+      id,
+      name: node.title,
+      enabled: true,
+      role,
+      source: { type: "template" },
+      template: node.content,
+      order,
+      placement: { type: "in_chat", depth, order },
+      tokenPolicy: { priority: 100, overflow: "keep" },
+    };
+  });
+  return { ...composition, blocks: [...composition.blocks, ...blocks] };
 }
 
 function resolvePromptTokenBudget(composition: PromptComposition, settings: UserSettings): number | undefined {

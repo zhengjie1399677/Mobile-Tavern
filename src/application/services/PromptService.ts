@@ -28,6 +28,7 @@ import { Logger } from "../../utils/logger";
 import { isDirectApiCharacter } from "../../domain/agents/directApiMode";
 import { buildDirectApiPromptAssembly } from "./prompt/DirectApiPromptAssembly";
 import { formatTriggeredLorebookEntries } from "./prompt/PromptLorebookFormatter";
+import { buildCompatibilityInChatPromptNodes, createCompatibilityHistoryCleaner } from "./prompt/CompatibilityPromptNodes";
 import {
   cleanPromptNameForApi,
   estimatePromptTokens,
@@ -169,6 +170,17 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         3,
         { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat), runtimePluginState: chat.runtimePluginState, onUpdateRuntimePluginState: params.onUpdateRuntimePluginState },
       );
+      const hasVariableListEntry = triggeredLorebook.some((entry) =>
+        entry.content && /\{\{format_message_variable::/i.test(entry.content)
+      );
+      const compatibility = buildCompatibilityInChatPromptNodes(this.getCompatibilityRuntime(), {
+        character,
+        chat,
+        settings,
+        hasVariableListEntry,
+        userInput,
+        triggeredLorebookEntries: triggeredLorebook,
+      });
       const runtime = buildPromptCompositionRuntimeData({
         character,
         chat,
@@ -176,21 +188,12 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         settings,
         triggeredLorebook,
         recalledMemories,
-        cleanHistoryContent: (message, depth) => {
-          if (!hasConfiguredRegexScripts(character, settings)) return message.content;
-          return this.getCompatibilityRuntime()?.transformText({
-            text: message.content,
-            character,
-            isAiMessage: message.sender === "assistant",
-            charName: character.name,
-            userName: settings.userName,
-            mode: "prompt",
-            depth,
-            signal: operationSignal,
-            globalRegexScripts: settings.globalRegexScripts,
-            presetRegexScripts: settings.presetRegexScripts,
-          }) ?? message.content;
-        },
+        excludeInChatLorebook: compatibility.handlesLorebook,
+        cleanHistoryContent: hasConfiguredRegexScripts(character, settings)
+          ? createCompatibilityHistoryCleaner({
+              runtime: this.getCompatibilityRuntime(), character, settings, signal: operationSignal,
+            })
+          : undefined,
       });
       return assemblePromptComposition({
         composition,
@@ -199,6 +202,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         settings,
         estimateTokens: (text) => this.estimateTokens(text),
+        runtimePromptNodes: compatibility.nodes,
         reportDiagnostic: (code, message) => log.warn(`[PromptComposition:${code}] ${message}`),
       });
     }

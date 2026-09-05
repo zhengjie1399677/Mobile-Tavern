@@ -201,4 +201,25 @@ describe("SillyTavern Compatibility World Info resolver", () => {
     });
     expect(resPrevent.map((e) => e.id)).toEqual(["帝国骑士团"]);
   });
+
+  it("编辑后的归一化字段覆盖导入快照", () => {
+    const first = entry("入口", {
+      keys: ["城门"],
+      content: "递归词",
+      caseSensitive: false,
+      preventRecursion: false,
+      sourceMetadata: {
+        case_sensitive: true,
+        prevent_recursion: true,
+      },
+    });
+    const second = entry("递归结果", { keys: ["递归词"] });
+
+    expect(resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "城门",
+      entries: [first, second],
+      recursive: true,
+    }).map((item) => item.id)).toEqual(["入口", "递归结果"]);
+  });
 });
