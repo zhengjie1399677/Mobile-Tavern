@@ -164,10 +164,10 @@ function substituteMacros(
   const finalUser = sanitize ? sanitizeRegexMacro(rawUser) : rawUser;
 
   return text
-    .replace(/\{\{char\}\}/gi, finalChar)
-    .replace(/<BOT>/gi, finalChar)
-    .replace(/\{\{user\}\}/gi, finalUser)
-    .replace(/<USER>/gi, finalUser);
+    .replace(/\{\{char\}\}/gi, () => finalChar)
+    .replace(/<BOT>/gi, () => finalChar)
+    .replace(/\{\{user\}\}/gi, () => finalUser)
+    .replace(/<USER>/gi, () => finalUser);
 }
 
 /**
@@ -227,7 +227,9 @@ export function runRegexScript(
   try {
     return rawString.replace(regex, (...args: unknown[]) => {
       const match = args[0] as string;
-      const groups = args[args.length - 1] as Record<string, string> | undefined;
+      const last = args[args.length - 1];
+      const groups = last && typeof last === "object" ? last as Record<string, unknown> : undefined;
+      const captureEnd = args.length - (groups ? 3 : 2);
 
       const replacedWithGroups = replaceTemplate.replace(
         /\$(\d+)|\$<([^>]+)>/g,
@@ -238,11 +240,12 @@ export function runRegexScript(
             const index = Number(numStr);
             if (index === 0) {
               matchedContent = match;
-            } else if (index < args.length - 2) {
+            } else if (index < captureEnd) {
               matchedContent = args[index] as string | undefined;
             }
           } else if (groupName && groups && typeof groups === "object") {
-            matchedContent = groups[groupName];
+            const value = groups[groupName];
+            matchedContent = typeof value === "string" ? value : undefined;
           }
 
           if (matchedContent === undefined) return "";
@@ -290,9 +293,9 @@ export function applySillyTavernRegexEngine(
     if (mode === "store") {
       if (script.promptOnly || script.markdownOnly) continue;
     } else if (mode === "prompt") {
-      if (script.markdownOnly) continue;
+      if (script.markdownOnly && !script.promptOnly) continue;
     } else {
-      if (script.promptOnly) continue;
+      if (script.promptOnly && !script.markdownOnly) continue;
     }
 
     // 2. 编辑态过滤

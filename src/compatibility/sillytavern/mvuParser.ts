@@ -4,21 +4,39 @@ import {
   type RegexEngineScript,
 } from "./regexEngine";
 
+import { z } from "zod";
+
 export * from "../../utils/tavernHelper/mvuParser";
 
-function collectRegexScripts(input: unknown): unknown[] {
+const regexScriptSchema = z.object({
+  id: z.string().optional(),
+  scriptName: z.string().optional(),
+  findRegex: z.string(),
+  replaceString: z.string().optional(),
+  disabled: z.boolean().optional(),
+  placement: z.union([z.array(z.number().finite()), z.number().finite()]).optional(),
+  runOnEdit: z.boolean().optional(),
+  markdownOnly: z.boolean().optional(),
+  promptOnly: z.boolean().optional(),
+  substituteRegex: z.number().finite().optional(),
+  minDepth: z.number().finite().nullable().optional(),
+  maxDepth: z.number().finite().nullable().optional(),
+  trimStrings: z.array(z.string()).optional(),
+});
+
+function collectRegexScripts(input: unknown): RegexEngineScript[] {
   const values = Array.isArray(input)
     ? input
     : input && typeof input === "object"
       ? Object.values(input)
       : [];
-  return values.map((value) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-    const record = value as Record<string, unknown>;
-    const pattern = typeof record.findRegex === "string" ? record.findRegex : "";
-    return isPotentiallyCatastrophicRegex(pattern)
-      ? { ...record, findRegex: "(?!)" }
-      : value;
+  return values.flatMap((value) => {
+    const parsed = regexScriptSchema.safeParse(value);
+    if (!parsed.success) return [];
+    const script = parsed.data;
+    return [isPotentiallyCatastrophicRegex(script.findRegex)
+      ? { ...script, findRegex: "(?!)" }
+      : script];
   });
 }
 
@@ -36,8 +54,8 @@ function regexIdentity(value: unknown): string | null {
   return null;
 }
 
-function mergeRegexScripts(...sources: unknown[]): unknown[] {
-  const merged: unknown[] = [];
+function mergeRegexScripts(...sources: unknown[]): RegexEngineScript[] {
+  const merged: RegexEngineScript[] = [];
   const identities = new Set<string>();
   for (const source of sources) {
     for (const script of collectRegexScripts(source)) {
@@ -84,7 +102,7 @@ export function applySillyTavernRegexScripts(
   );
   return applySillyTavernRegexEngine(
     text,
-    mergedScripts as readonly RegexEngineScript[],
+    mergedScripts,
     {
       isAiMessage,
       charName,

@@ -68,3 +68,13 @@ describe("SillyTavern Compatibility Regex 来源与阶段", () => {
     expect(result).toBe("global");
   });
 });
+
+it("畸形外部脚本安全跳过，后续合法脚本继续执行", () => {
+  const character = { extensions: { regex_scripts: [
+    { findRegex: 123, replaceString: "broken" },
+    { findRegex: "/a/g", replaceString: { invalid: true } },
+    { findRegex: "/a/g", replaceString: "bad", trimStrings: [12] },
+    { findRegex: "/a/g", replaceString: "good" },
+  ] } };
+  expect(applySillyTavernRegexScripts("a", character)).toBe("good");
+});

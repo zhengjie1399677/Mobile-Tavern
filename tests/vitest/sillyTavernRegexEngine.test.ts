@@ -214,3 +214,19 @@ describe("SillyTavern Regex Engine", () => {
     ).toThrowError();
   });
 });
+
+it("宏值中的美元符号按字面量展开", () => {
+  const charName = "A$&B$1";
+  expect(runRegexScript({ findRegex: "/{{char}}/g", substituteRegex: 2, replaceString: "{{char}} / <USER>" }, charName, { charName, userName: "$&" })).toBe("A$&B$1 / $&");
+});
+
+it("命名组与越界数字组共存时不会替换成偏移量", () => {
+  expect(runRegexScript({ findRegex: "/(?<letter>a)/g", replaceString: "$1:$2:$<letter>" }, "xa")).toBe("xa::a");
+});
+
+it("同时选择显示与 Prompt 时两者均生效，存储保持原文", () => {
+  const scripts = [{ findRegex: "/a/g", replaceString: "b", markdownOnly: true, promptOnly: true }];
+  expect(applySillyTavernRegexEngine("a", scripts, { mode: "render" })).toBe("b");
+  expect(applySillyTavernRegexEngine("a", scripts, { mode: "prompt" })).toBe("b");
+  expect(applySillyTavernRegexEngine("a", scripts, { mode: "store" })).toBe("a");
+});
