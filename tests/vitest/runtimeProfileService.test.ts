@@ -164,6 +164,36 @@ describe("RuntimeProfileService", () => {
     })).toBe(false);
   });
 
+  it("旧会话冻结的 Tool Plugin 版本与当前运行时不同时拒绝继续运行", () => {
+    const session = {
+      id: "tool-version-session",
+      characterId: "character",
+      title: "Tool 版本会话",
+      createdAt: 1,
+      messages: [],
+      summaries: [],
+      compositionSnapshot: {
+        profileId: "user.profile.demo",
+        profileVersion: 1,
+        pluginVersions: { "tool-plugin/example.weather": "1.0.0" },
+        providerBindings: {},
+        contributionOrder: {},
+        capabilityDecisions: {},
+      },
+    } satisfies ChatSession;
+
+    expect(canRunSessionWithProfile(session, {
+      profileId: "user.profile.demo",
+      profileVersion: 1,
+      pluginVersions: { "tool-plugin/example.weather": "2.0.0" },
+    })).toBe(false);
+    expect(canRunSessionWithProfile(session, {
+      profileId: "user.profile.demo",
+      profileVersion: 1,
+      pluginVersions: { "tool-plugin/example.weather": "1.0.0" },
+    })).toBe(true);
+  });
+
   it("跨 Profile 会话跳转会选择目标 Profile 并保存重载恢复意图", () => {
     const profileService = new RuntimeProfileService();
     const kernel = {

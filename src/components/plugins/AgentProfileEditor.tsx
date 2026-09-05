@@ -142,7 +142,7 @@ export default function AgentProfileEditor({
                 <span className="min-w-0 flex-1 truncate">
                   <span className="block truncate text-[11px] font-semibold text-foreground">{tool.name}</span>
                   <span className="block truncate text-[9px] text-muted-foreground/75">
-                    {unavailable ? "未安装或未分配" : `v${tool.version ?? "未声明"}`}
+                    {unavailable ? "未安装或版本不匹配" : `v${tool.version ?? "未声明"}`}
                   </span>
                 </span>
               </button>

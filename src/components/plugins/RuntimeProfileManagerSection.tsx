@@ -53,6 +53,10 @@ import {
 } from "../../application/tools/builtinAgentTools";
 import SettingsToggleRow from "../../tabs/settings/SettingsToggleRow";
 import AgentProfileEditor from "./AgentProfileEditor";
+import {
+  findUnavailableRuntimeProfileToolNames,
+  mergeRuntimeProfileToolMounts,
+} from "../../application/useCases/runtimeProfileToolMounts";
 
 const MAX_AGENT_PROFILE_FILE_SIZE = 512 * 1024;
 const BUILTIN_TOOLS: readonly RuntimeProfileToolMount[] = [
@@ -96,16 +100,19 @@ export default function RuntimeProfileManagerSection() {
   );
   const editableTools = useMemo(
     () => inspected
-      ? mergeToolMounts(inspected.agent?.toolMounts ?? [], listToolsForProfile(kernel, inspected.id))
+      ? mergeRuntimeProfileToolMounts(
+          listToolsForProfile(kernel, inspected.id),
+          inspected.agent?.toolMounts ?? [],
+        )
       : [...BUILTIN_TOOLS],
     [inspected, kernel, catalog],
   );
   const unavailableToolNames = useMemo(() => {
     if (!inspected) return [];
-    const available = new Set(listToolsForProfile(kernel, inspected.id).map((tool) => tool.name));
-    return (inspected.agent?.toolMounts ?? [])
-      .map((tool) => tool.name)
-      .filter((name) => !available.has(name));
+    return findUnavailableRuntimeProfileToolNames(
+      inspected.agent?.toolMounts ?? [],
+      listToolsForProfile(kernel, inspected.id),
+    );
   }, [inspected, kernel, catalog]);
 
   const refresh = () => {
@@ -595,17 +602,6 @@ function listAllKnownTools(kernel: ReturnType<typeof useKernel>): RuntimeProfile
 
 function isBuiltinTool(tool: RuntimeProfileToolMount): boolean {
   return tool.name === CHARACTER_READ_TOOL_NAME || tool.name === SESSION_BRANCH_TOOL_NAME;
-}
-
-function mergeToolMounts(
-  first: readonly RuntimeProfileToolMount[],
-  second: readonly RuntimeProfileToolMount[],
-): RuntimeProfileToolMount[] {
-  const tools = new Map<string, RuntimeProfileToolMount>();
-  [...first, ...second].forEach((tool) => {
-    if (!tools.has(tool.name)) tools.set(tool.name, { ...tool });
-  });
-  return [...tools.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
 interface AndroidFileBridge {

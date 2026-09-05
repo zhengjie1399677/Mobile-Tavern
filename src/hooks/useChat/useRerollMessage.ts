@@ -33,7 +33,7 @@ import {
 import { preserveAssistantReasoning } from "../../application/services/llmCompatibility";
 import { resolveBuiltinProviderId } from "../../application/runtimePlugins/agentSpineRuntimePlugin";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
-import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
+import { canRunSessionWithProfile, getActiveAgentCompositionSnapshot, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 import { resolveAgentSessionSettings } from "../../application/useCases/resolveAgentSessionSettings";
 
 
@@ -87,13 +87,10 @@ export function useRerollMessage(p: RerollMessageParams) {
 
     const currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
 
-    const activeProfile = p.kernel.hasService?.(KernelServices.AgentRuntime)
-      ? p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
-        .getCompositionSnapshot()
-      : null;
+    const activeProfile = getActiveAgentCompositionSnapshot(p.kernel);
     if (!canRunSessionWithProfile(currentSession, activeProfile)) {
       await p.showCustomAlert(
-        `此会话固定使用 ${getSessionRuntimeProfileId(currentSession)} v${currentSession?.compositionSnapshot?.profileVersion ?? "legacy"}，当前运行时为 ${activeProfile ? `${activeProfile.profileId} v${activeProfile.profileVersion}` : "未装载"}。请先切换 Agent Profile。`,
+        `此会话固定使用 ${getSessionRuntimeProfileId(currentSession)} v${currentSession?.compositionSnapshot?.profileVersion ?? "legacy"} 及其 Tool 版本，当前运行时为 ${activeProfile ? `${activeProfile.profileId} v${activeProfile.profileVersion}` : "未装载"}。请先恢复对应 Agent Profile 与 Tool 版本。`,
       );
       return;
     }

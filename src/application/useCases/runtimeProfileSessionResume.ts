@@ -1,14 +1,10 @@
 import type { IKernel } from "../../kernel/types";
 import type { ChatSession } from "../../types";
-import type { IAgentRuntimeService } from "../serviceContracts";
 import { KernelServices } from "../serviceContracts";
 import type { IRuntimeProfileService } from "../runtimeProfiles/contracts";
 import { BUILTIN_TAVERN_PROFILE_ID } from "../runtimeProfiles/contracts";
-import {
-  clearRuntimeProfileSessionResumeIntent,
-  writeRuntimeProfileSessionResumeIntent,
-} from "../../infrastructure/runtimeProfiles/runtimeProfileSessionResume";
-import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "./runtimeProfileSession";
+import { clearRuntimeProfileSessionResumeIntent, writeRuntimeProfileSessionResumeIntent } from "../../infrastructure/runtimeProfiles/runtimeProfileSessionResume";
+import { canRunSessionWithProfile, getActiveAgentCompositionSnapshot, getSessionRuntimeProfileId } from "./runtimeProfileSession";
 
 export type RuntimeProfileSessionResumeResult =
   | { readonly status: "ready" }
@@ -20,13 +16,19 @@ export function prepareRuntimeProfileSessionResume(
   kernel: IKernel,
   session: ChatSession,
 ): RuntimeProfileSessionResumeResult {
-  const runtime = kernel.hasService(KernelServices.AgentRuntime)
-    ? kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
-    : null;
-  const activeComposition = runtime?.getCompositionSnapshot() ?? null;
+  const activeComposition = getActiveAgentCompositionSnapshot(kernel);
   if (canRunSessionWithProfile(session, activeComposition)) return { status: "ready" };
 
   const targetProfileId = getSessionRuntimeProfileId(session) ?? BUILTIN_TAVERN_PROFILE_ID;
+  if (
+    activeComposition?.profileId === targetProfileId
+    && activeComposition.profileVersion === session.compositionSnapshot?.profileVersion
+  ) {
+    return {
+      status: "unavailable",
+      message: "会话冻结的 Tool Plugin 版本与当前运行时不一致，请恢复对应版本后重试。",
+    };
+  }
   const profiles = kernel
     .getService<IRuntimeProfileService>(KernelServices.RuntimeProfiles);
   const targetProfile = profiles.listProfiles().profiles.find((profile) =>

@@ -48,7 +48,7 @@ import {
   type OpenAiToolLoopModelStep,
 } from "../../application/useCases/openAiToolLoop";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
-import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
+import { canRunSessionWithProfile, getActiveAgentCompositionSnapshot, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 import { resolveAgentSessionSettings } from "../../application/useCases/resolveAgentSessionSettings";
 import {
   MOBILE_TAVERN_CHAT_DRIVER_ID,
@@ -922,12 +922,10 @@ export function useSendMessage(p: SendMessageParams) {
     options?: SendMessageOptions,
   ): Promise<void> => {
     const current = pRef.current;
-    const activeProfile = current.kernel
-      .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
-      .getCompositionSnapshot();
+    const activeProfile = getActiveAgentCompositionSnapshot(current.kernel);
     if (!canRunSessionWithProfile(current.activeSession, activeProfile)) {
       await current.showCustomAlert(
-        `此会话固定使用 ${getSessionRuntimeProfileId(current.activeSession)} v${current.activeSession?.compositionSnapshot?.profileVersion ?? "legacy"}，当前运行时为 ${activeProfile ? `${activeProfile.profileId} v${activeProfile.profileVersion}` : "未装载"}。请在设置 → 插件与 Agent Profiles 中切换后再继续。`,
+        `此会话固定使用 ${getSessionRuntimeProfileId(current.activeSession)} v${current.activeSession?.compositionSnapshot?.profileVersion ?? "legacy"} 及其 Tool 版本，当前运行时为 ${activeProfile ? `${activeProfile.profileId} v${activeProfile.profileVersion}` : "未装载"}。请在设置 → 插件与 Agent Profiles 中恢复对应版本后再继续。`,
       );
       return;
     }

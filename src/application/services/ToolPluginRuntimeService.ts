@@ -168,10 +168,17 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
   }
 
   extendComposition(snapshot: AgentCompositionSnapshot): AgentCompositionSnapshot {
-    const selectedToolNames = readAgentSettingsFromComposition(snapshot)?.toolMounts
-      .map((tool) => tool.name);
+    const selectedTools = readAgentSettingsFromComposition(snapshot)?.toolMounts;
+    const selectedByName = selectedTools
+      ? new Map(selectedTools.map((tool) => [tool.name, tool.version]))
+      : null;
     const toolNames = this.getEnabledToolNames(snapshot.profileId)
-      .filter((name) => selectedToolNames === undefined || selectedToolNames.includes(name));
+      .filter((name) => {
+        if (!selectedByName) return true;
+        if (!selectedByName.has(name)) return false;
+        const requestedVersion = selectedByName.get(name);
+        return requestedVersion === undefined || this.tools.get(name)?.version === requestedVersion;
+      });
     if (toolNames.length === 0) return snapshot;
     const versions = { ...snapshot.pluginVersions };
     for (const toolName of toolNames) {

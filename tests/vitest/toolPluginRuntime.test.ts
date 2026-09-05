@@ -118,6 +118,15 @@ describe("External Tool Plugin Runtime", () => {
         [AGENT_PROFILE_SETTINGS_DECISION_ID]: { toolMounts: [{ name: toolName, version: "1.0.0" }] },
       },
     }).contributionOrder.tool).toEqual([toolName]);
+    expect(service.extendComposition({
+      ...baseSnapshot,
+      capabilityDecisions: {
+        [AGENT_PROFILE_SETTINGS_DECISION_ID]: { toolMounts: [{ name: toolName, version: "2.0.0" }] },
+      },
+    })).toMatchObject({
+      pluginVersions: {},
+      contributionOrder: { tool: [] },
+    });
 
     await service.destroy();
     await agentRuntime.destroy();
