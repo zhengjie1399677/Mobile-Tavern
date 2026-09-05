@@ -246,6 +246,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
             text: content,
             character,
             isAiMessage: isAi,
+            depth: chat.messages.length - 1 - chat.messages.indexOf(msg),
             charName: character.name,
             userName: settings.userName,
             mode: "prompt",
@@ -271,7 +272,6 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
             );
             content = `${prefix}${content}${suffix}`;
           } else {
-            // 保持内容整洁，不在前面加名字以防止脚本格式偏置
           }
         } else if (msg.sender === "system") {
           role = "user";
@@ -888,6 +888,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
             text: content,
             character,
             isAiMessage: isAi,
+            depth: chat.messages.length - 1 - chat.messages.indexOf(msg),
             charName: character.name,
             userName: settings.userName,
             mode: "prompt",
@@ -907,7 +908,6 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
             const suffix = this.replaceMacros(settings.promptConfig?.assistantSuffix || "", macroParams);
             content = `${prefix}${content}${suffix}`;
           } else {
-            // 保持内容整洁，不在前面加名字以防止脚本格式偏置
           }
           if (content && !content.includes("<center>")) {
             content = `<center>\n${content.trim()}\n</center>`;
