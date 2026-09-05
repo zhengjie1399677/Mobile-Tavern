@@ -103,3 +103,13 @@ describe("Tool Plugin SDK", () => {
     expect(Object.isFrozen(registered?.tools)).toBe(true);
   });
 });
+
+it("SDK 可选字段显式 undefined 时仍与归档 JSON 的哈希一致", async () => {
+  const entryCode = "globalThis.MobileTavernToolPlugin={tools:{echo:input=>input}};";
+  const archive = createToolPluginPackage({
+    manifest: { ...manifest, source: { ...manifest.source, url: undefined }, network: undefined },
+    entryCode,
+  });
+  const inspection = await parseToolPluginPackage(archive);
+  expect(inspection.manifest.id).toBe(manifest.id);
+});

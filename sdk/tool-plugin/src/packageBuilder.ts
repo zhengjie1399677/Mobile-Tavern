@@ -73,7 +73,7 @@ function computePackageHash(
 ): `sha256:${string}` {
   const fileHashes = Object.keys(files).sort().map((path) => `${path}:${sha256(files[path])}`);
   return `sha256:${sha256(new TextEncoder().encode(
-    `${canonicalize(manifest)}\n${fileHashes.join("\n")}`,
+    `${canonicalize(JSON.parse(JSON.stringify(manifest)))}\n${fileHashes.join("\n")}`,
   ))}`;
 }
 
