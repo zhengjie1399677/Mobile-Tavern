@@ -93,7 +93,7 @@ export function preserveAssistantReasoning(
   const takeFrom = (list: CandidateEntry[]): string | null => {
     const entry = peekFirstUnused(list);
     if (!entry) return null;
-    pointers.set(list, entry.index + 1);
+    pointers.set(list, list.indexOf(entry) + 1);
     entry.candidate.used = true;
     return entry.candidate.reasoning;
   };
@@ -110,15 +110,15 @@ export function preserveAssistantReasoning(
     if (!entry) return null;
     pointers.set(
       entry === primaryEntry ? primary : fallback,
-      entry.index + 1,
+      (entry === primaryEntry ? primary : fallback).indexOf(entry) + 1,
     );
     entry.candidate.used = true;
     return entry.candidate.reasoning;
   };
   const takeWrappedContent = (providerContent: string): string | null => {
-    const candidate = reasoningCandidates.find((item) =>
-      !item.used && isRequestWrappedContent(providerContent, item.content)
-    );
+    const candidate = reasoningCandidates
+      .filter((item) => !item.used && isRequestWrappedContent(providerContent, item.content))
+      .sort((left, right) => right.content.trim().length - left.content.trim().length)[0];
     if (!candidate) return null;
     candidate.used = true;
     return candidate.reasoning;

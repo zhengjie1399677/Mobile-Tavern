@@ -122,6 +122,22 @@ describe("LLM Provider 兼容层", () => {
     expect(result.map((message) => message.reasoning_content)).toEqual(["思考一", "思考二"]);
   });
 
+  it("相同回复之间夹有其他候选时仍依次回填", () => {
+    const sessionMessages = [
+      { id: "other", sender: "assistant", content: "其他", reasoningContent: "其他思考", timestamp: 1 },
+      { id: "first", sender: "assistant", content: "相同回复", reasoningContent: "思考一", timestamp: 2 },
+      { id: "middle", sender: "assistant", content: "中间", reasoningContent: "中间思考", timestamp: 3 },
+      { id: "second", sender: "assistant", content: "相同回复", reasoningContent: "思考二", timestamp: 4 },
+    ] as Message[];
+
+    const result = preserveAssistantReasoning([
+      { role: "assistant", content: "相同回复" },
+      { role: "assistant", content: "相同回复" },
+    ], sessionMessages, "https://api.deepseek.com/v1", "deepseek-chat");
+
+    expect(result.map((message) => message.reasoning_content)).toEqual(["思考一", "思考二"]);
+  });
+
   it("历史助手文本被请求包装后仍回填 reasoning_content", () => {
     const sessionMessages = [{
       id: "wrapped-assistant",
@@ -137,6 +153,20 @@ describe("LLM Provider 兼容层", () => {
     }], sessionMessages, "https://api.deepseek.com/v1", "deepseek-chat");
 
     expect(result[0].reasoning_content).toBe("原始思考");
+  });
+
+  it("包装文本包含多个候选时优先匹配最长的完整回复", () => {
+    const sessionMessages = [
+      { id: "short", sender: "assistant", content: "回复", reasoningContent: "短思考", timestamp: 1 },
+      { id: "long", sender: "assistant", content: "完整回复", reasoningContent: "长思考", timestamp: 2 },
+    ] as Message[];
+
+    const result = preserveAssistantReasoning([
+      { role: "assistant", content: "<center>完整回复</center>" },
+      { role: "assistant", content: "<center>回复</center>" },
+    ], sessionMessages, "https://api.deepseek.com/v1", "deepseek-chat");
+
+    expect(result.map((message) => message.reasoning_content)).toEqual(["长思考", "短思考"]);
   });
 
   it("按 tool_calls ID 为 content=null 的助手消息回填 reasoning_content", () => {
