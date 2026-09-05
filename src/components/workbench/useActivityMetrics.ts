@@ -26,6 +26,8 @@ export interface ActivityMetricsResult {
 }
 
 const STORAGE_KEY = "mobile_tavern_workbench_moods_v1";
+const MOOD_CHANGED_EVENT = "mobileTavernWorkbenchMoodChanged";
+let memoryMoodRecords: Record<string, MoodPoint> = {};
 
 const formatDateKey = (date: Date): string => {
   const y = date.getFullYear();
@@ -77,21 +79,32 @@ export function useActivityMetrics(): ActivityMetricsResult {
   }));
 
   // 本地持久化心相记录
-  const [moodRecords, setMoodRecords] = useState<Record<string, MoodPoint>>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-    return {};
-  });
+  const [moodRecords, setMoodRecords] = useState<Record<string, MoodPoint>>(readMoodRecords);
+
+  useEffect(() => {
+    const sync = () => setMoodRecords(readMoodRecords());
+    window.addEventListener(MOOD_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(MOOD_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   const dailyMoods = useMemo(() => {
     return new Map<string, MoodPoint>(Object.entries(moodRecords));
   }, [moodRecords]);
 
-  const todayKey = useMemo(() => formatDateKey(new Date()), []);
+  const [todayKey, setTodayKey] = useState(() => formatDateKey(new Date()));
+  useEffect(() => {
+    const refreshDate = () => setTodayKey(formatDateKey(new Date()));
+    const timer = window.setInterval(refreshDate, 60_000);
+    window.addEventListener("mobileTavernNativeResume", refreshDate);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("mobileTavernNativeResume", refreshDate);
+    };
+  }, []);
   const todayMood = dailyMoods.get(todayKey) ?? null;
 
   const saveMood = useCallback(
@@ -101,15 +114,15 @@ export function useActivityMetrics(): ActivityMetricsResult {
         y: Math.max(-1, Math.min(1, Number(point.y.toFixed(2)))),
         updatedAt: Date.now(),
       };
-      setMoodRecords((prev) => {
-        const next = { ...prev, [targetDateKey]: updated };
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
+      const next = { ...readMoodRecords(), [targetDateKey]: updated };
+      memoryMoodRecords = next;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // 存储不可用时仍保留当前页面状态。
+      }
+      setMoodRecords(next);
+      window.dispatchEvent(new Event(MOOD_CHANGED_EVENT));
     },
     [todayKey]
   );
@@ -180,4 +193,30 @@ export function useActivityMetrics(): ActivityMetricsResult {
       saveMood,
     };
   }, [sessions, dailyMoods, todayKey, todayMood, saveMood]);
+}
+
+function readMoodRecords(): Record<string, MoodPoint> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return memoryMoodRecords;
+    const records = Object.fromEntries(Object.entries(parsed).flatMap(([dateKey, value]) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !value || typeof value !== "object" || Array.isArray(value)) {
+        return [];
+      }
+      const point = value as Record<string, unknown>;
+      return typeof point.x === "number" && Number.isFinite(point.x)
+        && typeof point.y === "number" && Number.isFinite(point.y)
+        && typeof point.updatedAt === "number" && Number.isFinite(point.updatedAt)
+        ? [[dateKey, {
+            x: Math.max(-1, Math.min(1, point.x)),
+            y: Math.max(-1, Math.min(1, point.y)),
+            updatedAt: point.updatedAt,
+          } satisfies MoodPoint]]
+        : [];
+    }));
+    memoryMoodRecords = records;
+    return records;
+  } catch {
+    return memoryMoodRecords;
+  }
 }

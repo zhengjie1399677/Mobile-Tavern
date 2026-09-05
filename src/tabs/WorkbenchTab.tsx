@@ -8,7 +8,8 @@ import { ToolCapabilitiesWidget } from "../components/workbench/ToolCapabilities
 import { useUnifiedApp } from "../UnifiedAppContext";
 
 export default function WorkbenchTab(): React.JSX.Element {
-  const { settings } = useUnifiedApp((state) => ({
+  const { isDBReady, settings } = useUnifiedApp((state) => ({
+    isDBReady: state.isDBReady,
     settings: state.settings,
   }));
   const ambientGlowIntensity = settings?.ambientGlowIntensity ?? 0.6;
@@ -76,9 +77,9 @@ export default function WorkbenchTab(): React.JSX.Element {
             </span>
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-            <span className="text-[10px] font-medium text-emerald-400/90 font-mono">
-              Host Engine Ready
+            <span className={`h-1.5 w-1.5 rounded-full ${isDBReady ? "bg-emerald-400 animate-ping" : "bg-amber-400 animate-pulse"}`} />
+            <span className={`text-[10px] font-medium font-mono ${isDBReady ? "text-emerald-400/90" : "text-amber-400/90"}`}>
+              {isDBReady ? "Host Engine Ready" : "Host Engine Starting"}
             </span>
           </div>
         </div>

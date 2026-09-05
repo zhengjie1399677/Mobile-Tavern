@@ -11,7 +11,7 @@ export const ActivityRingsOrbitWidget: React.FC<ActivityRingsOrbitWidgetProps> =
 }) => {
   const { todayCount, todaySessionCount, hourlyDistribution } = useActivityMetrics();
 
-  // 外环：今日活跃量（以 30 次交互为满环基准）
+  // 外环：当前已载入数据中的今日活跃量（以 30 次交互为满环基准）
   const outerProgress = Math.min(1, Math.max(0.04, todayCount / 30));
   // 内环：多会话深度（以 3 个活跃会话为满环基准）
   const innerProgress = Math.min(1, Math.max(0.04, todaySessionCount / 3));
@@ -71,11 +71,11 @@ export const ActivityRingsOrbitWidget: React.FC<ActivityRingsOrbitWidgetProps> =
         <div className="flex items-center gap-2 text-[10px]">
           <span className="flex items-center gap-1 font-mono text-cyan-400">
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />
-            今日交互
+            已载入交互
           </span>
           <span className="flex items-center gap-1 font-mono text-purple-400">
             <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shadow-[0_0_6px_#c084fc]" />
-            会话深度
+            已载入会话
           </span>
         </div>
       </div>

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Wrench, Check, Power, ShieldCheck, Sparkles } from "lucide-react";
 import { toolPluginManagementUseCases } from "../../application/useCases/toolPluginManagementUseCases";
 import type { InstalledToolPlugin } from "../../domain/toolPlugins";
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { KernelServices, type IToolPluginRuntimeService } from "../../application/serviceContracts";
 
 interface ToolCapabilitiesWidgetProps {
   className?: string;
@@ -11,14 +12,15 @@ interface ToolCapabilitiesWidgetProps {
 export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
   className = "",
 }) => {
-  const { showCustomAlert } = useUnifiedApp((state) => ({
+  const { getKernelService, showCustomAlert } = useUnifiedApp((state) => ({
+    getKernelService: state.getKernelService,
     showCustomAlert: state.showCustomAlert,
   }));
 
   const [plugins, setPlugins] = useState<InstalledToolPlugin[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const loadPlugins = async () => {
+  const loadPlugins = useCallback(async () => {
     try {
       setLoading(true);
       const list = await toolPluginManagementUseCases.list();
@@ -28,21 +30,25 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadPlugins();
-  }, []);
+  }, [loadPlugins]);
 
   const handleToggle = async (plugin: InstalledToolPlugin) => {
+    if (loading) return;
+    setLoading(true);
     try {
       const nextEnabled = !plugin.enabled;
       await toolPluginManagementUseCases.setEnabled(plugin.id, nextEnabled);
-      setPlugins((prev) =>
-        prev.map((p) => (p.id === plugin.id ? { ...p, enabled: nextEnabled } : p))
-      );
+      await getKernelService<IToolPluginRuntimeService>(KernelServices.ToolConnectors).reload();
+      setPlugins(await toolPluginManagementUseCases.list());
     } catch (e) {
-      showCustomAlert(e instanceof Error ? e.message : String(e), "切换插件状态失败");
+      await showCustomAlert(e instanceof Error ? e.message : String(e), "切换插件状态失败");
+      setPlugins(await toolPluginManagementUseCases.list().catch(() => plugins));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -108,7 +114,9 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
               <button
                 type="button"
                 onClick={() => handleToggle(plugin)}
-                className={`flex h-7 items-center gap-1 rounded-lg px-2.5 text-xs font-bold transition-all active:scale-95 ${
+                disabled={loading}
+                aria-label={`${plugin.enabled ? "关闭" : "启用"} ${plugin.manifest.name}`}
+                className={`flex min-h-11 items-center gap-1 rounded-lg px-3 text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
                   plugin.enabled
                     ? "border border-emerald-500/30 bg-emerald-500/15 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)] hover:bg-emerald-500/25"
                     : "border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"

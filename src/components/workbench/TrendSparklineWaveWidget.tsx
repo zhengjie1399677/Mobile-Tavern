@@ -70,14 +70,14 @@ export const TrendSparklineWaveWidget: React.FC<TrendSparklineWaveWidgetProps> =
             <Activity className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-xs font-bold tracking-tight text-foreground">7日活跃脉冲波形</h3>
-            <p className="text-[10px] text-muted-foreground">趋势起伏图</p>
+            <h3 className="text-xs font-bold tracking-tight text-foreground">已载入的 7 日活跃波形</h3>
+            <p className="text-[10px] text-muted-foreground">当前内存数据趋势</p>
           </div>
         </div>
 
         <div className="flex items-center gap-1 font-mono text-[10px] text-cyan-400/90">
           <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          近一周流动
+          近一周已载入
         </div>
       </div>
 

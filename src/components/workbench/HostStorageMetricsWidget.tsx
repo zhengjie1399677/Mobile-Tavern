@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { HardDrive, Database, RefreshCw, CheckCircle2 } from "lucide-react";
+import { HardDrive, Database, RefreshCw, CheckCircle2, CircleHelp } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 
 interface HostStorageMetricsWidgetProps {
@@ -9,8 +9,8 @@ interface HostStorageMetricsWidgetProps {
 export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> = ({
   className = "",
 }) => {
-  const { sessions, characters } = useUnifiedApp((state) => ({
-    sessions: state.sessions,
+  const { totalSessionCount, characters } = useUnifiedApp((state) => ({
+    totalSessionCount: state.totalSessionCount,
     characters: state.characters,
   }));
 
@@ -18,11 +18,7 @@ export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> =
     usedMB: number;
     quotaMB: number;
     percent: number;
-  }>({
-    usedMB: 0,
-    quotaMB: 0,
-    percent: 0,
-  });
+  } | null>(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -35,12 +31,13 @@ export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> =
         const quotaMB = Number((quota / (1024 * 1024)).toFixed(0));
         const percent = quota > 0 ? Number(((usage / quota) * 100).toFixed(1)) : 0;
         setStorageEstimate({ usedMB, quotaMB, percent });
+      } else {
+        setStorageEstimate(null);
       }
     } catch {
-      // Fallback
-      setStorageEstimate({ usedMB: 12.5, quotaMB: 1024, percent: 1.2 });
+      setStorageEstimate(null);
     } finally {
-      setTimeout(() => setIsRefreshing(false), 300);
+      setIsRefreshing(false);
     }
   };
 
@@ -64,15 +61,16 @@ export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> =
           </div>
           <div>
             <h3 className="text-xs font-bold tracking-tight text-foreground">本地存储与持久化</h3>
-            <p className="text-[10px] text-muted-foreground">IndexedDB 数据健康度</p>
+            <p className="text-[10px] text-muted-foreground">浏览器存储容量估算</p>
           </div>
         </div>
 
         <button
           type="button"
           onClick={fetchStorageEstimate}
+          disabled={isRefreshing}
           aria-label="刷新存储状态"
-          className="flex h-6 w-6 items-center justify-center rounded-md border border-white/5 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground active:scale-90 transition-all"
+          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/5 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground active:scale-95 transition-all disabled:opacity-50"
         >
           <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
         </button>
@@ -85,7 +83,7 @@ export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> =
           <div className="flex items-center justify-between text-[10px] text-muted-foreground">
             <span>本地占用</span>
             <span className="font-mono font-bold text-foreground">
-              {storageEstimate.usedMB > 0 ? `${storageEstimate.usedMB} MB` : "< 1 MB"}
+              {storageEstimate ? storageEstimate.usedMB > 0 ? `${storageEstimate.usedMB} MB` : "< 1 MB" : "--"}
             </span>
           </div>
 
@@ -93,30 +91,30 @@ export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> =
           <div className="my-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
             <div
               className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-500"
-              style={{ width: `${Math.max(storageEstimate.percent, 4)}%` }}
+              style={{ width: `${storageEstimate ? Math.max(storageEstimate.percent, 4) : 0}%` }}
             />
           </div>
 
           <div className="flex items-center justify-between text-[9px] text-muted-foreground/70">
-            <span>配额：{storageEstimate.quotaMB > 0 ? `${storageEstimate.quotaMB} MB` : "无限"}</span>
-            <span>{storageEstimate.percent}%</span>
+            <span>配额：{storageEstimate ? storageEstimate.quotaMB > 0 ? `${storageEstimate.quotaMB} MB` : "未提供" : "不可用"}</span>
+            <span>{storageEstimate ? `${storageEstimate.percent}%` : "--"}</span>
           </div>
         </div>
 
         {/* 数据库实体概览磁贴 */}
         <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-            <span>数据状态</span>
-            <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
-              <CheckCircle2 className="h-3 w-3" />
-              健康
+            <span>估算状态</span>
+            <span className={`flex items-center gap-1 text-[10px] font-semibold ${storageEstimate ? "text-emerald-400" : "text-amber-400"}`}>
+              {storageEstimate ? <CheckCircle2 className="h-3 w-3" /> : <CircleHelp className="h-3 w-3" />}
+              {storageEstimate ? "已读取" : "未检测"}
             </span>
           </div>
 
           <div className="mt-1.5 flex items-center justify-between text-xs font-bold text-foreground">
             <div className="flex items-center gap-1">
               <Database className="h-3 w-3 text-primary/80" />
-              <span>{sessions.length}</span>
+              <span>{totalSessionCount}</span>
               <span className="text-[9px] font-normal text-muted-foreground">会话</span>
             </div>
             <div className="text-right">

@@ -157,7 +157,7 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
             <h3 className="text-xs font-bold tracking-tight text-foreground">
               {year} 年 {monthNames[month]}
             </h3>
-            <p className="text-[10px] text-muted-foreground">时空活跃热力与心相色谱</p>
+            <p className="text-[10px] text-muted-foreground">已载入活跃热力与心相色谱</p>
           </div>
         </div>
 

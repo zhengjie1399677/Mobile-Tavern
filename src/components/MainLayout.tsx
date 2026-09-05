@@ -273,6 +273,7 @@ export default function MainLayout() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as TabType)}
                   role="tab"
+                  id={`main-tab-${tab.id}`}
                   data-ui="main-tab"
                   data-tab-id={tab.id}
                   aria-selected={selected}
