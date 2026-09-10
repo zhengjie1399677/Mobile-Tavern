@@ -240,6 +240,8 @@ export class LLMService implements ILLMService {
             baseUrl,
             modelId: modelName,
             request: testBody,
+            // 连接测试只验证可达性与凭据，不需要思维链；推理模型否则会为 5 个 token 跑完整推理。
+            disableReasoning: safePayload.disableReasoning,
           });
         }
         try {

@@ -1,29 +1,27 @@
 import React from "react";
 import { AlertTriangle, Check, ShieldAlert, X } from "lucide-react";
-import type {
-  AgentJournalEvent,
-  AgentToolApprovalRequest,
-} from "../../../domain/agents/contracts";
+import type { AgentToolApprovalRequest } from "../../../domain/agents/contracts";
 import type { IAgentRuntimeService } from "../../../application/serviceContracts";
 import { KernelServices } from "../../../application/serviceContracts";
 import { useOptionalKernel } from "../../../contexts/KernelContext";
-import ToolCallBlock from "./ToolCallBlock";
 
 interface AgentToolActivityProps {
   sessionId: string;
 }
 
-const MAX_HISTORY_EVENTS = 120;
-
+/**
+ * 聊天内的 Agent 工具活动：只展示需要用户介入的待审批卡片。
+ *
+ * 工具调用、执行结果与失败原因仍完整写入 Agent Journal（可重放、随备份恢复、进诊断数据），
+ * 但不在聊天里渲染汇总块——只读或已完成的调用对用户是噪音，静默即可。
+ */
 export function AgentToolActivity({ sessionId }: AgentToolActivityProps): React.JSX.Element | null {
   const kernel = useOptionalKernel();
   const [pending, setPending] = React.useState<AgentToolApprovalRequest[]>([]);
-  const [events, setEvents] = React.useState<AgentJournalEvent[]>([]);
 
   React.useEffect(() => {
     if (!kernel?.hasService(KernelServices.AgentRuntime)) {
       setPending([]);
-      setEvents([]);
       return;
     }
     const runtime = kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
@@ -32,24 +30,12 @@ export function AgentToolActivity({ sessionId }: AgentToolActivityProps): React.
       if (!active) return;
       setPending(runtime.listPendingToolApprovals().filter((request) => request.sessionId === sessionId));
     };
-    const refreshEvents = async () => {
-      const next = await runtime.listJournalBySession(sessionId);
-      if (!active) return;
-      setEvents(next.slice(-MAX_HISTORY_EVENTS));
-    };
     refreshPending();
-    void refreshEvents();
     const disposeApprovals = runtime.subscribeToolApprovals((request) => {
       if (request.sessionId === sessionId) refreshPending();
     });
-    const disposeJournal = runtime.subscribeJournal((changedSessionId) => {
-      if (changedSessionId !== sessionId) return;
-      refreshPending();
-      void refreshEvents();
-    });
     return () => {
       active = false;
-      void disposeJournal();
       void disposeApprovals();
     };
   }, [kernel, sessionId]);
@@ -61,15 +47,13 @@ export function AgentToolActivity({ sessionId }: AgentToolActivityProps): React.
     setPending(runtime.listPendingToolApprovals().filter((request) => request.sessionId === sessionId));
   }, [kernel, sessionId]);
 
-  const toolEvents = events.filter((event) => event.type.startsWith("tool."));
-  if (pending.length === 0 && toolEvents.length === 0) return null;
+  if (pending.length === 0) return null;
 
   return (
     <div className="space-y-2 px-1" data-ui="agent-tool-activity">
       {pending.map((request) => (
         <ToolApprovalCard key={request.id} request={request} onResolve={resolve} />
       ))}
-      <ToolCallBlock events={toolEvents} />
     </div>
   );
 }

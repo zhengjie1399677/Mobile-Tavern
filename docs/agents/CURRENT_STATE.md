@@ -18,7 +18,7 @@
 - AgentHandle、Turn、取消、Provider、Tool Registry、有限 Tool Loop 和 Agent Journal 已完成。Base/Tavern Profile 均实际注册只读 `character.read` 与本地写入 `session.branch`；旧会话继续按自己的 Composition Snapshot 冻结 Tool 集合。
 - LLM Provider 防腐层已集中到 Application：按解析后的端点与模型族裁剪参数、适配关闭思考与 `reasoning_content` 回放、归一化多种流式片段，并按完整 Base URL 与模型隔离运行时参数自愈；发送和重生成共用同一适配入口。
 - Prompt 预设已使用 `promptPlan v1` 随预设保存明确运行模式与编排快照；SillyTavern `prompts + prompt_order` 经 Compatibility Codec 转为中立编排，无顺序容器时按原序降级保留。自由编排由单一管线执行场景覆盖、编译、请求整形与最终 Token 审计，发送和重生成只消费权威 `messages`。预设包整体性闭环已补齐：切换预设只整体替换目标预设声明的字段（不再残留上一个预设的内容），可把当前设置（采样 / 提示词 / 编排 / 预设正则）写回当前预设，存在未保存修改时切换前必须确认，删除被 Agent Profile 引用的预设会提示不可逆后果；内置预设保持出厂可升级，保存修改会自动另存为新预设并切过去；会话冻结行为预设时界面提示修改只对新会话生效。出厂内容迁移只作用于内置预设，导入改为自包含并通过 `extensions.mobile_tavern_preset` 保留 ST 无法表达的运行期开关。
-- Tool 定义声明权限、风险、副作用、执行 Scope 和 `allow` / `deny` / `ask` 策略。`session.branch` 必须在聊天内“允许一次”后执行；拒绝、取消、超时、宿主不可用均 fail-closed，审批请求、决定、结果与失败进入同一 Agent Journal 并在聊天历史展示。
+- Tool 定义声明权限、风险、副作用、执行 Scope 和 `allow` / `deny` / `ask` 策略。`session.branch` 必须在聊天内“允许一次”后执行；拒绝、取消、超时、宿主不可用均 fail-closed，审批请求、决定、结果与失败进入同一 Agent Journal。聊天内只渲染待审批卡片，工具调用汇总与执行结果不再出现在聊天历史，静默保留在 Journal 与诊断数据中。
 - 音频 ASR 和视频关键帧处理器已作为受信 Runtime Plugin 贡献接入；Anthropic 原生音视频投影仍明确拒绝，不做静默降级。
 - Compatibility Runtime 已从通用生产代码中隔离。`Base Agent` 不装载兼容插件，`Tavern Agent` 可装载、关闭、卸载和重载；旧 `session.variables` 只保留读取降级和插件内部瞬时投影。
 - Profile 设置、复制、能力开关、跨 Profile 会话恢复和运行诊断已完成。“保存并开始”会先校验角色、行为预设和 Tool 精确版本，再通过一次性意图重载目标 Profile、创建新会话，并把角色/Tool/行为/采样决定冻结到 Composition Snapshot；发送和重生成按该快照解析行为，引用丢失时 fail-closed。旧 `legacy.tavern.driver`、隐式全局 capability catalog 和默认注册路径已清理；任意 Runtime Plugin 安装仍关闭。

@@ -406,6 +406,8 @@ export default function SystemReportSection({
           chatPath: settings.api.chatPath,
           bypassProxy: settings.api.bypassProxy,
           forceBasicParams: settings.api.forceBasicParams,
+          // 只测连通性，关闭思维链，避免推理模型把自检拖到几十秒。
+          disableReasoning: true,
         });
         const latency = Date.now() - pingStart;
         const status = response.status;

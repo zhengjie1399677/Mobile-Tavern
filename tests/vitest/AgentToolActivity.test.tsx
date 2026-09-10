@@ -57,4 +57,34 @@ describe("AgentToolActivity", () => {
     expect(resolveToolApproval).toHaveBeenCalledWith("approval-1", "allow");
     await waitFor(() => expect(screen.queryByLabelText("等待审批：session.branch")).toBeNull());
   });
+
+  it("没有待审批时保持静默：不再渲染已完成的工具调用汇总", async () => {
+    const listPendingToolApprovals = vi.fn(() => []);
+    const runtime = {
+      listPendingToolApprovals,
+      listJournalBySession: vi.fn().mockResolvedValue([
+        { id: "e1", sessionId: "session-1", turnId: "turn-1", callId: "call-1", type: "tool.called", toolName: "character.read" },
+        { id: "e2", sessionId: "session-1", turnId: "turn-1", callId: "call-1", type: "tool.result", toolName: "character.read" },
+      ]),
+      subscribeToolApprovals: vi.fn(() => () => undefined),
+      subscribeJournal: vi.fn(() => () => undefined),
+      resolveToolApproval: vi.fn(),
+    } as unknown as IAgentRuntimeService;
+    const kernel = {
+      hasService: (name: string) => name === "agentRuntime",
+      getService: () => runtime,
+    } as unknown as IKernel;
+
+    const { container } = render(
+      <LanguageProvider>
+        <KernelProvider kernel={kernel}>
+          <AgentToolActivity sessionId="session-1" />
+        </KernelProvider>
+      </LanguageProvider>,
+    );
+
+    await waitFor(() => expect(listPendingToolApprovals).toHaveBeenCalled());
+    expect(container.querySelector('[data-ui="agent-tool-activity"]')).toBeNull();
+    expect(runtime.listJournalBySession).not.toHaveBeenCalled();
+  });
 });
