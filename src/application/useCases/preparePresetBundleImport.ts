@@ -14,7 +14,8 @@ import type {
 } from "../../domain/prompt-composition";
 import { parsePromptComposition } from "../../domain/prompt-composition";
 import type { CompatibilityCodecDefinition } from "../compatibility/contracts";
-import { createPromptPresetPlan, toPresetPromptConfig } from "./presetPromptConfig";
+import { toPresetPromptConfig } from "./presetPromptConfig";
+import { parseMobileTavernPresetExtension } from "./presetRuntimeNamespace";
 
 type ExternalRecord = Record<string, unknown>;
 type ImportIdKind = "preset" | "regex" | "bundle";
@@ -23,6 +24,11 @@ export interface PreparePresetBundleImportOptions {
   input: unknown;
   fallbackName: string;
   currentPromptConfig: PromptConfig;
+  /**
+   * 文件自带 Prompt 字段时使用的自包含基底（通常是出厂 Prompt 配置）。
+   * 未提供时退化为沿用 currentPromptConfig，避免影响既有调用方。
+   */
+  neutralPromptConfig?: PromptConfig;
   createId?: (kind: ImportIdKind) => string;
   compatibilityCodec?: CompatibilityCodecDefinition | null;
 }
@@ -84,7 +90,17 @@ export function preparePresetBundleImport(
     maxTokens: readFirstNumber(data.max_tokens, data.openai_max_tokens, data.maxTokens) ?? 600,
   };
 
-  const promptConfig = preparePromptConfig(data, options.currentPromptConfig);
+  const promptConfigBase = preparePromptConfig(
+    data,
+    options.currentPromptConfig,
+    options.neutralPromptConfig ?? options.currentPromptConfig,
+  );
+  const presetExtension = parseMobileTavernPresetExtension(
+    isRecord(data.extensions) ? data.extensions : undefined,
+  );
+  const promptConfig = presetExtension.promptRuntime
+    ? toPresetPromptConfig({ ...promptConfigBase, ...presetExtension.promptRuntime })
+    : promptConfigBase;
   const regexResult = parseRegexScripts(data, createId);
   // 部分社区预设没有 prompt_order；Codec 会按 prompts 原顺序降级保留，
   // 因此正式入口只要求存在 prompts，不能在此提前把它排除。
@@ -121,10 +137,12 @@ export function preparePresetBundleImport(
       composition,
     };
   } else {
-    bundle.promptPlan = createPromptPresetPlan(
-      { ...options.currentPromptConfig, ...promptConfig, usePromptComposition: false },
-      "mobile-tavern",
-    );
+    // 外部文件没有可解码编排时不得继承当前预设的编排快照（见 sillytavern_compat.md 第 4 节）。
+    bundle.promptPlan = {
+      version: 1,
+      mode: "legacy",
+      source: "mobile-tavern",
+    };
   }
 
   return {
@@ -136,6 +154,7 @@ export function preparePresetBundleImport(
       warnings: [
         ...(compositionImport?.report.warnings ?? []),
         ...codecWarnings,
+        ...presetExtension.diagnostics,
         ...regexResult.warnings,
       ],
       errors: compositionImport?.report.errors ?? [],
@@ -240,6 +259,7 @@ function groupDiagnostics(
 function preparePromptConfig(
   data: ExternalRecord,
   current: PromptConfig,
+  neutral: PromptConfig,
 ): PresetPromptConfig {
   const mainPrompt = readString(data.system_prompt) ?? readString(data.mainPrompt) ?? "";
   const jailbreakPrompt = readString(data.jailbreak_prompt) ?? readString(data.jailbreakPrompt) ?? "";
@@ -253,6 +273,8 @@ function preparePromptConfig(
     || !!jailbreakPrompt
     || !!postHistoryPrompt
     || !!storyString;
+  // 文件自带 Prompt 字段时以自包含基底为准：外部预设不得混入"当前预设"的 MT 专有字段。
+  const base = hasPromptFields ? neutral : current;
   const instructTemplate = parseInstructTemplate(data.instruct_layouts ?? data.instructTemplate);
   const assistantPrefill = readString(data.assistant_prefill) ?? "";
   const stopSequences = readStringArray(data.custom_stop_strings)
@@ -268,21 +290,21 @@ function preparePromptConfig(
     || roleWrappers !== undefined;
 
   return toPresetPromptConfig({
-    ...current,
-    mainPrompt: hasPromptFields ? mainPrompt : current.mainPrompt,
-    jailbreakPrompt: hasPromptFields ? jailbreakPrompt : current.jailbreakPrompt,
-    useJailbreak: hasPromptFields ? !!jailbreakPrompt : current.useJailbreak,
-    postHistoryPrompt: hasPromptFields ? postHistoryPrompt : current.postHistoryPrompt,
-    usePostHistory: hasPromptFields ? !!postHistoryPrompt : current.usePostHistory,
-    storyString: hasPromptFields ? storyString : current.storyString,
-    customPrompts: hasPromptFields ? customPrompts : current.customPrompts,
-    instructTemplate,
-    systemPrefix: readString(data.system_sequence_start) || readString(data.systemPrefix) || current.systemPrefix,
-    systemSuffix: readString(data.system_sequence_end) || readString(data.systemSuffix) || current.systemSuffix,
-    userPrefix: readString(data.user_sequence_start) || readString(data.userPrefix) || current.userPrefix,
-    userSuffix: readString(data.user_sequence_end) || readString(data.userSuffix) || current.userSuffix,
-    assistantPrefix: readString(data.assistant_sequence_start) || readString(data.assistantPrefix) || current.assistantPrefix,
-    assistantSuffix: readString(data.assistant_sequence_end) || readString(data.assistantSuffix) || current.assistantSuffix,
+    ...base,
+    mainPrompt: hasPromptFields ? mainPrompt : base.mainPrompt,
+    jailbreakPrompt: hasPromptFields ? jailbreakPrompt : base.jailbreakPrompt,
+    useJailbreak: hasPromptFields ? !!jailbreakPrompt : base.useJailbreak,
+    postHistoryPrompt: hasPromptFields ? postHistoryPrompt : base.postHistoryPrompt,
+    usePostHistory: hasPromptFields ? !!postHistoryPrompt : base.usePostHistory,
+    storyString: hasPromptFields ? storyString : base.storyString,
+    customPrompts: hasPromptFields ? customPrompts : base.customPrompts,
+    instructTemplate: instructTemplate ?? base.instructTemplate,
+    systemPrefix: readString(data.system_sequence_start) ?? base.systemPrefix,
+    systemSuffix: readString(data.system_sequence_end) ?? base.systemSuffix,
+    userPrefix: readString(data.user_sequence_start) ?? base.userPrefix,
+    userSuffix: readString(data.user_sequence_end) ?? base.userSuffix,
+    assistantPrefix: readString(data.assistant_sequence_start) ?? base.assistantPrefix,
+    assistantSuffix: readString(data.assistant_sequence_end) ?? base.assistantSuffix,
     requestShaping: hasRequestShaping
       ? {
           enabled: true,
@@ -292,7 +314,7 @@ function preparePromptConfig(
           assistantPrefill,
           stopSequences,
         }
-      : current.requestShaping,
+      : base.requestShaping,
   });
 }
 
@@ -403,11 +425,11 @@ function readPreferredPromptOrder(value: unknown): PromptOrderEntry[] {
   });
 }
 
-function parseInstructTemplate(value: unknown): PromptConfig["instructTemplate"] {
+function parseInstructTemplate(value: unknown): PromptConfig["instructTemplate"] | undefined {
   return value === "default" || value === "alpaca" || value === "chatml"
     || value === "llama3" || value === "custom"
     ? value
-    : "default";
+    : undefined;
 }
 
 function parseRoleWrappers(value: unknown): PromptRequestShapingConfig["roleWrappers"] | undefined {

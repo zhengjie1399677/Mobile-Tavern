@@ -168,6 +168,46 @@ describe("preparePresetBundleExport", () => {
       stopSequences: ["STOP"],
     });
   });
+
+  it("导出→导入保留 ST 无法表达的 MT 运行期开关与提示词字段", () => {
+    const exported = preparePresetBundleExport({
+      preset: DEFAULT_SETTINGS.preset,
+      promptConfig: {
+        ...DEFAULT_PROMPT_CONFIG,
+        useJailbreak: false,
+        enableReasoningGuidance: false,
+        reasoningGuidancePrompt: "导出的推理指引",
+        tableMemoryPrompt: "导出的记忆表提示词",
+        renderingFormat: "xml",
+        sectionHeaders: { system: "导出的标题" },
+      },
+    });
+    expect(exported.data.extensions).toMatchObject({
+      mobile_tavern_preset: { version: 1 },
+    });
+
+    // 用另一套"当前预设"导入，模拟跨设备/切换预设后的再次导入。
+    const imported = preparePresetBundleImport({
+      input: exported.data,
+      fallbackName: "roundtrip",
+      currentPromptConfig: {
+        ...DEFAULT_PROMPT_CONFIG,
+        useJailbreak: true,
+        enableReasoningGuidance: true,
+        reasoningGuidancePrompt: "当前预设的推理指引",
+        tableMemoryPrompt: "当前预设的记忆表提示词",
+        renderingFormat: "auto",
+        sectionHeaders: { system: "当前标题" },
+      },
+    });
+
+    expect(imported.bundle.promptConfig.useJailbreak).toBe(false);
+    expect(imported.bundle.promptConfig.enableReasoningGuidance).toBe(false);
+    expect(imported.bundle.promptConfig.reasoningGuidancePrompt).toBe("导出的推理指引");
+    expect(imported.bundle.promptConfig.tableMemoryPrompt).toBe("导出的记忆表提示词");
+    expect(imported.bundle.promptConfig.renderingFormat).toBe("xml");
+    expect(imported.bundle.promptConfig.sectionHeaders?.system).toBe("导出的标题");
+  });
 });
 
 function getFixture(id: string) {

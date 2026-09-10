@@ -32,6 +32,10 @@
 - 预设导入遵循 ST Prompt Manager 语义：只有 `prompt_order` 中排序的 Prompt 转为编排区块（顺序与启用状态照搬）；未排序的候选 Prompt 仅存在于 ST 候选库、不进入管理器列表，因此不导入，并产生 `SKIPPED_UNORDERED_PROMPTS` 警告。完全没有 `prompt_order` 时降级保留全部 Prompt，避免静默丢失。
 - 导入后的外部编排必须进入版本化 `promptPlan` 快照；`source="sillytavern"` 只用于来源与往返诊断，运行时只能消费中立 `PromptComposition`。用户暂不启用自由编排时仍要把快照保存在该预设内，禁止继承其他预设的编排。
 - 旧 Mobile Tavern 预设缺少版本快照时明确按 `legacy` 运行，并生成独立、可见的迁移编排草稿；不得因为当前设置正启用自由编排而静默改变旧预设行为。
+- 导入必须自包含：外部文件自带 Prompt 字段（`prompts`/`prompt_order`/主提示词等）时，未表达的字段取应用出厂中立基底，不得用"当前预设"的字段补位；只有纯采样预设（完全不含 Prompt 字段）才允许沿用当前 Prompt。
+- 切换预设必须整体替换：目标预设未声明的字段回到运行时默认，禁止沿用上一个预设的值（历史缺陷：未声明这些字段的预设会沿用上一个预设的开关与文案，在对应运行模式下改变真实请求）。受影响字段按运行模式分别是——传统扮演模式：`requestShaping`（合并/压缩/预填充/停止串）、`tableMemoryPrompt`；非扮演模式：`enableReasoningGuidance`、`reasoningGuidancePrompt`；自由编排模式：`prompt.postHistory`（来自 `usePostHistory` / `postHistoryPrompt`）、`renderingFormat`。
+- ST 文件无法表达的运行期开关与提示词字段（`useMainPrompt`、`useJailbreak`、`usePostHistory`、推理指引、记忆表提示词、`sectionHeaders`、`renderingFormat`、`roleplayMode`）随导出写入 `extensions.mobile_tavern_preset`（版本 1）；导入优先恢复该命名空间，未知版本只告警并忽略，不影响通用字段导入。
+- 出厂内容迁移（补齐/修复内置提示词区块、回填默认主提示词与记忆表提示词、统一 system 角色）只允许作用于内置预设；自定义与导入预设必须原样保留，禁止由系统代码注入行为引导区块。
 - 数据库附着、Agent Marker、TavernHelper/远程脚本和前端 DOM 生命周期不属于通用预设兼容范围，不得因样本流行度绕过边界。
 
 ### 5. Runtime Plugin 边界与旧数据降级

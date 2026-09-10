@@ -5,6 +5,10 @@ import type {
 } from "../../types";
 import type { CompatibilityReport } from "../../domain/prompt-composition";
 import type { CompatibilityCodecDefinition } from "../compatibility/contracts";
+import {
+  buildMobileTavernPresetExtension,
+  MOBILE_TAVERN_PRESET_EXTENSION_KEY,
+} from "./presetRuntimeNamespace";
 
 export interface PreparePresetBundleExportOptions {
   preset: SamplerPreset;
@@ -73,6 +77,8 @@ export function preparePresetBundleExport(
       // 显式覆盖兼容元数据里可能保留的 extensions，禁止重新导出外部脚本。
       extensions: {
         regex_scripts: options.presetRegexScripts ?? [],
+        // ST 无法表达的运行期开关走 MT 命名空间，保证导出→导入不丢失预设语义。
+        [MOBILE_TAVERN_PRESET_EXTENSION_KEY]: buildMobileTavernPresetExtension(promptConfig),
       },
     },
     report: compositionExport?.report ?? (requiresCompatibilityCodec

@@ -440,6 +440,10 @@ export default {
   "preset_selector.delete_custom": "删除当前自定义预设",
   "preset_selector.builtin_badge": "内置",
   "preset_selector.custom_badge": "导入/自定义",
+  "preset_selector.unsaved_badge": "未保存",
+  "preset_selector.save_current": "保存修改到当前预设",
+  "preset_selector.save_current_builtin_hint": "内置预设会在启动时按出厂内容重建，无法直接覆盖；点击保存会另存为新的预设副本",
+  "preset_selector.frozen_session_notice": "当前会话已冻结行为预设「{name}」，修改预设不会影响该会话；新建会话后才会生效。",
   
   "prompts.title": "预设提示词配置",
   "prompts.subtitle": "配置底层扮演指令、规则提示以及颗粒化扩展提示词模组",

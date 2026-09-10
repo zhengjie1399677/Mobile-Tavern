@@ -17,13 +17,18 @@ export function toPresetPromptConfig(config: PromptConfig): PresetPromptConfig {
   return presetPromptConfig;
 }
 
-/** 应用预设字段并保留当前自由编排状态。 */
+/**
+ * 应用预设字段并保留当前自由编排状态。
+ *
+ * 只保留目标预设声明的字段：预设未声明的可选项保持 `undefined`，由运行时的出厂默认兜底。
+ * 绝不能把"当前预设"的值合并进来——否则切换预设会残留上一个预设的内容
+ * （历史问题：切回内置预设时仍带着上一个预设的 `usePostHistory` / `reasoningGuidancePrompt` 等）。
+ */
 export function applyPresetPromptConfig(
   current: PromptConfig,
   stored: PresetPromptConfig,
 ): PromptConfig {
   return {
-    ...current,
     ...toPresetPromptConfig(stored as PromptConfig),
     composition: current.composition,
     usePromptComposition: current.usePromptComposition,

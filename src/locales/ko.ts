@@ -450,6 +450,10 @@ export default {
   "preset_selector.delete_custom": "현재 커스텀 프리셋 삭제",
   "preset_selector.builtin_badge": "내장",
   "preset_selector.custom_badge": "가져온/커스텀",
+  "preset_selector.unsaved_badge": "저장 안 됨",
+  "preset_selector.save_current": "현재 프리셋에 변경 사항 저장",
+  "preset_selector.save_current_builtin_hint": "내장 프리셋은 시작할 때 출하 상태로 다시 생성되어 덮어쓸 수 없습니다. 저장하면 새 프리셋 복사본으로 저장됩니다",
+  "preset_selector.frozen_session_notice": "이 세션은 행동 프리셋 「{name}」에 고정되어 있습니다. 프리셋 수정은 새 세션에서 적용됩니다.",
 
   "prompts.title": "프리셋 프롬프트 설정",
   "prompts.subtitle": "기본 역할극 명령, 규칙 프롬프트 및 세부 확장 프롬프트 모듈 구성",

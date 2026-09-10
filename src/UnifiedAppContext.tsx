@@ -101,9 +101,13 @@ export interface UnifiedAppContextProps {
   handleImportPresetJSON: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleExportPresetJSON: () => void;
   handleSaveNewPresetBundle: () => Promise<void>;
-  handleLoadPresetBundle: (bundleId: string) => void;
-  handleDeletePresetBundle: (presetId: string) => Promise<void>;
-  handleDeletePresetBundles: (presetIds: string[]) => Promise<void>;
+  /** 把当前设置（采样 / 提示词 / 编排 / 预设正则）整体写回当前自定义预设。 */
+  handleSaveCurrentPresetBundle: () => Promise<void>;
+  handleLoadPresetBundle: (bundleId: string) => Promise<void>;
+  handleDeletePresetBundle: (bundleId: string) => Promise<void>;
+  handleDeletePresetBundles: (bundleIds: string[]) => Promise<void>;
+  /** 当前设置与当前预设快照是否已不一致（存在未保存到预设的修改）。 */
+  isActivePresetDirty: boolean;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
   handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
   handleAddNewCustomPrompt: () => void;

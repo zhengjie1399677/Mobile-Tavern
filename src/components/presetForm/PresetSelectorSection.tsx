@@ -1,5 +1,5 @@
 import type React from "react";
-import { Plus, Trash2, Download, Upload, Package, FileText } from "lucide-react";
+import { Plus, Save, Trash2, Download, Upload, Package, FileText } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { Card } from "../../../components/ui/card";
 import {
@@ -14,20 +14,27 @@ import type { UserSettings } from "../../types";
 interface PresetSelectorSectionProps {
   settings: UserSettings;
   activeBundleId: string;
+  isActivePresetDirty: boolean;
+  /** 当前会话冻结的行为预设名称；存在时说明修改不会影响该会话。 */
+  frozenPresetName?: string;
   handleImportPresetJSON: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleExportPresetJSON: () => void;
   handleSaveNewPresetBundle: () => Promise<void>;
-  handleLoadPresetBundle: (bundleId: string) => void;
-  handleDeletePresetBundle: (presetId: string) => Promise<void>;
+  handleSaveCurrentPresetBundle: () => Promise<void>;
+  handleLoadPresetBundle: (bundleId: string) => Promise<void>;
+  handleDeletePresetBundle: (bundleId: string) => Promise<void>;
 }
 
 /** 1. 预设选择与管理 */
 export default function PresetSelectorSection({
   settings,
   activeBundleId,
+  isActivePresetDirty,
+  frozenPresetName,
   handleImportPresetJSON,
   handleExportPresetJSON,
   handleSaveNewPresetBundle,
+  handleSaveCurrentPresetBundle,
   handleLoadPresetBundle,
   handleDeletePresetBundle,
 }: PresetSelectorSectionProps) {
@@ -47,7 +54,7 @@ export default function PresetSelectorSection({
             <Select
               value={activeBundleId || ""}
               onValueChange={(val) => {
-                if (val) handleLoadPresetBundle(val);
+                if (val) void handleLoadPresetBundle(val);
               }}
             >
               <SelectTrigger
@@ -62,6 +69,11 @@ export default function PresetSelectorSection({
                       <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
                     )}
                     <span className="truncate">{currentBundleName}</span>
+                    {isActivePresetDirty && (
+                      <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-500">
+                        {t("preset_selector.unsaved_badge")}
+                      </span>
+                    )}
                   </span>
                 </SelectValue>
               </SelectTrigger>
@@ -91,6 +103,19 @@ export default function PresetSelectorSection({
 
           <button
             type="button"
+            aria-label={t("preset_selector.save_current")}
+            onClick={() => void handleSaveCurrentPresetBundle()}
+            // 内置预设不可覆盖，但仍允许点击以说明"请另存为副本"，避免禁用按钮吞掉原因。
+            disabled={!activeBundleId || !isActivePresetDirty}
+            title={isActiveBuiltin
+              ? t("preset_selector.save_current_builtin_hint")
+              : t("preset_selector.save_current")}
+            className="shrink-0 h-9 w-9 bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/40 text-emerald-500 rounded-xl transition active:scale-95 flex items-center justify-center shadow-2xs disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <Save className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
             aria-label={t("preset_selector.save_copy")}
             onClick={handleSaveNewPresetBundle}
             title={t("preset_selector.save_copy")}
@@ -102,11 +127,11 @@ export default function PresetSelectorSection({
             type="button"
             aria-label={t("preset_selector.delete_custom")}
             onClick={() =>
-              handleDeletePresetBundle(settings.preset.id)
+              void handleDeletePresetBundle(activeBundleId)
             }
             disabled={
               (settings.savedPresets || []).length === 0 ||
-              !settings.preset.id ||
+              !activeBundleId ||
               isActiveBuiltin
             }
             title={t("preset_selector.delete_custom")}
@@ -115,6 +140,12 @@ export default function PresetSelectorSection({
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
+
+        {frozenPresetName && (
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-amber-600">
+            {t("preset_selector.frozen_session_notice", { name: frozenPresetName })}
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-2 text-xs font-bold pt-0.5">
           <label className="h-8.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 rounded-xl transition flex justify-center items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs">

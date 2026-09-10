@@ -443,6 +443,10 @@ export default {
   "preset_selector.delete_custom": "Excluir Preset Personalizado Atual",
   "preset_selector.builtin_badge": "Integrado",
   "preset_selector.custom_badge": "Importado/Personalizado",
+  "preset_selector.unsaved_badge": "Não salvo",
+  "preset_selector.save_current": "Salvar alterações no preset atual",
+  "preset_selector.save_current_builtin_hint": "Presets integrados são recriados a partir do conteúdo de fábrica na inicialização e não podem ser sobrescritos; salvar cria uma nova cópia",
+  "preset_selector.frozen_session_notice": "Esta sessão está fixada no preset de comportamento \"{name}\"; as alterações só valem em uma nova sessão.",
   
   "prompts.title": "Configuração de Prompts Predefinidos",
   "prompts.subtitle": "Configure instruções de atuação de baixo nível, regras de prompt e módulos de extensão granular",

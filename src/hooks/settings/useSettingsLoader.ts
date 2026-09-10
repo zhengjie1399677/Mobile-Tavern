@@ -1,6 +1,10 @@
 import type * as React from "react";
 import { useEffect } from "react";
 import { UserSettings, LorebookEntry, CustomWorldbook, SavedPresetBundle } from "../../types";
+import {
+  isBuiltinPresetActive,
+  resolvePresetPromptMigration,
+} from "../../application/useCases/presetRuntimeMigration";
 import { toPresetPromptConfig } from "./presetPromptConfig";
 import { useKernel } from "../../contexts/KernelContext";
 import {
@@ -88,11 +92,19 @@ export const useSettingsLoader = ({
             needSave = true;
           }
 
+          // 出厂内容迁移只对内置预设生效；自定义/导入预设的 Prompt 配置必须原样保留。
+          const activePresetId = storedSet.preset?.id;
+          const isActivePresetBuiltin = isBuiltinPresetActive(
+            activePresetId,
+            MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset.id,
+          );
+
           // Force upgrade current active prompts if they contain any old default prompt patterns
-          const isOldDefaultPrompt =
+          const isOldDefaultPrompt = isActivePresetBuiltin && (
             storedSet.promptConfig?.mainPrompt?.includes("[NARRATIVE ENGINE:") ||
             storedSet.promptConfig?.mainPrompt?.includes("[系统核心任务：") ||
-            storedSet.promptConfig?.mainPrompt?.includes("叙事共鸣沙盒");
+            storedSet.promptConfig?.mainPrompt?.includes("叙事共鸣沙盒")
+          );
 
           if (isOldDefaultPrompt) {
             storedSet.promptConfig.mainPrompt = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.mainPrompt;
@@ -106,43 +118,22 @@ export const useSettingsLoader = ({
             needSave = true;
           }
 
-          mergedSavedPresets = mergedSavedPresets.map((b: any) => ({
-            ...b,
-            presetRegexScripts: b.presetRegexScripts || []
+          mergedSavedPresets = mergedSavedPresets.map((bundle) => ({
+            ...bundle,
+            presetRegexScripts: bundle.presetRegexScripts || []
           }));
 
           let didInject = false;
           let nextMergedPresets = (mergedSavedPresets || []).filter(
-            (p: any) => p.id !== "bundle_format_preservation"
+            (preset) => preset.id !== "bundle_format_preservation"
           );
           if (nextMergedPresets.length !== (mergedSavedPresets || []).length) {
             didInject = true;
           }
 
-          const fillEmptyCustomPrompts = (prompts: any[] | undefined, defaults: any[]) => {
-            if (!prompts) return { prompts, updated: false };
-            let updated = false;
-            const nextPrompts = prompts.map((p: any) => {
-              const isOldReasoningDiscipline =
-                p.id === "prompt_reasoning_discipline" &&
-                p.content &&
-                (p.content.includes("思考用于分析") || p.content.includes("【思考阶段允许】") || p.content.includes("若模型存在内部分析"));
-
-              if (!p.content || !p.content.trim() || isOldReasoningDiscipline) {
-                const match = defaults.find((d: any) => d.id === p.id);
-                if (match && match.content) {
-                  updated = true;
-                  return { ...p, content: match.content };
-                }
-              }
-              return p;
-            });
-            return { prompts: nextPrompts, updated };
-          };
-
           // 强制使用最新的内置默认预设包覆盖数据库中的旧默认预设包，确保内容完整（规避 fetch 失败及脏数据残留）
           nextMergedPresets = (nextMergedPresets || []).filter(
-            (p: any) => p.id !== "bundle_mobile_tavern_basic"
+            (preset) => preset.id !== "bundle_mobile_tavern_basic"
           );
           nextMergedPresets = [
             ...nextMergedPresets,
@@ -150,23 +141,6 @@ export const useSettingsLoader = ({
           ];
           didInject = true;
 
-          nextMergedPresets = nextMergedPresets.map((b: any) => {
-            const res = fillEmptyCustomPrompts(
-              b.promptConfig?.customPrompts,
-              MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts || []
-            );
-            if (res && res.updated) {
-              didInject = true;
-              return {
-                ...b,
-                promptConfig: {
-                  ...(b.promptConfig || {}),
-                  customPrompts: res.prompts,
-                },
-              };
-            }
-            return b;
-          });
           mergedSavedPresets = nextMergedPresets;
 
           if (didInject) {
@@ -225,38 +199,16 @@ export const useSettingsLoader = ({
             : DEFAULT_SETTINGS.memory;
 
           const defaultPrompts = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts || [];
-          const userPrompts = storedSet.promptConfig?.customPrompts || [];
-          let roleUpdated = false;
-          let customPromptsUpdated = false;
-          const mergedCustomPrompts = [...userPrompts].map((p: any) => {
-            const nextPrompt = { ...p };
-            if (nextPrompt.role !== "system") {
-              roleUpdated = true;
-              nextPrompt.role = "system" as const;
-            }
-
-            const match = defaultPrompts.find((dp: any) => dp.id === p.id);
-            const isOldReasoningDiscipline =
-              p.id === "prompt_reasoning_discipline" &&
-              p.content &&
-              (p.content.includes("思考用于分析") || p.content.includes("【思考阶段允许】") || p.content.includes("若模型存在内部分析"));
-
-            if (!nextPrompt.content || !nextPrompt.content.trim() || isOldReasoningDiscipline) {
-              if (match && match.content) {
-                nextPrompt.content = match.content;
-                customPromptsUpdated = true;
-              }
-            }
-            return nextPrompt;
+          // 当前生效 Prompt 的出厂内容迁移同样只对内置预设生效：导入的第三方预设
+          // 不得在启动时被追加本应用区块或把 user/assistant 角色改写为 system。
+          const promptMigration = resolvePresetPromptMigration({
+            prompts: storedSet.promptConfig?.customPrompts || [],
+            defaultPrompts,
+            activePresetId,
+            builtinPresetId: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset.id,
           });
-
-          for (const dp of defaultPrompts) {
-            if (!mergedCustomPrompts.some((up: any) => up.id === dp.id)) {
-              mergedCustomPrompts.push(dp);
-              customPromptsUpdated = true;
-            }
-          }
-          if (customPromptsUpdated || roleUpdated) {
+          const mergedCustomPrompts = promptMigration.prompts;
+          if (promptMigration.updated) {
             needSave = true;
           }
 
@@ -288,17 +240,22 @@ export const useSettingsLoader = ({
             promptConfig: {
               ...defaultPromptConfig,
               ...(storedSet.promptConfig || {}),
-              mainPrompt: storedSet.promptConfig?.mainPrompt || defaultPromptConfig.mainPrompt,
-              postHistoryPrompt: storedSet.promptConfig?.postHistoryPrompt || defaultPromptConfig.postHistoryPrompt,
-              reasoningGuidancePrompt: storedSet.promptConfig?.reasoningGuidancePrompt || defaultPromptConfig.reasoningGuidancePrompt,
-              tableMemoryPrompt: (() => {
-                const stored = storedSet.promptConfig?.tableMemoryPrompt;
-                if (!stored || !stored.includes("【状态与结构化记忆引擎】")) {
-                  needSave = true;
-                  return DEFAULT_TABLE_MEMORY_PROMPT;
-                }
-                return stored;
-              })(),
+              // 出厂默认内容只回填内置预设；自定义/导入预设保留原值（含用户清空的空串）。
+              ...(isActivePresetBuiltin
+                ? {
+                    mainPrompt: storedSet.promptConfig?.mainPrompt || defaultPromptConfig.mainPrompt,
+                    postHistoryPrompt: storedSet.promptConfig?.postHistoryPrompt || defaultPromptConfig.postHistoryPrompt,
+                    reasoningGuidancePrompt: storedSet.promptConfig?.reasoningGuidancePrompt || defaultPromptConfig.reasoningGuidancePrompt,
+                    tableMemoryPrompt: (() => {
+                      const stored = storedSet.promptConfig?.tableMemoryPrompt;
+                      if (!stored || !stored.includes("【状态与结构化记忆引擎】")) {
+                        needSave = true;
+                        return DEFAULT_TABLE_MEMORY_PROMPT;
+                      }
+                      return stored;
+                    })(),
+                  }
+                : {}),
               customPrompts: mergedCustomPrompts,
               sectionHeaders: {
                 ...defaultPromptConfig.sectionHeaders,

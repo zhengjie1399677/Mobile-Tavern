@@ -440,6 +440,10 @@ export default {
   "preset_selector.delete_custom": "Delete Custom Preset",
   "preset_selector.builtin_badge": "Built-in",
   "preset_selector.custom_badge": "Imported/Custom",
+  "preset_selector.unsaved_badge": "Unsaved",
+  "preset_selector.save_current": "Save changes to current preset",
+  "preset_selector.save_current_builtin_hint": "Built-in presets are rebuilt from factory content on startup and cannot be overwritten; saving creates a new preset copy",
+  "preset_selector.frozen_session_notice": "This session is frozen to behavior preset \"{name}\"; preset edits only apply to new sessions.",
   
   "prompts.title": "Preset Prompts Configuration",
   "prompts.subtitle": "Configure base system prompts, jailbreaks, and custom modules",

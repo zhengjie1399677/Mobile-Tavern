@@ -443,6 +443,10 @@ export default {
   "preset_selector.delete_custom": "删除当前自定义预设",
   "preset_selector.builtin_badge": "內建",
   "preset_selector.custom_badge": "匯入/自訂",
+  "preset_selector.unsaved_badge": "未儲存",
+  "preset_selector.save_current": "儲存修改到目前預設",
+  "preset_selector.save_current_builtin_hint": "內建預設會在啟動時依出廠內容重建，無法直接覆寫；點擊儲存會另存為新的預設副本",
+  "preset_selector.frozen_session_notice": "目前會話已凍結行為預設「{name}」，修改預設不會影響該會話；新建會話後才會生效。",
   
   "prompts.title": "预设提示词配置",
   "prompts.subtitle": "配置底层扮演指令、规则提示以及颗粒化扩展提示词模组",

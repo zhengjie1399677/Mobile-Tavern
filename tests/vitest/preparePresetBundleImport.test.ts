@@ -6,6 +6,7 @@ import {
 } from "../../src/application/useCases/preparePresetBundleImport";
 import { testSillyTavernCompatibilityCodec } from "../fixtures/sillyTavernCompatibilityCodec";
 import { DEFAULT_PROMPT_CONFIG } from "../../src/hooks/settings/defaults";
+import { createBasicPromptComposition } from "../../src/domain/prompt-composition";
 import { SILLY_TAVERN_PRESET_ARCHETYPES } from "../fixtures/sillyTavernPresetArchetypes";
 
 const createId = (kind: "preset" | "regex" | "bundle") => `${kind}-fixture-id`;
@@ -259,6 +260,76 @@ describe("preparePresetBundleImport", () => {
     expect(result.report.warnings).not.toContainEqual(
       expect.objectContaining({ code: "INVALID_ROLE_FALLBACK" }),
     );
+  });
+
+  it("自带 Prompt 字段的外部预设与当前预设无关（自包含导入）", () => {
+    const input = {
+      name: "自包含预设",
+      prompts: [
+        { identifier: "main", name: "Main", role: "system", content: "MAIN" },
+        { identifier: "chatHistory", name: "History", role: "user", marker: true },
+      ],
+      prompt_order: [{
+        character_id: 100001,
+        order: [
+          { identifier: "main", enabled: true },
+          { identifier: "chatHistory", enabled: true },
+        ],
+      }],
+    };
+    const importedUnderPresetA = preparePresetBundleImport({
+      input,
+      fallbackName: "自包含预设",
+      currentPromptConfig: {
+        ...DEFAULT_PROMPT_CONFIG,
+        mainPrompt: "当前预设 A 的主提示词",
+        tableMemoryPrompt: "当前预设 A 的记忆表提示词",
+        enableReasoningGuidance: false,
+        requestShaping: { enabled: true, mergeAdjacentMessages: true, stopSequences: ["A"] },
+      },
+      neutralPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+    const importedUnderPresetB = preparePresetBundleImport({
+      input,
+      fallbackName: "自包含预设",
+      currentPromptConfig: {
+        ...DEFAULT_PROMPT_CONFIG,
+        mainPrompt: "当前预设 B 的主提示词",
+        tableMemoryPrompt: "当前预设 B 的记忆表提示词",
+        enableReasoningGuidance: true,
+        requestShaping: { enabled: true, mergeAdjacentMessages: false, stopSequences: ["B"] },
+      },
+      neutralPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+
+    expect(importedUnderPresetA.bundle.promptConfig).toEqual(importedUnderPresetB.bundle.promptConfig);
+    expect(importedUnderPresetA.bundle.promptPlan).toEqual(importedUnderPresetB.bundle.promptPlan);
+    expect(importedUnderPresetA.bundle.promptConfig.mainPrompt).toBe("");
+    expect(importedUnderPresetA.bundle.promptConfig.tableMemoryPrompt).toBe(
+      DEFAULT_PROMPT_CONFIG.tableMemoryPrompt,
+    );
+  });
+
+  it("无可解码编排时不继承当前预设的编排快照", () => {
+    const result = preparePresetBundleImport({
+      input: { name: "纯采样预设", temperature: 0.55 },
+      fallbackName: "纯采样预设",
+      currentPromptConfig: {
+        ...DEFAULT_PROMPT_CONFIG,
+        usePromptComposition: true,
+        composition: { ...createBasicPromptComposition(), id: "composition_current" },
+      },
+      neutralPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+
+    expect(result.bundle.promptPlan).toEqual({
+      version: 1,
+      mode: "legacy",
+      source: "mobile-tavern",
+    });
   });
 
   it("兼容摘要明确展示脚本隔离和数据库语义降级", () => {
