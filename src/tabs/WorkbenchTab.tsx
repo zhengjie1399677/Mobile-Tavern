@@ -39,20 +39,10 @@ export default function WorkbenchTab(): React.JSX.Element {
       {/* 🌟 真实毛玻璃底层：环境光晕与点阵画布 (Fixed Ambient Mesh Glow Orbs) */}
       {ambientGlowIntensity > 0 && (
         <div
-          className="pointer-events-none fixed inset-0 overflow-hidden transition-opacity duration-300"
+          className="pointer-events-none fixed inset-0 overflow-hidden ambient-glow-layer transition-opacity duration-300"
           style={{ opacity: ambientGlowIntensity }}
           aria-hidden="true"
         >
-          {/* 右上方幽紫环境光团 */}
-          <div className="absolute -top-12 -right-12 h-72 w-72 rounded-full bg-purple-600/28 blur-[90px] animate-pulse" />
-          {/* 左下方青蓝环境光团 */}
-          <div
-            className="absolute top-96 -left-16 h-80 w-80 rounded-full bg-cyan-500/24 blur-[100px] animate-pulse"
-            style={{ animationDuration: "4s" }}
-          />
-          {/* 底部琥珀/微光光团 */}
-          <div className="absolute -bottom-10 right-10 h-64 w-64 rounded-full bg-indigo-500/20 blur-[90px]" />
-
           {/* 细腻微点阵网格 */}
           <div
             className="absolute inset-0 opacity-[0.035] dark:opacity-[0.06]"

@@ -238,17 +238,10 @@ export default function MainLayout() {
         {/* 全局环境光晕：由 settings.ambientGlowIntensity 动态调节，拉到最低 0 时完全关闭呈现纯色模式 */}
         {(settings.ambientGlowIntensity ?? 0.6) > 0 && (
           <div
-            className="pointer-events-none fixed inset-0 overflow-hidden z-0 transition-opacity duration-300"
+            className="pointer-events-none fixed inset-0 overflow-hidden z-0 ambient-glow-layer transition-opacity duration-300"
             style={{ opacity: settings.ambientGlowIntensity ?? 0.6 }}
             aria-hidden="true"
-          >
-            <div className="absolute -top-12 -right-12 h-80 w-80 rounded-full bg-purple-600/28 blur-[90px] animate-pulse" />
-            <div
-              className="absolute top-96 -left-16 h-88 w-88 rounded-full bg-cyan-500/24 blur-[100px] animate-pulse"
-              style={{ animationDuration: "4s" }}
-            />
-            <div className="absolute -bottom-10 right-10 h-72 w-72 rounded-full bg-indigo-500/22 blur-[90px]" />
-          </div>
+          />
         )}
 
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}

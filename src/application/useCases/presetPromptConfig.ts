@@ -62,6 +62,26 @@ export function resolvePromptPresetPlan(
     "promptConfig" | "promptPlan" | "composition" | "usePromptComposition"
   >,
 ): PromptPresetPlan {
+  // 解析 `promptPlan.composition` 需要完整校验并深拷贝区块（第三方预设可达数十块），
+  // 预设对象在内存中按不可变快照使用，因此按对象身份缓存解析结果，避免重复解析。
+  const cacheable = Boolean(bundle.promptPlan);
+  if (cacheable) {
+    const cached = resolvedPlanCache.get(bundle);
+    if (cached) return cached;
+  }
+  const plan = computePromptPresetPlan(bundle);
+  if (cacheable) resolvedPlanCache.set(bundle, plan);
+  return plan;
+}
+
+const resolvedPlanCache = new WeakMap<object, PromptPresetPlan>();
+
+function computePromptPresetPlan(
+  bundle: Pick<
+    SavedPresetBundle,
+    "promptConfig" | "promptPlan" | "composition" | "usePromptComposition"
+  >,
+): PromptPresetPlan {
   const explicit = parseStoredPromptPresetPlan(bundle.promptPlan);
   if (explicit) return explicit;
 

@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import type { PromptConfig, SavedPresetBundle, UserSettings } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IKernel, IPresetService, IRuntimeProfileService } from "@/src/application/serviceContracts";
@@ -115,12 +115,19 @@ export const usePresetBundles = ({
     SILLY_TAVERN_PROMPT_PRESET_FORMAT,
   );
 
-  const activeBundle = (settings.savedPresets || []).find(
-    (bundle) => bundle.preset.id === settings.preset.id,
+  const activeBundle = useMemo(
+    () => (settings.savedPresets || []).find(
+      (bundle) => bundle.preset.id === settings.preset.id,
+    ),
+    [settings.savedPresets, settings.preset.id],
   );
   // 内置预设会在启动时被强制重建，覆盖它没有意义；脏检查以"预设明确拥有的字段"为准。
-  const isActivePresetDirty = Boolean(
-    activeBundle && !isPresetBundleInSync(activeBundle, settings, DEFAULT_SETTINGS.preset),
+  // 该检查会比对整份 Prompt 快照，必须按设置身份缓存，避免在每次渲染（含流式输出）重复计算。
+  const isActivePresetDirty = useMemo(
+    () => Boolean(
+      activeBundle && !isPresetBundleInSync(activeBundle, settings, DEFAULT_SETTINGS.preset),
+    ),
+    [activeBundle, settings.preset, settings.promptConfig, settings.presetRegexScripts],
   );
 
   /** 删除前提示：被 Agent Profile 引用时必须说明不可逆后果。 */
