@@ -128,7 +128,18 @@ export class ChatStreamService implements IChatStreamService {
   }
 
   private async *attemptStream(params: StreamParams): AsyncGenerator<StreamChunk, AttemptOutcome, unknown> {
-    const { baseUrl, apiKey, chatPath, bypassProxy, disableReasoning, forceBasicParams, reqBody, signal, traceId } = params;
+    const {
+      baseUrl,
+      apiKey,
+      chatPath,
+      bypassProxy,
+      disableReasoning,
+      reasoningStrength,
+      forceBasicParams,
+      reqBody,
+      signal,
+      traceId,
+    } = params;
 
     const llmService = this.kernel.getService<ILLMService>("llm");
     const response = await llmService.universalFetch(API_ENDPOINT.ProxyOpenAI, {
@@ -137,6 +148,7 @@ export class ChatStreamService implements IChatStreamService {
       chatPath,
       bypassProxy,
       disableReasoning,
+      reasoningStrength,
       forceBasicParams,
       reqBody,
     }, signal, traceId);

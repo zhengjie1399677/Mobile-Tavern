@@ -232,6 +232,7 @@ const QuickDialogueOptions = ({ message, isUser }: QuickDialogueOptionsProps) =>
                     chatPath: settings.api.chatPath,
                     bypassProxy: settings.api.bypassProxy,
                     disableReasoning: settings.api.disableReasoning,
+                    reasoningStrength: settings.api.reasoningStrength,
                     reqBody: {
                       model: settings.api.modelName,
                       messages: [{ role: "user", content: llmPrompt }],

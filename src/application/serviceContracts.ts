@@ -1,6 +1,7 @@
 import type { EffectDisposer, IKernelService } from "../kernel/types";
 export * from "../kernel/types";
 
+import type { ReasoningStrength } from "../types";
 import type {
   PromptCompositionBudgetReport,
   PromptCompositionTrace,
@@ -211,7 +212,10 @@ export interface StreamParams {
   apiKey: string;
   chatPath?: string;
   bypassProxy?: boolean;
+  /** @deprecated 旧布尔开关；true 等价于 `reasoningStrength: "off"`。 */
   disableReasoning?: boolean;
+  /** 统一推理强度档位；缺省 auto（不注入任何厂商字段）。 */
+  reasoningStrength?: ReasoningStrength;
   forceBasicParams?: boolean;
   reqBody: Record<string, unknown>;
   signal?: AbortSignal;
@@ -361,7 +365,10 @@ export interface LLMProxyRequestConfig {
   modelsPath?: string;
   modelName?: string;
   bypassProxy?: boolean;
+  /** @deprecated 旧布尔开关；true 等价于 `reasoningStrength: "off"`。 */
   disableReasoning?: boolean;
+  /** 统一推理强度档位；缺省 auto（不注入任何厂商字段）。 */
+  reasoningStrength?: ReasoningStrength;
   forceBasicParams?: boolean;
   /** 模型列表、连接检测等非对话请求可以不携带请求体。 */
   reqBody?: Record<string, unknown>;

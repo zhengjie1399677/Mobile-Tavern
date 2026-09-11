@@ -1,3 +1,7 @@
+import type { ReasoningStrength } from "../../../types";
+
+export type { ReasoningStrength };
+
 export interface ModelCapabilities {
   supportsTopK: boolean;
   supportsTopP: boolean;
@@ -9,6 +13,11 @@ export interface ModelCapabilities {
   supportsMinP?: boolean;
   supportsRepetitionPenalty?: boolean;
   supportsStreamOptions?: boolean;
+  /**
+   * 推理强度参数是否可用；仅由运行时自愈学习为 false（该端点/模型拒绝强度字段）。
+   * undefined 表示尚未学习到，按能力表正常注入。
+   */
+  supportsReasoningControl?: boolean;
   contextWindow?: number;
   preferredFormat?: "xml" | "markdown";
   maxTemperature?: number;

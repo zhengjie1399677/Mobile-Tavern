@@ -399,6 +399,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     bypassProxy: false,
     sendNames: false,
     disableReasoning: false,
+    reasoningStrength: "auto",
     forceBasicParams: false,
     supportsVision: false,
     supportsAudioInput: false,

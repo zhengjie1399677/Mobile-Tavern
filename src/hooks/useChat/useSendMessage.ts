@@ -589,6 +589,7 @@ export function useSendMessage(p: SendMessageParams) {
           chatPath: finalChatPath,
           bypassProxy: p.settings.api.bypassProxy,
           disableReasoning: p.settings.api.disableReasoning,
+          reasoningStrength: p.settings.api.reasoningStrength,
           forceBasicParams: p.settings.api.forceBasicParams,
           reqBody: providerRequestBody,
           signal: controller.signal,

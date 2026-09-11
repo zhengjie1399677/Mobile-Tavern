@@ -239,6 +239,7 @@ export default function FullscreenPluginRunner({
         const stream = chatStreamService.streamLlmResponse({
           baseUrl: api.baseUrl, apiKey: api.apiKey, chatPath: api.chatPath,
           bypassProxy: api.bypassProxy, disableReasoning: api.disableReasoning,
+          reasoningStrength: api.reasoningStrength,
           forceBasicParams: api.forceBasicParams, reqBody, signal: controller.signal,
         });
         let fullText = "";
@@ -272,6 +273,7 @@ export default function FullscreenPluginRunner({
       const stream = chatStreamService.streamLlmResponse({
         baseUrl: api.baseUrl, apiKey: api.apiKey, chatPath: api.chatPath,
         bypassProxy: api.bypassProxy, disableReasoning: api.disableReasoning,
+        reasoningStrength: api.reasoningStrength,
         forceBasicParams: api.forceBasicParams, reqBody, signal: controller.signal,
       });
       for await (const chunk of stream) {

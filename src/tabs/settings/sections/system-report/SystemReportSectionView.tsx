@@ -407,7 +407,7 @@ export default function SystemReportSection({
           bypassProxy: settings.api.bypassProxy,
           forceBasicParams: settings.api.forceBasicParams,
           // 只测连通性，关闭思维链，避免推理模型把自检拖到几十秒。
-          disableReasoning: true,
+          reasoningStrength: "off",
         });
         const latency = Date.now() - pingStart;
         const status = response.status;

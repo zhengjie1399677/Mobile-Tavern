@@ -4,6 +4,7 @@
 
 | 日期 | 已完成事项 | 主要入口 |
 |---|---|---|
+| 2026-09-12 | 完成统一推理强度档位与厂商方言映射：旧布尔开关迁移、不支持的档位收敛、运行时自愈联动和设置页选择器 | `src/application/services/llmCompatibility/reasoningControl.ts`、`src/tabs/settings/ReasoningStrengthRow.tsx` |
 | 2026-09-02 | 将 Tool Plugin 来源等级收敛为提示性策略：未验证包可安装，确认前明确告知代码与授权风险；远程撤回和动态信任治理转为公开生态的条件性事项 | `src/components/plugins/ToolPluginManagerSection.tsx`、`docs/agents/module_contracts.md` |
 | 2026-09-02 | 完成 Tool Plugin 来源证明、ECDSA 包验签、可信指纹分级、安装展示和版本历史保存 | `src/domain/toolPlugins/sourceProof.ts`、`src/infrastructure/toolPlugins/toolPluginSourceVerifier.ts` |
 | 2026-09-02 | 完成仓库内 Tool Plugin 作者 SDK、确定性 `.mttool` 打包器和官方无权限文本工具箱示例 | `sdk/tool-plugin/`、`examples/tool-plugin-text-toolkit/` |

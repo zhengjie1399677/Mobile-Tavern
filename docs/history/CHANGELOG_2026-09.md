@@ -1,5 +1,6 @@
 # 2026 年 9 月变更记录
 
+- 2026-09-12：新增统一推理强度控制。设置与 UI 只保存一套档位（auto/off/low/medium/high/max），由 `llmCompatibility` 按模型能力映射为厂商方言（`reasoning_effort` / `thinking` / `enable_thinking` / Anthropic 思考预算），不支持的档位收敛到最近可用档位，未识别的端点不注入任何字段；旧布尔 `disableReasoning` 在加载时迁移为 `off` 并写回，强度字段被网关拒绝时沿用既有运行时自愈，后续请求不再重复注入。Anthropic 开启思考时按其约束夹取预算并停止采样改写。验证：`npm run lint`、`npm run lint:changed`、`npm test`（Vitest 1086 个用例与 86 个自定义套件全部通过）。
 - 2026-09-10：聊天内工具活动改为"只显示待审批"。移除消息气泡与会话底部的工具调用汇总块（连同 `ToolCallBlock` 与 7 个词条），`character.read` 这类只读静默调用不再产生聊天噪音；审批卡片、Journal 重放与备份恢复行为不变。同时优化"测试连接"：真实 `ping` 请求关闭思维链（推理模型不再为 5 个 token 跑完整推理）并加 25 秒超时提示，避免无限转圈。
 - 2026-09-10：修复移动端常驻卡顿：全局环境光晕层原本用 `filter: blur(90~100px)` + 无限 `animate-pulse` 渲染两个约 350px 的光团，真机实测常驻 ~61fps 重绘、单核 72%~107% CPU、掉帧率 11.84%；改为预烘焙径向渐变（无 filter、无动画）后，静置 8 秒 0 帧、交互滑动 0% 掉帧且无 Missed Vsync。同时给预设脏检查加记忆化并缓存 `promptPlan` 解析结果，避免每次渲染重复比对整份 Prompt 快照。
 - 2026-09-10：修复预设切换的整体替换语义：`applyPresetPromptConfig` 不再把"当前预设"的字段合并进目标预设，未声明字段回到运行时默认——传统模式不再继承上一个预设的请求整形与表格记忆提示词，非扮演模式不再继承推理指引开关与文案，自由编排模式不再继承 `prompt.postHistory` / `renderingFormat`。同时新增端到端装配回归（真实 `PromptService.assemblePrompt`：预设 A↔B 内容隔离、请求整形不继承、传统↔自由编排整体切换；旧实现下该回归会失败）。内置预设保存修改时自动另存为新预设并切换（保持出厂预设可升级）；当前会话冻结行为预设时在预设区提示"修改只对新会话生效"。

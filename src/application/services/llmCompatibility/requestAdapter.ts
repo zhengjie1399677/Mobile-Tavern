@@ -1,14 +1,18 @@
-import type { Message } from "../../../types";
+import type { Message, ReasoningStrength } from "../../../types";
 import type { OpenAiProviderMessage } from "../../useCases/multimodalProviderProjection";
 import { cleanRequestPayload } from "../requestSchema";
 import { ModelCapabilityRegistry } from "./ModelCapabilityRegistry";
 import { resolveProviderIdentity } from "./providerIdentity";
+import { normalizeReasoningStrength } from "./reasoningControl";
 
 export interface PrepareProviderRequestOptions {
   baseUrl?: string;
   modelId: string;
   request: Record<string, unknown>;
+  /** @deprecated 旧布尔开关；true 等价于 `reasoningStrength: "off"`。 */
   disableReasoning?: boolean;
+  /** 统一推理强度档位；缺省 auto（不注入任何厂商字段）。 */
+  reasoningStrength?: ReasoningStrength;
   forceBasicParams?: boolean;
 }
 
@@ -16,18 +20,31 @@ export interface PrepareProviderRequestOptions {
 export function prepareProviderRequest(options: PrepareProviderRequestOptions): Record<string, unknown> {
   const identity = resolveProviderIdentity(options.baseUrl, options.modelId);
   const whitelisted = cleanRequestPayload(options.baseUrl, options.request) ?? {};
-  if (options.disableReasoning) {
-    Object.assign(
-      whitelisted,
-      ModelCapabilityRegistry.getReasoningDisableParams(options.modelId, options.baseUrl),
-    );
-  }
+  const reasoningPlan = ModelCapabilityRegistry.buildReasoningPlan(
+    normalizeReasoningStrength({
+      reasoningStrength: options.reasoningStrength,
+      disableReasoning: options.disableReasoning,
+    }),
+    options.modelId,
+    options.baseUrl,
+    { maxTokens: readRequestMaxTokens(whitelisted) },
+  );
+  Object.assign(whitelisted, reasoningPlan.params);
   const cleaned = ModelCapabilityRegistry.cleanLLMParams(
     options.modelId,
     whitelisted,
     options.baseUrl,
     options.forceBasicParams,
   );
+  if (reasoningPlan.anthropicThinkingEnabled) {
+    // Anthropic 开启思考时禁止采样改写：temperature 必须为 1，且不能同时携带 top_p/top_k。
+    // 不支持 temperature 的型号（如 Claude 5 系列）保持不发送，避免自愈路径反复触发 400。
+    if (ModelCapabilityRegistry.getCapabilities(options.modelId, options.baseUrl).supportsTemperature) {
+      cleaned.temperature = 1;
+    }
+    delete cleaned.top_p;
+    delete cleaned.top_k;
+  }
 
   // DeepSeek thinking + tools 不接受 tool_choice；省略等价于 auto。
   if (identity.official && identity.family === "deepseek" && Array.isArray(cleaned.tools)) {
@@ -157,6 +174,12 @@ export function removeUnsupportedRequestFields(
   const next = { ...request };
   for (const field of fields) delete next[field];
   return next;
+}
+
+/** 预算式推理方言需要知道输出上限，避免注入的思考预算超过 max_tokens。 */
+function readRequestMaxTokens(request: Readonly<Record<string, unknown>>): number | undefined {
+  const raw = request.max_tokens ?? request.max_completion_tokens;
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
 }
 
 function normalizeProviderMessages(messages: unknown[], family: string): unknown[] {

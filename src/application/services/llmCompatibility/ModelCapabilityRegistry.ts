@@ -12,10 +12,21 @@
  */
 
 import { resolveProviderIdentity } from "./providerIdentity";
+import {
+  buildReasoningDisableParams,
+  buildReasoningRequestPlan,
+  resolveReasoningControl,
+} from "./reasoningControl";
+import type {
+  ReasoningControlSupport,
+  ReasoningRequestContext,
+  ReasoningRequestPlan,
+} from "./reasoningControl";
 import type {
   LLMParams,
   ModelCapabilities,
   ProviderFamily,
+  ReasoningStrength,
   UnsupportedProviderParameter,
 } from "./types";
 
@@ -562,54 +573,44 @@ export class ModelCapabilityRegistry {
   }
 
   /**
-   * 返回“关闭推理”时应注入的厂商方言参数。
-   *
-   * 各厂商推理控制协议不一致（2026-08 官方文档核对）：
-   * - OpenAI：reasoning_effort（GPT-5 系支持 minimal，o 系最低 low）
-   * - Anthropic / DeepSeek / 智谱 GLM：thinking: { type: "disabled" }
-   * - Gemini 2.5：reasoning_effort: "none"（3.x 无法关闭思考，忽略）
-   * - Qwen：enable_thinking: false（OpenAI 兼容模式 extra_body 字段）
-   * - 其他/中转站：不注入，避免未知字段被严格网关 400 拒绝
+   * 返回“关闭推理”（off 档位）时应注入的厂商方言参数。
+   * 厂商差异与档位收敛规则集中在 `reasoningControl`，这里只保留旧调用方需要的形状。
    */
   static getReasoningDisableParams(
     modelId: string,
     baseUrl?: string
   ): Record<string, unknown> {
-    const family = this.resolveProviderFamily(baseUrl, modelId);
-    const rawModelName = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
-    const lowerId = rawModelName.toLowerCase();
+    return buildReasoningDisableParams(modelId, baseUrl);
+  }
 
-    switch (family) {
-      case 'openai':
-        // GPT-5.1~5.6 全系列（含 mini/nano/codex）支持 none（可完全关闭思考）
-        if (/^gpt-5\.\d/.test(lowerId)) return { reasoning_effort: 'none' };
-        // GPT-5 原版/mini/nano 仅支持 minimal
-        if (lowerId.startsWith('gpt-5')) return { reasoning_effort: 'minimal' };
-        if (lowerId.startsWith('o1') || lowerId.startsWith('o3') || lowerId.startsWith('o4')) {
-          return { reasoning_effort: 'low' };
-        }
-        // gpt-4o 等传统模型不识别 reasoning_effort，不发
-        return {};
-      case 'anthropic':
-        if (lowerId.startsWith('claude-fable-5') || lowerId.startsWith('claude-mythos-5')) return {};
-        return { thinking: { type: 'disabled' } };
-      case 'deepseek':
-        if (lowerId.includes("reasoner") || /(^|[-_/])r1([-/]|$)/.test(lowerId)) return {};
-        return { thinking: { type: 'disabled' } };
-      case 'glm':
-        // GLM-5.3/5.3-Flash 官方强制开启思考（thinking 不可 disabled），不注入
-        if (lowerId.startsWith('glm-5.3')) return {};
-        return { thinking: { type: 'disabled' } };
-      case 'gemini':
-        // Gemini 3.x 无法关闭思考；仅 2.5 系列支持 reasoning_effort: "none"
-        if (lowerId.startsWith('gemini-2.5')) return { reasoning_effort: 'none' };
-        return {};
-      case 'qwen':
-        if (/(^|[-_/])thinking([-/]|$)/.test(lowerId)) return {};
-        return { enable_thinking: false };
-      default:
-        return {};
+  /**
+   * 统一推理强度 → 厂商方言。
+   * 运行时学习到该端点/模型拒绝强度字段时保持原请求，避免每次调用都靠 400 重试降级。
+   */
+  static buildReasoningPlan(
+    strength: ReasoningStrength,
+    modelId: string,
+    baseUrl?: string,
+    context?: ReasoningRequestContext,
+  ): ReasoningRequestPlan {
+    if (
+      strength !== "auto"
+      && modelId
+      && this.getCapabilities(modelId, baseUrl).supportsReasoningControl === false
+    ) {
+      return { params: {}, anthropicThinkingEnabled: false };
     }
+    return buildReasoningRequestPlan(strength, modelId, baseUrl, context);
+  }
+
+  /**
+   * 设置界面用的强度能力描述；自愈学习到不可用后返回空档位。
+   */
+  static describeReasoningControl(modelId: string, baseUrl?: string): ReasoningControlSupport {
+    if (modelId && this.getCapabilities(modelId, baseUrl).supportsReasoningControl === false) {
+      return { dialect: "none", selectableLevels: [] };
+    }
+    return resolveReasoningControl(modelId, baseUrl);
   }
 
   /**
@@ -660,9 +661,9 @@ export class ModelCapabilityRegistry {
       { capability: 'supportsStreamOptions', requestFields: ['stream_options'], pattern: /stream_options|include_usage/i },
       { requestFields: ['max_completion_tokens'], pattern: /max_completion_tokens/i },
       { requestFields: ['max_tokens'], pattern: /max_tokens/i },
-      { requestFields: ['reasoning_effort'], pattern: /reasoning_effort/i },
-      { requestFields: ['thinking'], pattern: /(?:unknown|unsupported|invalid).{0,40}thinking|thinking.{0,40}(?:unknown|unsupported|invalid)/i },
-      { requestFields: ['enable_thinking'], pattern: /enable_thinking/i },
+      { capability: 'supportsReasoningControl', requestFields: ['reasoning_effort'], pattern: /reasoning_effort/i },
+      { capability: 'supportsReasoningControl', requestFields: ['thinking'], pattern: /(?:unknown|unsupported|invalid).{0,40}thinking|thinking.{0,40}(?:unknown|unsupported|invalid)/i },
+      { capability: 'supportsReasoningControl', requestFields: ['enable_thinking'], pattern: /enable_thinking/i },
     ];
 
     for (const { capability, requestFields, pattern } of paramPatterns) {

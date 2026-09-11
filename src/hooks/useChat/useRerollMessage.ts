@@ -406,6 +406,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         chatPath: finalChatPath,
         bypassProxy: p.settings.api.bypassProxy,
         disableReasoning: p.settings.api.disableReasoning,
+        reasoningStrength: p.settings.api.reasoningStrength,
         forceBasicParams: p.settings.api.forceBasicParams,
         reqBody: {
           model: finalModel,

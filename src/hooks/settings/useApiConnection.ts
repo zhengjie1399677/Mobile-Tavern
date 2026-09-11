@@ -113,7 +113,7 @@ export const useApiConnection = ({
           bypassProxy: settings.api.bypassProxy,
           forceBasicParams: settings.api.forceBasicParams,
           // ping 只验证连通性与凭据，不需要思维链；否则推理模型会为 5 个 token 跑完整推理。
-          disableReasoning: true,
+          reasoningStrength: "off",
         },
         { customSignal: controller.signal },
       );

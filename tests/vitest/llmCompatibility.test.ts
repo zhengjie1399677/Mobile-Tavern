@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Message } from "../../src/types";
+import type { Message, ReasoningStrength } from "../../src/types";
 import { LLMService } from "../../src/application/services/LLMService";
 import {
   ModelCapabilityRegistry,
+  normalizeReasoningStrength,
   normalizeProviderStreamChunk,
   prepareProviderRequest,
   preserveAssistantReasoning,
@@ -266,5 +267,134 @@ describe("LLM Provider 兼容层", () => {
       "gpt-4o",
       "https://api.openai.com/tenant-b/v1",
     ).supportsTopP).toBe(true);
+  });
+
+  describe("推理强度控制", () => {
+    const openAi = "https://api.openai.com/v1";
+    const anthropic = "https://api.anthropic.com/v1";
+    const gemini = "https://generativelanguage.googleapis.com/v1beta";
+    const deepseek = "https://api.deepseek.com/v1";
+    const glm = "https://open.bigmodel.cn/api/paas/v4";
+    const qwen = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+    const buildRequest = (
+      baseUrl: string,
+      modelId: string,
+      level: ReasoningStrength,
+      extra: Record<string, unknown> = {},
+    ) => prepareProviderRequest({
+      baseUrl,
+      modelId,
+      reasoningStrength: level,
+      request: { model: modelId, messages: [{ role: "user", content: "hi" }], ...extra },
+    });
+
+    it("归一化旧布尔开关与非法档位", () => {
+      expect(normalizeReasoningStrength({ disableReasoning: true })).toBe("off");
+      expect(normalizeReasoningStrength({ disableReasoning: false })).toBe("auto");
+      expect(normalizeReasoningStrength({})).toBe("auto");
+      expect(normalizeReasoningStrength({ reasoningStrength: "high", disableReasoning: true })).toBe("high");
+      expect(normalizeReasoningStrength({ reasoningStrength: "ultra" })).toBe("auto");
+    });
+
+    it("按模型能力暴露可选档位", () => {
+      expect(ModelCapabilityRegistry.describeReasoningControl("gpt-5.6", openAi).selectableLevels)
+        .toEqual(["off", "low", "medium", "high", "max"]);
+      expect(ModelCapabilityRegistry.describeReasoningControl("o3", openAi).selectableLevels)
+        .toEqual(["low", "medium", "high"]);
+      expect(ModelCapabilityRegistry.describeReasoningControl("gemini-3-pro", gemini).selectableLevels)
+        .toEqual([]);
+      expect(ModelCapabilityRegistry.describeReasoningControl("deepseek-reasoner", deepseek).selectableLevels)
+        .toEqual([]);
+      expect(ModelCapabilityRegistry.describeReasoningControl("glm-5.3", glm).selectableLevels)
+        .toEqual([]);
+    });
+
+    it("把统一档位映射为各厂商方言，并按模型收敛", () => {
+      expect(buildRequest(openAi, "gpt-5.6", "max").reasoning_effort).toBe("max");
+      expect(buildRequest(openAi, "gpt-5.6", "off").reasoning_effort).toBe("none");
+      expect(buildRequest(openAi, "gpt-5.6", "high").reasoning_effort).toBe("high");
+      // 5.6 以下没有 max 档，收敛到 high。
+      expect(buildRequest(openAi, "gpt-5.4", "max").reasoning_effort).toBe("high");
+      // 原版 GPT-5 最低只到 minimal，o 系列最低只到 low。
+      expect(buildRequest(openAi, "gpt-5-mini", "off").reasoning_effort).toBe("minimal");
+      expect(buildRequest(openAi, "o3", "off").reasoning_effort).toBe("low");
+      expect(buildRequest(openAi, "o3", "medium").reasoning_effort).toBe("medium");
+      // gpt-4o 等传统模型不识别 reasoning_effort。
+      expect(buildRequest(openAi, "gpt-4o", "high").reasoning_effort).toBeUndefined();
+      expect(buildRequest(gemini, "gemini-2.5-pro", "off").reasoning_effort).toBe("none");
+      expect(buildRequest(gemini, "gemini-2.5-pro", "medium").reasoning_effort).toBe("medium");
+      expect(buildRequest(gemini, "gemini-3-pro", "high").reasoning_effort).toBeUndefined();
+      expect(buildRequest(deepseek, "deepseek-v4-flash", "high").thinking).toEqual({ type: "enabled" });
+      expect(buildRequest(deepseek, "deepseek-v4-flash", "off").thinking).toEqual({ type: "disabled" });
+      expect(buildRequest(deepseek, "deepseek-reasoner", "high").thinking).toBeUndefined();
+      expect(buildRequest(glm, "glm-5.1", "low").thinking).toEqual({ type: "enabled" });
+      expect(buildRequest(glm, "glm-5.3", "high").thinking).toBeUndefined();
+      expect(buildRequest(qwen, "qwen3-max", "off").enable_thinking).toBe(false);
+      expect(buildRequest(qwen, "qwen3-max", "high").enable_thinking).toBe(true);
+      expect(buildRequest(qwen, "qwen3-235b-a22b-thinking-2507", "high").enable_thinking).toBeUndefined();
+      // 未识别的中转站不注入任何强度字段。
+      expect(buildRequest("https://proxy.example/v1", "custom-model", "high").reasoning_effort).toBeUndefined();
+    });
+
+    it("Anthropic 开启思考时夹取预算并约束采样参数", () => {
+      const enabled = buildRequest(anthropic, "claude-sonnet-4-5", "medium", {
+        max_tokens: 4096,
+        temperature: 0.7,
+        top_p: 0.9,
+      });
+      expect(enabled.thinking).toEqual({ type: "enabled", budget_tokens: 4095 });
+      expect(enabled.temperature).toBe(1);
+      expect(enabled.top_p).toBeUndefined();
+
+      // 输出上限装不下最小思考预算时不注入，保持原采样参数。
+      const tiny = buildRequest(anthropic, "claude-sonnet-4-5", "high", {
+        max_tokens: 800,
+        temperature: 0.7,
+      });
+      expect(tiny.thinking).toBeUndefined();
+      expect(tiny.temperature).toBe(0.7);
+
+      const disabled = buildRequest(anthropic, "claude-sonnet-4-5", "off", {
+        temperature: 0.7,
+        top_p: 0.9,
+      });
+      expect(disabled.thinking).toEqual({ type: "disabled" });
+      expect(disabled.temperature).toBe(0.7);
+      expect(disabled.top_p).toBe(0.9);
+    });
+
+    it("强度字段被拒绝时按字段重试并停止后续注入", async () => {
+      const requestBodies: Array<Record<string, unknown>> = [];
+      const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        if (requestBodies.length === 1) {
+          return new Response(JSON.stringify({ error: { message: "Unsupported parameter: reasoning_effort" } }), {
+            status: 400,
+          });
+        }
+        return new Response("data: [DONE]\n\n", { status: 200 });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const baseUrl = "https://api.openai.com/tenant-reasoning/v1";
+      const payload = {
+        baseUrl,
+        apiKey: "test-key",
+        bypassProxy: true,
+        reasoningStrength: "high" as const,
+        reqBody: { model: "gpt-5.6", stream: true, messages: [{ role: "user", content: "hi" }] },
+      };
+
+      const first = await new LLMService().universalFetch("/api/proxy/openai", payload);
+      expect(first.ok).toBe(true);
+      expect(requestBodies[0].reasoning_effort).toBe("high");
+      expect(requestBodies[1].reasoning_effort).toBeUndefined();
+      expect(ModelCapabilityRegistry.getCapabilities("gpt-5.6", baseUrl).supportsReasoningControl).toBe(false);
+
+      await new LLMService().universalFetch("/api/proxy/openai", payload);
+      expect(requestBodies[2].reasoning_effort).toBeUndefined();
+      expect(ModelCapabilityRegistry.describeReasoningControl("gpt-5.6", baseUrl).selectableLevels).toEqual([]);
+    });
   });
 });

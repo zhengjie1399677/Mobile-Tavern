@@ -30,6 +30,7 @@ import {
 import { Input } from "../../../../components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import SettingsToggleRow from "../SettingsToggleRow";
+import ReasoningStrengthRow from "../ReasoningStrengthRow";
 
 export type SaveState = "idle" | "saving" | "saved";
 
@@ -152,6 +153,7 @@ export default function ApiConfigSection({
                               modelsPath: target.modelsPath,
                               bypassProxy: target.bypassProxy,
                               disableReasoning: target.disableReasoning,
+                              reasoningStrength: target.reasoningStrength,
                               forceBasicParams: target.forceBasicParams,
                               supportsVision: target.supportsVision,
                               supportsAudioInput: target.supportsAudioInput,
@@ -205,6 +207,7 @@ export default function ApiConfigSection({
                         modelsPath: settings.api.modelsPath,
                         bypassProxy: settings.api.bypassProxy,
                         disableReasoning: settings.api.disableReasoning,
+                        reasoningStrength: settings.api.reasoningStrength,
                         forceBasicParams: settings.api.forceBasicParams,
                         supportsVision: settings.api.supportsVision,
                         supportsAudioInput: settings.api.supportsAudioInput,
@@ -621,13 +624,15 @@ export default function ApiConfigSection({
               }))}
             />
 
-            <SettingsToggleRow
-              label={t("api.disable_reasoning_title")}
-              description={t("api.disable_reasoning_desc")}
-              checked={settings.api.disableReasoning || false}
-              onCheckedChange={(checked) => updateSettings((prev) => ({
+            <ReasoningStrengthRow
+              label={t("api.reasoning_strength_title")}
+              description={t("api.reasoning_strength_desc")}
+              value={settings.api.reasoningStrength ?? (settings.api.disableReasoning ? "off" : "auto")}
+              modelId={settings.api.modelName}
+              baseUrl={settings.api.baseUrl}
+              onChange={(value) => updateSettings((prev) => ({
                 ...prev,
-                api: { ...prev.api, disableReasoning: checked },
+                api: { ...prev.api, reasoningStrength: value },
               }))}
             />
           </div>

@@ -106,7 +106,7 @@ export async function handleGenerateImageForMessage({
     }
 
     let finalPrompt = message.content;
-    let template = ensureAppearancePlaceholder(
+    const template = ensureAppearancePlaceholder(
       config.promptGeneratorTemplate || DEFAULT_TEMPLATE,
     );
 
@@ -145,6 +145,7 @@ export async function handleGenerateImageForMessage({
           chatPath: settings.api.chatPath,
           bypassProxy: settings.api.bypassProxy,
           disableReasoning: settings.api.disableReasoning,
+          reasoningStrength: settings.api.reasoningStrength,
           reqBody: {
             model: settings.api.modelName,
             messages: [{ role: "user", content: llmPrompt }],

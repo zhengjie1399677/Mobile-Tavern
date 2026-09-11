@@ -230,7 +230,7 @@ someAsyncOp().then(() => {
 ### LLM Provider 防腐契约
 
 - Provider 身份必须由解析后的 URL hostname 与模型 ID 共同判定，禁止通过查询串或路径字符串伪装官方端点；未知中转站使用保守能力默认值。
-- 请求字段白名单、模型能力裁剪、关闭思考方言、工具消息修正与历史 `reasoning_content` 回放统一由 `src/application/services/llmCompatibility/` 处理。发送与重生成不得各自维护厂商判断。
+- 请求字段白名单、模型能力裁剪、统一推理强度档位到厂商方言的映射、工具消息修正与历史 `reasoning_content` 回放统一由 `src/application/services/llmCompatibility/` 处理。设置只保存一套档位，厂商差异（枚举 / 开关 / 预算）、档位收敛与旧布尔开关迁移不得外泄到调用方。发送与重生成不得各自维护厂商判断。
 - 流式响应先归一为内部 `StreamChunk`，再进入聊天消费端；OpenAI-compatible 别名、DashScope 包装、Gemini candidates 与 Anthropic SSE 的外部字段不得越过该边界。
 - 运行时参数自愈只允许关闭已确认不支持的能力，缓存键至少包含规范化完整 Base URL 与模型 ID；一个中转站或租户路径的失败不得污染其他端点。
 - DeepSeek、GLM 与 Qwen 的历史思考内容只在 Provider 请求投影中回放，不写入通用 Content Parts；同一工具循环中的 Assistant Tool Call 必须携带本步骤已返回的思考内容。
@@ -393,3 +393,4 @@ someAsyncOp().then(() => {
 | 2026-08-26 | 增加内置 Tool、会话冻结的 Tool 可见性、风险/副作用/Scope 策略、一次性审批与 fail-closed Journal 契约 |
 | 2026-08-28 | 增加会话 active/archived 生命周期、修订投影、归档删除守卫和独立收藏备份版本切换契约 |
 | 2026-08-29 | 增加 LLM Provider 身份解析、请求/响应防腐、思考回放和按完整端点隔离的参数自愈契约 |
+| 2026-09-12 | 增加统一推理强度档位契约：设置与 UI 只保存一套档位，由 `llmCompatibility` 按模型能力映射厂商方言并保留旧布尔开关迁移与档位收敛 |

@@ -187,6 +187,14 @@ export type ChatMessageHydrationStatus = "idle" | "loading" | "ready" | "error";
 
 export type ApiType = "openai-compat" | "openai" | "anthropic";
 
+/**
+ * 统一推理强度档位。
+ *
+ * `auto` 不注入任何厂商参数（跟随模型默认行为）；其余档位由
+ * `llmCompatibility` 按模型能力映射为对应方言，遇到不支持该档位的模型时收敛到最近可用档位。
+ */
+export type ReasoningStrength = "auto" | "off" | "low" | "medium" | "high" | "max";
+
 export interface ApiConfig {
   type: ApiType;
   baseUrl: string;
@@ -197,7 +205,10 @@ export interface ApiConfig {
   modelsPath?: string;
   bypassProxy?: boolean;
   sendNames?: boolean;
+  /** @deprecated 旧布尔开关；新数据使用 reasoningStrength（true 等价于 "off"）。 */
   disableReasoning?: boolean;
+  /** 统一推理强度；缺省 auto，表示不向 API 注入强度参数。 */
+  reasoningStrength?: ReasoningStrength;
   forceBasicParams?: boolean;
   /** 用户确认当前模型/接口支持 OpenAI-compatible 图片输入；缺省按不支持处理。 */
   supportsVision?: boolean;
@@ -317,7 +328,10 @@ export interface ApiProfile {
   chatPath?: string;
   modelsPath?: string;
   bypassProxy?: boolean;
+  /** @deprecated 旧布尔开关；新数据使用 reasoningStrength（true 等价于 "off"）。 */
   disableReasoning?: boolean;
+  /** 统一推理强度；缺省 auto，表示不向 API 注入强度参数。 */
+  reasoningStrength?: ReasoningStrength;
   forceBasicParams?: boolean;
   supportsVision?: boolean;
   supportsAudioInput?: boolean;

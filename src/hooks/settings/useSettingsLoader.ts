@@ -23,6 +23,10 @@ import {
   setMobileTavernBasicPresetBundle,
 } from "./defaults";
 import { cleanLorebookEntry } from "./mergeUtils";
+import {
+  isReasoningStrength,
+  normalizeReasoningStrength,
+} from "../../application/services/llmCompatibility";
 
 interface UseSettingsLoaderDeps {
   setSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
@@ -212,6 +216,15 @@ export const useSettingsLoader = ({
             needSave = true;
           }
 
+          // CHANGE-SAFE：旧数据只有布尔 disableReasoning，迁移为统一强度档位（true → off）后写回。
+          const storedReasoningStrength = normalizeReasoningStrength({
+            reasoningStrength: storedSet.api?.reasoningStrength,
+            disableReasoning: storedSet.api?.disableReasoning,
+          });
+          if (storedSet.api && storedSet.api.reasoningStrength === undefined) {
+            needSave = true;
+          }
+
           const mergedSet: UserSettings = {
             api: {
               ...DEFAULT_SETTINGS.api,
@@ -221,6 +234,7 @@ export const useSettingsLoader = ({
               bypassProxy: storedSet.api?.bypassProxy ?? DEFAULT_SETTINGS.api.bypassProxy,
               sendNames: storedSet.api?.sendNames ?? DEFAULT_SETTINGS.api.sendNames,
               disableReasoning: storedSet.api?.disableReasoning ?? DEFAULT_SETTINGS.api.disableReasoning,
+              reasoningStrength: storedReasoningStrength,
               forceBasicParams: storedSet.api?.forceBasicParams ?? DEFAULT_SETTINGS.api.forceBasicParams,
             },
             preset: { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) },
@@ -284,7 +298,18 @@ export const useSettingsLoader = ({
             chatBackgroundBlur: storedSet.chatBackgroundBlur ?? DEFAULT_SETTINGS.chatBackgroundBlur,
             chatBackgroundDim: storedSet.chatBackgroundDim ?? DEFAULT_SETTINGS.chatBackgroundDim,
             enableChatBgAnimation: storedSet.enableChatBgAnimation ?? DEFAULT_SETTINGS.enableChatBgAnimation,
-            savedApiProfiles: storedSet.savedApiProfiles || DEFAULT_SETTINGS.savedApiProfiles,
+            savedApiProfiles: (storedSet.savedApiProfiles || DEFAULT_SETTINGS.savedApiProfiles || []).map(
+              (profile) => {
+                if (isReasoningStrength(profile.reasoningStrength)) return profile;
+                needSave = true;
+                return {
+                  ...profile,
+                  reasoningStrength: normalizeReasoningStrength({
+                    disableReasoning: profile.disableReasoning,
+                  }),
+                };
+              }
+            ),
             currentApiProfileId: storedSet.currentApiProfileId || DEFAULT_SETTINGS.currentApiProfileId,
             globalRegexScripts: storedSet.globalRegexScripts || DEFAULT_SETTINGS.globalRegexScripts || [],
             presetRegexScripts: storedSet.presetRegexScripts || DEFAULT_SETTINGS.presetRegexScripts || [],
