@@ -6,19 +6,24 @@ import {
   KernelServices,
 } from "@/src/application/serviceContracts";
 import type { DataMigrationServiceTyped } from "../../application/services/DataMigrationService";
-import { encryptBackupData, decryptBackupData } from "../../utils/cardParser";
+import { encryptBackupData } from "../../utils/cardParser";
 import { DEFAULT_SETTINGS } from "./defaults";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 import { persistImportedChatSession } from "../../application/useCases/chatImportUseCases";
 import {
-  buildUnifiedBackupPayload,
-  UNIFIED_BACKUP_MAGIC,
-  parseAgentJournalEvents,
-  parseAgentCompositionSnapshot,
-  parseRuntimePluginState,
-  parseAttachmentBackupRecords,
-} from "../../application/useCases/dataMigrationUseCases";
+  BackupPayloadError,
+  normalizeBackupPayload,
+  summarizeBackupPayload,
+  type BackupPayloadSummary,
+  type BackupVersionGap,
+} from "../../application/useCases/backupPayloadRestore";
+import {
+  pullSnapshotFromHost,
+  pushSnapshotToHost,
+  type SnapshotSyncFailure,
+  type SnapshotSyncTarget,
+} from "../../application/useCases/hostSnapshotSync";
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本 Hook 实际使用的方法）。
  * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
@@ -57,6 +62,74 @@ function saveBackupFile(fileName: string, content: string): string | undefined {
   return undefined;
 }
 
+/**
+ * 旧版备份缺失能力的中文提示。
+ *
+ * 版本判定本身在备份边界用例中完成，这里只负责把它翻译成用户文案，
+ * 保持与既有交互一字不差。
+ */
+function describeVersionNotice(gap: BackupVersionGap): string {
+  switch (gap.code) {
+    case "legacy_v3":
+      return "\n\n注意：这是旧版备份，不包含独立世界书、记忆词典、自定义预设库和消息附件；这些项目将按空数据恢复。当前数据会先自动导出安全快照。";
+    case "legacy_v4":
+      return "\n\n注意：这是 v4 备份，不包含消息附件；当前数据会先自动导出安全快照。";
+    case "legacy_v5":
+      return "\n\n注意：这是 v5 备份，不包含 Agent Turn、Provider 决定和工具调用记录；当前数据会先自动导出安全快照。";
+    default:
+      return "\n\n恢复前会自动导出当前数据的脱敏安全快照。";
+  }
+}
+
+/** 读取用户配置的远程宿主目标；未配置时返回 null（界面据此引导前往设置）。 */
+function resolveHostSyncTarget(settings: UserSettings): SnapshotSyncTarget | null {
+  const binding = settings.hostBinding;
+  if (!binding) return null;
+  const baseUrl = (binding.remoteUrl || "").trim();
+  if (!baseUrl) return null;
+  return { baseUrl, accessKey: (binding.remoteAccessKey || "").trim() };
+}
+
+/** 同步确认文案里的数据量摘要。 */
+function formatPayloadSummary(summary: BackupPayloadSummary): string {
+  const memory = summary.memoryFragments + summary.memoryFacts + summary.memoryDictEntries;
+  return `角色 ${summary.characters} · 会话 ${summary.sessions} · 消息 ${summary.messages} · 记忆 ${memory} · 世界书 ${summary.globalLorebook + summary.customWorldbooks} · 附件 ${summary.attachments}`;
+}
+
+/** 把同步失败原因翻译成可执行的中文提示。 */
+function describeHostSyncFailure(failure?: SnapshotSyncFailure): string {
+  switch (failure) {
+    case "invalid_url":
+      return "宿主地址格式不正确，请到「宿主与互联」核对。";
+    case "unauthorized":
+      return "宿主凭据不正确（401/403），请核对访问凭据。";
+    case "unreachable":
+      return "无法连接宿主：网络不可达或超时。";
+    case "payload_too_large":
+      return "数据超过宿主接收上限（50 MB），请先精简消息附件。";
+    case "empty_response":
+      return "宿主返回了空快照。";
+    case "rejected":
+      return "宿主拒绝了该请求。";
+    case "malformed_json":
+      return "宿主快照不是有效 JSON。";
+    case "magic_mismatch":
+      return "宿主快照签名不匹配，目标可能不是本程序的宿主。";
+    case "invalid_characters":
+      return "宿主快照损坏：角色列表非法。";
+    case "invalid_sessions":
+      return "宿主快照损坏：会话列表非法。";
+    case "encrypted_password_required":
+      return "宿主快照已加密，覆盖式同步暂不支持加密快照。";
+    case "decrypt_failed":
+      return "宿主快照解密失败。";
+    default:
+      return "未知原因。";
+  }
+}
+
+const HOST_SYNC_UNCONFIGURED = "尚未配置远程宿主。请先在「设置 → 宿主与互联」里填写宿主地址与访问凭据。";
+
 interface UseBackupRestoreDeps {
   settings: UserSettings;
   setSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
@@ -81,6 +154,11 @@ interface UseBackupRestoreReturn {
     characters: CharacterCard[],
     setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>
   ) => Promise<void>;
+  handlePullFromHost: (
+    setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>,
+    setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>
+  ) => Promise<void>;
+  handlePushToHost: () => Promise<void>;
   handleSilentDailyBackup: (characters: CharacterCard[]) => Promise<boolean>;
 }
 
@@ -150,184 +228,16 @@ export const useBackupRestore = ({
     setBackupStatus("读取文件中...");
     try {
       const textData = await file.text();
-      let parsed;
-      if (textData.startsWith("{")) {
-        parsed = JSON.parse(textData);
-      } else {
-        if (!backupPass.trim()) {
-          await showCustomAlert("备份可能是加密文件，请先输入对应密码。");
-          e.target.value = "";
-          return;
-        }
-        setBackupStatus("验证解码中...");
-        const decryptedJson = await decryptBackupData(
-          textData,
-          backupPass.trim(),
-        );
-        parsed = JSON.parse(decryptedJson);
-      }
 
-      // 1. Magic Header Envelope check (Backward compatible)
-      if (parsed.magic !== undefined && parsed.magic !== UNIFIED_BACKUP_MAGIC) {
-        throw new Error("备份文件签名不匹配，非此程序导出的有效备份数据。");
-      }
+      // 解析、签名校验、逐项清洗与默认值回落统一交给备份边界用例，
+      // 与「从宿主拉取快照」共用同一入口，避免两处规则漂移。
+      const normalized = await normalizeBackupPayload({
+        text: textData,
+        passphrase: backupPass.trim(),
+        defaultSettings: DEFAULT_SETTINGS,
+      });
 
-      // 2. Structural Arrays validation
-      if (!Array.isArray(parsed.characters)) {
-        throw new Error("备份文件损坏：characters 列表必须是合规数组。");
-      }
-      if (!Array.isArray(parsed.sessions)) {
-        throw new Error("备份文件损坏：sessions 列表必须是合规数组。");
-      }
-
-      // 3. Item-level schema validation and sanitization for Characters
-      const validatedCharacters: any[] = [];
-      for (const c of parsed.characters) {
-        if (c && typeof c === "object" && typeof c.id === "string" && typeof c.name === "string") {
-          validatedCharacters.push({
-            ...c,
-            id: c.id,
-            name: c.name,
-            avatar: typeof c.avatar === "string" ? c.avatar : "",
-            description: typeof c.description === "string" ? c.description : "",
-            personality: typeof c.personality === "string" ? c.personality : "",
-            scenario: typeof c.scenario === "string" ? c.scenario : "",
-            first_mes: typeof c.first_mes === "string" ? c.first_mes : "",
-            mes_example: typeof c.mes_example === "string" ? c.mes_example : "",
-            system_prompt: typeof c.system_prompt === "string" ? c.system_prompt : "",
-            post_history_instructions: typeof c.post_history_instructions === "string" ? c.post_history_instructions : "",
-            alternate_greetings: Array.isArray(c.alternate_greetings) ? c.alternate_greetings : [],
-            lorebookEntries: Array.isArray(c.lorebookEntries) ? c.lorebookEntries : [],
-            isWorldbookGlobal: c.isWorldbookGlobal !== undefined ? !!c.isWorldbookGlobal : undefined,
-            visualSettings: c.visualSettings && typeof c.visualSettings === "object" ? c.visualSettings : undefined,
-            extensions: c.extensions && typeof c.extensions === "object" ? c.extensions : undefined,
-            variables: c.variables && typeof c.variables === "object" ? c.variables : undefined,
-          });
-        } else {
-          console.warn("Filtered out corrupted character entry during import:", c);
-        }
-      }
-
-      // 4. Item-level schema validation and sanitization for Sessions
-      const validatedSessions: any[] = [];
-      for (const s of parsed.sessions) {
-        if (s && typeof s === "object" && typeof s.id === "string" && typeof s.characterId === "string" && Array.isArray(s.messages)) {
-          validatedSessions.push({
-            ...s,
-            id: s.id,
-            characterId: s.characterId,
-            title: typeof s.title === "string" ? s.title : "无标题对话",
-            createdAt: typeof s.createdAt === "number" ? s.createdAt : Date.now(),
-            messages: s.messages.filter((m: any) => m && typeof m === "object" && typeof m.id === "string" && typeof m.sender === "string" && typeof m.content === "string"),
-            summaries: Array.isArray(s.summaries) ? s.summaries : [],
-            lastSummarizedMessageId: typeof s.lastSummarizedMessageId === "string" ? s.lastSummarizedMessageId : undefined,
-            variables: s.variables && typeof s.variables === "object" ? s.variables : undefined,
-            runtimePluginState: parseRuntimePluginState(s.runtimePluginState),
-            compositionSnapshot: parseAgentCompositionSnapshot(s.compositionSnapshot),
-          });
-        } else {
-          console.warn("Filtered out corrupted session entry during import:", s);
-        }
-      }
-      const validatedFragments = Array.isArray(parsed.memoryFragments)
-        ? parsed.memoryFragments.filter((fragment: any) =>
-            fragment &&
-            typeof fragment.id === "string" &&
-            typeof fragment.sessionId === "string" &&
-            typeof fragment.content === "string" &&
-            Array.isArray(fragment.sourceMessageIds)
-          ).map((fragment: any) => ({
-            ...fragment,
-            participants: Array.isArray(fragment.participants) ? fragment.participants : [],
-            tags: Array.isArray(fragment.tags) ? fragment.tags : [],
-            sourceRole: ["user", "assistant", "system"].includes(fragment.sourceRole)
-              ? fragment.sourceRole
-              : "assistant",
-            sourceTurnStart: Number.isInteger(fragment.sourceTurnStart) ? fragment.sourceTurnStart : 0,
-            sourceTurnEnd: Number.isInteger(fragment.sourceTurnEnd) ? fragment.sourceTurnEnd : 0,
-            status: ["active", "superseded", "invalid"].includes(fragment.status)
-              ? fragment.status
-              : "active",
-            importance: typeof fragment.importance === "number" ? fragment.importance : 0.7,
-            confidence: typeof fragment.confidence === "number" ? fragment.confidence : 1,
-            createdAt: typeof fragment.createdAt === "number" ? fragment.createdAt : Date.now(),
-            updatedAt: typeof fragment.updatedAt === "number" ? fragment.updatedAt : Date.now(),
-          }))
-        : [];
-      const validatedFacts = Array.isArray(parsed.memoryFacts)
-        ? parsed.memoryFacts.filter((fact: any) =>
-            fact &&
-            typeof fact.id === "string" &&
-            typeof fact.sessionId === "string" &&
-            typeof fact.subject === "string" &&
-            typeof fact.predicate === "string" &&
-            typeof fact.object === "string" &&
-            typeof fact.sourceMessageId === "string"
-          ).map((fact: any) => ({
-            ...fact,
-            tags: Array.isArray(fact.tags) ? fact.tags : [fact.subject, fact.object],
-            status: ["active", "superseded", "invalid"].includes(fact.status)
-              ? fact.status
-              : "active",
-            validFromTurn: Number.isInteger(fact.validFromTurn) ? fact.validFromTurn : 0,
-            confidence: typeof fact.confidence === "number" ? fact.confidence : 1,
-            createdAt: typeof fact.createdAt === "number" ? fact.createdAt : Date.now(),
-            updatedAt: typeof fact.updatedAt === "number" ? fact.updatedAt : Date.now(),
-          }))
-        : [];
-      const validatedDictEntries = Array.isArray(parsed.memoryDictEntries)
-        ? parsed.memoryDictEntries.filter((entry: any) =>
-            entry &&
-            typeof entry.id === "string" &&
-            typeof entry.sessionId === "string" &&
-            typeof entry.entity === "string"
-          )
-        : [];
-      const validatedGlobalLorebook = Array.isArray(parsed.globalLorebook)
-        ? parsed.globalLorebook
-        : [];
-      const validatedCustomWorldbooks = parsed.customWorldbooks &&
-        typeof parsed.customWorldbooks === "object" &&
-        !Array.isArray(parsed.customWorldbooks)
-        ? parsed.customWorldbooks
-        : {};
-      const validatedSavedPresets = Array.isArray(parsed.savedPresets)
-        ? parsed.savedPresets
-        : [];
-      const validatedAttachments = parseAttachmentBackupRecords(parsed.attachments);
-      const validatedAgentJournal = parseAgentJournalEvents(parsed.agentJournal);
-
-      const mergedSettings: UserSettings = parsed.settings
-        ? {
-            ...DEFAULT_SETTINGS,
-            ...parsed.settings,
-            api: {
-              ...DEFAULT_SETTINGS.api,
-              ...(parsed.settings.api || {}),
-            },
-            memory: {
-              ...DEFAULT_SETTINGS.memory,
-              ...(parsed.settings.memory || {}),
-            },
-            promptConfig: {
-              ...DEFAULT_SETTINGS.promptConfig,
-              ...(parsed.settings.promptConfig || {}),
-              sectionHeaders: {
-                ...DEFAULT_SETTINGS.promptConfig.sectionHeaders,
-                ...(parsed.settings.promptConfig?.sectionHeaders || {}),
-              },
-            },
-          }
-        : structuredClone(DEFAULT_SETTINGS);
-
-      const parsedVersion = Number(parsed.version || 0);
-      const legacyWarning = parsedVersion < 4
-        ? "\n\n注意：这是旧版备份，不包含独立世界书、记忆词典、自定义预设库和消息附件；这些项目将按空数据恢复。当前数据会先自动导出安全快照。"
-        : parsedVersion < 5
-          ? "\n\n注意：这是 v4 备份，不包含消息附件；当前数据会先自动导出安全快照。"
-          : parsedVersion < 6
-            ? "\n\n注意：这是 v5 备份，不包含 Agent Turn、Provider 决定和工具调用记录；当前数据会先自动导出安全快照。"
-            : "\n\n恢复前会自动导出当前数据的脱敏安全快照。";
+      const legacyWarning = describeVersionNotice(normalized.versionGap);
 
       const ok = await showCustomConfirm(
         `数据解密与格式校验成功！恢复将以备份内容完整替换本地角色、会话、记忆和世界书，是否确认？${legacyWarning}`,
@@ -338,30 +248,14 @@ export const useBackupRestore = ({
         const safetyName = `pre_restore_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
         saveBackupFile(safetyName, JSON.stringify(safetySnapshot));
 
-        const replacementPayload = buildUnifiedBackupPayload({
-          characters: validatedCharacters,
-          sessions: validatedSessions,
-          memoryDictEntries: validatedDictEntries,
-          memoryFragments: validatedFragments,
-          memoryFacts: validatedFacts,
-          settings: mergedSettings,
-          savedPresets: validatedSavedPresets,
-          globalLorebook: validatedGlobalLorebook,
-          customWorldbooks: validatedCustomWorldbooks,
-          backupDate: typeof parsed.backupDate === "string" ? parsed.backupDate : new Date().toISOString(),
-          isEncrypted: false,
-          attachments: validatedAttachments,
-          agentJournal: validatedAgentJournal,
-        });
-
         setBackupStatus("正在原子覆盖本地数据...");
-        await dataMigrationService.replaceFromBackup(replacementPayload);
+        await dataMigrationService.replaceFromBackup(normalized.payload);
 
-        setCharacters(validatedCharacters);
-        setSessionViews(validatedSessions);
-        setSettings(mergedSettings);
-        setGlobalLorebook(validatedGlobalLorebook);
-        setCustomWorldbooks(validatedCustomWorldbooks);
+        setCharacters(normalized.payload.characters);
+        setSessionViews(normalized.payload.sessions);
+        setSettings(normalized.payload.settings);
+        setGlobalLorebook(normalized.payload.globalLorebook);
+        setCustomWorldbooks(normalized.payload.customWorldbooks);
 
         await showCustomAlert(
           `本地备份已原子覆盖还原。恢复前安全快照：${safetyName}`,
@@ -370,6 +264,10 @@ export const useBackupRestore = ({
         window.location.reload();
       }
     } catch (err: unknown) {
+      if (err instanceof BackupPayloadError && err.code === "encrypted_password_required") {
+        await showCustomAlert(err.message);
+        return;
+      }
       await showCustomAlert(
         `无法解密或导入备份: ${getErrorMessage(err)}. 请确保密码拼写绝对一致。`,
       );
@@ -390,7 +288,7 @@ export const useBackupRestore = ({
     setBackupStatus("正在读取聊天记录...");
     try {
       const textData = await file.text();
-      let lines = textData.split("\n").map(l => l.trim()).filter(Boolean);
+      const lines = textData.split("\n").map(l => l.trim()).filter(Boolean);
       let rawMessages: any[] = [];
       let characterNameFromFile = "";
 
@@ -554,6 +452,141 @@ export const useBackupRestore = ({
     }
   }, [showCustomAlert, showCustomConfirm, setBackupStatus, databaseService]);
 
+  /**
+   * 用宿主快照覆盖本机数据（覆盖式同步）。
+   *
+   * 硬约束：`settings` 保留本机值 —— 否则手机的 API Key / 主题 / 语言会被 PC 的覆盖。
+   * 覆盖前强制二次确认并落地安全快照，确认文案里必须写明方向与双方数据量。
+   */
+  const handlePullFromHost = useCallback(async (
+    setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>,
+    setSessionViews: React.Dispatch<React.SetStateAction<ChatSession[]>>,
+  ) => {
+    const target = resolveHostSyncTarget(settings);
+    if (!target) {
+      await showCustomAlert(HOST_SYNC_UNCONFIGURED);
+      return;
+    }
+
+    setBackupStatus("正在读取宿主快照...");
+    try {
+      const pulled = await pullSnapshotFromHost({
+        target,
+        localSettings: settings,
+        defaultSettings: DEFAULT_SETTINGS,
+      });
+      if (!pulled.ok || !pulled.payload) {
+        setBackupStatus("宿主快照读取失败");
+        await showCustomAlert(
+          `无法读取宿主快照：${describeHostSyncFailure(pulled.failure)}${pulled.detail ? `\n\n${pulled.detail}` : ""}`,
+        );
+        return;
+      }
+
+      const localPayload = await dataMigrationService.createBackupPayload(settings, false);
+      const remoteSummary = pulled.remoteSummary ?? summarizeBackupPayload(pulled.payload);
+
+      const ok = await showCustomConfirm(
+        `即将用宿主数据覆盖本机（覆盖式，后写者生效，不做合并）。\n\n宿主：${formatPayloadSummary(remoteSummary)}\n本机：${formatPayloadSummary(summarizeBackupPayload(localPayload))}\n\n本机的角色、会话、记忆与世界书将被宿主内容完整替换；本机设置（含 API Key）会保留。\n是否继续？`,
+      );
+      if (!ok) {
+        setBackupStatus("已取消宿主拉取");
+        return;
+      }
+
+      setBackupStatus("正在创建恢复前安全快照...");
+      const safetySnapshot = await dataMigrationService.createBackupPayload(settings, false);
+      const safetyName = `pre_host_pull_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      saveBackupFile(safetyName, JSON.stringify(safetySnapshot));
+
+      setBackupStatus("正在原子覆盖本地数据...");
+      await dataMigrationService.replaceFromBackup(pulled.payload);
+
+      setCharacters(pulled.payload.characters);
+      setSessionViews(pulled.payload.sessions);
+      setSettings(pulled.payload.settings);
+      setGlobalLorebook(pulled.payload.globalLorebook);
+      setCustomWorldbooks(pulled.payload.customWorldbooks);
+
+      setBackupStatus("宿主同步完成");
+      await showCustomAlert(
+        `✅ 已用宿主快照原子覆盖本机数据。\n本机设置（含 API Key）已保留。\n恢复前安全快照：${safetyName}`,
+      );
+      window.location.reload();
+    } catch (err: unknown) {
+      setBackupStatus(`宿主拉取失败: ${getErrorMessage(err)}`);
+      await showCustomAlert(`从宿主拉取失败: ${getErrorMessage(err)}`);
+    }
+  }, [settings, setSettings, setGlobalLorebook, setCustomWorldbooks, showCustomAlert, showCustomConfirm, setBackupStatus, dataMigrationService]);
+
+  /**
+   * 用本机数据覆盖宿主快照（覆盖式同步）。
+   *
+   * 推送前先只读探测宿主：既拿到宿主的真实数据量用于确认，也避免在宿主不可达时白推。
+   * 宿主的设置由宿主自己保留（宿主快照是脱敏的，回写会清掉宿主的 API Key），
+   * 本机也不会把凭据发出去。
+   */
+  const handlePushToHost = useCallback(async () => {
+    const target = resolveHostSyncTarget(settings);
+    if (!target) {
+      await showCustomAlert(HOST_SYNC_UNCONFIGURED);
+      return;
+    }
+
+    setBackupStatus("正在读取本机与宿主数据...");
+    try {
+      const localPayload = await dataMigrationService.createBackupPayload(settings, false);
+
+      const probe = await pullSnapshotFromHost({
+        target,
+        localSettings: settings,
+        defaultSettings: DEFAULT_SETTINGS,
+      });
+      if (!probe.ok) {
+        setBackupStatus("宿主不可用，已取消推送");
+        await showCustomAlert(
+          `无法连接宿主，未推送任何数据：${describeHostSyncFailure(probe.failure)}${probe.detail ? `\n\n${probe.detail}` : ""}`,
+        );
+        return;
+      }
+
+      const ok = await showCustomConfirm(
+        `即将把本机数据覆盖到宿主（覆盖式，后写者生效，不做合并）。\n\n本机：${formatPayloadSummary(summarizeBackupPayload(localPayload))}\n宿主：${formatPayloadSummary(probe.remoteSummary ?? summarizeBackupPayload(localPayload))}\n\n宿主的角色、会话、记忆与世界书将被本机内容完整替换；宿主自己的设置（含 API Key）会保留，本机不会写入宿主凭据。\n是否继续？`,
+      );
+      if (!ok) {
+        setBackupStatus("已取消宿主推送");
+        return;
+      }
+
+      setBackupStatus("正在创建推送前安全快照...");
+      const safetySnapshot = await dataMigrationService.createBackupPayload(settings, false);
+      const safetyName = `pre_host_push_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      saveBackupFile(safetyName, JSON.stringify(safetySnapshot));
+
+      setBackupStatus("正在推送到宿主...");
+      const pushed = await pushSnapshotToHost({
+        target,
+        localPayload,
+        defaultSettings: DEFAULT_SETTINGS,
+      });
+      if (!pushed.ok) {
+        setBackupStatus("宿主推送失败");
+        await showCustomAlert(
+          `推送到宿主失败：${describeHostSyncFailure(pushed.failure)}${pushed.detail ? `\n\n${pushed.detail}` : ""}\n\n本机数据未被修改。`,
+        );
+        return;
+      }
+
+      setBackupStatus("宿主同步完成");
+      await showCustomAlert(
+        `✅ 已用本机数据覆盖宿主快照。\n宿主设置已保留，未写入本机 API Key。\n推送前安全快照：${safetyName}`,
+      );
+    } catch (err: unknown) {
+      setBackupStatus(`宿主推送失败: ${getErrorMessage(err)}`);
+      await showCustomAlert(`推送到宿主失败: ${getErrorMessage(err)}`);
+    }
+  }, [settings, showCustomAlert, showCustomConfirm, setBackupStatus, dataMigrationService]);
+
   const handleSilentDailyBackup = useCallback(async (characters: any[]) => {
     void characters;
     const lastBackup = settings.lastBackupTime || 0;
@@ -603,6 +636,8 @@ export const useBackupRestore = ({
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    handlePullFromHost,
+    handlePushToHost,
     handleSilentDailyBackup,
   };
 };

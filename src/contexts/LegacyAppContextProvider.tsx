@@ -236,6 +236,21 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     return result;
   }, [settingsHook, charState.setCharacters, chatState.setSessionViews, chatState.refreshSessionStatistics]);
 
+  // Wrap host snapshot pull to inject state dispatch actions
+  const wrappedHandlePullFromHost = React.useCallback(async () => {
+    const result = await settingsHook.handlePullFromHost(
+      charState.setCharacters,
+      chatState.setSessionViews,
+    );
+    await chatState.refreshSessionStatistics();
+    return result;
+  }, [settingsHook, charState.setCharacters, chatState.setSessionViews, chatState.refreshSessionStatistics]);
+
+  // Wrap host snapshot push (settings 由 hook 内部读取，无需注入额外参数)
+  const wrappedHandlePushToHost = React.useCallback(async () => {
+    return settingsHook.handlePushToHost();
+  }, [settingsHook]);
+
   // Wrap SillyTavern chat history import
   const wrappedHandleImportSillyChatHistory = React.useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const result = await settingsHook.handleImportSillyChatHistory(
@@ -306,6 +321,8 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     handleExportLocalDataBackup: wrappedHandleExportLocalDataBackup,
     handleImportLocalDataBackup: wrappedHandleImportLocalDataBackup,
     handleImportSillyChatHistory: wrappedHandleImportSillyChatHistory,
+    handlePullFromHost: wrappedHandlePullFromHost,
+    handlePushToHost: wrappedHandlePushToHost,
     handleSilentDailyBackup: wrappedHandleSilentDailyBackup,
 
     // 封装内核服务访问，代替组件内直接 import globalKernel
@@ -327,6 +344,8 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     wrappedHandleExportLocalDataBackup,
     wrappedHandleImportLocalDataBackup,
     wrappedHandleImportSillyChatHistory,
+    wrappedHandlePullFromHost,
+    wrappedHandlePushToHost,
     wrappedHandleSilentDailyBackup,
     stableGetKernelService,
     runningPlugin,

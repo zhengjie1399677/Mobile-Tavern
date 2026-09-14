@@ -158,12 +158,21 @@ export function createHostProtocolRouter(kernel: IKernel, config: HeadlessConfig
   });
 
   // POST /api/host/backup/import: 导入标准统一备份
+  // preserveSettings=true 时保留宿主自己的设置（跨设备同步必须带）：快照是脱敏的，
+  // 否则一次推送就会把宿主的 API Key 清空。
   router.post("/backup/import", async (req: Request, res: Response) => {
     try {
       const payloadString = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
-      await importBackupJson(kernel, payloadString);
+      const preserveFlag = String(req.query.preserveSettings ?? "").toLowerCase();
+      const preserveLocalSettings =
+        preserveFlag === "1" || preserveFlag === "true" || preserveFlag === "yes";
+      await importBackupJson(kernel, payloadString, { preserveLocalSettings });
       await savePersistedSnapshot(kernel, config.absoluteDataDir);
-      res.json({ success: true, message: "Backup successfully imported and snapshot updated" });
+      res.json({
+        success: true,
+        preservedLocalSettings: preserveLocalSettings,
+        message: "Backup successfully imported and snapshot updated",
+      });
     } catch (err) {
       logger.error("Failed to import backup", err);
       res.status(500).json({ error: String(err) });

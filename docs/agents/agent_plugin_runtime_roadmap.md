@@ -587,6 +587,20 @@ Renderer、Theme Token 和稳定组件描述，使生成结果能够跨版本验
   这些属于 §11.6 立项范围，需先定义 `shared/` Host Protocol，不得在本阶段顺带引入。
 - 手机端仍然是嵌入模式：不是宿主进程，也不能作为宿主运行（后台 JS 运行时会被系统暂停）。
 
+**当前落地状态（2026-09-14，Stage 1 覆盖式快照同步）**：
+
+- 新增 `src/application/useCases/backupPayloadRestore.ts`：备份文本的不可信边界收口（解密、签名校验、结构校验、逐项清洗、默认设置回落）。
+  本地文件导入与宿主拉取共用同一入口，避免"一处收紧了、另一处还松着"。
+- 新增 `src/application/useCases/hostSnapshotSync.ts`：覆盖式同步编排。**同步不是合并，后写者生效**；
+  界面必须明示该语义，覆盖前二次确认并自动留存安全快照。
+- 设置不跨设备覆盖：拉取时接收端（手机）保留自己的 `settings`；推送时由宿主经
+  `POST /api/host/backup/import?preserveSettings=true` 保留自己的 `settings`。
+  这条约束必须由**接收端**执行 —— 备份导出整体脱敏（apiKey 为空），任何"由发送端携带接收端设置"的写法
+  都会清空接收端凭据；该缺陷由 `tests/vitest/hostSnapshotE2E.test.ts` 的真实宿主用例守住。
+- 这是 Host Protocol 的第一处向后兼容扩展：不带参数时行为与既有导入完全一致。
+- 手机端设置界面在「记忆与数据 → 备份」下新增宿主同步卡片；未配置远程宿主时引导前往「宿主与互联」。
+- 仍未实现：冲突合并、增量同步、TLS、配对与凭据轮换、远程会话。当前同步仅为"手工触发的整体覆盖"。
+
 ### 11.5 稳定 Host Protocol 与 AI 生成 Adapter
 
 AI 可以根据外部软件的 HTTP、WebSocket、MCP 或专有协议即时生成 Connector Adapter，但不能为每次连接

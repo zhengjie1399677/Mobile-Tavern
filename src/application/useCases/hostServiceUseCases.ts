@@ -167,3 +167,192 @@ export async function testHostConnection(
     clearTimeout(timer);
   }
 }
+
+/**
+ * 备份传输比探活慢得多：附件以 base64 内联，单个备份可达数十 MB，
+ * 因此给独立的长超时，避免「连接正常但传输被 8 秒掐断」。
+ */
+const DEFAULT_TRANSFER_TIMEOUT_MS = 60_000;
+
+export type HostSnapshotFailure =
+  | "invalid_url"
+  | "unauthorized"
+  | "unreachable"
+  | "payload_too_large"
+  | "rejected"
+  | "empty_response";
+
+export interface HostSnapshotTransferResult {
+  readonly ok: boolean;
+  readonly latencyMs: number;
+  readonly failure?: HostSnapshotFailure;
+  readonly statusCode?: number;
+  /** 宿主返回的错误说明，用于可解释提示。 */
+  readonly detail?: string;
+  /** 宿主导出的备份原文（仅拉取成功时）。 */
+  readonly text?: string;
+  /** 传输体量（字符数），用于提示与诊断。 */
+  readonly bytes?: number;
+}
+
+function buildHostHeaders(accessKey: string, contentType?: string): Record<string, string> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (contentType) headers["Content-Type"] = contentType;
+  const key = (accessKey ?? "").trim();
+  if (key) headers.Authorization = `Bearer ${key}`;
+  return headers;
+}
+
+function classifyHostStatus(status: number): HostSnapshotFailure {
+  if (status === 401 || status === 403) return "unauthorized";
+  // 宿主 express.json 上限 50mb；超限时给出可区分的失败原因，而不是笼统「失败」。
+  if (status === 413) return "payload_too_large";
+  return "rejected";
+}
+
+/** 读取宿主错误响应里的说明文本；非 JSON 时回退到原文片段。 */
+async function readHostErrorDetail(res: Response): Promise<string | undefined> {
+  try {
+    const raw = await res.text();
+    if (!raw) return undefined;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        const error = (parsed as Record<string, unknown>).error;
+        if (typeof error === "string") return error;
+        if (error && typeof error === "object") {
+          const message = (error as Record<string, unknown>).message;
+          if (typeof message === "string") return message;
+        }
+      }
+    } catch {
+      // 非 JSON 响应直接返回原文片段。
+    }
+    return raw.slice(0, 300);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 拉取宿主快照原文（`POST /api/host/backup/export`）。
+ *
+ * 只负责拿到宿主当前的统一备份文本，不做解析、不落盘；解析与「保留本机设置」
+ * 由 hostSnapshotSync 编排层处理，保证「拿到什么」与「怎么用」分开。
+ */
+export async function exportHostSnapshot(
+  target: HostConnectionTarget,
+  deps?: { fetchImpl?: typeof fetch; timeoutMs?: number },
+): Promise<HostSnapshotTransferResult> {
+  const startedAt = Date.now();
+  const baseUrl = normalizeHostBaseUrl(target.baseUrl);
+  if (!baseUrl) return { ok: false, latencyMs: 0, failure: "invalid_url" };
+
+  const fetchImpl = deps?.fetchImpl ?? (await resolveHostTransportFetch());
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    deps?.timeoutMs ?? DEFAULT_TRANSFER_TIMEOUT_MS,
+  );
+  const elapsed = () => Date.now() - startedAt;
+
+  try {
+    const res = await fetchImpl(`${baseUrl}/api/host/backup/export`, {
+      method: "POST",
+      headers: buildHostHeaders(target.accessKey),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        latencyMs: elapsed(),
+        statusCode: res.status,
+        failure: classifyHostStatus(res.status),
+        detail: await readHostErrorDetail(res),
+      };
+    }
+    const text = await res.text();
+    if (!text.trim()) {
+      return {
+        ok: false,
+        latencyMs: elapsed(),
+        statusCode: res.status,
+        failure: "empty_response",
+      };
+    }
+    return {
+      ok: true,
+      latencyMs: elapsed(),
+      statusCode: res.status,
+      text,
+      bytes: text.length,
+    };
+  } catch {
+    return { ok: false, latencyMs: elapsed(), failure: "unreachable" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * 把统一备份文本推送给宿主（`POST /api/host/backup/import`）。
+ *
+ * 宿主侧会整体覆盖其快照（replaceFromBackup + 落盘）。`preserveReceiverSettings`
+ * 默认为 true，对应宿主的 `?preserveSettings=true`：跨设备同步时必须开启 ——
+ * 宿主导出的快照是脱敏的，任何"由发送端携带 settings"的写法都会抹掉接收端凭据。
+ */
+export async function importSnapshotToHost(
+  target: HostConnectionTarget,
+  payloadText: string,
+  deps?: {
+    fetchImpl?: typeof fetch;
+    timeoutMs?: number;
+    /** 是否要求宿主保留自己的设置；默认 true（安全默认值）。 */
+    preserveReceiverSettings?: boolean;
+  },
+): Promise<HostSnapshotTransferResult> {
+  const startedAt = Date.now();
+  const baseUrl = normalizeHostBaseUrl(target.baseUrl);
+  if (!baseUrl) return { ok: false, latencyMs: 0, failure: "invalid_url" };
+
+  const preserveReceiverSettings = deps?.preserveReceiverSettings !== false;
+  const importUrl = preserveReceiverSettings
+    ? `${baseUrl}/api/host/backup/import?preserveSettings=true`
+    : `${baseUrl}/api/host/backup/import`;
+
+  const fetchImpl = deps?.fetchImpl ?? (await resolveHostTransportFetch());
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    deps?.timeoutMs ?? DEFAULT_TRANSFER_TIMEOUT_MS,
+  );
+  const elapsed = () => Date.now() - startedAt;
+
+  try {
+    const res = await fetchImpl(importUrl, {
+      method: "POST",
+      headers: buildHostHeaders(target.accessKey, "application/json"),
+      body: payloadText,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        latencyMs: elapsed(),
+        statusCode: res.status,
+        failure: classifyHostStatus(res.status),
+        detail: await readHostErrorDetail(res),
+      };
+    }
+    return {
+      ok: true,
+      latencyMs: elapsed(),
+      statusCode: res.status,
+      bytes: payloadText.length,
+    };
+  } catch {
+    return { ok: false, latencyMs: elapsed(), failure: "unreachable" };
+  } finally {
+    clearTimeout(timer);
+  }
+}

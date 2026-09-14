@@ -76,15 +76,34 @@ export async function savePersistedSnapshot(
   return snapshotPath;
 }
 
-/** 从备份 JSON 字符串直接导入全量数据。 */
+/**
+ * 从备份 JSON 字符串直接导入全量数据。
+ *
+ * `preserveLocalSettings`：跨设备同步时必须开启。快照导出是脱敏的（apiKey 等被清空），
+ * 因此"用发送端快照里的 settings 回写"会把接收端自己的凭据抹掉；接收端的设置只能由
+ * 接收端自己保留 —— 这个判断只能在宿主侧做，客户端无从知道宿主的真实凭据（也不该知道）。
+ */
 export async function importBackupJson(
   kernel: IKernel,
   backupJson: string,
+  options?: { preserveLocalSettings?: boolean },
 ): Promise<void> {
   const payload = JSON.parse(backupJson) as UnifiedBackupPayload;
   const migrationService = kernel.getService<DataMigrationServiceTyped>(
     KernelServices.DataMigration,
   );
+
+  if (options?.preserveLocalSettings) {
+    const settingsService = kernel.getService<ISettingsService<UserSettings>>(
+      KernelServices.Settings,
+    );
+    const currentSettings = await settingsService.getStoredSettings();
+    if (currentSettings) {
+      payload.settings = currentSettings;
+      logger.info("Import request asked to preserve local settings; kept host settings.");
+    }
+  }
+
   await migrationService.replaceFromBackup(payload);
   logger.info("Imported backup payload into headless kernel.");
 }

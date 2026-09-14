@@ -167,6 +167,8 @@ export default function SettingsTab() {
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    handlePullFromHost,
+    handlePushToHost,
     getKernelService,
   } = useUnifiedApp((state) => ({
     settings: state.settings,
@@ -196,6 +198,8 @@ export default function SettingsTab() {
     handleExportLocalDataBackup: state.handleExportLocalDataBackup,
     handleImportLocalDataBackup: state.handleImportLocalDataBackup,
     handleImportSillyChatHistory: state.handleImportSillyChatHistory,
+    handlePullFromHost: state.handlePullFromHost,
+    handlePushToHost: state.handlePushToHost,
     getKernelService: state.getKernelService,
   }));
 
@@ -314,6 +318,9 @@ export default function SettingsTab() {
             handleExportLocalDataBackup={handleExportLocalDataBackup}
             handleImportLocalDataBackup={handleImportLocalDataBackup}
             handleImportSillyChatHistory={handleImportSillyChatHistory}
+            handlePullFromHost={handlePullFromHost}
+            handlePushToHost={handlePushToHost}
+            onNavigateToHost={() => setActiveSection("host")}
           />
         );
       case "host":
