@@ -17,14 +17,20 @@ export function createHeadlessServer(instance: HeadlessHostInstance): express.Ex
   const app = express();
   const { config, kernel } = instance;
 
-  // 1. 全局 CORS 中间件（供所有外部 Web 客户端直连）
+  // 1. 全局 CORS 中间件：仅在 HEADLESS_CORS_ORIGINS 明确列出该 Origin 时才回显。
+  // 不再使用 "*"：跨源响应一旦被别人读到，配合无鉴权即等于数据泄露。
+  // 非浏览器客户端（APK / curl / SDK）不受 CORS 影响，无需白名单。
   app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Session-Id, X-Requested-With",
-    );
+    const origin = req.headers.origin;
+    if (typeof origin === "string" && config.corsOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, X-Session-Id, X-Requested-With",
+      );
+    }
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
       return;
@@ -92,6 +98,15 @@ export async function startHeadlessServer(
 ): Promise<HeadlessServerHandle> {
   const app = createHeadlessServer(instance);
   const { port, host } = instance.config;
+
+  if (!instance.config.apiKey) {
+    logger.warn(
+      "未配置 HEADLESS_API_KEY：本实例没有任何鉴权，仅因监听回环地址而未被外部访问。请勿把 HEADLESS_HOST 改为对外地址。",
+    );
+  }
+  if (instance.config.corsOrigins.length === 0) {
+    logger.info("未配置 HEADLESS_CORS_ORIGINS：不回显任何 CORS 头（APK / curl / SDK 不受影响）。");
+  }
 
   return new Promise((resolve, reject) => {
     try {

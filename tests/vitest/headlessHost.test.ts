@@ -20,6 +20,7 @@ describe("Headless Host & API Gateway Integration Tests", () => {
 
   interface TestResponse<T = unknown> {
     status: number;
+    headers: http.IncomingHttpHeaders;
     json(): Promise<T>;
     text(): Promise<string>;
   }
@@ -57,6 +58,7 @@ describe("Headless Host & API Gateway Integration Tests", () => {
             const bodyStr = Buffer.concat(chunks).toString("utf8");
             resolve({
               status: res.statusCode || 0,
+              headers: res.headers,
               text: async () => bodyStr,
               json: async () => (bodyStr ? (JSON.parse(bodyStr) as T) : ({} as T)),
             });
@@ -114,6 +116,12 @@ describe("Headless Host & API Gateway Integration Tests", () => {
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error.code).toBe(401);
+  });
+
+  it("未加入白名单的 Origin 不回显 CORS 头", async () => {
+    const res = await request("/health", { headers: { Origin: "https://evil.example" } });
+    expect(res.status).toBe(200);
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
   it("should allow authorized requests with Bearer token", async () => {
@@ -259,5 +267,42 @@ describe("Headless Host & API Gateway Integration Tests", () => {
     expect(fs.existsSync(snapshotPath)).toBe(true);
     const snapshotContent = fs.readFileSync(snapshotPath, "utf8");
     expect(snapshotContent).toContain("char_headless_test_01");
+  });
+});
+
+describe("Headless 默认安全闸门", () => {
+  it("未显式配置时只监听回环地址", () => {
+    const config = parseHeadlessConfig({});
+    expect(config.host).toBe("127.0.0.1");
+    expect(config.corsOrigins).toEqual([]);
+  });
+
+  it("监听非回环地址且未配置 HEADLESS_API_KEY 时拒绝启动", () => {
+    expect(() => parseHeadlessConfig({ HEADLESS_HOST: "0.0.0.0" })).toThrow(/拒绝启动/);
+    expect(() => parseHeadlessConfig({ HEADLESS_HOST: "192.168.1.10" })).toThrow(/HEADLESS_API_KEY/);
+  });
+
+  it("监听对外地址但配置了 HEADLESS_API_KEY 时允许启动", () => {
+    const config = parseHeadlessConfig({
+      HEADLESS_HOST: "0.0.0.0",
+      HEADLESS_API_KEY: "a-strong-enough-token-1234567890",
+    });
+    expect(config.host).toBe("0.0.0.0");
+    expect(config.apiKey).toBe("a-strong-enough-token-1234567890");
+  });
+
+  it("回环写法都视为本机（localhost / ::1）", () => {
+    expect(parseHeadlessConfig({ HEADLESS_HOST: "localhost" }).host).toBe("localhost");
+    expect(parseHeadlessConfig({ HEADLESS_HOST: "::1" }).host).toBe("::1");
+  });
+
+  it("HEADLESS_CORS_ORIGINS 解析为去空白白名单", () => {
+    const config = parseHeadlessConfig({
+      HEADLESS_CORS_ORIGINS: "http://localhost:5173, https://tavern.example.com ,",
+    });
+    expect(config.corsOrigins).toEqual([
+      "http://localhost:5173",
+      "https://tavern.example.com",
+    ]);
   });
 });
