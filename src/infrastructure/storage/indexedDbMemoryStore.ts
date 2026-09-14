@@ -5,6 +5,7 @@ import type {
   TemporalFact,
 } from "../../application/services/memory/types";
 import { bindTransactionAbort, enqueueWrite } from "./idbQueue";
+import { guardSourceMessages } from "./memorySourceGuard";
 import { getDB } from "./idbConnection";
 import {
   advanceSessionContentRevision,
@@ -665,17 +666,14 @@ export async function upsertFragment(
         request.onerror = () => reject(request.error);
       };
       if (options?.requireSourceMessages) {
-        let pending = fragment.sourceMessageIds.length;
-        let valid = pending > 0;
-        for (const messageId of fragment.sourceMessageIds) {
-          const request = transaction.objectStore("messages").get(messageId);
-          request.onsuccess = () => {
-            valid &&= request.result?.sessionId === fragment.sessionId;
-            pending--;
-            if (pending === 0 && valid) writeFragment();
-          };
-          request.onerror = () => reject(request.error);
-        }
+        // 来源校验：来源消息已被删除/换会话时跳过写入（删除竞态的正常结果，记 warn 留痕）；
+        // 但调用方要求校验却未绑定任何来源属缺陷，会显式 reject。
+        guardSourceMessages(transaction, {
+          ownerKind: "Fragment",
+          ownerId: fragment.id,
+          sessionId: fragment.sessionId,
+          sourceMessageIds: fragment.sourceMessageIds,
+        }, writeFragment, reject);
       } else {
         writeFragment();
       }

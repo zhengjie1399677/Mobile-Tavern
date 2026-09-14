@@ -1,5 +1,6 @@
 import type { TemporalFact, TemporalFactStatus } from "../../../application/services/memory/types";
 import { bindTransactionAbort, enqueueWrite } from "../idbQueue";
+import { guardSourceMessages } from "../memorySourceGuard";
 import { getDB } from "../idbConnection";
 
 // === Memory Facts Store CRUD (v10 实体关系图与时态事实) ===
@@ -55,11 +56,14 @@ export async function evolveTemporalFact(
         request.onerror = () => reject(request.error);
       };
       if (options?.requireSourceMessage) {
-        const sourceRequest = transaction.objectStore("messages").get(fact.sourceMessageId);
-        sourceRequest.onsuccess = () => {
-          if (sourceRequest.result?.sessionId === fact.sessionId) writeFact();
-        };
-        sourceRequest.onerror = () => reject(sourceRequest.error);
+        // 来源校验：来源消息已被删除/换会话时跳过写入（删除竞态的正常结果，记 warn 留痕），
+        // 但此时 resolve 的 `changed: false` 是"确实没变化"而非"写失败了"。
+        guardSourceMessages(transaction, {
+          ownerKind: "TemporalFact",
+          ownerId: fact.id,
+          sessionId: fact.sessionId,
+          sourceMessageIds: fact.sourceMessageId ? [fact.sourceMessageId] : [],
+        }, writeFact, reject);
       } else {
         writeFact();
       }
