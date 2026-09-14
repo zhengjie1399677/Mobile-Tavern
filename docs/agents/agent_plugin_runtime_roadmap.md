@@ -601,6 +601,32 @@ Renderer、Theme Token 和稳定组件描述，使生成结果能够跨版本验
 - 手机端设置界面在「记忆与数据 → 备份」下新增宿主同步卡片；未配置远程宿主时引导前往「宿主与互联」。
 - 仍未实现：冲突合并、增量同步、TLS、配对与凭据轮换、远程会话。当前同步仅为"手工触发的整体覆盖"。
 
+**当前落地状态（2026-09-14，Stage 2 合并式同步）**：
+
+- 新增 `src/domain/sync/tombstones.ts` 与 `sync_tombstones` Store（DB v16 → v17）：三条删除路径
+  （会话级联、单条消息、重发分支替换）在同一个 IndexedDB 事务内写入墓碑，避免出现"记录已删、
+  墓碑未写"的不可传播窗口。备份信封 `UnifiedBackupPayload` 升级到 v7 承载墓碑；v6 及更早备份
+  读取为空集合，语义 = 未记录删除，与既有导入行为一致。
+- 新增 `src/application/useCases/backupMerge.ts` 合并纯函数，三条不变量：①收敛 —— 裁决规则不依赖
+  "谁是本地"，交换参数结果完全相同；②删除可传播 —— 墓碑命中的实体一律移除，被复活（记录时间晚于
+  删除时间）的实体同时剔除墓碑；③纯函数 —— 不读写存储、不发网络请求，界面可先预览再落库。
+  `settings` 永远取接收端一侧；会话被删除时其记忆分轨与 Agent Journal 一并移除（宿主校验孤儿会拒绝
+  整次导入）；消息按 id 求并集后按 (timestamp, id) 重排轮次。
+- 新增合并写入通道 `src/infrastructure/storage/repositories/mergeRepository.ts`：落库不再清空整个
+  数据库，只按差集删除"合并结果里已不存在"的实体；墓碑集合作为权威整体覆盖本地。
+  `DataMigrationService.mergeFromBackup` 与 `replaceFromBackup` 共用附件反向引用校验与失败回滚。
+- Host Protocol 第二处向后兼容扩展：`POST /api/host/backup/import?mode=merge`。合并必须在**宿主侧**
+  完成 —— 宿主快照导出是脱敏的，只有宿主读得到自己未脱敏的设置当 local；合并模式无条件保留宿主设置，
+  不再依赖 `?preserveSettings`。宿主在合并前于网络边界校验墓碑结构，异常直接拒绝。
+- 同步界面：`HostBindingSettings.syncMode`（**默认合并；"未设置"同样解释为合并，绝不回落成覆盖**）
+  与 `syncPreviewEnabled`（默认开启合并预览；关闭后直接执行但仍留存安全快照；覆盖模式不受该开关
+  影响，永远二次确认）。合并结果与现状一致时短路提示"无需同步"。推送预览用探测快照在客户端复刻
+  宿主的同一计算，预览信封只取统计、绝不回发（其 settings 是本机值）。
+- 真实宿主端到端用例（`tests/vitest/hostSnapshotE2E.test.ts`）钉住合并三性质：宿主独有内容不丢、
+  对端新增内容并入、对端墓碑在宿主生效，且宿主 API Key 全程未被同步改动。
+- 仍未实现：增量传输（每次同步仍传整个备份信封，附件 base64 内联）、自动/定时同步、加密快照同步、
+  TLS、配对与凭据轮换、协议版本化（`shared/` Host Protocol）、远程会话 → §11.6 立项。
+
 ### 11.5 稳定 Host Protocol 与 AI 生成 Adapter
 
 AI 可以根据外部软件的 HTTP、WebSocket、MCP 或专有协议即时生成 Connector Adapter，但不能为每次连接
