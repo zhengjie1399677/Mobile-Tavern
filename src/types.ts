@@ -443,6 +443,31 @@ export interface UserSettings {
   themeMediaEnabled?: boolean; // 用户明确允许主题播放本地音视频；默认关闭
   enableFloatingCharacter?: boolean; // 启用应用内悬浮角色助手（显示当前角色立绘 + 情绪 + 聊天气泡）
   ambientGlowIntensity?: number; // 背景流光与毛玻璃强度 (0~1，0 为完全纯色模式)
+  hostBinding?: HostBindingSettings; // 无头宿主监听绑定与远程连接配置
+}
+
+/**
+ * 无头宿主（Headless Host）相关的本地配置。
+ *
+ * 定位：一台设备既可「本机作为宿主」对外提供能力，也可「连接到别人的宿主」。
+ * 两组字段分别对应这两种角色，界面按角色分区展示。
+ *
+ * 安全约束：非回环监听地址必须配合 `accessKey`，否则宿主进程会拒绝启动
+ * （判断逻辑与 `headless/config.ts` 共用 `src/utils/hostBindingPolicy.ts`）。
+ */
+export interface HostBindingSettings {
+  /** 本机作为宿主时的绑定地址；默认仅回环，`0.0.0.0` 表示全部网卡。 */
+  bindHost: string;
+  /** 本机作为宿主时的监听端口。 */
+  bindPort: number;
+  /** 本机作为宿主时对外要求的 Bearer 凭据；非回环监听时必填。 */
+  accessKey: string;
+  /** CORS 白名单，逗号分隔；留空表示不回显任何跨源头（非浏览器客户端不受影响）。 */
+  corsOrigins: string;
+  /** 远程模式：本机 UI 要连接的宿主地址，允许省略协议前缀。 */
+  remoteUrl: string;
+  /** 远程模式：目标宿主的 Bearer 凭据。 */
+  remoteAccessKey: string;
 }
 
 export interface ImageGenApiConfig {

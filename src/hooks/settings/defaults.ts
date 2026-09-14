@@ -6,6 +6,7 @@ import {
 } from "../../defaults/promptTemplates";
 import { createBasicPromptComposition } from "../../domain/prompt-composition";
 import { createPromptPresetPlan, toPresetPromptConfig } from "./presetPromptConfig";
+import { DEFAULT_HEADLESS_PORT } from "../../utils/hostBindingPolicy";
 
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_TABLE_MEMORY_PROMPT };
 
@@ -518,4 +519,13 @@ export const DEFAULT_SETTINGS: UserSettings = {
   lastBackupTime: 0,
   enableFloatingCharacter: false,
   ambientGlowIntensity: 0.6,
+  hostBinding: {
+    // 默认仅监听回环：与 headless 启动闸门一致，未知状态下不把能力暴露到网络上。
+    bindHost: "127.0.0.1",
+    bindPort: DEFAULT_HEADLESS_PORT,
+    accessKey: "",
+    corsOrigins: "",
+    remoteUrl: "",
+    remoteAccessKey: "",
+  },
 };

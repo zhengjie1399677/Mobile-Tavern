@@ -11,6 +11,7 @@ import {
   Palette,
   Puzzle,
   RefreshCw,
+  Server,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -32,6 +33,7 @@ import ThemeConfigSection from "./ThemeConfigSection";
 import PersonaConfigSection from "./PersonaConfigSection";
 const FeaturesSection = React.lazy(() => import("./FeaturesSection"));
 import MemoryStorageSection from "./MemoryStorageSection";
+import HostBindingSection from "./sections/HostBindingSection";
 import SystemReportSection from "./sections/SystemReportSection";
 import PluginManagerSection from "../../components/plugins/PluginManagerSection";
 import ToolPluginManagerSection from "../../components/plugins/ToolPluginManagerSection";
@@ -48,6 +50,7 @@ type SettingsSectionId =
   | "appearance"
   | "persona"
   | "memory"
+  | "host"
   | "composer"
   | "plugins"
   | "advanced"
@@ -91,6 +94,13 @@ const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     titleKey: "settings_hub.memory_title",
     descriptionKey: "settings_hub.memory_desc",
     icon: Database,
+  },
+  {
+    id: "host",
+    titleKey: "settings_hub.host_title",
+    descriptionKey: "settings_hub.host_desc",
+    icon: Server,
+    experimental: true,
   },
   {
     id: "composer",
@@ -304,6 +314,15 @@ export default function SettingsTab() {
             handleExportLocalDataBackup={handleExportLocalDataBackup}
             handleImportLocalDataBackup={handleImportLocalDataBackup}
             handleImportSillyChatHistory={handleImportSillyChatHistory}
+          />
+        );
+      case "host":
+        return (
+          <HostBindingSection
+            settings={settings}
+            updateSettings={updateSettings}
+            showCustomConfirm={showCustomConfirm}
+            showCustomAlert={showCustomAlert}
           />
         );
       case "composer":

@@ -1,5 +1,13 @@
 import { z } from "zod";
 import path from "node:path";
+// 与设置界面共用同一套监听策略：界面里的风险提示和这里的启动闸门若各写一份，必然漂移。
+import {
+  DEFAULT_HEADLESS_PORT,
+  LOOPBACK_HOSTS,
+  isLoopbackHost,
+} from "../src/utils/hostBindingPolicy";
+
+export { isLoopbackHost };
 
 const optionalString = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
@@ -8,10 +16,10 @@ const optionalString = z.preprocess(
 
 const headlessEnvironmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  HEADLESS_PORT: z.coerce.number().int().min(1).max(65_535).default(18080),
+  HEADLESS_PORT: z.coerce.number().int().min(1).max(65_535).default(DEFAULT_HEADLESS_PORT),
   // 默认只监听回环地址。历史上默认 0.0.0.0，配合"未配置 apiKey 即无鉴权"会让同网段任意主机
   // 直接读写角色/会话并以本机凭据调用 LLM；需要对外提供时必须显式改 host 并配置 HEADLESS_API_KEY。
-  HEADLESS_HOST: z.string().min(1).default("127.0.0.1"),
+  HEADLESS_HOST: z.string().min(1).default(LOOPBACK_HOSTS[0]),
   HEADLESS_API_KEY: optionalString,
   HEADLESS_CORS_ORIGINS: optionalString,
   HEADLESS_DATA_DIR: z.string().min(1).default("./data/headless"),
@@ -35,13 +43,6 @@ export interface HeadlessConfig {
   readonly llmBaseUrl?: string;
   readonly llmApiKey?: string;
   readonly llmModel?: string;
-}
-
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
-
-/** 判断监听地址是否只对本机可见。 */
-export function isLoopbackHost(host: string): boolean {
-  return LOOPBACK_HOSTS.has(host.trim().toLowerCase());
 }
 
 export function parseHeadlessConfig(

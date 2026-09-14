@@ -346,6 +346,11 @@ export const useSettingsLoader = ({
               ...(storedSet.imageGenApi || {}),
             },
             enableFloatingCharacter: storedSet.enableFloatingCharacter ?? DEFAULT_SETTINGS.enableFloatingCharacter,
+            hostBinding: {
+              // 逐字段合并：旧版本没有 hostBinding，缺字段一律回落到默认值。
+              ...(DEFAULT_SETTINGS.hostBinding ?? {}),
+              ...(storedSet.hostBinding ?? {}),
+            },
           } as UserSettings;
 
           if (externalPreset) {
