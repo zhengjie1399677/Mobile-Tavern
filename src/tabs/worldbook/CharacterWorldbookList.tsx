@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { ArrowRight, User, BookOpen } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { CharacterCard, CustomWorldbook } from "../../types";
@@ -21,52 +21,136 @@ export interface CharacterWorldbookListProps {
  * 1. 混合自定义独立设定集列表与角色专属列表在同一个列表中
  * 2. 独立设定集支持长按删除，界面上无任何垃圾桶等额外按钮，保持页面布局不变
  */
+/**
+ * 长按手势。
+ *
+ * 必须留在模块作用域：历史上它被定义在组件体内、又在 `map()` 回调里逐个调用，
+ * 导致 Hook 调用次数随列表长度变化。新建或删除任意一个自定义设定集都会触发
+ * "Rendered more hooks than during the previous render"，且列表增删后长按的
+ * 激活标记会错位到相邻卡片（可能删除错误的条目）。
+ */
+function useLongPress(callback: () => void, ms = 600) {
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressActive = useRef(false);
+
+  // 卸载时清掉未触发的长按计时器，避免回调落到已卸载的卡片上。
+  useEffect(
+    () => () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const start = (_event: React.MouseEvent | React.TouchEvent) => {
+    // 避免二次触发
+    isLongPressActive.current = false;
+    timerRef.current = setTimeout(() => {
+      isLongPressActive.current = true;
+      callback();
+    }, ms);
+  };
+
+  const stop = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (isLongPressActive.current) {
+      // 延迟重置，确保浏览器合成的 click 事件可以被拦截
+      setTimeout(() => {
+        isLongPressActive.current = false;
+      }, 100);
+    }
+  };
+
+  return {
+    onMouseDown: start,
+    onMouseUp: stop,
+    onMouseLeave: stop,
+    onTouchStart: start,
+    onTouchEnd: stop,
+    isLongPressActive,
+  };
+}
+
+interface CustomWorldbookCardProps {
+  readonly worldbook: CustomWorldbook;
+  readonly entryCount: number;
+  readonly onSelect: (id: string) => void;
+  readonly onRequestDelete: (id: string, name: string) => void;
+}
+
+/** 单个自定义设定集卡片：长按删除，界面上不出现垃圾桶按钮。 */
+function CustomWorldbookCard({
+  worldbook,
+  entryCount,
+  onSelect,
+  onRequestDelete,
+}: CustomWorldbookCardProps) {
+  const { t } = useTranslation();
+  // 每张卡片各持一份长按状态，Hook 数量与列表长度解耦。
+  const longPressHandlers = useLongPress(() => {
+    onRequestDelete(worldbook.id, worldbook.name);
+  }, 600);
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (longPressHandlers.isLongPressActive.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onSelect(worldbook.id);
+  };
+
+  return (
+    <div
+      onMouseDown={longPressHandlers.onMouseDown}
+      onMouseUp={longPressHandlers.onMouseUp}
+      onMouseLeave={longPressHandlers.onMouseLeave}
+      onTouchStart={longPressHandlers.onTouchStart}
+      onTouchEnd={longPressHandlers.onTouchEnd}
+      onClick={handleCardClick}
+      className="w-full text-left p-4 rounded-2xl border border-border/80 bg-muted/30 hover:bg-muted/60 hover:border-border transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.99] animate-fadeIn"
+    >
+      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+        <div className="w-10 h-10 rounded-full overflow-hidden border border-border/50 bg-indigo-500/10 flex items-center justify-center shrink-0">
+          <BookOpen className="w-5 h-5 text-indigo-500" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold truncate text-foreground">{worldbook.name}</p>
+          <p className="text-[10px] text-muted-foreground font-light mt-0.5">
+            {t("worldbook.custom_tip")}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 ml-1">
+          <span className="font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm bg-muted-foreground text-background">
+            {entryCount}
+          </span>
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-foreground/50" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CharacterWorldbookList({
   characters,
   customWorldbooks,
   onSelectCharacter,
   onSelectHost,
   onToggleCharacterWorldbookGlobal,
+  onCreateCustomWorldbook,
   onDeleteCustomWorldbook,
 }: CharacterWorldbookListProps) {
   const { t } = useTranslation();
   const customList = Object.values(customWorldbooks || {});
-
-  // 长按自定义 hook
-  const useLongPress = (callback: () => void, ms = 600) => {
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-    const isLongPressActive = useRef(false);
-
-    const start = (e: React.MouseEvent | React.TouchEvent) => {
-      // 避免二次触发
-      isLongPressActive.current = false;
-      timerRef.current = setTimeout(() => {
-        isLongPressActive.current = true;
-        callback();
-      }, ms);
-    };
-
-    const stop = () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-      if (isLongPressActive.current) {
-        // 延迟重置，确保浏览器合成的 click 事件可以被拦截
-        setTimeout(() => {
-          isLongPressActive.current = false;
-        }, 100);
-      }
-    };
-
-    return {
-      onMouseDown: start,
-      onMouseUp: stop,
-      onMouseLeave: stop,
-      onTouchStart: start,
-      onTouchEnd: stop,
-      isLongPressActive,
-    };
-  };
 
   return (
     <div className="space-y-4 animate-fadeIn select-none">
@@ -83,59 +167,15 @@ export default function CharacterWorldbookList({
 
       <div className="grid grid-cols-1 gap-3.5">
         {/* 自定义独立设定集卡片 */}
-        {customList.map((wb) => {
-          const entryCount = wb.entries?.length || 0;
-          
-          const longPressHandlers = useLongPress(() => {
-            onDeleteCustomWorldbook(wb.id, wb.name);
-          }, 600);
-
-          const handleCardClick = (e: React.MouseEvent) => {
-            if (longPressHandlers.isLongPressActive.current) {
-              e.preventDefault();
-              e.stopPropagation();
-              return;
-            }
-            onSelectHost(wb.id);
-          };
-
-          return (
-            <div
-              key={wb.id}
-              onMouseDown={longPressHandlers.onMouseDown}
-              onMouseUp={longPressHandlers.onMouseUp}
-              onMouseLeave={longPressHandlers.onMouseLeave}
-              onTouchStart={longPressHandlers.onTouchStart}
-              onTouchEnd={longPressHandlers.onTouchEnd}
-              onClick={handleCardClick}
-              className="w-full text-left p-4 rounded-2xl border border-border/80 bg-muted/30 hover:bg-muted/60 hover:border-border transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-between group active:scale-[0.99] animate-fadeIn"
-            >
-              <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                <div className="w-10 h-10 rounded-full overflow-hidden border border-border/50 bg-indigo-500/10 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-5 h-5 text-indigo-500" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold truncate text-foreground">
-                    {wb.name}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-light mt-0.5">
-                    {t("worldbook.custom_tip")}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 ml-1">
-                  <span className="font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm bg-muted-foreground text-background">
-                    {entryCount}
-                  </span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-foreground/50" />
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {customList.map((wb) => (
+          <CustomWorldbookCard
+            key={wb.id}
+            worldbook={wb}
+            entryCount={wb.entries?.length || 0}
+            onSelect={onSelectHost}
+            onRequestDelete={onDeleteCustomWorldbook}
+          />
+        ))}
 
         {/* 角色卡片 */}
         {characters.length === 0 && customList.length === 0 ? (
