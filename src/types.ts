@@ -468,6 +468,19 @@ export interface HostBindingSettings {
   remoteUrl: string;
   /** 远程模式：目标宿主的 Bearer 凭据。 */
   remoteAccessKey: string;
+  /**
+   * 跨设备同步语义：`merge` 求并集（默认），`replace` 整体覆盖。
+   *
+   * 默认取合并而不是覆盖：覆盖会抹掉另一端独有的数据，属于需要用户主动选择的破坏性操作。
+   */
+  syncMode?: "merge" | "replace";
+  /**
+   * 同步前是否展示合并预览并二次确认（默认开启）。
+   *
+   * 关闭后走「直接合并」：不再弹确认框，但用户失去在落库前看到「将新增/更新/删除什么」
+   * 的机会，因此归入高级选项。安全快照在任何模式下都会留存。
+   */
+  syncPreviewEnabled?: boolean;
 }
 
 export interface ImageGenApiConfig {

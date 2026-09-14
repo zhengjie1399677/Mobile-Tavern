@@ -527,5 +527,9 @@ export const DEFAULT_SETTINGS: UserSettings = {
     corsOrigins: "",
     remoteUrl: "",
     remoteAccessKey: "",
+    // 跨设备日常同步默认合并：覆盖式会抹掉另一端的独有数据，属于要主动选择的破坏性操作。
+    syncMode: "merge",
+    // 合并预览默认开启：把「这次会新增/更新/删除什么」摊开，是合并结果可信的前提。
+    syncPreviewEnabled: true,
   },
 };

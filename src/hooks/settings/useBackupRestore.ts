@@ -24,6 +24,11 @@ import {
   type SnapshotSyncFailure,
   type SnapshotSyncTarget,
 } from "../../application/useCases/hostSnapshotSync";
+import {
+  mergeBackupPayloads,
+  type BackupMergePlan,
+  type BackupMergeStats,
+} from "../../application/useCases/backupMerge";
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本 Hook 实际使用的方法）。
  * 完整定义见 src-tauri/plugins/android-bridge/guest-js/index.ts。
@@ -76,6 +81,8 @@ function describeVersionNotice(gap: BackupVersionGap): string {
       return "\n\n注意：这是 v4 备份，不包含消息附件；当前数据会先自动导出安全快照。";
     case "legacy_v5":
       return "\n\n注意：这是 v5 备份，不包含 Agent Turn、Provider 决定和工具调用记录；当前数据会先自动导出安全快照。";
+    case "legacy_v6":
+      return "\n\n注意：这是 v6 备份，不包含跨设备删除记录；用它做合并可能让已删除的内容重新出现，建议只用于覆盖式恢复。当前数据会先自动导出安全快照。";
     default:
       return "\n\n恢复前会自动导出当前数据的脱敏安全快照。";
   }
@@ -88,6 +95,82 @@ function resolveHostSyncTarget(settings: UserSettings): SnapshotSyncTarget | nul
   const baseUrl = (binding.remoteUrl || "").trim();
   if (!baseUrl) return null;
   return { baseUrl, accessKey: (binding.remoteAccessKey || "").trim() };
+}
+
+type HostSyncMode = "merge" | "replace";
+
+/**
+ * 同步语义来自设置，缺省为合并。
+ *
+ * 「未设置」不能解释成「沿用旧行为（覆盖）」：覆盖会抹掉另一端独有的数据，
+ * 那会让升级后的第一次同步产生静默数据丢失。缺省必须是更安全的合并。
+ */
+function resolveHostSyncMode(settings: UserSettings): HostSyncMode {
+  return settings.hostBinding?.syncMode === "replace" ? "replace" : "merge";
+}
+
+/** 高级选项：关闭后同步直接执行，不再弹确认框（安全快照仍然留存）。 */
+function isMergePreviewEnabled(settings: UserSettings): boolean {
+  return settings.hostBinding?.syncPreviewEnabled !== false;
+}
+
+/** 合并计划里「新增 + 更新 + 删除」的合计，用于判断本次同步是否真的会改动数据。 */
+function mergeStatsDelta(stats: BackupMergeStats): number {
+  return Object.values(stats).reduce(
+    (sum, collection) => sum + collection.added + collection.updated + collection.removed,
+    0,
+  );
+}
+
+/** 把合并计数渲染成若干行，供确认文案与结果提示共用。 */
+function mergeCountLines(stats: BackupMergeStats): string[] {
+  const sum = (pick: (item: BackupMergeStats[keyof BackupMergeStats]) => number) =>
+    pick(stats.memoryFragments) + pick(stats.memoryFacts) + pick(stats.memoryDictEntries);
+  const fmt = (label: string, item: BackupMergeStats[keyof BackupMergeStats]) =>
+    `${label}：新增 ${item.added} · 更新 ${item.updated} · 删除 ${item.removed}`;
+  return [
+    fmt("会话", stats.sessions),
+    fmt("消息", stats.messages),
+    fmt("角色", stats.characters),
+    fmt("记忆", {
+      added: sum((item) => item.added),
+      updated: sum((item) => item.updated),
+      removed: sum((item) => item.removed),
+      unchanged: sum((item) => item.unchanged),
+    }),
+  ];
+}
+
+/**
+ * 合并预览文案。
+ *
+ * `direction` 决定冲突裁决里 local / remote 该怎么称呼：拉取时 local 是本机，
+ * 推送时 local 是宿主。搞反会把「保留了宿主的版本」说成「保留了本机的版本」。
+ */
+function formatMergePlan(plan: BackupMergePlan, direction: "pull" | "push"): string {
+  const lines = mergeCountLines(plan.stats);
+  if (plan.conflicts.length > 0) {
+    const localName = direction === "pull" ? "本机" : "宿主";
+    const remoteName = direction === "pull" ? "宿主" : "本机";
+    const preview = plan.conflicts
+      .slice(0, 3)
+      .map((conflict) => {
+        const winner = conflict.resolution === "local" ? localName : remoteName;
+        return `「${conflict.title}」保留${winner}版本`;
+      })
+      .join("、");
+    lines.push(
+      `两侧都改动过的会话 ${plan.conflicts.length} 个，按更新时间较晚的一方保留：${preview}${
+        plan.conflicts.length > 3 ? " 等" : ""
+      }`,
+    );
+  }
+  return lines.join("\n");
+}
+
+/** 宿主回传的统计没有冲突明细，只渲染计数行。 */
+function formatMergeCounts(stats: BackupMergeStats): string {
+  return mergeCountLines(stats).join("\n");
 }
 
 /** 同步确认文案里的数据量摘要。 */
@@ -120,9 +203,11 @@ function describeHostSyncFailure(failure?: SnapshotSyncFailure): string {
     case "invalid_sessions":
       return "宿主快照损坏：会话列表非法。";
     case "encrypted_password_required":
-      return "宿主快照已加密，覆盖式同步暂不支持加密快照。";
+      return "宿主快照已加密，跨设备同步暂不支持加密快照。";
     case "decrypt_failed":
       return "宿主快照解密失败。";
+    case "invalid_tombstones":
+      return "宿主快照损坏：跨设备删除记录非法。";
     default:
       return "未知原因。";
   }
@@ -453,10 +538,17 @@ export const useBackupRestore = ({
   }, [showCustomAlert, showCustomConfirm, setBackupStatus, databaseService]);
 
   /**
-   * 用宿主快照覆盖本机数据（覆盖式同步）。
+   * 从宿主拉取数据到本机。语义由设置里的 `syncMode` 决定。
    *
-   * 硬约束：`settings` 保留本机值 —— 否则手机的 API Key / 主题 / 语言会被 PC 的覆盖。
-   * 覆盖前强制二次确认并落地安全快照，确认文案里必须写明方向与双方数据量。
+   * - 合并（默认）：`localPayload` 参与计算，拉回来的是「本机 ∪ 宿主」，两端独有内容都保留；
+   *   落库走 `mergeFromBackup`（不清空 Store，只按差集删除墓碑判定应消失的实体）。
+   * - 覆盖：拉回来的宿主快照整体替换本机数据，落库走 `replaceFromBackup`。
+   *
+   * 两种语义共用的硬约束：`settings` 保留本机值 —— 否则手机的 API Key / 主题 / 语言
+   * 会被 PC 的覆盖。这条由合并算法（只取 local 一侧设置）与覆盖路径的显式赋值共同保证。
+   *
+   * 「关闭合并预览」是高级选项：跳过确认直接执行，但仍然会留存安全快照。覆盖模式不受
+   * 该选项影响 —— 破坏性操作不能因为一个开关就失去二次确认。
    */
   const handlePullFromHost = useCallback(async (
     setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>,
@@ -468,12 +560,22 @@ export const useBackupRestore = ({
       return;
     }
 
-    setBackupStatus("正在读取宿主快照...");
+    const mode = resolveHostSyncMode(settings);
+    const previewEnabled = isMergePreviewEnabled(settings);
+
+    setBackupStatus(
+      mode === "merge" ? "正在读取两端数据并计算合并结果..." : "正在读取宿主快照...",
+    );
     try {
+      // 合并模式下本机信封要参与计算，必须先于拉取取到；覆盖模式下同样用于确认文案。
+      const localPayload = await dataMigrationService.createBackupPayload(settings, false);
+      const localSummary = summarizeBackupPayload(localPayload);
+
       const pulled = await pullSnapshotFromHost({
         target,
         localSettings: settings,
         defaultSettings: DEFAULT_SETTINGS,
+        ...(mode === "merge" ? { localPayload } : {}),
       });
       if (!pulled.ok || !pulled.payload) {
         setBackupStatus("宿主快照读取失败");
@@ -483,15 +585,37 @@ export const useBackupRestore = ({
         return;
       }
 
-      const localPayload = await dataMigrationService.createBackupPayload(settings, false);
       const remoteSummary = pulled.remoteSummary ?? summarizeBackupPayload(pulled.payload);
+      const plan = pulled.mergePlan;
 
-      const ok = await showCustomConfirm(
-        `即将用宿主数据覆盖本机（覆盖式，后写者生效，不做合并）。\n\n宿主：${formatPayloadSummary(remoteSummary)}\n本机：${formatPayloadSummary(summarizeBackupPayload(localPayload))}\n\n本机的角色、会话、记忆与世界书将被宿主内容完整替换；本机设置（含 API Key）会保留。\n是否继续？`,
-      );
-      if (!ok) {
-        setBackupStatus("已取消宿主拉取");
+      // 合并结果与本机现状一致时不必写库：省掉一次全量重写，也不必让用户为「没发生的变化」
+      // 重新加载界面。
+      if (mode === "merge" && plan && mergeStatsDelta(plan.stats) === 0) {
+        setBackupStatus("两端数据已一致，无需同步");
+        await showCustomAlert("合并结果与本机现状完全一致，未改动任何数据。");
         return;
+      }
+
+      const confirmMessage = mode === "merge"
+        ? [
+            "即将把宿主数据与本机数据合并（求并集，两端独有内容都保留）。",
+            "",
+            `本机：${formatPayloadSummary(localSummary)}`,
+            `宿主：${formatPayloadSummary(remoteSummary)}`,
+            ...(plan ? [`合并后：${formatPayloadSummary(plan.mergedSummary)}`] : []),
+            "",
+            ...(plan ? [`本次变更：\n${formatMergePlan(plan, "pull")}`, ""] : []),
+            "本机设置（含 API Key）会保留；执行前会留存安全快照。",
+            "是否继续？",
+          ].join("\n")
+        : `即将用宿主数据覆盖本机（覆盖式，后写者生效，不做合并）。\n\n宿主：${formatPayloadSummary(remoteSummary)}\n本机：${formatPayloadSummary(localSummary)}\n\n本机的角色、会话、记忆与世界书将被宿主内容完整替换；本机设置（含 API Key）会保留。\n是否继续？`;
+
+      if (mode === "replace" || previewEnabled) {
+        const ok = await showCustomConfirm(confirmMessage);
+        if (!ok) {
+          setBackupStatus("已取消宿主拉取");
+          return;
+        }
       }
 
       setBackupStatus("正在创建恢复前安全快照...");
@@ -499,8 +623,12 @@ export const useBackupRestore = ({
       const safetyName = `pre_host_pull_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
       saveBackupFile(safetyName, JSON.stringify(safetySnapshot));
 
-      setBackupStatus("正在原子覆盖本地数据...");
-      await dataMigrationService.replaceFromBackup(pulled.payload);
+      setBackupStatus(mode === "merge" ? "正在写入合并结果..." : "正在原子覆盖本地数据...");
+      if (mode === "merge") {
+        await dataMigrationService.mergeFromBackup(pulled.payload);
+      } else {
+        await dataMigrationService.replaceFromBackup(pulled.payload);
+      }
 
       setCharacters(pulled.payload.characters);
       setSessionViews(pulled.payload.sessions);
@@ -510,7 +638,9 @@ export const useBackupRestore = ({
 
       setBackupStatus("宿主同步完成");
       await showCustomAlert(
-        `✅ 已用宿主快照原子覆盖本机数据。\n本机设置（含 API Key）已保留。\n恢复前安全快照：${safetyName}`,
+        mode === "merge"
+          ? `✅ 已按合并结果更新本机数据，两端独有内容都保留。\n本机设置（含 API Key）已保留。\n执行前安全快照：${safetyName}`
+          : `✅ 已用宿主快照原子覆盖本机数据。\n本机设置（含 API Key）已保留。\n恢复前安全快照：${safetyName}`,
       );
       window.location.reload();
     } catch (err: unknown) {
@@ -520,11 +650,17 @@ export const useBackupRestore = ({
   }, [settings, setSettings, setGlobalLorebook, setCustomWorldbooks, showCustomAlert, showCustomConfirm, setBackupStatus, dataMigrationService]);
 
   /**
-   * 用本机数据覆盖宿主快照（覆盖式同步）。
+   * 把本机数据推送到宿主。语义由设置里的 `syncMode` 决定。
    *
-   * 推送前先只读探测宿主：既拿到宿主的真实数据量用于确认，也避免在宿主不可达时白推。
-   * 宿主的设置由宿主自己保留（宿主快照是脱敏的，回写会清掉宿主的 API Key），
-   * 本机也不会把凭据发出去。
+   * - 合并（默认）：`?mode=merge`，宿主读自己的快照当 local、本机载荷当 remote 求并集，
+   *   因此宿主独有内容不会被抹掉。合并必须在宿主侧完成 —— 宿主的快照导出是脱敏的，
+   *   只有宿主自己读得到真实凭据来当 local。
+   * - 覆盖：宿主整体替换，`?preserveSettings=true` 让宿主保留自己的设置。
+   *
+   * 推送前先只读探测宿主：既拿到宿主真实数据量，也避免在宿主不可达时白推。探测回来的
+   * 宿主快照在合并模式下还能如实复刻本机的合并计算，作为「宿主那边会发生什么」的预览；
+   * 那份预览信封只用于取统计，绝不发给宿主（它的 settings 是本机设置，送过去等于拿本机
+   * 凭据覆盖宿主）。
    */
   const handlePushToHost = useCallback(async () => {
     const target = resolveHostSyncTarget(settings);
@@ -533,16 +669,20 @@ export const useBackupRestore = ({
       return;
     }
 
+    const mode = resolveHostSyncMode(settings);
+    const previewEnabled = isMergePreviewEnabled(settings);
+
     setBackupStatus("正在读取本机与宿主数据...");
     try {
       const localPayload = await dataMigrationService.createBackupPayload(settings, false);
+      const localSummary = summarizeBackupPayload(localPayload);
 
       const probe = await pullSnapshotFromHost({
         target,
         localSettings: settings,
         defaultSettings: DEFAULT_SETTINGS,
       });
-      if (!probe.ok) {
+      if (!probe.ok || (mode === "merge" && !probe.payload)) {
         setBackupStatus("宿主不可用，已取消推送");
         await showCustomAlert(
           `无法连接宿主，未推送任何数据：${describeHostSyncFailure(probe.failure)}${probe.detail ? `\n\n${probe.detail}` : ""}`,
@@ -550,12 +690,40 @@ export const useBackupRestore = ({
         return;
       }
 
-      const ok = await showCustomConfirm(
-        `即将把本机数据覆盖到宿主（覆盖式，后写者生效，不做合并）。\n\n本机：${formatPayloadSummary(summarizeBackupPayload(localPayload))}\n宿主：${formatPayloadSummary(probe.remoteSummary ?? summarizeBackupPayload(localPayload))}\n\n宿主的角色、会话、记忆与世界书将被本机内容完整替换；宿主自己的设置（含 API Key）会保留，本机不会写入宿主凭据。\n是否继续？`,
-      );
-      if (!ok) {
-        setBackupStatus("已取消宿主推送");
+      const remoteSummary = probe.remoteSummary
+        ?? (probe.payload ? summarizeBackupPayload(probe.payload) : localSummary);
+
+      // 宿主会用它自己的快照当 local、本机载荷当 remote，这里复刻同一计算作为预览。
+      const plan = mode === "merge" && probe.payload
+        ? mergeBackupPayloads({ local: probe.payload, remote: localPayload })
+        : undefined;
+
+      if (plan && mergeStatsDelta(plan.stats) === 0) {
+        setBackupStatus("已与宿主一致，无需推送");
+        await showCustomAlert("合并结果与宿主现状完全一致，未推送任何数据。");
         return;
+      }
+
+      const confirmMessage = mode === "merge"
+        ? [
+            "即将把本机数据合并到宿主（求并集，宿主独有内容都保留）。",
+            "",
+            `本机：${formatPayloadSummary(localSummary)}`,
+            `宿主：${formatPayloadSummary(remoteSummary)}`,
+            ...(plan ? [`合并后（宿主侧）：${formatPayloadSummary(plan.mergedSummary)}`] : []),
+            "",
+            ...(plan ? [`预计变更：\n${formatMergePlan(plan, "push")}`, ""] : []),
+            "宿主自己的设置（含 API Key）会保留，本机不会写入宿主凭据；执行前会留存安全快照。",
+            "是否继续？",
+          ].join("\n")
+        : `即将把本机数据覆盖到宿主（覆盖式，后写者生效，不做合并）。\n\n本机：${formatPayloadSummary(localSummary)}\n宿主：${formatPayloadSummary(remoteSummary)}\n\n宿主的角色、会话、记忆与世界书将被本机内容完整替换；宿主自己的设置（含 API Key）会保留，本机不会写入宿主凭据。\n是否继续？`;
+
+      if (mode === "replace" || previewEnabled) {
+        const ok = await showCustomConfirm(confirmMessage);
+        if (!ok) {
+          setBackupStatus("已取消宿主推送");
+          return;
+        }
       }
 
       setBackupStatus("正在创建推送前安全快照...");
@@ -568,6 +736,7 @@ export const useBackupRestore = ({
         target,
         localPayload,
         defaultSettings: DEFAULT_SETTINGS,
+        mode,
       });
       if (!pushed.ok) {
         setBackupStatus("宿主推送失败");
@@ -578,8 +747,13 @@ export const useBackupRestore = ({
       }
 
       setBackupStatus("宿主同步完成");
+      const hostChangeLines = pushed.mergeStats
+        ? `\n\n宿主侧实际变更：\n${formatMergeCounts(pushed.mergeStats)}`
+        : "";
       await showCustomAlert(
-        `✅ 已用本机数据覆盖宿主快照。\n宿主设置已保留，未写入本机 API Key。\n推送前安全快照：${safetyName}`,
+        mode === "merge"
+          ? `✅ 已把本机数据合并到宿主，宿主独有内容保留。${hostChangeLines}\n\n宿主设置已保留，未写入本机 API Key。\n执行前安全快照：${safetyName}`
+          : `✅ 已用本机数据覆盖宿主快照。\n宿主设置已保留，未写入本机 API Key。\n推送前安全快照：${safetyName}`,
       );
     } catch (err: unknown) {
       setBackupStatus(`宿主推送失败: ${getErrorMessage(err)}`);

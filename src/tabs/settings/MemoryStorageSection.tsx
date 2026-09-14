@@ -58,6 +58,7 @@ export default function MemoryStorageSection({
       />
       <HostSyncCard
         settings={settings}
+        updateSettings={updateSettings}
         backupStatus={backupStatus}
         handlePushToHost={handlePushToHost}
         handlePullFromHost={handlePullFromHost}
