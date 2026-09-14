@@ -158,20 +158,26 @@ export function createHostProtocolRouter(kernel: IKernel, config: HeadlessConfig
   });
 
   // POST /api/host/backup/import: 导入标准统一备份
-  // preserveSettings=true 时保留宿主自己的设置（跨设备同步必须带）：快照是脱敏的，
-  // 否则一次推送就会把宿主的 API Key 清空。
+  // mode=merge 时与宿主现有数据求并集（跨设备日常同步推荐）；缺省 replace 为整体覆盖。
+  // preserveSettings=true 时保留宿主自己的设置（覆盖模式下跨设备同步必须带）：快照是脱敏的，
+  // 否则一次推送就会把宿主的 API Key 清空。合并模式无条件保留宿主设置，不依赖该开关。
   router.post("/backup/import", async (req: Request, res: Response) => {
     try {
       const payloadString = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
       const preserveFlag = String(req.query.preserveSettings ?? "").toLowerCase();
       const preserveLocalSettings =
         preserveFlag === "1" || preserveFlag === "true" || preserveFlag === "yes";
-      await importBackupJson(kernel, payloadString, { preserveLocalSettings });
+      const mode = String(req.query.mode ?? "").toLowerCase() === "merge" ? "merge" : "replace";
+      const result = await importBackupJson(kernel, payloadString, { preserveLocalSettings, mode });
       await savePersistedSnapshot(kernel, config.absoluteDataDir);
       res.json({
         success: true,
-        preservedLocalSettings: preserveLocalSettings,
-        message: "Backup successfully imported and snapshot updated",
+        mode: result.mode,
+        preservedLocalSettings: result.mode === "merge" ? true : preserveLocalSettings,
+        ...(result.mergeStats ? { mergeStats: result.mergeStats } : {}),
+        message: result.mode === "merge"
+          ? "Backup merged into host data and snapshot updated"
+          : "Backup successfully imported and snapshot updated",
       });
     } catch (err) {
       logger.error("Failed to import backup", err);

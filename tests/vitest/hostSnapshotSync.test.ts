@@ -365,3 +365,134 @@ describe("hostSnapshotSync 覆盖式同步的设置边界", () => {
     expect(result.failure).toBe("unreachable");
   });
 });
+
+describe("hostSnapshotSync 合并模式", () => {
+  /** 宿主合并模式返回的统计形状：只要能被读回即可，具体数值由真实宿主用例负责。 */
+  const mergeStatsFixture = {
+    characters: { added: 1, updated: 0, removed: 0, unchanged: 1 },
+  };
+
+  it("合并推送只带 mode=merge，并读回宿主侧变更统计", async () => {
+    const hostText = JSON.stringify(buildUnifiedBackupPayload(snapshotInput()));
+    const { impl, calls } = createFetchStub((url) =>
+      url.endsWith("/backup/export")
+        ? stubResponse(hostText)
+        : stubResponse(JSON.stringify({ success: true, mode: "merge", mergeStats: mergeStatsFixture })),
+    );
+
+    const result = await pushSnapshotToHost(
+      {
+        target: { baseUrl: "http://192.168.1.10:18080", accessKey: "k" },
+        localPayload: buildUnifiedBackupPayload(snapshotInput()),
+        defaultSettings: DEFAULT_SETTINGS,
+        mode: "merge",
+      },
+      { fetchImpl: impl },
+    );
+
+    expect(result.ok).toBe(true);
+    // 合并模式宿主无条件保留自己的设置，因此不再带 preserveSettings —— 少一个参数就少一种歧义。
+    expect(calls.map((call) => call.url)).toEqual([
+      "http://192.168.1.10:18080/api/host/backup/export",
+      "http://192.168.1.10:18080/api/host/backup/import?mode=merge",
+    ]);
+    expect(result.mergeStats?.characters.added).toBe(1);
+    // 发送体仍必须脱敏：宿主会自己保留设置，发送端凭据不该进入传输体
+    expect(String(calls[1].init?.body)).not.toContain("host-secret");
+  });
+
+  it("合并推送同样先读宿主现状，即使已关闭设置保留", async () => {
+    const { impl, calls } = createFetchStub(() => stubResponse("{}", 500));
+
+    const result = await pushSnapshotToHost(
+      {
+        target: { baseUrl: "http://192.168.1.10:18080", accessKey: "" },
+        localPayload: buildUnifiedBackupPayload(snapshotInput()),
+        defaultSettings: DEFAULT_SETTINGS,
+        preserveReceiverSettings: false,
+        mode: "merge",
+      },
+      { fetchImpl: impl },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.failure).toBe("rejected");
+    // 合并必须知道宿主现状：否则无法说明"这次并进了什么"，也无从判断是否值得继续
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url.endsWith("/backup/export")).toBe(true);
+  });
+
+  it("合并统计损坏不影响同步本身的成功结论", async () => {
+    const hostText = JSON.stringify(buildUnifiedBackupPayload(snapshotInput()));
+    const { impl } = createFetchStub((url) =>
+      url.endsWith("/backup/export") ? stubResponse(hostText) : stubResponse("{not-json"),
+    );
+
+    const result = await pushSnapshotToHost(
+      {
+        target: { baseUrl: "http://192.168.1.10:18080", accessKey: "k" },
+        localPayload: buildUnifiedBackupPayload(snapshotInput()),
+        defaultSettings: DEFAULT_SETTINGS,
+        mode: "merge",
+      },
+      { fetchImpl: impl },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mergeStats).toBeUndefined();
+  });
+
+  it("拉取时传入本机信封即为合并模式：返回并集与变更计划", async () => {
+    const hostText = JSON.stringify(buildUnifiedBackupPayload(snapshotInput()));
+    const { impl, calls } = createFetchStub(() => stubResponse(hostText));
+    const localSettings = {
+      ...DEFAULT_SETTINGS,
+      api: { ...DEFAULT_SETTINGS.api, apiKey: "phone-secret" },
+    };
+
+    const result = await pullSnapshotFromHost(
+      {
+        target: { baseUrl: "http://192.168.1.10:18080", accessKey: "k" },
+        localSettings,
+        defaultSettings: DEFAULT_SETTINGS,
+        localPayload: buildUnifiedBackupPayload(
+          snapshotInput({
+            characters: [makeCharacter("phone-char", "手机角色")],
+            settings: localSettings,
+          }),
+        ),
+      },
+      { fetchImpl: impl },
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(result.ok).toBe(true);
+    // 并集：宿主的 1 个角色 + 本机独有的 1 个角色都保留
+    expect(result.payload?.characters.map((item) => item.id).sort()).toEqual([
+      "host-char",
+      "phone-char",
+    ]);
+    expect(result.mergePlan?.stats.characters.added).toBe(1);
+    expect(result.mergePlan?.mergedSummary.characters).toBe(2);
+    // 合并算法只取 local 一侧的设置，本机凭据不会被宿主快照覆盖
+    expect(result.payload?.settings.api.apiKey).toBe("phone-secret");
+  });
+
+  it("不传本机信封时行为与覆盖模式完全一致", async () => {
+    const hostText = JSON.stringify(buildUnifiedBackupPayload(snapshotInput()));
+    const { impl } = createFetchStub(() => stubResponse(hostText));
+
+    const result = await pullSnapshotFromHost(
+      {
+        target: { baseUrl: "http://192.168.1.10:18080", accessKey: "k" },
+        localSettings: DEFAULT_SETTINGS,
+        defaultSettings: DEFAULT_SETTINGS,
+      },
+      { fetchImpl: impl },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.mergePlan).toBeUndefined();
+    expect(result.payload?.characters.map((item) => item.id)).toEqual(["host-char"]);
+  });
+});

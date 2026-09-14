@@ -25,7 +25,8 @@ import {
   KernelServices,
   type ISettingsService,
 } from "../../src/application/serviceContracts";
-import type { CharacterCard, UserSettings } from "../../src/types";
+import type { CharacterCard, ChatSession, Message, UserSettings } from "../../src/types";
+import type { SyncTombstone } from "../../src/domain/sync/tombstones";
 
 const PORT = 18241;
 const API_KEY = "e2e-host-key";
@@ -294,5 +295,220 @@ describe("真实宿主上的覆盖式同步", () => {
     // 真实客户端推送时发送的是脱敏副本（apiKey 已抹除），所以后果是把宿主凭据清空
     // —— 这正是同步流程必须显式要求宿主保留设置的原因。
     expect(await readHostApiKey()).toBe("phone-secret");
+  });
+});
+
+/**
+ * 合并模式（`?mode=merge`）在真实宿主上的行为。
+ *
+ * 覆盖式同步的断言只能证明"宿主接受了载荷"，证明不了"两台设备各自新增的数据都还在"。
+ * 这里把合并语义的三条性质钉在真实宿主上：对端独有内容不丢、宿主独有内容不丢、
+ * 删除墓碑能跨设备生效 —— 同时保留"宿主自己的凭据永远不被同步改动"这条铁律。
+ */
+function makeMessage(id: string, timestamp: number): Message {
+  return { id, sender: "user", content: `内容 ${id}`, timestamp };
+}
+
+function makeSession(id: string, messages: Message[], updatedAt = 100): ChatSession {
+  return {
+    id,
+    characterId: "character-1",
+    title: `会话 ${id}`,
+    createdAt: 1,
+    messages,
+    summaries: [],
+    lifecycle: "active",
+    updatedAt,
+    contentRevision: 1,
+  };
+}
+
+interface SeedOptions {
+  characters: CharacterCard[];
+  sessions?: ChatSession[];
+  tombstones?: SyncTombstone[];
+  apiKey: string;
+}
+
+function payloadText(options: SeedOptions): string {
+  return JSON.stringify(
+    buildUnifiedBackupPayload({
+      characters: options.characters,
+      sessions: options.sessions ?? [],
+      memoryFragments: [],
+      memoryFacts: [],
+      settings: settingsWith(options.apiKey),
+      globalLorebook: [],
+      customWorldbooks: {},
+      tombstones: options.tombstones ?? [],
+      backupDate: new Date().toISOString(),
+      isEncrypted: false,
+    }),
+  );
+}
+
+interface ExportedSnapshot {
+  characters: Array<{ id: string }>;
+  sessions: Array<{ id: string }>;
+  tombstones: SyncTombstone[];
+}
+
+async function exportHostSnapshotRaw(): Promise<ExportedSnapshot> {
+  const res = await nodeFetch(`${BASE}/api/host/backup/export`, {
+    method: "POST",
+    headers: authHeaders,
+  });
+  return JSON.parse(await res.text()) as ExportedSnapshot;
+}
+
+/** 直灌宿主、不保留设置 —— 用于把宿主重置到一个已知状态。 */
+async function seedHost(options: SeedOptions): Promise<void> {
+  const res = await nodeFetch(`${BASE}/api/host/backup/import`, {
+    method: "POST",
+    headers: authHeaders,
+    body: payloadText(options),
+  });
+  expect(res.ok).toBe(true);
+}
+
+describe("真实宿主上的合并式同步", () => {
+  it("推送合并：宿主独有内容保留、对端新增内容并入、宿主凭据不变", async () => {
+    await seedHost({
+      characters: [character("host-char", "宿主角色")],
+      sessions: [makeSession("hs", [makeMessage("hm1", 100)])],
+      apiKey: "host-secret",
+    });
+
+    const pushed = await pushSnapshotToHost(
+      {
+        target: { baseUrl: BASE, accessKey: API_KEY },
+        localPayload: buildUnifiedBackupPayload({
+          characters: [character("phone-char", "手机角色")],
+          sessions: [makeSession("ps", [makeMessage("pm1", 200)])],
+          memoryFragments: [],
+          memoryFacts: [],
+          settings: settingsWith("phone-secret"),
+          globalLorebook: [],
+          customWorldbooks: {},
+          backupDate: new Date().toISOString(),
+          isEncrypted: false,
+        }),
+        defaultSettings: settingsWith("phone-secret"),
+        mode: "merge",
+      },
+      fetchDeps,
+    );
+
+    expect(pushed.ok).toBe(true);
+    // 宿主侧变更统计必须回到客户端，否则界面无法说明"这次同步改了什么"。
+    expect(pushed.mergeStats?.characters.added).toBe(1);
+    expect(pushed.mergeStats?.sessions.added).toBe(1);
+    expect(pushed.mergeStats?.sessions.removed).toBe(0);
+
+    const exported = await exportHostSnapshotRaw();
+    // 两侧独有内容都在 —— 这正是合并区别于覆盖的地方。
+    expect(exported.characters.map((item) => item.id).sort()).toEqual(["host-char", "phone-char"]);
+    expect(exported.sessions.map((item) => item.id).sort()).toEqual(["hs", "ps"]);
+    // 合并模式无条件保留宿主设置，无需 preserveSettings 参数。
+    expect(await readHostApiKey()).toBe("host-secret");
+  });
+
+  it("推送合并：对端的删除墓碑在宿主上生效", async () => {
+    await seedHost({
+      characters: [character("host-char", "宿主角色")],
+      sessions: [makeSession("gone", [makeMessage("gm1", 100)], 100)],
+      apiKey: "host-secret",
+    });
+
+    const pushed = await pushSnapshotToHost(
+      {
+        target: { baseUrl: BASE, accessKey: API_KEY },
+        localPayload: buildUnifiedBackupPayload({
+          characters: [],
+          sessions: [makeSession("kept", [makeMessage("km1", 300)])],
+          memoryFragments: [],
+          memoryFacts: [],
+          settings: settingsWith("phone-secret"),
+          globalLorebook: [],
+          customWorldbooks: {},
+          // 本机曾同步过该会话后将其删除，因此墓碑时间晚于会话的 updatedAt。
+          tombstones: [
+            { entity: "session", targetId: "gone", sessionId: "gone", deletedAt: 999 },
+          ],
+          backupDate: new Date().toISOString(),
+          isEncrypted: false,
+        }),
+        defaultSettings: settingsWith("phone-secret"),
+        mode: "merge",
+      },
+      fetchDeps,
+    );
+
+    expect(pushed.ok).toBe(true);
+    expect(pushed.mergeStats?.sessions.removed).toBe(1);
+
+    const exported = await exportHostSnapshotRaw();
+    expect(exported.sessions.map((item) => item.id)).toEqual(["kept"]);
+    expect(exported.tombstones.map((item) => item.targetId)).toEqual(["gone"]);
+  });
+
+  it("拉取合并：本机独有会话与宿主会话求并集，设置保留本机", async () => {
+    await seedHost({
+      characters: [character("host-char", "宿主角色")],
+      sessions: [makeSession("hs", [makeMessage("hm1", 100)])],
+      apiKey: "host-secret",
+    });
+
+    const localPayload = buildUnifiedBackupPayload({
+      characters: [character("phone-char", "手机角色")],
+      sessions: [makeSession("local-only", [makeMessage("lm1", 400)])],
+      memoryFragments: [],
+      memoryFacts: [],
+      settings: settingsWith("phone-secret"),
+      globalLorebook: [],
+      customWorldbooks: {},
+      backupDate: new Date().toISOString(),
+      isEncrypted: false,
+    });
+
+    const pulled = await pullSnapshotFromHost(
+      {
+        target: { baseUrl: BASE, accessKey: API_KEY },
+        localSettings: settingsWith("phone-secret"),
+        defaultSettings: settingsWith("phone-secret"),
+        localPayload,
+      },
+      fetchDeps,
+    );
+
+    expect(pulled.ok).toBe(true);
+    expect(pulled.payload?.sessions.map((item) => item.id).sort()).toEqual(["hs", "local-only"]);
+    expect(pulled.payload?.characters.map((item) => item.id).sort()).toEqual([
+      "host-char",
+      "phone-char",
+    ]);
+    // 合并算法只取 local 一侧的设置，本机凭据不会被宿主快照覆盖。
+    expect(pulled.payload?.settings.api.apiKey).toBe("phone-secret");
+    // 预览能力的前提：拉取就要带回合并计划，界面才能"先看再落库"。
+    expect(pulled.mergePlan?.stats.sessions.added).toBe(1);
+    expect(pulled.mergePlan?.mergedSummary.sessions).toBe(2);
+  });
+
+  it("结构异常的墓碑被拒收，而不是静默产出错误合并结果", async () => {
+    const res = await nodeFetch(`${BASE}/api/host/backup/import?mode=merge`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        ...(JSON.parse(payloadText({
+          characters: [character("host-char", "宿主角色")],
+          apiKey: "host-secret",
+        })) as Record<string, unknown>),
+        tombstones: "not-an-array",
+      }),
+    });
+    expect(res.ok).toBe(false);
+    expect(res.status).toBe(500);
+    const body = JSON.parse(await res.text()) as { error: string };
+    expect(body.error).toContain("tombstones");
   });
 });

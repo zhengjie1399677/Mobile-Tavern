@@ -10,6 +10,7 @@
  * Rust reqwest 发出，不受该策略约束。这与 LLM / TTS / ASR 既有做法保持一致，
  * 否则会出现"模型请求能通、连通性测试却失败"的错位。
  */
+import type { BackupMergeStats } from "./backupMerge";
 
 /** 一次探测的默认超时（毫秒）。用户点了测试按钮就应当在可感知时间内给结论。 */
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -193,6 +194,8 @@ export interface HostSnapshotTransferResult {
   readonly text?: string;
   /** 传输体量（字符数），用于提示与诊断。 */
   readonly bytes?: number;
+  /** 宿主以合并模式处理时返回的变更统计，用于说明"宿主那边改了什么"。 */
+  readonly mergeStats?: BackupMergeStats;
 }
 
 function buildHostHeaders(accessKey: string, contentType?: string): Record<string, string> {
@@ -307,18 +310,25 @@ export async function importSnapshotToHost(
   deps?: {
     fetchImpl?: typeof fetch;
     timeoutMs?: number;
-    /** 是否要求宿主保留自己的设置；默认 true（安全默认值）。 */
+    /** 是否要求宿主保留自己的设置；默认 true（安全默认值）。仅覆盖模式使用。 */
     preserveReceiverSettings?: boolean;
+    /** 导入语义；`merge` 让宿主把本次快照并进现有数据，而不是整体替换。 */
+    mode?: "replace" | "merge";
   },
 ): Promise<HostSnapshotTransferResult> {
   const startedAt = Date.now();
   const baseUrl = normalizeHostBaseUrl(target.baseUrl);
   if (!baseUrl) return { ok: false, latencyMs: 0, failure: "invalid_url" };
 
+  const mode = deps?.mode === "merge" ? "merge" : "replace";
   const preserveReceiverSettings = deps?.preserveReceiverSettings !== false;
-  const importUrl = preserveReceiverSettings
-    ? `${baseUrl}/api/host/backup/import?preserveSettings=true`
-    : `${baseUrl}/api/host/backup/import`;
+  // 合并模式下宿主无条件保留自己的设置，无需再传 preserveSettings；
+  // 只带必要参数，协议在日志里也更容易读。
+  const query = new URLSearchParams();
+  if (mode === "merge") query.set("mode", "merge");
+  else if (preserveReceiverSettings) query.set("preserveSettings", "true");
+  const queryText = query.toString();
+  const importUrl = `${baseUrl}/api/host/backup/import${queryText ? `?${queryText}` : ""}`;
 
   const fetchImpl = deps?.fetchImpl ?? (await resolveHostTransportFetch());
   const controller = new AbortController();
@@ -344,15 +354,32 @@ export async function importSnapshotToHost(
         detail: await readHostErrorDetail(res),
       };
     }
+    const mergeStats = mode === "merge" ? await readMergeStats(res) : undefined;
     return {
       ok: true,
       latencyMs: elapsed(),
       statusCode: res.status,
       bytes: payloadText.length,
+      ...(mergeStats ? { mergeStats } : {}),
     };
   } catch {
     return { ok: false, latencyMs: elapsed(), failure: "unreachable" };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * 读取宿主返回的合并统计。
+ *
+ * 统计只用于说明"宿主那边改了什么"，缺失或结构异常都不应改变同步本身的成功结论，
+ * 因此解析失败一律吞掉并返回 undefined。
+ */
+async function readMergeStats(res: Response): Promise<BackupMergeStats | undefined> {
+  try {
+    const body = await res.json() as { mergeStats?: BackupMergeStats };
+    return body?.mergeStats;
+  } catch {
+    return undefined;
   }
 }

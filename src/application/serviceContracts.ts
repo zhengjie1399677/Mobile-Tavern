@@ -759,7 +759,7 @@ export interface ISettingsService<TSettings = unknown, TUsageMetrics = unknown> 
   saveUsageMetrics(metrics: TUsageMetrics): Promise<void>;
 }
 
-/** 统一备份创建与本地数据原子覆盖恢复。 */
+/** 统一备份创建、本地数据原子覆盖恢复与增量合并。 */
 export interface IDataMigrationService<TSettings = unknown, TPayload = unknown> extends IKernelService {
   createBackupPayload(
     settings: TSettings,
@@ -767,6 +767,12 @@ export interface IDataMigrationService<TSettings = unknown, TPayload = unknown> 
     backupDate?: string,
   ): Promise<TPayload>;
   replaceFromBackup(payload: TPayload, signal?: AbortSignal): Promise<void>;
+  /**
+   * 以合并结果增量更新本地数据：保留本地独有内容，只删除墓碑判定应消失的实体。
+   *
+   * 入参必须是合并算法的产出信封（已含两侧并集），不能是普通备份文件的内容。
+   */
+  mergeFromBackup(payload: TPayload, signal?: AbortSignal): Promise<void>;
 }
 
 /**

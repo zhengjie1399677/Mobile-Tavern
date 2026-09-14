@@ -1,16 +1,19 @@
 /**
- * 宿主快照同步编排（覆盖式）。
+ * 宿主快照同步编排。
  *
- * 语义先说清楚：这是**覆盖式同步**，不是合并。谁后写谁生效。
- * 因此本模块只做两件事，并把最容易踩的坑挡在用例层：
+ * 提供两种语义，由调用方显式选择，**默认仍是覆盖式**：
  *
- * 1. **拉取（宿主 → 本机）**：拿宿主快照覆盖本机角色/会话/记忆/世界书，
- *    但 `settings` 保留**本机**值 —— 否则手机端的 API Key、主题、语言会被宿主的覆盖。
- * 2. **推送（本机 → 宿主）**：用本机数据覆盖宿主快照，但 `settings` 用**宿主自己**的 ——
- *    为此推送前先读一次宿主快照；读不到就不推，绝不拿本机设置去盖宿主。
+ * - **覆盖（replace）**：谁后写谁生效。拉取用宿主快照整体替换本机数据，推送用本机数据
+ *   整体替换宿主数据。两台设备各自新增的内容会互相抹掉，适合"以某一端为准"的场景。
+ * - **合并（merge）**：两侧内容求并集，只删掉墓碑判定应消失的实体。跨设备日常同步
+ *   应使用这一种，算法见 `backupMerge.ts`。
  *
- * 两端格式相同（UnifiedBackupPayload v6），所以同步不需要新协议，
- * 直接复用宿主既有的 /api/host/backup/export 与 /import。
+ * 两种语义共用同一条铁律：`settings` **永远由接收端保留**。备份导出整体脱敏
+ * （apiKey 为空），任何"用发送端携带的 settings 去写接收端"的写法都会清空接收端凭据。
+ * 合并模式下这条规则自动成立 —— 合并算法只取 local 一侧的设置。
+ *
+ * 两端格式相同（UnifiedBackupPayload v7，含删除墓碑），所以同步不需要新协议，
+ * 直接复用宿主既有的 /api/host/backup/export 与 /import（后者支持 `?mode=merge`）。
  * 覆盖前的二次确认与安全快照由调用方（界面层）负责，本模块不做 UI。
  */
 import type { UserSettings } from "../../types";
@@ -18,6 +21,11 @@ import {
   redactSettingsForPlainBackup,
   type UnifiedBackupPayload,
 } from "./dataMigrationUseCases";
+import {
+  mergeBackupPayloads,
+  type BackupMergePlan,
+  type BackupMergeStats,
+} from "./backupMerge";
 import {
   normalizeBackupPayload,
   summarizeBackupPayload,
@@ -49,10 +57,15 @@ export interface PullSnapshotResult {
   readonly ok: boolean;
   readonly failure?: SnapshotSyncFailure;
   readonly detail?: string;
-  /** 归一化后的宿主快照，且 `settings` 已替换为本机值。 */
+  /**
+   * 待落库的信封。覆盖模式下是宿主快照原文，合并模式下是"本机 ∪ 宿主"的合并结果；
+   * 两种情况都已把 `settings` 替换为本机值。
+   */
   readonly payload?: UnifiedBackupPayload;
-  /** 宿主侧数据量，用于覆盖确认文案。 */
+  /** 宿主侧数据量，用于确认文案。 */
   readonly remoteSummary?: BackupPayloadSummary;
+  /** 合并模式下的完整变更计划，供界面预览"将新增/更新/删除什么"。 */
+  readonly mergePlan?: BackupMergePlan;
   readonly latencyMs: number;
 }
 
@@ -64,6 +77,8 @@ export interface PushSnapshotResult {
   readonly localSummary?: BackupPayloadSummary;
   /** 推送前宿主的数据量；缺失表示未能读取宿主现状（此时不建议继续）。 */
   readonly remoteSummaryBefore?: BackupPayloadSummary;
+  /** 合并模式下宿主返回的变更统计，用来说明"宿主那边改了什么"。 */
+  readonly mergeStats?: BackupMergeStats;
   readonly latencyMs: number;
 }
 
@@ -75,6 +90,10 @@ function describeError(err: unknown): string {
 /**
  * 拉取宿主快照。
  *
+ * 传入 `localPayload` 即为合并模式：以本机数据为 local、宿主快照为 remote 求并集，
+ * 返回的 `payload` 是合并结果（调用方确认后再落库），`mergePlan` 含变更统计。
+ * 不传则为覆盖模式，行为与既有实现完全一致。
+ *
  * 失败时返回可区分原因：网络/鉴权/载荷问题都从底层透传，
  * 备份内容损坏则由备份边界用例给出 code。
  */
@@ -85,6 +104,8 @@ export async function pullSnapshotFromHost(
     localSettings: UserSettings;
     /** 默认设置，用于宿主旧版快照的字段回落。 */
     defaultSettings: UserSettings;
+    /** 本机当前信封；提供即切换到合并模式。 */
+    localPayload?: UnifiedBackupPayload;
   },
   deps?: SnapshotSyncDeps,
 ): Promise<PullSnapshotResult> {
@@ -118,6 +139,21 @@ export async function pullSnapshotFromHost(
     };
   }
 
+  if (input.localPayload) {
+    // 合并模式：合并算法只取 local 一侧的设置，因此本机凭据天然不会被宿主快照覆盖。
+    const plan = mergeBackupPayloads({
+      local: { ...input.localPayload, settings: input.localSettings },
+      remote: normalized.payload,
+    });
+    return {
+      ok: true,
+      payload: plan.merged,
+      remoteSummary: normalized.summary,
+      mergePlan: plan,
+      latencyMs: elapsed(),
+    };
+  }
+
   return {
     ok: true,
     payload: { ...normalized.payload, settings: input.localSettings },
@@ -141,6 +177,8 @@ export async function pushSnapshotToHost(
     /** 默认设置，用于读取宿主现状时的字段回落。 */
     defaultSettings: UserSettings;
     preserveReceiverSettings?: boolean;
+    /** 导入语义；`merge` 让宿主把本机快照并进自己的数据，而不是整体替换。 */
+    mode?: "replace" | "merge";
   },
   deps?: SnapshotSyncDeps,
 ): Promise<PushSnapshotResult> {
@@ -148,10 +186,12 @@ export async function pushSnapshotToHost(
   const elapsed = () => Date.now() - startedAt;
   const localSummary = summarizeBackupPayload(input.localPayload);
   const preserveReceiverSettings = input.preserveReceiverSettings !== false;
+  const mode = input.mode === "merge" ? "merge" : "replace";
 
   let remoteSummaryBefore: BackupPayloadSummary | undefined;
 
-  if (preserveReceiverSettings) {
+  // 合并模式同样要先读宿主现状：既确认可达，也用于说明这次会并进什么。
+  if (mode === "merge" || preserveReceiverSettings) {
     // 只读探测：确认宿主可达，并为确认文案提供宿主侧数据量。
     // 注意这里刻意不使用宿主快照里的 settings —— 那是脱敏结果，回写会抹掉宿主凭据。
     const exported = await exportHostSnapshot(input.target, deps);
@@ -192,7 +232,7 @@ export async function pushSnapshotToHost(
   const imported = await importSnapshotToHost(
     input.target,
     JSON.stringify(outgoing),
-    { ...deps, preserveReceiverSettings },
+    { ...deps, preserveReceiverSettings, mode },
   );
   if (!imported.ok) {
     return {
@@ -209,6 +249,7 @@ export async function pushSnapshotToHost(
     ok: true,
     localSummary,
     remoteSummaryBefore,
+    mergeStats: imported.mergeStats,
     latencyMs: elapsed(),
   };
 }
