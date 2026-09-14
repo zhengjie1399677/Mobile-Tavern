@@ -78,8 +78,9 @@ describe("backupPayloadRestore 备份边界收口", () => {
       defaultSettings: DEFAULT_SETTINGS,
     });
 
-    expect(normalized.parsedVersion).toBe(6);
+    expect(normalized.parsedVersion).toBe(7);
     expect(normalized.versionGap.code).toBe("current");
+    expect(normalized.payload.tombstones).toEqual([]);
     expect(normalized.payload.magic).toBe("MOBILE_TAVERN_UNIFIED_BACKUP");
     expect(normalized.payload.characters).toHaveLength(1);
     expect(normalized.payload.characters[0].name).toBe("宿主角色");
@@ -171,7 +172,9 @@ describe("backupPayloadRestore 备份边界收口", () => {
     expect(describeBackupVersionGap(3).missing).toContain("消息附件");
     expect(describeBackupVersionGap(4).code).toBe("legacy_v4");
     expect(describeBackupVersionGap(5).code).toBe("legacy_v5");
-    expect(describeBackupVersionGap(6).code).toBe("current");
+    expect(describeBackupVersionGap(6).code).toBe("legacy_v6");
+    expect(describeBackupVersionGap(6).missing).toContain("跨设备删除记录");
+    expect(describeBackupVersionGap(7).code).toBe("current");
   });
 
   it("旧备份缺失字段回落到默认设置", async () => {
@@ -195,7 +198,7 @@ describe("backupPayloadRestore 备份边界收口", () => {
       DEFAULT_SETTINGS.promptConfig.sectionHeaders,
     );
     expect(normalized.payload.settings.memory).toEqual(DEFAULT_SETTINGS.memory);
-    expect(normalized.payload.version).toBe(6);
+    expect(normalized.payload.version).toBe(7);
   });
 
   it("非对象 settings 直接回落到默认值", () => {

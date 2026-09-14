@@ -28,9 +28,11 @@ import {
   parseAgentJournalEvents,
   parseAttachmentBackupRecords,
   parseRuntimePluginState,
+  parseSyncTombstones,
   UNIFIED_BACKUP_MAGIC,
   type UnifiedBackupPayload,
 } from "./dataMigrationUseCases";
+import type { SyncTombstone } from "../../domain/sync/tombstones";
 
 /** 备份解析失败的可区分原因，供界面给出可解释提示。 */
 export type BackupPayloadIssueCode =
@@ -39,7 +41,8 @@ export type BackupPayloadIssueCode =
   | "decrypt_failed"
   | "magic_mismatch"
   | "invalid_characters"
-  | "invalid_sessions";
+  | "invalid_sessions"
+  | "invalid_tombstones";
 
 /** 备份边界错误：message 保持人类可读，code 供调用方分支处理。 */
 export class BackupPayloadError extends Error {
@@ -54,7 +57,7 @@ export class BackupPayloadError extends Error {
 
 /** 备份版本与当前能力之间的差距，调用方据此组织提示文案。 */
 export interface BackupVersionGap {
-  code: "legacy_v3" | "legacy_v4" | "legacy_v5" | "current";
+  code: "legacy_v3" | "legacy_v4" | "legacy_v5" | "legacy_v6" | "current";
   /** 该版本备份无法承载的数据能力，仅用于文案与诊断。 */
   missing: readonly string[];
 }
@@ -72,6 +75,7 @@ export interface BackupPayloadSummary {
   savedPresets: number;
   attachments: number;
   agentJournal: number;
+  tombstones: number;
   backupDate: string | null;
 }
 
@@ -182,6 +186,7 @@ export async function normalizeBackupPayload(
     : [];
   const attachments = parseAttachmentBackupRecords(envelope.attachments);
   const agentJournal = parseAgentJournalEvents(envelope.agentJournal);
+  const tombstones = readTombstones(envelope.tombstones);
 
   const parsedVersion = Number(envelope.version || 0);
   const payload = buildUnifiedBackupPayload({
@@ -198,6 +203,7 @@ export async function normalizeBackupPayload(
     isEncrypted: false,
     attachments,
     agentJournal,
+    tombstones,
   });
 
   return {
@@ -252,6 +258,21 @@ function parseJsonStrict(text: string): unknown {
     throw new BackupPayloadError(
       "malformed_json",
       getErrorMessage(err) || "备份文件无法解析为有效 JSON。",
+    );
+  }
+}
+
+/**
+ * 墓碑决定"哪些数据会被删除"，损坏或被篡改的墓碑会造成静默数据丢失，
+ * 因此把结构错误统一收敛为可区分的边界错误码，而不是放行部分条目。
+ */
+function readTombstones(value: unknown): SyncTombstone[] {
+  try {
+    return parseSyncTombstones(value);
+  } catch (err: unknown) {
+    throw new BackupPayloadError(
+      "invalid_tombstones",
+      getErrorMessage(err) || "备份文件损坏：删除记录非法。",
     );
   }
 }
@@ -481,6 +502,11 @@ export function describeBackupVersionGap(parsedVersion: number): BackupVersionGa
   if (parsedVersion < 6) {
     return { code: "legacy_v5", missing: ["Agent Turn", "Provider 决定", "工具调用记录"] };
   }
+  if (parsedVersion < 7) {
+    // 缺失墓碑不影响导入本身，但该备份参与双机同步时无法表达删除，
+    // 对端已删除的数据无法据此收敛。
+    return { code: "legacy_v6", missing: ["跨设备删除记录"] };
+  }
   return { code: "current", missing: [] };
 }
 
@@ -504,6 +530,7 @@ export function summarizeBackupPayload(
     savedPresets: (payload.savedPresets || []).length,
     attachments: (payload.attachments || []).length,
     agentJournal: (payload.agentJournal || []).length,
+    tombstones: (payload.tombstones || []).length,
     backupDate:
       typeof payload.backupDate === "string" && payload.backupDate
         ? payload.backupDate

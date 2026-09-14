@@ -14,6 +14,7 @@ import type {
 } from "../../../types";
 import { getDB } from "../idbConnection";
 import { enqueueWrite, bindTransactionAbort } from "../idbQueue";
+import { buildSessionTombstone, putTombstones } from "./tombstoneRepository";
 import {
   advanceSessionContentRevision,
   calculateSessionMessageStats,
@@ -93,9 +94,9 @@ export async function deleteSession(id: string, signal?: AbortSignal): Promise<v
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
-      // 跨 Store 事务：会话主记录及所有记忆分轨
+      // 跨 Store 事务：会话主记录、所有记忆分轨与同步墓碑
       const transaction = db.transaction(
-        ["sessions", "messages", "memory_dict", "memory_fragments", "memory_facts"],
+        ["sessions", "messages", "memory_dict", "memory_fragments", "memory_facts", "sync_tombstones"],
         "readwrite"
       );
       const sessionsStore = transaction.objectStore("sessions");
@@ -103,9 +104,13 @@ export async function deleteSession(id: string, signal?: AbortSignal): Promise<v
       const dictStore = transaction.objectStore("memory_dict");
       const fragmentsStore = transaction.objectStore("memory_fragments");
       const factsStore = transaction.objectStore("memory_facts");
+      const tombstonesStore = transaction.objectStore("sync_tombstones");
 
-      // 1. 删除会话主记录
+      // 1. 删除会话主记录，并在同一事务内留下删除墓碑。
+      //    墓碑必须与删除原子提交：若出现"记录已删、墓碑未写"的窗口，
+      //    该次删除就无法传播到其他设备，对端会在下次同步时把会话推回来。
       sessionsStore.delete(id);
+      putTombstones(tombstonesStore, [buildSessionTombstone(id)]);
 
       // 2. 删除 messages Store 中该 sessionId 的所有消息（含 tags 索引项）
       const messagesIndex = messagesStore.index("sessionId");

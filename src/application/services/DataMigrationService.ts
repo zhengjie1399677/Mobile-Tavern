@@ -23,6 +23,7 @@ import {
   type UnifiedBackupPayload,
 } from "../useCases/dataMigrationUseCases";
 import { replaceLocalDataFromBackup } from "../../infrastructure/storage/repositories/dataMigrationRepository";
+import { listSyncTombstones } from "../../infrastructure/storage/repositories/tombstoneRepository";
 import { collectMessageAssetIds } from "../../domain/messages/messageContent";
 
 type DatabaseService = IDatabaseService<
@@ -113,6 +114,7 @@ export class DataMigrationService implements IDataMigrationService<UserSettings,
       isEncrypted,
       attachments: await attachmentService.exportAttachments(assetIds),
       agentJournal,
+      tombstones: await listSyncTombstones(),
     });
   }
 

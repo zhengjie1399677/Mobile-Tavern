@@ -16,9 +16,16 @@ import type {
   AgentCompositionSnapshot,
   AgentJournalEvent,
 } from "../../domain/agents/contracts";
+import {
+  isSyncTombstoneEntity,
+  syncTombstoneKey,
+  type SyncTombstone,
+} from "../../domain/sync/tombstones";
 
 export const UNIFIED_BACKUP_MAGIC = "MOBILE_TAVERN_UNIFIED_BACKUP";
-export const UNIFIED_BACKUP_VERSION = 6;
+// v7: 信封承载跨设备同步墓碑。v6 及更早备份没有该字段，读取时降级为空集合，
+//     语义等价于"该备份未记录任何删除"，与既有导入行为完全一致。
+export const UNIFIED_BACKUP_VERSION = 7;
 
 export interface UnifiedBackupPayload {
   magic: typeof UNIFIED_BACKUP_MAGIC;
@@ -34,18 +41,21 @@ export interface UnifiedBackupPayload {
   customWorldbooks: Record<string, CustomWorldbook>;
   attachments: AttachmentBackupRecord[];
   agentJournal: AgentJournalEvent[];
+  /** 跨设备删除事实；空集合表示该备份来自 v6 及更早版本，或从未参与双机同步。 */
+  tombstones: SyncTombstone[];
   backupDate: string;
   isEncrypted: boolean;
 }
 
 export type UnifiedBackupPayloadInput = Omit<
   UnifiedBackupPayload,
-  "magic" | "version" | "memoryDictEntries" | "savedPresets" | "attachments" | "agentJournal"
+  "magic" | "version" | "memoryDictEntries" | "savedPresets" | "attachments" | "agentJournal" | "tombstones"
 > & {
   memoryDictEntries?: MemoryDictEntry[];
   savedPresets?: SavedPresetBundle[];
   attachments?: AttachmentBackupRecord[];
   agentJournal?: AgentJournalEvent[];
+  tombstones?: SyncTombstone[];
 };
 
 /** 创建明文备份专用设置副本，并清除所有可用 API 凭证。 */
@@ -83,6 +93,46 @@ export function buildUnifiedBackupPayload(
     savedPresets: input.savedPresets || [],
     attachments: input.attachments || [],
     agentJournal: input.agentJournal || [],
+    tombstones: input.tombstones || [],
+  });
+}
+
+/**
+ * 从不可信备份边界收口同步墓碑。
+ *
+ * 墓碑决定"哪些数据应当被删除"，损坏或被篡改的墓碑会造成静默数据丢失，
+ * 因此这里与其他集合采用同一策略：结构不合规直接抛错，不做部分放行。
+ */
+export function parseSyncTombstones(value: unknown): SyncTombstone[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("备份文件损坏：tombstones 必须是数组。");
+  const seen = new Set<string>();
+  return value.map((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`墓碑 ${index} 格式无效。`);
+    }
+    const record = item as Record<string, unknown>;
+    if (
+      !isSyncTombstoneEntity(record.entity)
+      || typeof record.targetId !== "string"
+      || record.targetId.length === 0
+      || typeof record.sessionId !== "string"
+      || record.sessionId.length === 0
+      || typeof record.deletedAt !== "number"
+      || !Number.isFinite(record.deletedAt)
+    ) {
+      throw new Error(`墓碑 ${index} 基础字段无效。`);
+    }
+    const key = syncTombstoneKey(record.entity, record.targetId);
+    if (seen.has(key)) throw new Error(`墓碑 ${index} 指向的实体重复。`);
+    seen.add(key);
+    return {
+      entity: record.entity,
+      targetId: record.targetId,
+      sessionId: record.sessionId,
+      deletedAt: record.deletedAt,
+      deviceId: typeof record.deviceId === "string" ? record.deviceId : undefined,
+    };
   });
 }
 

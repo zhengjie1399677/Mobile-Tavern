@@ -257,7 +257,7 @@ describe("Headless Host & API Gateway Integration Tests", () => {
     });
     expect(exportRes.status).toBe(200);
     const backupJson = await exportRes.json();
-    expect(backupJson.version).toBe(6);
+    expect(backupJson.version).toBe(7);
     expect(backupJson.magic).toBe("MOBILE_TAVERN_UNIFIED_BACKUP");
     expect(Array.isArray(backupJson.characters)).toBe(true);
     expect(backupJson.characters.some((c) => c.id === "char_headless_test_01")).toBe(true);

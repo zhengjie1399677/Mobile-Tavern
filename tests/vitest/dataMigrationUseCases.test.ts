@@ -1,3 +1,4 @@
+import "fake-indexeddb/auto";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildUnifiedBackupPayload,
@@ -148,9 +149,10 @@ describe("数据迁移应用用例", () => {
       isEncrypted: false,
     });
 
-    expect(payload.version).toBe(6);
+    expect(payload.version).toBe(7);
     expect(payload.attachments).toEqual([]);
     expect(payload.agentJournal).toEqual([]);
+    expect(payload.tombstones).toEqual([]);
     expect(payload.customWorldbooks).toEqual(customWorldbooks);
     expect(payload.customWorldbooks).not.toBe(customWorldbooks);
   });

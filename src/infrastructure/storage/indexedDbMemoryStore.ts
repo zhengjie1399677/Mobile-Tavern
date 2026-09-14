@@ -7,6 +7,7 @@ import type {
 import { bindTransactionAbort, enqueueWrite } from "./idbQueue";
 import { guardSourceMessages } from "./memorySourceGuard";
 import { getDB } from "./idbConnection";
+import { buildMessageTombstone, putTombstones } from "./repositories/tombstoneRepository";
 import {
   advanceSessionContentRevision,
   deriveTurnCount,
@@ -428,7 +429,7 @@ export async function replaceSessionBranch(
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(
-        ["sessions", "messages", "memory_dict", "memory_fragments", "memory_facts"],
+        ["sessions", "messages", "memory_dict", "memory_fragments", "memory_facts", "sync_tombstones"],
         "readwrite",
       );
       const sessionsStore = transaction.objectStore("sessions");
@@ -436,6 +437,7 @@ export async function replaceSessionBranch(
       const dictStore = transaction.objectStore("memory_dict");
       const fragmentsStore = transaction.objectStore("memory_fragments");
       const factsStore = transaction.objectStore("memory_facts");
+      const tombstonesStore = transaction.objectStore("sync_tombstones");
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
@@ -480,6 +482,9 @@ export async function replaceSessionBranch(
                 (recordTurnIndex !== null && recordTurnIndex >= branchStartTurnIndex)
               ) {
                 cursor.delete();
+                // 分支替换会连带清掉边界之后的孤儿回复；这些消息同样需要墓碑，
+                // 否则重发产生的旧分支会在另一台设备上复活。
+                putTombstones(tombstonesStore, [buildMessageTombstone(session.id, record.id)]);
               } else {
                 retainedMessageCount++;
                 if (record.role === "user") retainedUserMessageCount++;
