@@ -157,10 +157,14 @@ const MessageBubble = ({
     const textarea = editorTextareaRef.current;
     if (!textarea) return;
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-    const minHeight = Math.max(140, Math.min(220, viewportHeight * 0.32));
-    const maxHeight = Math.max(minHeight, viewportHeight * 0.58);
+    // 移动端自适应：单行最小 42px，绝不强撑 220px 大片黑底空白
+    const minHeight = 42;
+    // 软键盘弹起时，最大高度控制在可视区域 45% 以内，避免撑爆小屏手机
+    const maxHeight = Math.max(120, Math.min(280, viewportHeight * 0.45));
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight)}px`;
+    const naturalHeight = textarea.scrollHeight;
+    const finalHeight = Math.min(Math.max(naturalHeight, minHeight), maxHeight);
+    textarea.style.height = `${finalHeight}px`;
   }, []);
 
   React.useLayoutEffect(() => {
@@ -616,7 +620,7 @@ const MessageBubble = ({
 
         {editingMsgId === message.id ? (
           <div
-            className="w-full rounded-2xl border border-border bg-card p-2.5 text-sm shadow-sm"
+            className="w-full rounded-2xl border border-primary/30 bg-card/95 p-3 text-sm shadow-md backdrop-blur-md transition-all duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <textarea
@@ -625,7 +629,7 @@ const MessageBubble = ({
               onChange={(e) =>
                 setEditingMsgContent(e.target.value)
               }
-              className="mb-2 block max-h-[58dvh] w-full resize-none overflow-y-auto rounded-xl border border-border bg-background p-3 text-sm font-normal leading-relaxed text-foreground outline-none focus:border-primary/55 focus:ring-2 focus:ring-primary/10"
+              className="mb-2.5 block max-h-[48dvh] w-full resize-none overflow-y-auto rounded-xl border border-border/80 bg-background/90 p-3 text-sm font-normal leading-relaxed text-foreground outline-none focus:border-primary/55 focus:ring-2 focus:ring-primary/15 transition-all shadow-inner"
               style={{
                 fontSize: settings?.chatFontSize ? `${settings.chatFontSize}px` : undefined,
                 lineHeight: settings?.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
@@ -633,9 +637,18 @@ const MessageBubble = ({
               rows={1}
               autoFocus
               onFocus={(e) => {
-                window.requestAnimationFrame(() => {
-                  e.target.scrollIntoView({ block: "nearest", behavior: "auto" });
-                });
+                const target = e.target;
+                setTimeout(() => {
+                  try {
+                    const rect = target.getBoundingClientRect();
+                    const viewHeight = window.visualViewport?.height ?? window.innerHeight;
+                    if (rect.bottom > viewHeight || rect.top < 60) {
+                      target.scrollIntoView({ block: "center", behavior: "smooth" });
+                    }
+                  } catch {
+                    // ignore
+                  }
+                }, 150);
               }}
             />
             <div className={`flex gap-2 ${isUser ? "justify-end" : "justify-start"}`}>

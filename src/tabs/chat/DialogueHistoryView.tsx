@@ -59,6 +59,7 @@ const DialogueHistoryView = ({
     isSending,
     isSummarizing,
     chatBottomRef,
+    editingMsgId,
     // 单会话消息分页懒加载
     hasMoreMessages,
     isLoadingMoreMessages,
@@ -74,6 +75,7 @@ const DialogueHistoryView = ({
     isSending: state.isSending,
     isSummarizing: state.isSummarizing,
     chatBottomRef: state.chatBottomRef,
+    editingMsgId: state.editingMsgId,
     hasMoreMessages: state.hasMoreMessages,
     isLoadingMoreMessages: state.isLoadingMoreMessages,
     loadMoreMessages: state.loadMoreMessages,
@@ -82,6 +84,7 @@ const DialogueHistoryView = ({
   }));
 
   const [swipedMsgId, setSwipedMsgId] = React.useState<string | null>(null);
+  const isEditingAnyMessage = Boolean(editingMsgId);
 
   // 过滤隐藏的野牛静默消息
   const rawMessages = (activeSession?.messages || []).filter((message: Message) =>
@@ -116,7 +119,7 @@ const DialogueHistoryView = ({
   // - estimateSize 400px：与原 content-visibility 的 containIntrinsicSize 一致
   // - overscan 5：移动端快速滚动时预渲染 5 条避免空白
   // - measureElement：动态测量实际高度，流式消息高度变化时 ResizeObserver 自动重测
-  // - gap strategy: paddingBottom 1rem 模拟原 space-y-4 间距
+  // - 当用户在移动端编辑消息时，禁用 anchorTo: "end" 避免软键盘弹起时与视口对齐冲突造成上下大片留白撕裂
   const virtualizer = useVirtualizer({
     count: isMessageHydrated ? messagesToRender.length : 0,
     getScrollElement: () => scrollContainerRef.current,
@@ -124,8 +127,8 @@ const DialogueHistoryView = ({
     overscan: 5,
     measureElement: (element) => element.getBoundingClientRect().height,
     getItemKey: (index) => messagesToRender[index]?.id ?? index,
-    anchorTo: "end",
-    followOnAppend: "auto",
+    anchorTo: isEditingAnyMessage ? undefined : "end",
+    followOnAppend: isEditingAnyMessage ? false : "auto",
     scrollEndThreshold: 60,
     useAnimationFrameWithResizeObserver: true,
   });
