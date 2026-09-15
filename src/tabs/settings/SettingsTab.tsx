@@ -392,13 +392,13 @@ export default function SettingsTab() {
               <CardContent className="p-3 flex items-center gap-3">
                 <Sparkles className="w-4 h-4 text-primary shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-foreground">{t("sandbox.title")}</p>
-                  <p className="text-[9px] text-muted-foreground truncate">{t("sandbox.desc")}</p>
+                  <p className="text-xs sm:text-[13px] font-bold text-foreground">{t("sandbox.title")}</p>
+                  <p className="text-[11px] text-muted-foreground/75 truncate">{t("sandbox.desc")}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveTab("playground")}
-                  className="h-8 px-2.5 bg-primary/10 text-primary border border-primary/30 text-[10px] font-bold rounded-lg active:scale-95"
+                  className="h-8.5 px-3 bg-primary/10 text-primary border border-primary/30 text-xs font-semibold rounded-xl active:scale-95"
                 >
                   {t("settings_hub.open")}
                 </button>
@@ -415,15 +415,15 @@ export default function SettingsTab() {
                   <Info className="w-4.5 h-4.5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-foreground">Mobile Tavern</p>
-                  <p className="text-[10px] text-muted-foreground">{t("settings_hub.about_product_desc")}</p>
-                  <p className="mt-0.5 text-[9px] font-mono text-muted-foreground">v{__APP_VERSION__}</p>
+                  <p className="text-xs sm:text-[13px] font-bold text-foreground">Mobile Tavern</p>
+                  <p className="text-[11px] text-muted-foreground/75">{t("settings_hub.about_product_desc")}</p>
+                  <p className="mt-0.5 text-[10px] font-mono font-semibold text-muted-foreground/75">v{__APP_VERSION__}</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleCheckUpdate}
                   disabled={isCheckingUpdate}
-                  className="h-8 px-2.5 rounded-lg border border-primary/30 bg-primary/10 text-primary text-[10px] font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                  className="h-8.5 px-3 rounded-xl border border-primary/30 bg-primary/10 text-primary text-xs font-semibold flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
                 >
                   {isCheckingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                   {isCheckingUpdate ? t("control_panel.checking") : t("control_panel.check_update")}
@@ -491,12 +491,12 @@ export default function SettingsTab() {
                   {t(section.titleKey)}
                 </span>
                 {section.experimental && (
-                  <span className="shrink-0 rounded bg-amber-500/15 px-1 py-0.2 font-mono text-[9px] font-semibold text-amber-600 dark:text-amber-400">
+                  <span className="shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-amber-600 dark:text-amber-400">
                     {t("settings_hub.experimental")}
                   </span>
                 )}
               </span>
-              <span className={`${compact ? "text-[10px]" : "text-[11px]"} block text-muted-foreground/75 leading-tight mt-0.5 truncate`}>
+              <span className="text-[11px] block text-muted-foreground/75 leading-tight mt-0.5 truncate">
                 {t(section.descriptionKey)}
               </span>
             </span>
@@ -523,12 +523,12 @@ export default function SettingsTab() {
           <span className="settings-header-icon"><Settings className="w-4 h-4 text-primary" /></span>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
             <h1 className="truncate text-sm sm:text-base font-bold tracking-tight text-foreground">
               {selectedMeta ? t(selectedMeta.titleKey) : t("nav.settings")}
             </h1>
             {selectedMeta?.experimental && (
-              <span className="shrink-0 rounded bg-amber-500/15 px-1 py-0.2 font-mono text-[8px] font-semibold text-amber-600 dark:text-amber-400">
+              <span className="shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-amber-600 dark:text-amber-400">
                 {t("settings_hub.experimental")}
               </span>
             )}

@@ -87,12 +87,12 @@ export default function HostSyncCard({
   };
 
   const actionClass =
-    "bg-background hover:bg-muted border border-border shadow-sm text-foreground py-2 rounded-md transition flex justify-center items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background";
+    "h-8.5 rounded-xl bg-background hover:bg-muted border border-border shadow-2xs text-foreground text-xs font-semibold transition flex justify-center items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background active:scale-95";
 
   const modeTabClass = (active: boolean) =>
-    `flex-1 py-1.5 text-[11px] font-bold rounded-md transition-all ${
+    `flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
       active
-        ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
+        ? "bg-background text-foreground shadow-2xs ring-1 ring-border/60"
         : "text-muted-foreground hover:text-foreground"
     }`;
 
@@ -113,11 +113,11 @@ export default function HostSyncCard({
         }}
       >
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm flex items-center gap-2 font-semibold text-foreground">
+          <CardTitle className="text-xs sm:text-[13px] flex items-center gap-2 font-bold text-foreground">
             <Server className="w-4 h-4 text-sky-500" />{" "}
             {t("host_sync.title")}
             <span
-              className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+              className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-md ${
                 mode === "merge"
                   ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                   : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
@@ -126,7 +126,7 @@ export default function HostSyncCard({
               {mode === "merge" ? t("host_sync.mode_merge") : t("host_sync.mode_replace")}
             </span>
           </CardTitle>
-          <span className="text-muted-foreground text-[10px] flex items-center gap-1">
+          <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1">
             {expanded ? t("backup.collapse") : t("backup.expand")}
             <ChevronDown aria-hidden="true" className={toggleIconClass} />
           </span>
@@ -134,13 +134,13 @@ export default function HostSyncCard({
       </CardHeader>
       {expanded && (
         <CardContent className="pt-3 px-3 pb-3 space-y-3 bg-muted/10 animate-in fade-in slide-in-from-top-2 duration-300">
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-[11px] leading-relaxed text-muted-foreground/80">
             {t("host_sync.desc")}
           </p>
 
           <div className="rounded-lg border border-border/50 bg-background/70 p-2 space-y-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold text-muted-foreground shrink-0">
+              <span className="text-xs font-semibold text-foreground shrink-0">
                 {t("host_sync.target_label")}
               </span>
               <span
@@ -154,7 +154,7 @@ export default function HostSyncCard({
             {!configured && onNavigateToHost && (
               <button
                 onClick={onNavigateToHost}
-                className="w-full mt-1 rounded-md border border-border bg-background hover:bg-muted py-1.5 text-[11px] font-bold text-foreground transition"
+                className="w-full mt-1 h-8 rounded-xl border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition active:scale-95 shadow-2xs flex items-center justify-center"
               >
                 {t("host_sync.go_to_settings")}
               </button>
@@ -162,7 +162,7 @@ export default function HostSyncCard({
           </div>
 
           <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-muted-foreground">
+            <span className="text-xs font-semibold text-foreground">
               {t("host_sync.mode_label")}
             </span>
             <div
@@ -187,14 +187,14 @@ export default function HostSyncCard({
                 {t("host_sync.mode_replace")}
               </button>
             </div>
-            <p className="text-[10px] leading-relaxed text-muted-foreground/90">
+            <p className="text-[11px] leading-relaxed text-muted-foreground/80">
               {mode === "merge"
                 ? t("host_sync.mode_merge_hint")
                 : t("host_sync.mode_replace_hint")}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+          <div className="grid grid-cols-2 gap-2">
             <button
               disabled={!configured || busy !== null}
               onClick={() => void run("push")}
@@ -214,9 +214,9 @@ export default function HostSyncCard({
           </div>
 
           <p
-            className={`text-[10px] leading-relaxed ${
+            className={`text-[11px] leading-relaxed ${
               mode === "merge"
-                ? "text-muted-foreground"
+                ? "text-muted-foreground/80"
                 : "text-amber-600 dark:text-amber-400"
             }`}
           >
@@ -230,7 +230,7 @@ export default function HostSyncCard({
               type="button"
               aria-expanded={showAdvanced}
               onClick={() => setShowAdvanced((value) => !value)}
-              className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-semibold text-muted-foreground hover:bg-muted/40 transition-colors"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/40 transition-colors"
             >
               <span className="flex items-center gap-1.5">
                 <SlidersHorizontal className="w-3 h-3" aria-hidden="true" />
@@ -244,7 +244,7 @@ export default function HostSyncCard({
               />
             </button>
             {showAdvanced && (
-              <div className="px-2 pb-2 pt-1 border-t border-border/40 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="px-2.5 pb-2.5 pt-1.5 border-t border-border/40 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
                 <SettingsToggleRow
                   label={t("host_sync.preview_toggle")}
                   description={t("host_sync.preview_toggle_desc")}
@@ -252,7 +252,7 @@ export default function HostSyncCard({
                   onCheckedChange={(checked) => patchSync({ syncPreviewEnabled: checked })}
                 />
                 {!previewEnabled && (
-                  <p className="text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
+                  <p className="text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
                     {t("host_sync.preview_off_hint")}
                   </p>
                 )}
@@ -261,7 +261,7 @@ export default function HostSyncCard({
           </div>
 
           {backupStatus && (
-            <div className="bg-background border border-border rounded p-2 text-[10px] text-muted-foreground text-center font-mono animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-background border border-border rounded-xl p-2.5 text-[11px] text-muted-foreground text-center font-mono animate-in fade-in zoom-in-95 duration-200">
               {backupStatus}
             </div>
           )}

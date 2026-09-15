@@ -57,17 +57,17 @@ export default function TtsConfigSection({
   return (
     <AccordionItem value="tts-config" className="settings-connection-item overflow-hidden">
       <AccordionTrigger className="settings-panel-trigger px-3 py-2 hover:no-underline hover:bg-muted/30 transition">
-        <div className="flex items-center justify-between w-full pr-2">
+        <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="settings-panel-icon"><Volume2 className="w-4 h-4 text-primary" /></span>
+            <span className="settings-panel-icon shrink-0"><Volume2 className="w-4 h-4 text-primary" /></span>
             <div className="flex flex-col items-start gap-0.5 min-w-0">
-              <span className="text-xs sm:text-[13px] font-semibold text-foreground">{t("tts.title")}</span>
-              <span className="text-[10.5px] text-muted-foreground/75 font-normal truncate">
+              <span className="text-xs sm:text-[13px] font-bold text-foreground shrink-0">{t("tts.title")}</span>
+              <span className="text-[11px] text-muted-foreground/75 font-normal truncate max-w-[140px] sm:max-w-none">
                 {t("tts.subtitle")}
               </span>
             </div>
           </div>
-          <span className={`shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold font-mono ${
+          <span className={`shrink-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold font-mono ${
             settings.ttsConfig?.enabled
               ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
               : "bg-muted/40 text-muted-foreground border border-border/40"
@@ -80,7 +80,7 @@ export default function TtsConfigSection({
         <div className="flex items-center justify-between border-b border-border/30 pb-3">
           <div>
             <div className="text-xs font-semibold text-foreground">{t("tts.enable")}</div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">{t("tts.enable_desc")}</div>
+            <div className="text-[11px] text-muted-foreground/75 mt-0.5">{t("tts.enable_desc")}</div>
           </div>
           <Switch
             aria-label={t("tts.enable")}
@@ -231,7 +231,7 @@ export default function TtsConfigSection({
             {/* Sliders for Volume, Speed, Pitch */}
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground block">{t("tts.volume")} ({Math.round((settings.ttsConfig?.volume ?? 0.5) * 100)}%)</label>
+                <label className="text-xs font-semibold text-muted-foreground block">{t("tts.volume")} ({Math.round((settings.ttsConfig?.volume ?? 0.5) * 100)}%)</label>
                 <input
                   type="range"
                   min="0"
@@ -264,7 +264,7 @@ export default function TtsConfigSection({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground block">{t("tts.rate")} ({settings.ttsConfig?.rate ?? 1.0}x)</label>
+                <label className="text-xs font-semibold text-muted-foreground block">{t("tts.rate")} ({settings.ttsConfig?.rate ?? 1.0}x)</label>
                 <input
                   type="range"
                   min="0.5"
@@ -297,7 +297,7 @@ export default function TtsConfigSection({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground block">{t("tts.pitch")} ({settings.ttsConfig?.pitch ?? 1.0})</label>
+                <label className="text-xs font-semibold text-muted-foreground block">{t("tts.pitch")} ({settings.ttsConfig?.pitch ?? 1.0})</label>
                 <input
                   type="range"
                   min="0.5"
@@ -341,7 +341,7 @@ export default function TtsConfigSection({
             ) : (
               <div className="space-y-3 p-3 bg-muted/30 border border-border/40 rounded-lg">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-muted-foreground">OpenAI API Key</label>
+                  <label className="text-xs font-semibold text-muted-foreground">OpenAI API Key</label>
                   <Input
                     type="password"
                     value={settings.ttsConfig?.openaiApiKey || ""}
@@ -372,7 +372,7 @@ export default function TtsConfigSection({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-muted-foreground">OpenAI Base URL</label>
+                  <label className="text-xs font-semibold text-muted-foreground">OpenAI Base URL</label>
                   <Input
                     value={settings.ttsConfig?.openaiBaseUrl || ""}
                     onChange={(e) => {
@@ -403,7 +403,7 @@ export default function TtsConfigSection({
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground block">{t("image_gen.model")}</label>
+                    <label className="text-xs font-semibold text-muted-foreground block">{t("image_gen.model")}</label>
                     <Input
                       value={settings.ttsConfig?.openaiModel || ""}
                       onChange={(e) => {
@@ -433,7 +433,7 @@ export default function TtsConfigSection({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground block">{t("tts.voice")}</label>
+                    <label className="text-xs font-semibold text-muted-foreground block">{t("tts.voice")}</label>
                     <Select
                       aria-label={t("tts.voice")}
                       value={settings.ttsConfig?.openaiVoice || "alloy"}

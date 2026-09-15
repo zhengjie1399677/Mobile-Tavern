@@ -18,22 +18,22 @@ export default function ChatImportCard({
   return (
     <Card className="bg-card border-border shadow-sm mt-2">
       <CardHeader className="pb-2.5 border-b border-border/50 px-3 pt-3">
-        <CardTitle className="text-sm flex items-center gap-2 font-semibold text-foreground">
+        <CardTitle className="text-xs sm:text-[13px] flex items-center gap-2 font-bold text-foreground">
           <MessageSquare className="w-4 h-4 text-primary" /> {t("chat_import.title")}
         </CardTitle>
-        <CardDescription className="text-[10px] mt-0.5">
+        <CardDescription className="text-[11px] text-muted-foreground/75 mt-0.5">
           {t("chat_import.subtitle")}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-3 px-3 pb-3 space-y-3">
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
+        <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
           {t("chat_import.description")}
           <br />
           <span className="text-primary font-medium">{t("chat_import.tip_label")}</span>
           {t("chat_import.help_text")}
         </p>
-        <div className="flex font-bold text-xs">
-          <label className="w-full bg-background hover:bg-muted border border-border shadow-sm text-foreground py-2 rounded-md transition flex justify-center items-center gap-1.5 cursor-pointer">
+        <div>
+          <label className="w-full h-8.5 rounded-xl bg-background hover:bg-muted border border-border shadow-2xs text-xs font-semibold text-foreground transition flex justify-center items-center gap-1.5 cursor-pointer active:scale-95">
             <Upload className="w-3.5 h-3.5 text-emerald-500" /> {t("chat_import.upload_btn")}
             <input
               type="file"

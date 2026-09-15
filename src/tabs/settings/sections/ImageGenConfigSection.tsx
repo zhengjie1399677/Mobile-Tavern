@@ -31,17 +31,17 @@ export default function ImageGenConfigSection({
   return (
     <AccordionItem value="image-gen-api" className="settings-connection-item overflow-hidden">
       <AccordionTrigger className="settings-panel-trigger px-3 py-2 hover:no-underline hover:bg-muted/30 transition">
-        <div className="flex items-center justify-between w-full pr-2">
+        <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="settings-panel-icon"><Palette className="w-4 h-4 text-primary" /></span>
+            <span className="settings-panel-icon shrink-0"><Palette className="w-4 h-4 text-primary" /></span>
             <div className="flex flex-col items-start gap-0.5 min-w-0">
-              <span className="text-xs sm:text-[13px] font-semibold text-foreground">{t("image_gen.title")}</span>
-              <span className="text-[10.5px] text-muted-foreground/75 font-normal truncate">
+              <span className="text-xs sm:text-[13px] font-bold text-foreground shrink-0">{t("image_gen.title")}</span>
+              <span className="text-[11px] text-muted-foreground/75 font-normal truncate max-w-[140px] sm:max-w-none">
                 {t("image_gen.subtitle")}
               </span>
             </div>
           </div>
-          <span className={`shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold font-mono ${
+          <span className={`shrink-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold font-mono ${
             settings.imageGenApi?.enabled
               ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
               : "bg-muted/40 text-muted-foreground border border-border/40"
@@ -54,8 +54,8 @@ export default function ImageGenConfigSection({
         {/* Enabled Switch */}
         <div className="flex items-center justify-between pb-3 border-b border-border/40">
           <div className="space-y-0.5">
-            <label className="text-[13px] font-semibold text-foreground">{t("image_gen.enable")}</label>
-            <p className="text-[10px] text-muted-foreground max-w-[450px]">
+            <label className="text-xs sm:text-[13px] font-semibold text-foreground">{t("image_gen.enable")}</label>
+            <p className="text-[11px] text-muted-foreground/75 max-w-[450px]">
               {t("image_gen.enable_desc")}
             </p>
           </div>
@@ -201,10 +201,10 @@ export default function ImageGenConfigSection({
 
             {/* Base URL */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.base_url")}</label>
+              <label className="text-xs font-semibold text-foreground">{t("image_gen.base_url")}</label>
               <Input
                 type="text"
-                className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
+                className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                 spellCheck={false}
                 value={settings.imageGenApi?.baseUrl || ""}
                 onChange={(e) => {
@@ -236,10 +236,10 @@ export default function ImageGenConfigSection({
 
             {/* API Key */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.api_key")}</label>
+              <label className="text-xs font-semibold text-foreground">{t("image_gen.api_key")}</label>
               <Input
                 type="password"
-                className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
+                className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                 spellCheck={false}
                 value={settings.imageGenApi?.apiKey || ""}
                 onChange={(e) => {
@@ -271,7 +271,7 @@ export default function ImageGenConfigSection({
 
             {/* Model Name */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.model")}</label>
+              <label className="text-xs font-semibold text-foreground">{t("image_gen.model")}</label>
               <Input
                 type="text"
                 className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
@@ -307,10 +307,10 @@ export default function ImageGenConfigSection({
             {/* Width & Height */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.width")}</label>
+                <label className="text-xs font-semibold text-foreground">{t("image_gen.width")}</label>
                 <Input
                   type="number"
-                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
+                  className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.width || 512}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 512;
@@ -338,10 +338,10 @@ export default function ImageGenConfigSection({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.height")}</label>
+                <label className="text-xs font-semibold text-foreground">{t("image_gen.height")}</label>
                 <Input
                   type="number"
-                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
+                  className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.height || 512}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 512;
@@ -373,10 +373,10 @@ export default function ImageGenConfigSection({
             {/* Steps, CFG & Sampler */}
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">{t("image_gen.steps")}</label>
+                <label className="text-xs font-semibold text-foreground">{t("image_gen.steps")}</label>
                 <Input
                   type="number"
-                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
+                  className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.steps || 20}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 20;
@@ -404,11 +404,11 @@ export default function ImageGenConfigSection({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">{t("image_gen.cfg")}</label>
+                <label className="text-xs font-semibold text-foreground">{t("image_gen.cfg")}</label>
                 <Input
                   type="number"
                   step="0.1"
-                  className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
+                  className="font-mono text-xs h-8.5 rounded-xl bg-background/80 border-border/70 shadow-2xs"
                   value={settings.imageGenApi?.cfgScale || 7.0}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value) || 7.0;
@@ -436,7 +436,7 @@ export default function ImageGenConfigSection({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">{t("image_gen.sampler")}</label>
+                <label className="text-xs font-semibold text-foreground">{t("image_gen.sampler")}</label>
                 <Input
                   type="text"
                   className="font-mono text-xs h-8.5 rounded-xl text-xs bg-background/80 border-border/70 shadow-2xs"
@@ -472,8 +472,8 @@ export default function ImageGenConfigSection({
             {/* Prompt Edit Before Generate Switch */}
             <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-1 animate-in fade-in slide-in-from-top-2 duration-300">
               <div className="space-y-0.5">
-                <label className="text-[12px] font-semibold text-foreground">{t("image_gen.edit_before_gen")}</label>
-                <p className="text-[10px] text-muted-foreground max-w-[450px]">
+                <label className="text-xs sm:text-[13px] font-semibold text-foreground">{t("image_gen.edit_before_gen")}</label>
+                <p className="text-[11px] text-muted-foreground/75 max-w-[450px]">
                   {t("image_gen.edit_before_gen_desc")}
                 </p>
               </div>
@@ -512,14 +512,14 @@ export default function ImageGenConfigSection({
             <Accordion className="w-full border-t border-border/40 pt-2 mt-2">
               <AccordionItem value="image-prompts-settings" className="border-none">
                 <AccordionTrigger className="py-2 hover:no-underline hover:opacity-80 transition justify-between flex w-full">
-                  <span className="text-[11px] font-semibold text-foreground">
+                  <span className="text-xs font-semibold text-foreground">
                     {t("image_gen.advanced_prompts")}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="pt-2 pb-0 space-y-3">
                   {/* Prompt Prefix */}
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.prompt_prefix")}</label>
+                    <label className="text-xs font-semibold text-foreground">{t("image_gen.prompt_prefix")}</label>
                     <Textarea
                       className="font-mono text-xs min-h-[120px] bg-input/50 leading-relaxed"
                       value={settings.imageGenApi?.promptPrefix || ""}
@@ -553,7 +553,7 @@ export default function ImageGenConfigSection({
                   {/* Negative Prompt (SD & NovelAI only) */}
                   {(settings.imageGenApi?.type === "sd-webui" || settings.imageGenApi?.type === "novelai") && (
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.negative_prompt")}</label>
+                      <label className="text-xs font-semibold text-foreground">{t("image_gen.negative_prompt")}</label>
                       <Textarea
                         className="font-mono text-xs min-h-[120px] bg-input/50 leading-relaxed"
                         value={settings.imageGenApi?.negativePrompt || ""}
@@ -587,7 +587,7 @@ export default function ImageGenConfigSection({
 
                   {/* Prompt Generator Template */}
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-muted-foreground">{t("image_gen.prompt_template")}</label>
+                    <label className="text-xs font-semibold text-foreground">{t("image_gen.prompt_template")}</label>
                     <Textarea
                       className="font-mono text-xs min-h-[160px] bg-input/50 leading-relaxed"
                       value={settings.imageGenApi?.promptGeneratorTemplate || ""}
@@ -617,7 +617,7 @@ export default function ImageGenConfigSection({
                       }}
                       placeholder="Prompt template for LLM summarization"
                     />
-                    <p className="text-[9px] text-muted-foreground leading-tight">
+                    <p className="text-[11px] text-muted-foreground/75 leading-relaxed">
                       {t("image_gen.prompt_template_desc")}
                     </p>
                   </div>

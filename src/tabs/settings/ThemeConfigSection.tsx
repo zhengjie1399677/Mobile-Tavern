@@ -252,7 +252,7 @@ export default function ThemeConfigSection({
       <CardContent className="pt-1 px-3 pb-3">
         <section data-ui="main-tab-visibility-settings" className="mb-4 rounded-xl border border-border/60 bg-card/35 p-3">
           <h4 className="text-xs font-bold text-foreground">{t("tab_visibility.title")}</h4>
-          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("tab_visibility.description")}</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/75">{t("tab_visibility.description")}</p>
           <div className="mt-2.5 grid grid-cols-3 gap-2">
             {configurableMainTabs.map(tab => {
               const tabId = tab.id;
@@ -274,7 +274,7 @@ export default function ThemeConfigSection({
                       : [...hiddenMainTabs, tabId];
                     updateSettings({ ...settings, hiddenMainTabs: sanitizeHiddenMainTabs(next) });
                   }}
-                  className={`min-h-9 rounded-lg border px-2 text-[10px] font-semibold transition ${hidden
+                  className={`h-8.5 rounded-xl border px-2 text-xs font-semibold transition active:scale-95 ${hidden
                     ? "border-border bg-muted/35 text-muted-foreground line-through"
                     : "border-primary/30 bg-primary/10 text-primary"
                   }`}
@@ -289,7 +289,7 @@ export default function ThemeConfigSection({
         <section data-ui="theme-media-permission" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/35 p-3">
           <div>
             <h4 className="text-xs font-bold text-foreground">{t("theme.media_enabled")}</h4>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{t("theme.media_enabled_desc")}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/75">{t("theme.media_enabled_desc")}</p>
           </div>
           <label className="checkBox-container shrink-0">
             <input
@@ -310,7 +310,7 @@ export default function ThemeConfigSection({
                 <h4 className="text-xs font-bold text-foreground">
                   背景流光与透光强度
                 </h4>
-                <p className="text-[10px] text-muted-foreground truncate">
+                <p className="text-[11px] text-muted-foreground/75 truncate">
                   {(settings.ambientGlowIntensity ?? 0.6) === 0
                     ? "当前为完全纯色模式（已关闭所有流光）"
                     : "调节全局环境光晕明度；拉到最左（0%）即为完全纯色"}
@@ -325,7 +325,7 @@ export default function ThemeConfigSection({
                 <button
                   type="button"
                   onClick={() => updateSettings(prev => ({ ...prev, ambientGlowIntensity: 0 }))}
-                  className="rounded-md border border-border/60 bg-card/50 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground active:scale-95"
+                  className="rounded-md border border-border/60 bg-card/50 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground active:scale-95"
                   title="一键切换为纯色背景"
                 >
                   一键纯色
@@ -344,7 +344,7 @@ export default function ThemeConfigSection({
           </div>
 
           <div className="mt-3 flex items-center gap-3">
-            <span className="text-[10px] font-medium text-muted-foreground shrink-0">
+            <span className="text-[11px] font-medium text-muted-foreground shrink-0">
               0% 纯色
             </span>
             <input
@@ -359,7 +359,7 @@ export default function ThemeConfigSection({
               }}
               className="h-1.5 flex-1 cursor-pointer appearance-none rounded-lg bg-white/10 accent-primary"
             />
-            <span className="text-[10px] font-medium text-muted-foreground shrink-0">
+            <span className="text-[11px] font-medium text-muted-foreground shrink-0">
               100% 饱满
             </span>
           </div>
@@ -371,7 +371,7 @@ export default function ThemeConfigSection({
             <Globe className="w-4 h-4 text-primary shrink-0" />
             <div className="min-w-0">
               <h4 className="text-xs font-bold text-foreground">{t("lang.section_title")}</h4>
-              <p className="text-[10px] text-muted-foreground truncate">{t("lang.select_desc")}</p>
+              <p className="text-[11px] text-muted-foreground/75 truncate">{t("lang.select_desc")}</p>
             </div>
           </div>
           <Select
@@ -509,10 +509,10 @@ export default function ThemeConfigSection({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-foreground truncate">{theme.name}</span>
-                        <span className="text-[9px] font-mono px-1 py-0.5 border border-border/50 rounded bg-muted text-muted-foreground shrink-0">
+                        <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 border border-border/50 rounded-md bg-muted text-muted-foreground shrink-0">
                           v{theme.version}
                         </span>
-                        <span className={`text-[9px] px-1 py-0.5 rounded shrink-0 ${theme.isDark
+                        <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${theme.isDark
                           ? "bg-slate-700/50 text-slate-200"
                           : "bg-amber-100/60 text-amber-800"
                           }`}>
@@ -520,7 +520,7 @@ export default function ThemeConfigSection({
                         </span>
                       </div>
                       {theme.description && (
-                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">{theme.description}</p>
+                        <p className="text-[11px] text-muted-foreground/75 truncate mt-0.5">{theme.description}</p>
                       )}
                     </div>
                     <div className="flex w-full items-center justify-end gap-1 sm:w-auto shrink-0">
@@ -604,7 +604,7 @@ export default function ThemeConfigSection({
               </button>
             ))}
           </div>
-          <p className="text-[10px] leading-relaxed text-muted-foreground">
+          <p className="text-[11px] leading-relaxed text-muted-foreground/75">
             {t("theme.ui_density_desc")}
           </p>
         </div>
@@ -765,7 +765,7 @@ export default function ThemeConfigSection({
                         chatBackgroundDim: opt.dim,
                       }))
                     }
-                    className={`py-2 px-0.5 rounded text-[10px] border text-center transition-all ${active
+                    className={`py-2 px-0.5 rounded-lg text-xs font-medium border text-center transition-all ${active
                         ? "bg-primary/20 border-primary text-primary font-semibold"
                         : "bg-muted/40 border-border/45 text-muted-foreground hover:bg-muted/65"
                       }`}

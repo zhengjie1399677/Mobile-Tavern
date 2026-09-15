@@ -243,15 +243,15 @@ export default function HostBindingSection({
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Server className="h-3.5 w-3.5" />
               </span>
-              <h4 className="text-xs font-bold text-foreground">{t("host_binding.host_role_title")}</h4>
+              <h4 className="text-xs sm:text-[13px] font-bold text-foreground">{t("host_binding.host_role_title")}</h4>
             </div>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
               {t("host_binding.host_role_desc")}
             </p>
           </div>
           <span
             data-testid="host-binding-scope-badge"
-            className={`shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[9px] font-semibold ${
+            className={`shrink-0 rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold ${
               isLoopback
                 ? "border-border/40 bg-muted/40 text-muted-foreground"
                 : "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400"
@@ -263,7 +263,7 @@ export default function HostBindingSection({
 
         {/* 监听地址 */}
         <div className="space-y-1.5">
-          <label className="text-[11px] font-semibold text-muted-foreground" htmlFor="host-binding-address">
+          <label className="text-xs font-semibold text-muted-foreground" htmlFor="host-binding-address">
             {t("host_binding.bind_host")}
           </label>
           <div className="flex items-center gap-2">
@@ -282,7 +282,7 @@ export default function HostBindingSection({
                   type="button"
                   onClick={() => void handleBindHostChange(preset)}
                   data-active={binding.bindHost.trim() === preset ? "true" : "false"}
-                  className={`h-8.5 rounded-lg border px-2 font-mono text-[10px] font-bold transition-colors active:scale-95 ${
+                  className={`h-8.5 rounded-lg border px-2.5 font-mono text-xs font-semibold transition-colors active:scale-95 ${
                     binding.bindHost.trim() === preset
                       ? "border-primary/40 bg-primary/15 text-primary"
                       : "border-border/60 bg-muted/30 text-muted-foreground hover:text-foreground"
@@ -293,7 +293,7 @@ export default function HostBindingSection({
               ))}
             </div>
           </div>
-          <p className="text-[9.5px] leading-relaxed text-muted-foreground/75">
+          <p className="text-[11px] leading-relaxed text-muted-foreground/75">
             {t("host_binding.bind_host_hint")}
           </p>
         </div>
@@ -301,7 +301,7 @@ export default function HostBindingSection({
         {/* 端口 + 访问凭据 */}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-muted-foreground" htmlFor="host-binding-port">
+            <label className="text-xs font-semibold text-muted-foreground" htmlFor="host-binding-port">
               {t("host_binding.bind_port")}
             </label>
             <Input
@@ -315,14 +315,14 @@ export default function HostBindingSection({
               className="h-8.5 rounded-xl border-border/70 bg-background/80 font-mono text-xs"
             />
             {portInvalid && (
-              <p className="text-[9.5px] font-medium text-rose-600 dark:text-rose-400">
+              <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400">
                 {t("host_binding.port_invalid")}
               </p>
             )}
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-muted-foreground" htmlFor="host-binding-key">
+            <label className="text-xs font-semibold text-muted-foreground" htmlFor="host-binding-key">
               {t("host_binding.access_key")}
             </label>
             {/* 凭据是 48 位十六进制，和两个按钮挤在一行时会被截断，所以输入独占一行、按钮另起一行。 */}
@@ -332,13 +332,13 @@ export default function HostBindingSection({
               onChange={(event) => patchBinding({ accessKey: event.target.value })}
               placeholder={t("host_binding.access_key_placeholder")}
               spellCheck={false}
-              className="h-8.5 w-full rounded-xl border-border/70 bg-background/80 font-mono text-[11px]"
+              className="h-8.5 w-full rounded-xl border-border/70 bg-background/80 font-mono text-xs"
             />
             <div className="flex items-center justify-end gap-1.5">
               <button
                 type="button"
                 onClick={handleGenerateKey}
-                className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-[10px] font-bold text-primary active:scale-95"
+                className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary active:scale-95"
               >
                 <Wand2 className="h-3.5 w-3.5" />
                 {t("host_binding.access_key_generate")}
@@ -347,7 +347,7 @@ export default function HostBindingSection({
                 type="button"
                 onClick={() => void handleCopy("accessKey", binding.accessKey)}
                 disabled={!binding.accessKey}
-                className="flex h-8 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-3 text-[10px] font-bold text-muted-foreground active:scale-95 disabled:opacity-40"
+                className="flex h-8 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-3 text-xs font-semibold text-muted-foreground active:scale-95 disabled:opacity-40"
               >
                 {copiedField === "accessKey"
                   ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
@@ -355,7 +355,7 @@ export default function HostBindingSection({
                 {t("host_binding.access_key_copy")}
               </button>
             </div>
-            <p className="text-[9.5px] leading-relaxed text-muted-foreground/75">
+            <p className="text-[11px] leading-relaxed text-muted-foreground/75">
               {copiedField === "accessKey"
                 ? t("host_binding.access_key_copied")
                 : t("host_binding.access_key_hint")}
@@ -365,7 +365,7 @@ export default function HostBindingSection({
 
         {/* 跨域白名单 */}
         <div className="space-y-1.5">
-          <label className="text-[11px] font-semibold text-muted-foreground" htmlFor="host-binding-cors">
+          <label className="text-xs font-semibold text-muted-foreground" htmlFor="host-binding-cors">
             {t("host_binding.cors_origins")}
           </label>
           <Input
@@ -376,7 +376,7 @@ export default function HostBindingSection({
             spellCheck={false}
             className="h-8.5 rounded-xl border-border/70 bg-background/80 font-mono text-xs"
           />
-          <p className="text-[9.5px] leading-relaxed text-muted-foreground/75">
+          <p className="text-[11px] leading-relaxed text-muted-foreground/75">
             {t("host_binding.cors_origins_hint")}
           </p>
         </div>
@@ -390,11 +390,11 @@ export default function HostBindingSection({
           <div className="flex items-start gap-2">
             <AssessmentIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div className="min-w-0 flex-1 space-y-1">
-              <p className="text-[11px] font-bold">{assessmentText}</p>
+              <p className="text-xs font-bold">{assessmentText}</p>
               {assessment.issues.length > 0 && (
                 <ul className="space-y-0.5">
                   {assessment.issues.map((issue) => (
-                    <li key={issue.code} className="flex gap-1.5 text-[9.5px] leading-relaxed opacity-90">
+                    <li key={issue.code} className="flex gap-1.5 text-[11px] leading-relaxed opacity-90">
                       <span aria-hidden="true">·</span>
                       <span>{resolveIssueText(t, issue.code, issue.detail ?? "")}</span>
                     </li>
@@ -409,12 +409,12 @@ export default function HostBindingSection({
         <div className="space-y-2 rounded-lg border border-dashed border-border/60 bg-muted/20 p-2.5">
           <div className="flex items-center gap-1.5">
             <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-[11px] font-bold text-foreground">{t("host_binding.env_title")}</span>
+            <span className="text-xs font-bold text-foreground">{t("host_binding.env_title")}</span>
           </div>
-          <pre className="custom-scrollbar max-h-32 overflow-auto rounded-lg border border-border/50 bg-background/70 p-2 font-mono text-[9.5px] leading-relaxed text-muted-foreground">
+          <pre className="custom-scrollbar max-h-32 overflow-auto rounded-lg border border-border/50 bg-background/70 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
             {envText}
           </pre>
-          <p className="text-[9.5px] leading-relaxed text-muted-foreground/75">
+          <p className="text-[11px] leading-relaxed text-muted-foreground/75">
             {t("host_binding.env_desc")}
           </p>
           <div className="flex justify-end">
@@ -422,7 +422,7 @@ export default function HostBindingSection({
               type="button"
               onClick={() => void handleCopyEnv()}
               disabled={!assessment.allowed}
-              className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-[10px] font-bold text-primary active:scale-95 disabled:opacity-40"
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary active:scale-95 disabled:opacity-40"
             >
               {copiedField === "env"
                 ? <CheckCircle2 className="h-3.5 w-3.5" />
@@ -440,8 +440,8 @@ export default function HostBindingSection({
             <Cable className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0">
-            <h4 className="text-xs font-bold text-foreground">{t("host_binding.remote_role_title")}</h4>
-            <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+            <h4 className="text-xs sm:text-[13px] font-bold text-foreground">{t("host_binding.remote_role_title")}</h4>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
               {t("host_binding.remote_role_desc")}
             </p>
           </div>
@@ -449,7 +449,7 @@ export default function HostBindingSection({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-muted-foreground" htmlFor="host-remote-url">
+            <label className="text-xs font-semibold text-muted-foreground" htmlFor="host-remote-url">
               {t("host_binding.remote_url")}
             </label>
             <Input
@@ -462,7 +462,7 @@ export default function HostBindingSection({
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-muted-foreground" htmlFor="host-remote-key">
+            <label className="text-xs font-semibold text-muted-foreground" htmlFor="host-remote-key">
               {t("host_binding.remote_access_key")}
             </label>
             <Input
@@ -481,7 +481,7 @@ export default function HostBindingSection({
             type="button"
             onClick={() => void handleTestRemote()}
             disabled={isTesting || !binding.remoteUrl.trim()}
-            className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-[10px] font-bold text-primary active:scale-95 disabled:opacity-40"
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary active:scale-95 disabled:opacity-40"
           >
             {isTesting
               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -491,7 +491,7 @@ export default function HostBindingSection({
         </div>
 
         {/* 阶段说明独立成行：这是本分区最重要的一句实话，不跟按钮抢宽度。 */}
-        <p className="text-[9.5px] leading-relaxed text-muted-foreground/75">
+        <p className="text-[11px] leading-relaxed text-muted-foreground/75">
           {t("host_binding.stage0_notice")}
         </p>
 
