@@ -23,7 +23,6 @@ import { useCharacterPortrait } from "./useCharacterPortrait";
 import ChatHeader from "./ChatHeader";
 import CharacterPortraitSection from "./CharacterPortraitSection";
 import DialogueHistoryView from "./DialogueHistoryView";
-import StoryTimelineView from "./StoryTimelineView";
 import HiddenScriptLayer from "./HiddenScriptLayer";
 
 function hasMvuConfiguration(extensions: unknown): boolean {

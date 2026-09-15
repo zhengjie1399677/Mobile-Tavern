@@ -10,6 +10,7 @@ import {
   Palette,
   Volume2,
   VolumeX,
+  Loader2,
 } from "lucide-react";
 
 import { useUnifiedApp, unifiedAppStore } from "../../UnifiedAppContext";
@@ -121,6 +122,7 @@ const MessageBubble = ({
   const [dragOffset, setDragOffset] = React.useState(0);
   const [isDragging, setIsDragging] = React.useState(false);
   const [isSpeakingThis, setIsSpeakingThis] = React.useState(false);
+  const [isSavingEdit, setIsSavingEdit] = React.useState(false);
 
   const dragDirection = isUser ? 1 : -1;
   const SWIPE_MENU_WIDTH = 46;
@@ -637,57 +639,61 @@ const MessageBubble = ({
               rows={1}
               autoFocus
               onFocus={(e) => {
-                const target = e.target;
-                setTimeout(() => {
-                  try {
-                    const rect = target.getBoundingClientRect();
-                    const viewHeight = window.visualViewport?.height ?? window.innerHeight;
-                    if (rect.bottom > viewHeight || rect.top < 60) {
-                      target.scrollIntoView({ block: "center", behavior: "smooth" });
-                    }
-                  } catch {
-                    // ignore
-                  }
-                }, 150);
+                window.requestAnimationFrame(() => {
+                  e.target.scrollIntoView({ block: "nearest", behavior: "auto" });
+                });
               }}
             />
             <div className={`flex gap-2 ${isUser ? "justify-end" : "justify-start"}`}>
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  if (isSavingEdit || isSending) return;
                   const currentSession = unifiedAppStore.getState().activeSession;
                   if (!currentSession) return;
-                  const nextMsgs = (currentSession.messages || []).map(
-                    (currentMessage) =>
-                      currentMessage.id === message.id
-                        ? { ...currentMessage, content: editingMsgContent }
-                        : currentMessage,
-                  );
-                  const updated = {
-                    ...currentSession,
-                    messages: nextMsgs,
-                  };
-                  const editedMessage = updated.messages.find((item) => item.id === message.id);
-                  if (!editedMessage) return;
-                  const persistedSession = await saveSessionWithMvu(updated, editedMessage);
-                  setSessionViews((previous) =>
-                    previous.map((session) =>
-                      session.id === persistedSession.id ? persistedSession : session,
-                    ),
-                  );
-                  setEditingMsgId(null);
+                  setIsSavingEdit(true);
+                  try {
+                    const nextMsgs = (currentSession.messages || []).map(
+                      (currentMessage) =>
+                        currentMessage.id === message.id
+                          ? { ...currentMessage, content: editingMsgContent }
+                          : currentMessage,
+                    );
+                    const updated = {
+                      ...currentSession,
+                      messages: nextMsgs,
+                    };
+                    const editedMessage = updated.messages.find((item) => item.id === message.id);
+                    if (!editedMessage) return;
+                    const persistedSession = await saveSessionWithMvu(updated, editedMessage);
+                    setSessionViews((previous) =>
+                      previous.map((session) =>
+                        session.id === persistedSession.id ? persistedSession : session,
+                      ),
+                    );
+                    setEditingMsgId(null);
+                  } catch (error) {
+                    console.error("Failed to save edited message:", error);
+                    showCustomAlert(t("message_bubble.save_error"));
+                  } finally {
+                    setIsSavingEdit(false);
+                  }
                 }}
-                disabled={isSending}
+                disabled={isSending || isSavingEdit}
                 className="flex min-h-11 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Check className="w-3.5 h-3.5" /> {t("message_bubble.edit_save")}
+                {isSavingEdit ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )} {t("message_bubble.edit_save")}
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditingMsgId(null);
                 }}
-                disabled={isSending}
+                disabled={isSending || isSavingEdit}
                 className="flex min-h-11 items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 text-xs font-semibold text-muted-foreground active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X className="w-3.5 h-3.5" /> {t("message_bubble.edit_cancel")}

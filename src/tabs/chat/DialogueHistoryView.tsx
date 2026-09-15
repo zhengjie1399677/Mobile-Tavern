@@ -84,7 +84,6 @@ const DialogueHistoryView = ({
   }));
 
   const [swipedMsgId, setSwipedMsgId] = React.useState<string | null>(null);
-  const isEditingAnyMessage = Boolean(editingMsgId);
 
   // 过滤隐藏的野牛静默消息
   const rawMessages = (activeSession?.messages || []).filter((message: Message) =>
@@ -99,6 +98,11 @@ const DialogueHistoryView = ({
   // 注意：isStreamingThisMsg 判断走可选 Compatibility Host 的同步生成状态，
   // 不依赖此处的 deferred 值，流式渲染判断逻辑不受影响。
   const messagesToRender = React.useDeferredValue(rawMessages);
+
+  // 仅当当前渲染列表中确实存在正在被编辑的消息时才解除底部锚定，杜绝跨会话残留 ID 导致虚拟列表永久失锚
+  const isEditingAnyMessage = Boolean(
+    editingMsgId && messagesToRender.some((m) => m.id === editingMsgId)
+  );
 
   // 消息流不再折叠：历史消息完整性由"故事年表"子页维护（总结卡片与检索入口），
   // 正文渲染只由分页懒加载（内存规模）与虚拟列表（DOM 数量）控制。
