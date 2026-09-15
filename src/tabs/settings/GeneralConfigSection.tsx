@@ -62,83 +62,81 @@ export default function GeneralConfigSection({
 
   return (
     <div className="settings-connection-page space-y-2.5">
-      {/* 顶部活跃连接与服务概览看板 */}
-      <section className="rounded-2xl border border-border/70 bg-card/60 p-3 backdrop-blur-md shadow-xs space-y-2.5 transition-all">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-xs">
-              <Wifi className="h-3.5 w-3.5" />
+      {/* 顶部活跃连接极简紧凑状态栏 */}
+      <section className="rounded-xl border border-border/70 bg-card/60 px-3 py-2 backdrop-blur-md shadow-xs flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+            <Wifi className="h-3 w-3" />
+          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-xs font-bold text-foreground truncate max-w-[110px] sm:max-w-none">
+              {activeProfile ? activeProfile.name : "当前端点"}
             </span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-foreground truncate">
-                  {activeProfile ? activeProfile.name : "当前活跃连接"}
-                </span>
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.2 text-[9px] font-semibold font-mono ${
-                    isConnected
-                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                      : isFailed
-                        ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-                        : isTesting
-                          ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30 animate-pulse"
-                          : "bg-muted/40 text-muted-foreground border border-border/40"
-                  }`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      isConnected
-                        ? "bg-emerald-500"
-                        : isFailed
-                          ? "bg-rose-500"
-                          : isTesting
-                            ? "bg-sky-500 animate-ping"
-                            : "bg-muted-foreground/60"
-                    }`}
-                  />
-                  {isTesting ? "测试中" : isConnected ? "已连接" : isFailed ? "连接异常" : "待测试"}
-                </span>
-              </div>
-              <p className="text-[10.5px] font-mono text-muted-foreground truncate mt-0.5">
-                {currentModelName}
-              </p>
-            </div>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.2 text-[10px] font-semibold font-mono shrink-0 ${
+                isConnected
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                  : isFailed
+                    ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                    : isTesting
+                      ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30 animate-pulse"
+                      : "bg-muted/40 text-muted-foreground border border-border/40"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isConnected
+                    ? "bg-emerald-500"
+                    : isFailed
+                      ? "bg-rose-500"
+                      : isTesting
+                        ? "bg-sky-500 animate-ping"
+                        : "bg-muted-foreground/60"
+                }`}
+              />
+              {isTesting ? "测试中" : isConnected ? "已连接" : isFailed ? "连接异常" : "待测试"}
+            </span>
+            <span className="text-[11px] font-mono text-muted-foreground/75 truncate hidden sm:inline" title={currentModelName}>
+              · {currentModelName}
+            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={testApiConnection}
-            disabled={isTesting}
-            className="flex h-7.5 shrink-0 items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-2.5 text-[11px] font-bold text-primary shadow-xs hover:bg-primary/20 hover:border-primary/40 active:scale-95 disabled:opacity-50 transition-all"
-          >
-            <RefreshCw className={`h-3 w-3 ${isTesting ? "animate-spin" : ""}`} />
-            <span>{isTesting ? "测试中..." : "测试连接"}</span>
-          </button>
         </div>
 
-        {/* 快速多模态服务状态一览条 */}
-        <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-border/40">
-          <div className="flex items-center gap-1.5 rounded-lg bg-background/50 px-2 py-1 border border-border/40 text-[10px]">
-            <Palette className={`h-3 w-3 shrink-0 ${settings.imageGenApi?.enabled ? "text-emerald-500" : "text-muted-foreground/50"}`} />
-            <span className="truncate text-muted-foreground">生图:</span>
-            <span className={`font-semibold shrink-0 ${settings.imageGenApi?.enabled ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/70"}`}>
-              {settings.imageGenApi?.enabled ? "开启" : "关闭"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg bg-background/50 px-2 py-1 border border-border/40 text-[10px]">
-            <Volume2 className={`h-3 w-3 shrink-0 ${settings.ttsConfig?.enabled ? "text-amber-500" : "text-muted-foreground/50"}`} />
-            <span className="truncate text-muted-foreground">TTS:</span>
-            <span className={`font-semibold shrink-0 ${settings.ttsConfig?.enabled ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/70"}`}>
-              {settings.ttsConfig?.enabled ? "开启" : "关闭"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg bg-background/50 px-2 py-1 border border-border/40 text-[10px]">
-            <Mic className={`h-3 w-3 shrink-0 ${settings.asrConfig?.enabled ? "text-sky-500" : "text-muted-foreground/50"}`} />
-            <span className="truncate text-muted-foreground">ASR:</span>
-            <span className={`font-semibold shrink-0 ${settings.asrConfig?.enabled ? "text-sky-600 dark:text-sky-400" : "text-muted-foreground/70"}`}>
-              {settings.asrConfig?.enabled ? "开启" : "关闭"}
-            </span>
-          </div>
+        {/* 快速多模态状态微标 */}
+        <div className="flex items-center gap-1 shrink-0">
+          <span
+            className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md border ${
+              settings.imageGenApi?.enabled
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 font-semibold"
+                : "bg-muted/20 text-muted-foreground/50 border-transparent font-normal"
+            }`}
+            title={`生图: ${settings.imageGenApi?.enabled ? "已开启" : "已关闭"}`}
+          >
+            <Palette className="h-3 w-3" />
+            <span>生图</span>
+          </span>
+          <span
+            className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md border ${
+              settings.ttsConfig?.enabled
+                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25 font-semibold"
+                : "bg-muted/20 text-muted-foreground/50 border-transparent font-normal"
+            }`}
+            title={`TTS: ${settings.ttsConfig?.enabled ? "已开启" : "已关闭"}`}
+          >
+            <Volume2 className="h-3 w-3" />
+            <span>TTS</span>
+          </span>
+          <span
+            className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md border ${
+              settings.asrConfig?.enabled
+                ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/25 font-semibold"
+                : "bg-muted/20 text-muted-foreground/50 border-transparent font-normal"
+            }`}
+            title={`ASR: ${settings.asrConfig?.enabled ? "已开启" : "已关闭"}`}
+          >
+            <Mic className="h-3 w-3" />
+            <span>ASR</span>
+          </span>
         </div>
       </section>
 
