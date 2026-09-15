@@ -217,7 +217,11 @@ export const usePresetBundles = ({
       return;
     }
     const content = JSON.stringify(prepared.data, null, 2);
-    const fileName = `SillyTavern_${settings.preset.name.replace(/\s+/g, "_")}_profile.json`;
+    const safeName = (settings.preset.name || "Default")
+      .replace(/[\\/:*?"<>|]+/g, "_")
+      .replace(/\s+/g, "_")
+      .slice(0, 30);
+    const fileName = `SillyTavern_${safeName}_profile.json`;
     const androidBridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
     if (androidBridge && typeof androidBridge.saveFile === "function") {
       const path = androidBridge.saveFile(fileName, content);
@@ -241,17 +245,18 @@ export const usePresetBundles = ({
 
   const handleSaveNewPresetBundle = useCallback(async () => {
     const name = await showCustomPrompt(
-      "请输入新预设的名称",
-      settings.preset.name + " 的副本",
+      "请输入新预设的名称（建议 30 字符以内）",
+      (settings.preset.name + " 的副本").slice(0, 35),
     );
-    if (!name) return;
+    if (!name || !name.trim()) return;
+    const finalName = name.trim().slice(0, 60);
 
     const newBundle = buildPresetBundleSnapshot(
       {
         preset: {
           ...settings.preset,
           id: "preset_" + Math.random().toString(36).substring(2, 9),
-          name,
+          name: finalName,
         },
         promptConfig: settings.promptConfig,
         presetRegexScripts: settings.presetRegexScripts,
@@ -293,7 +298,7 @@ export const usePresetBundles = ({
             preset: {
               ...settings.preset,
               id: "preset_" + Math.random().toString(36).substring(2, 9),
-              name: `${settings.preset.name}（我的修改）`,
+              name: `${settings.preset.name.slice(0, 35)}（我的修改）`,
             },
           },
           {

@@ -131,18 +131,30 @@ export default function RegexManagementSection({
 
   return (
     <>
-      <Card className={cn("glass-panel shadow-sm transition-all duration-300", isRegexFolded ? "py-2 gap-0" : "")}>
+      <Card className={cn("glass-panel shadow-sm transition-all duration-300 rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xs overflow-hidden", isRegexFolded ? "gap-0" : "")}>
         <CardHeader
-          className={cn("cursor-pointer hover:bg-muted/20 transition select-none", isRegexFolded ? "pb-0 border-b-0" : "pb-3 border-b border-border/50")}
+          className={cn("cursor-pointer hover:bg-muted/20 transition select-none py-2.5 px-3.5", isRegexFolded ? "border-b-0" : "border-b border-border/30")}
           onClick={handleToggleRegexFold}
         >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 shrink-0 text-foreground">
-              <Sparkles className="w-4 h-4 text-primary" /> {t("regex.title")}
-            </CardTitle>
-            <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex items-center justify-center w-7.5 h-7.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </span>
+              <div className="flex flex-col items-start min-w-0">
+                <span className="text-xs sm:text-[13px] font-semibold text-foreground shrink-0">
+                  {t("regex.title")}
+                </span>
+                {!isRegexFolded && (
+                  <span className="text-[10px] text-muted-foreground/75 font-normal truncate max-w-[150px] sm:max-w-none">
+                    {t("regex.subtitle")}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 overflow-hidden">
               {isRegexFolded && (
-                <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[150px] sm:max-w-none">
+                <span className="text-[10px] text-cyan-400 font-mono bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20 truncate max-w-[150px] sm:max-w-none">
                   全局: {activeGlobalRegex} | 预设: {activePresetRegex} | 角色: {activeCharRegex}
                 </span>
               )}
@@ -153,11 +165,6 @@ export default function RegexManagementSection({
               )}
             </div>
           </div>
-          {!isRegexFolded && (
-            <CardDescription className="text-[10px] text-muted-foreground font-normal mt-0.5">
-              {t("regex.subtitle")}
-            </CardDescription>
-          )}
         </CardHeader>
         {!isRegexFolded && (
           <CardContent className="pt-4 space-y-5">

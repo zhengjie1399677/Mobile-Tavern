@@ -22,29 +22,29 @@ export default function SamplersSection({
   return (
     <Card className={cn("glass-panel shadow-sm transition-all duration-300 rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xs overflow-hidden", isSamplersFolded ? "gap-0" : "")}>
       <CardHeader
-        className={cn("cursor-pointer hover:bg-muted/20 transition select-none py-2 px-3", isSamplersFolded ? "border-b-0" : "border-b border-border/30")}
+        className={cn("cursor-pointer hover:bg-muted/20 transition select-none py-2.5 px-3.5", isSamplersFolded ? "border-b-0" : "border-b border-border/30")}
         onClick={handleToggleSamplersFold}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="flex items-center justify-center w-7.5 h-7.5 rounded-lg bg-primary/10 text-primary shrink-0">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="flex items-center justify-center w-7.5 h-7.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
               <Sliders className="w-4 h-4" />
             </span>
-            <div className="flex flex-col items-start gap-0.5">
-              <span className="text-xs sm:text-[13px] font-semibold text-foreground">
+            <div className="flex flex-col items-start min-w-0">
+              <span className="text-xs sm:text-[13px] font-semibold text-foreground shrink-0">
                 {t("samplers.title")}
               </span>
               {!isSamplersFolded && (
-                <span className="text-[10.5px] text-muted-foreground/75 font-normal">
+                <span className="text-[10px] text-muted-foreground/75 font-normal truncate max-w-[140px] sm:max-w-none">
                   {t("samplers.subtitle")}
                 </span>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex items-center gap-2 shrink-0 overflow-hidden">
             {isSamplersFolded && (
-              <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[150px] sm:max-w-none">
-                T: {settings.preset.temperature} | P: {settings.preset.topP} | Max: {settings.preset.maxTokens}
+              <span className="text-[10px] text-amber-400 font-mono bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 truncate max-w-[130px] sm:max-w-none">
+                T: {settings.preset.temperature} | P: {settings.preset.topP}
               </span>
             )}
             {isSamplersFolded ? (

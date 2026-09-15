@@ -73,10 +73,11 @@ export function preparePresetBundleImport(
   if (!isRecord(options.input)) throw new Error("PRESET_INVALID_ROOT");
   const data = options.input;
   const createId = options.createId ?? createImportId;
-  const name = readString(data.name)
+  const rawName = readString(data.name)
     || readString(data.preset_name)
     || readString(data.presetName)
     || options.fallbackName;
+  const name = rawName.length > 60 ? `${rawName.slice(0, 57)}...` : rawName;
   const preset: SamplerPreset = {
     id: createId("preset"),
     name,

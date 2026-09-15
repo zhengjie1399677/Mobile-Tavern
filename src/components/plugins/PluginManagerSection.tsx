@@ -90,20 +90,20 @@ export default function PluginManagerSection() {
       <header className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Gamepad2 className="h-4.5 w-4.5" /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-xs font-bold text-foreground">{t("plugin_manager.title")}</h2>
-          <p className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">{t("plugin_manager.description")}</p>
+          <h2 className="text-xs sm:text-[13px] font-bold text-foreground">{t("plugin_manager.title")}</h2>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{t("plugin_manager.description")}</p>
         </div>
         <button
           type="button"
           onClick={() => setTutorialOpen(true)}
-          className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 text-[10px] font-bold text-primary active:scale-95"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 text-xs font-semibold text-primary active:scale-95"
         >
           <BookOpen className="h-3.5 w-3.5" />
           {t("plugin_manager.tutorial")}
         </button>
       </header>
 
-      <div className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 p-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+      <div className="mt-2.5 rounded-lg border border-amber-500/25 bg-amber-500/10 p-2.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
         {t("plugin_manager.security_notice")}
       </div>
 
@@ -119,30 +119,56 @@ export default function PluginManagerSection() {
         type="button"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
-        className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 text-[10px] font-bold text-primary active:scale-[0.99] disabled:opacity-50"
+        className="mt-2.5 flex h-8.5 w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary active:scale-[0.99] disabled:opacity-50"
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
         {t(busy ? "plugin_manager.installing" : "plugin_manager.import")}
       </button>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-2.5 space-y-2">
         {plugins.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-5 text-center text-muted-foreground">
             <HardDriveDownload className="h-6 w-6 opacity-60" />
-            <p className="text-[10px]">{t("plugin_manager.empty")}</p>
+            <p className="text-[11px]">{t("plugin_manager.empty")}</p>
           </div>
         ) : plugins.map((plugin) => (
-          <article key={plugin.id} className="flex items-center gap-2 rounded-xl border border-border bg-background/80 p-2.5">
+          <article key={plugin.id} className="flex items-center gap-2.5 rounded-xl border border-border/70 bg-card/60 p-3">
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-baseline gap-1.5">
-                <div className="truncate text-xs font-semibold">{plugin.manifest.name}</div>
-                {plugin.builtin && <span className="shrink-0 text-[8px] text-primary/70">{t("plugin_manager.builtin")}</span>}
+              <div className="flex min-w-0 items-center gap-1.5">
+                <div className="truncate text-xs sm:text-[13px] font-bold text-foreground">{plugin.manifest.name}</div>
+                {plugin.builtin && (
+                  <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    {t("plugin_manager.builtin")}
+                  </span>
+                )}
               </div>
-              <div className="mt-0.5 truncate font-mono text-[8.5px] text-muted-foreground">{plugin.id} · v{plugin.manifest.version}</div>
-              {plugin.manifest.description && <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{plugin.manifest.description}</p>}
+              <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
+                {plugin.id} · v{plugin.manifest.version}
+              </div>
+              {plugin.manifest.description && (
+                <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                  {plugin.manifest.description}
+                </p>
+              )}
             </div>
-            <button type="button" onClick={() => runPlugin(plugin)} aria-label={t("plugin_manager.run_named", { name: plugin.manifest.name })} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary active:scale-95"><Play className="h-4 w-4" /></button>
-            {!plugin.builtin && <button type="button" onClick={() => void handleDelete(plugin)} aria-label={t("plugin_manager.delete_named", { name: plugin.manifest.name })} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-destructive/25 bg-destructive/5 text-destructive active:scale-95"><Trash2 className="h-4 w-4" /></button>}
+            <button
+              type="button"
+              onClick={() => runPlugin(plugin)}
+              aria-label={t("plugin_manager.run_named", { name: plugin.manifest.name })}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 active:scale-95 transition-all"
+            >
+              <Play className="h-4 w-4" />
+            </button>
+            {!plugin.builtin && (
+              <button
+                type="button"
+                onClick={() => void handleDelete(plugin)}
+                aria-label={t("plugin_manager.delete_named", { name: plugin.manifest.name })}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-destructive/25 bg-destructive/5 text-destructive hover:bg-destructive/15 active:scale-95 transition-all"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </article>
         ))}
       </div>

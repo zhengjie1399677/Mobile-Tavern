@@ -156,18 +156,30 @@ export default function PromptsConfigSection({
   };
 
   return (
-    <Card className={cn("glass-panel shadow-sm transition-all duration-300", isPromptsFolded ? "py-2 gap-0" : "")}>
+    <Card className={cn("glass-panel shadow-sm transition-all duration-300 rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xs overflow-hidden", isPromptsFolded ? "gap-0" : "")}>
       <CardHeader
-        className={cn("cursor-pointer hover:bg-muted/20 transition select-none", isPromptsFolded ? "pb-0 border-b-0" : "pb-3 border-b border-border/50")}
+        className={cn("cursor-pointer hover:bg-muted/20 transition select-none py-2.5 px-3.5", isPromptsFolded ? "border-b-0" : "border-b border-border/30")}
         onClick={handleTogglePromptsFold}
       >
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2 shrink-0 text-foreground">
-            <Brain className="w-4 h-4 text-primary" /> {t("prompts.title")}
-          </CardTitle>
-          <div className="flex items-center gap-2 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="flex items-center justify-center w-7.5 h-7.5 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 shrink-0">
+              <Brain className="w-4 h-4" />
+            </span>
+            <div className="flex flex-col items-start min-w-0">
+              <span className="text-xs sm:text-[13px] font-semibold text-foreground shrink-0">
+                {t("prompts.title")}
+              </span>
+              {!isPromptsFolded && (
+                <span className="text-[10px] text-muted-foreground/75 font-normal truncate max-w-[150px] sm:max-w-none">
+                  {t("prompts.subtitle")}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 overflow-hidden">
             {isPromptsFolded && (
-              <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[150px] sm:max-w-none">
+              <span className="text-[10px] text-violet-400 font-mono bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20 truncate max-w-[140px] sm:max-w-none">
                 启用: {activeCount} / 共 {unifiedPrompts.length} 项
               </span>
             )}
@@ -178,11 +190,6 @@ export default function PromptsConfigSection({
             )}
           </div>
         </div>
-        {!isPromptsFolded && (
-          <CardDescription className="text-[10px] text-muted-foreground font-normal mt-0.5">
-            {t("prompts.subtitle")}
-          </CardDescription>
-        )}
       </CardHeader>
 
       {!isPromptsFolded && (
