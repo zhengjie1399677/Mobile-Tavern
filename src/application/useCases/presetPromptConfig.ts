@@ -176,9 +176,13 @@ function createLegacyCompositionSnapshot(config: PresetPromptConfig) {
       originalIdentifier: prompt.identifier || prompt.id,
     },
   }));
+  // 存储边界可能读到缺 mainPrompt 的历史或外部预设；这里必须容错，
+  // 否则异常会沿 PresetService.getStoredSavedPresets 冒到启动加载，导致整个预设列表失效。
+  const rawMainPrompt = (config as { mainPrompt?: unknown }).mainPrompt;
+  const legacyMainPrompt = typeof rawMainPrompt === "string" ? rawMainPrompt : "";
   return {
     ...composition,
-    id: `composition_legacy_${sanitizeBlockId(config.mainPrompt.slice(0, 24) || "preset")}`,
+    id: `composition_legacy_${sanitizeBlockId(legacyMainPrompt.slice(0, 24) || "preset")}`,
     name: "传统预设迁移快照",
     blocks: [
       ...composition.blocks.slice(0, 4),

@@ -14,7 +14,10 @@ import {
   KernelServices,
   type IAgentRuntimeService,
   type IDatabaseService,
+  type IRuntimeProfileService,
 } from "../application/serviceContracts";
+import { applyAgentProfilePresetBinding } from "../application/useCases/agentProfilePresetBinding";
+import { DEFAULT_SETTINGS } from "../hooks/settings/defaults";
 import {
   clearRuntimeProfileSessionResumeIntent,
   readRuntimeProfileSessionResumeIntent,
@@ -170,6 +173,24 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
         void chatState.setActiveSessionId(session.id);
         appState.setActiveTab("chat");
         chatHook.setChatSubTab("dialogue");
+        if (launchIntent) {
+          // Agent Profile 绑定的行为预设与采样只在"启动 Agent"这一刻一次性套用；
+          // 之后预设完全由用户自由切换（见 resolveAgentSessionSettings 的不变量）。
+          try {
+            const binding = kernel
+              .getService<IRuntimeProfileService>(KernelServices.RuntimeProfiles)
+              .listProfiles()
+              .profiles.find((profile) =>
+                profile.id === launchIntent.profileId
+                && profile.version === launchIntent.profileVersion,
+              )?.agent;
+            settingsHook.updateSettings((prev) =>
+              applyAgentProfilePresetBinding(prev, binding, DEFAULT_SETTINGS.preset).settings,
+            );
+          } catch (error: unknown) {
+            console.warn("[AppContextAssembler] 套用 Agent 绑定预设失败", error);
+          }
+        }
         if (resumeIntent) clearRuntimeProfileSessionResumeIntent();
         else clearRuntimeProfileAgentLaunchIntent();
         if (launchIntent) void chatState.refreshSessionStatistics();

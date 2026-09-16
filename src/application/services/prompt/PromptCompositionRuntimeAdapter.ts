@@ -56,8 +56,15 @@ export function buildPromptCompositionRuntimeData(
     "memory.summaries": summaries,
     "memory.recalled": recalled,
     "memory.tables": tableMemory,
-    "prompt.main": settings.promptConfig?.mainPrompt || "",
-    "prompt.jailbreak": settings.promptConfig?.useJailbreak ? settings.promptConfig.jailbreakPrompt || "" : "",
+    // 与 PromptService 的 core_rules 一致：子条目开关关闭后该数据源必须为空。
+    // 「底层扮演系统指令」与「规则提示词」在预设列表里都按"未声明即启用"展示，
+    // 因此这里必须同步用 `!== false`，否则界面显示开启而请求里是空的。
+    "prompt.main": settings.promptConfig?.useMainPrompt === false
+      ? ""
+      : settings.promptConfig?.mainPrompt || "",
+    "prompt.jailbreak": settings.promptConfig?.useJailbreak === false
+      ? ""
+      : settings.promptConfig?.jailbreakPrompt || "",
     "prompt.postHistory": settings.promptConfig?.usePostHistory ? settings.promptConfig.postHistoryPrompt || "" : "",
     "prompt.tableMemory": settings.promptConfig?.tableMemoryPrompt || "",
     "feature.replySuggestions": settings.enableReplySuggestions ? settings.replySuggestionsPrompt || "" : "",

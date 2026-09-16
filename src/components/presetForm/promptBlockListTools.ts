@@ -50,22 +50,6 @@ export function patchSelectedBlockStates(
   };
 }
 
-export function removePromptBlocks(
-  composition: PromptComposition,
-  removedIds: ReadonlySet<string>,
-): PromptComposition {
-  return {
-    ...composition,
-    blocks: composition.blocks.filter((block) => !removedIds.has(block.id)),
-    sceneProfiles: composition.sceneProfiles?.map((profile) => ({
-      ...profile,
-      blockStates: Object.fromEntries(
-        Object.entries(profile.blockStates).filter(([blockId]) => !removedIds.has(blockId)),
-      ),
-    })),
-  };
-}
-
 /** 无实时 trace 时使用与 PromptService 一致的保守字符估算。 */
 export function estimatePromptBlockTokens(block: PromptBlock): number {
   if (block.source.type === "chat_history" || !block.template) return 0;

@@ -307,9 +307,21 @@ describe("preparePresetBundleImport", () => {
     expect(importedUnderPresetA.bundle.promptConfig).toEqual(importedUnderPresetB.bundle.promptConfig);
     expect(importedUnderPresetA.bundle.promptPlan).toEqual(importedUnderPresetB.bundle.promptPlan);
     expect(importedUnderPresetA.bundle.promptConfig.mainPrompt).toBe("");
-    expect(importedUnderPresetA.bundle.promptConfig.tableMemoryPrompt).toBe(
-      DEFAULT_PROMPT_CONFIG.tableMemoryPrompt,
-    );
+    // 契约收紧：文件自带 Prompt 字段时，本应用专有字段一律不写入预设包——既不得继承"当前预设"，
+    // 也不得固化出厂内容（tableMemoryPrompt / sectionHeaders / roleplayMode 等）；
+    // 这些键保持缺失后由运行时出厂默认兜底，避免第三方预设"自带系统内置内容"。
+    const presetOwnedKeys = Object.keys(importedUnderPresetA.bundle.promptConfig);
+    for (const key of [
+      "tableMemoryPrompt",
+      "sectionHeaders",
+      "roleplayMode",
+      "useMainPrompt",
+      "enableReasoningGuidance",
+      "reasoningGuidancePrompt",
+      "renderingFormat",
+    ]) {
+      expect(presetOwnedKeys).not.toContain(key);
+    }
   });
 
   it("无可解码编排时不继承当前预设的编排快照", () => {

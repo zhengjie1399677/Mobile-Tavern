@@ -284,6 +284,69 @@ describe("usePresetBundles 预设导入", () => {
     expect(latestSettings.promptConfig.composition?.compatibility?.source).toBe("mobile-tavern-legacy");
   });
 
+  it("切换预设时清除目标未声明的运行期字段，且必须走函数式通道", async () => {
+    const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
+    // 当前处于「预设 A」，带着不属于任何预设包的运行期字段。
+    initial.promptConfig.useMainPrompt = false;
+    initial.promptConfig.usePostHistory = true;
+    initial.promptConfig.postHistoryPrompt = "A 预设的历史后置指令";
+    initial.promptConfig.enableReasoningGuidance = true;
+    initial.promptConfig.reasoningGuidancePrompt = "A 预设的推理引导";
+    initial.promptConfig.renderingFormat = "markdown";
+    // 目标预设的 promptConfig 不声明上述任何键（与内置预设一致）。
+    initial.savedPresets = [
+      ...(structuredClone(DEFAULT_SETTINGS).savedPresets ?? []),
+      {
+        id: "bundle_target",
+        preset: { ...initial.preset, id: "preset_target", name: "目标预设" },
+        promptConfig: {
+          ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
+          mainPrompt: "目标预设主提示词",
+        },
+        presetRegexScripts: [],
+      },
+    ];
+    let latestSettings = initial;
+    const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
+      latestSettings = typeof next === "function" ? next(latestSettings) : next;
+    });
+    const { result } = renderHook(() =>
+      usePresetBundles({
+        settings: initial,
+        updateSettings,
+        showCustomAlert: vi.fn(async () => undefined),
+        showCustomPrompt: vi.fn(async () => null),
+        showCustomConfirm: vi.fn(async () => true),
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleLoadPresetBundle("bundle_target");
+    });
+
+    // 值形式 updater 会被 getNestedDelta（只遍历 next 的键）+ deepMerge（只覆盖不删除）
+    // 撤销"删键"语义，导致上一个预设的字段残留。
+    expect(typeof updateSettings.mock.calls.at(-1)?.[0]).toBe("function");
+    expect(latestSettings.preset.id).toBe("preset_target");
+    expect(latestSettings.promptConfig.mainPrompt).toBe("目标预设主提示词");
+    for (const key of [
+      "useMainPrompt",
+      "usePostHistory",
+      "postHistoryPrompt",
+      "enableReasoningGuidance",
+      "reasoningGuidancePrompt",
+      "renderingFormat",
+    ]) {
+      expect(key in latestSettings.promptConfig).toBe(false);
+    }
+    // 不属于预设包的设置不得被切换动作触碰。
+    expect(latestSettings.memory).toBe(initial.memory);
+    expect(latestSettings.api).toBe(initial.api);
+    expect(latestSettings.promptConfig.customPrompts).toEqual(
+      MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts,
+    );
+  });
+
   it("加载携带编排的预设时整体切换自由编排与编排快照", async () => {
     const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
     initial.promptConfig.usePromptComposition = false;

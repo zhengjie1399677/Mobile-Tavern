@@ -72,6 +72,27 @@ export function resolvePresetBundleActivation(
   };
 }
 
+/**
+ * 把预设激活结果应用到完整设置上，返回"整体替换后"的新设置对象。
+ *
+ * 不变量：目标预设未声明的 Prompt 字段必须在结果里**键不存在**（回落运行时出厂默认），
+ * 绝不能保留上一个预设的值。
+ *
+ * 调用方必须走函数式 `updateSettings` 通道：值形式 updater 会先求 `getNestedDelta`
+ * （只遍历 next 的键）再 `deepMerge`（只覆盖不删除），无法表达"删除字段"，
+ * 会把上一个预设的 useMainPrompt / usePostHistory / reasoningGuidancePrompt 等残留下来。
+ */
+export function applyPresetBundleActivation(
+  settings: UserSettings,
+  bundle: PresetBundleSource,
+  presetDefaults: SamplerPreset,
+): UserSettings {
+  return {
+    ...settings,
+    ...resolvePresetBundleActivation(settings.promptConfig, bundle, presetDefaults),
+  };
+}
+
 /** 用当前设置生成可持久化的预设快照（与切换时的激活规则保持镜像关系）。 */
 export function buildPresetBundleSnapshot(
   selection: PresetBundleSelection,

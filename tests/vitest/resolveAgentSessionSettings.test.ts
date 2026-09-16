@@ -29,7 +29,7 @@ describe("resolveAgentSessionSettings", () => {
     })).toBe(settings);
   });
 
-  it("按冻结引用应用行为预设、Regex 与 Agent 采样覆盖", () => {
+  it("会话快照绑定了行为预设与采样时也不覆盖设置：预设切换立即生效", () => {
     const settings = structuredClone(DEFAULT_SETTINGS) as UserSettings;
     const behavior = {
       id: "preset-guide",
@@ -73,23 +73,18 @@ describe("resolveAgentSessionSettings", () => {
       },
     }));
 
-    expect(resolved.promptConfig.mainPrompt).toBe("固定向导行为");
-    expect(resolved.preset).toMatchObject({
-      id: "sampler-guide",
-      temperature: 0.55,
-      topP: 0.8,
-      maxTokens: 700,
-    });
-    expect(resolved.presetRegexScripts).toEqual(behavior.presetRegexScripts);
-    expect(settings.promptConfig.mainPrompt).not.toBe("固定向导行为");
+    // 不变量：快照只冻结身份与 Tool 可见性，不得回写提示词 / 采样 / 预设正则。
+    expect(resolved).toBe(settings);
+    expect(resolved.promptConfig.mainPrompt).not.toBe("固定向导行为");
+    expect(resolved.preset.temperature).not.toBe(0.55);
+    expect(resolved.preset.id).not.toBe("sampler-guide");
   });
 
-  it("冻结行为预设已删除时拒绝静默改用全局预设", () => {
+  it("快照决策畸形时仍然 fail-closed", () => {
     const settings = structuredClone(DEFAULT_SETTINGS) as UserSettings;
 
     expect(() => resolveAgentSessionSettings(settings, createSnapshot({
-      toolMounts: [],
-      promptPresetId: "preset-missing",
-    }))).toThrow("AGENT_PROMPT_PRESET_NOT_FOUND: preset-missing");
+      toolMounts: "not-an-array",
+    }))).toThrow("AGENT_PROFILE_SESSION_SETTINGS_INVALID");
   });
 });

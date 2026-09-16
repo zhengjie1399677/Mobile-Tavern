@@ -568,4 +568,108 @@ describe("PromptService prompt compilation", () => {
     expect(result.systemInstruction).toContain("User: Hi!");
     expect(result.systemInstruction).toContain("Char: *smiles* Hello!");
   });
+
+  it("关闭「底层扮演系统指令」子条目后不再注入 mainPrompt，其它子条目仍生效", () => {
+    const promptService = new PromptService();
+    const character: CharacterCard = {
+      id: "test-char",
+      name: "Test Character",
+      avatar: "",
+      description: "Character description.",
+      personality: "Traits.",
+      scenario: "Setting.",
+      first_mes: "Hello!",
+      mes_example: "",
+      creator: "",
+      creator_notes: "",
+      tags: [],
+      character_version: "1.0",
+      extensions: {},
+      lorebookEntries: [],
+    };
+
+    const chat: ChatSession = {
+      id: "test-chat",
+      characterId: "test-char",
+      title: "Test Chat",
+      messages: [],
+      summaries: [],
+      createdAt: Date.now(),
+    };
+
+    const settings: UserSettings = {
+      userName: "User",
+      userInfo: "User info.",
+      userAvatar: "",
+      userPersonas: [],
+      activePersonaId: "",
+      api: {
+        type: "openai-compat",
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "fake",
+        modelName: "gpt-4o",
+        chatPath: "/chat/completions",
+        modelsPath: "/models",
+        bypassProxy: false,
+        sendNames: false,
+        disableReasoning: false,
+        forceBasicParams: false,
+      },
+      preset: {
+        id: "preset_mobile_tavern_basic",
+        name: "基本预设",
+        temperature: 0.85,
+        topP: 1.0,
+        topK: 200,
+        repetitionPenalty: 1.03,
+        frequencyPenalty: 0.0,
+        presencePenalty: 0.0,
+        minP: 0.0,
+        maxTokens: 1500,
+      },
+      memory: {
+        recentTurns: 6,
+        summaryTriggerTurns: 0,
+        summaryLength: 120,
+        summarySystemPrompt: "",
+        timeTagTemplate: "",
+        enableAutoSummary: true,
+        enableRecall: true,
+        recallTopK: 3,
+      },
+      promptConfig: {
+        roleplayMode: true,
+        useJailbreak: false,
+        useMainPrompt: false,
+        mainPrompt: "SHOULD_NOT_APPEAR_MAIN_PROMPT",
+        jailbreakPrompt: "",
+        customPrompts: [{
+          id: "custom_keep",
+          name: "保留条目",
+          role: "system",
+          content: "SHOULD_APPEAR_CUSTOM_BLOCK",
+          enabled: true,
+        }],
+        instructTemplate: "default",
+        storyString: "",
+        systemPrefix: "",
+        systemSuffix: "",
+        userPrefix: "",
+        userSuffix: "",
+        assistantPrefix: "",
+        assistantSuffix: "",
+      },
+    };
+
+    const result = promptService.assemblePrompt({
+      character,
+      chat,
+      userInput: "How are you?",
+      settings,
+    });
+
+    expect(result.systemInstruction).not.toContain("SHOULD_NOT_APPEAR_MAIN_PROMPT");
+    // 关掉主指令不等于关掉整个提示词层：其余已启用的子条目必须照常注入。
+    expect(result.systemInstruction).toContain("SHOULD_APPEAR_CUSTOM_BLOCK");
+  });
 });

@@ -290,15 +290,9 @@ function preparePromptConfig(
     || mergeAdjacentMessages
     || roleWrappers !== undefined;
 
-  return toPresetPromptConfig({
-    ...base,
-    mainPrompt: hasPromptFields ? mainPrompt : base.mainPrompt,
-    jailbreakPrompt: hasPromptFields ? jailbreakPrompt : base.jailbreakPrompt,
-    useJailbreak: hasPromptFields ? !!jailbreakPrompt : base.useJailbreak,
-    postHistoryPrompt: hasPromptFields ? postHistoryPrompt : base.postHistoryPrompt,
-    usePostHistory: hasPromptFields ? !!postHistoryPrompt : base.usePostHistory,
-    storyString: hasPromptFields ? storyString : base.storyString,
-    customPrompts: hasPromptFields ? customPrompts : base.customPrompts,
+  // 传输结构层：序列包裹、Instruct 模板、Story 排列与请求整形属于宿主请求层，不是预设内容，
+  // 文件未声明时沿用基底（否则导入后角色卡字段可能完全无法进入上下文）。
+  const structural: Omit<PresetPromptConfig, "mainPrompt" | "jailbreakPrompt" | "useJailbreak"> = {
     instructTemplate: instructTemplate ?? base.instructTemplate,
     systemPrefix: readString(data.system_sequence_start) ?? base.systemPrefix,
     systemSuffix: readString(data.system_sequence_end) ?? base.systemSuffix,
@@ -306,6 +300,7 @@ function preparePromptConfig(
     userSuffix: readString(data.user_sequence_end) ?? base.userSuffix,
     assistantPrefix: readString(data.assistant_sequence_start) ?? base.assistantPrefix,
     assistantSuffix: readString(data.assistant_sequence_end) ?? base.assistantSuffix,
+    storyString: hasPromptFields ? storyString : base.storyString,
     requestShaping: hasRequestShaping
       ? {
           enabled: true,
@@ -316,6 +311,34 @@ function preparePromptConfig(
           stopSequences,
         }
       : base.requestShaping,
+  };
+
+  if (!hasPromptFields) {
+    // 文件不含任何 Prompt 字段（例如只携带采样参数的预设）：沿用基底内容，避免清空当前提示词。
+    return toPresetPromptConfig({
+      ...base,
+      ...structural,
+      mainPrompt: base.mainPrompt,
+      jailbreakPrompt: base.jailbreakPrompt,
+      useJailbreak: base.useJailbreak,
+      postHistoryPrompt: base.postHistoryPrompt,
+      usePostHistory: base.usePostHistory,
+      customPrompts: base.customPrompts,
+    });
+  }
+
+  // 文件自带 Prompt 字段：内容字段只能来自文件，未声明即"不声明"。
+  // 严禁展开基底——否则 tableMemoryPrompt / sectionHeaders / roleplayMode / useMainPrompt /
+  // reasoningGuidancePrompt / renderingFormat 等本应用专有内容会被固化进第三方预设包，
+  // 使外部预设"自带系统内置内容"。这些键保持缺失后，由运行时出厂默认兜底。
+  return toPresetPromptConfig({
+    ...structural,
+    mainPrompt,
+    jailbreakPrompt,
+    useJailbreak: !!jailbreakPrompt,
+    postHistoryPrompt,
+    usePostHistory: !!postHistoryPrompt,
+    customPrompts,
   });
 }
 

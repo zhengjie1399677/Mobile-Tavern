@@ -318,12 +318,8 @@ export function useSendMessage(p: SendMessageParams) {
         p.settings,
         currentSession.compositionSnapshot,
       );
-    } catch (error: unknown) {
-      await p.showCustomAlert(
-        error instanceof Error && error.message.startsWith("AGENT_PROMPT_PRESET_NOT_FOUND")
-          ? "此会话固定使用的行为预设已不存在，请恢复该预设或新建 Agent 会话。"
-          : "此会话的 Agent 行为快照无效，已停止发送以避免静默改用其他配置。",
-      );
+    } catch {
+      await p.showCustomAlert("此会话的 Agent 行为快照无效，已停止发送以避免静默改用其他配置。");
       return;
     }
     p.isSendingRef.current = true;

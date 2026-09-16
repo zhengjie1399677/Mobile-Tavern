@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { UserSettings, CharacterCard, RegexScript, CustomPromptBlock } from "../../types";
+import { applyLegacyPromptRemoval } from "../../application/useCases/promptSwitchSync";
 
 export type RegexEditorScope = "global" | "preset" | "character";
 export type EditableRegexScript = RegexScript & { scope?: RegexEditorScope };
@@ -215,14 +216,10 @@ export function usePresetFormState({
     if (selectedPromptIds.length === 0) return;
     const ok = await showCustomConfirm(t("preset_form.confirm_batch_delete_prompts", { count: String(selectedPromptIds.length) }));
     if (!ok) return;
+    // 连带删除同源的编排区块：列表与编排是同一批条目的两种视图，删除必须两侧一致。
     updateSettings((prev) => ({
       ...prev,
-      promptConfig: {
-        ...prev.promptConfig,
-        customPrompts: (prev.promptConfig.customPrompts || []).filter(
-          (p: CustomPromptBlock) => !selectedPromptIds.includes(p.id)
-        ),
-      },
+      promptConfig: applyLegacyPromptRemoval(prev.promptConfig, selectedPromptIds),
     }));
     setSelectedPromptIds([]);
     setIsBatchDeletingPrompts(false);

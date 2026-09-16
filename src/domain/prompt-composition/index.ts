@@ -6,3 +6,4 @@ export * from "./templateLibrary";
 export * from "./basicExample";
 export * from "./scenePresets";
 export * from "./sceneProfiles";
+export * from "./editing";

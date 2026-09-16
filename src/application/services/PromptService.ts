@@ -228,16 +228,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         }
       }
 
-      const lastUserMsgIdx = (() => {
-        for (let i = activeMessagesToSend.length - 1; i >= 0; i--) {
-          if (activeMessagesToSend[i].sender !== "assistant") {
-            return i;
-          }
-        }
-        return -1;
-      })();
-
-      const rawHistory = activeMessagesToSend.map((msg, idx) => {
+      const rawHistory = activeMessagesToSend.map((msg) => {
         let role: "user" | "model" | "assistant" = "user";
         let content = msg.content;
         // 发送给 AI 时应用 promptOnly 正则清理（如隐藏 <StatusPlaceHolderImpl/> 和 <UpdateVariable> 块）
@@ -435,7 +426,10 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     // 1. ENGINE 规则层（核心指令，固定不可变）
     // ==================================================
     let mainPromptReplaced = "";
-    if (settings.promptConfig?.mainPrompt) {
+    // 「底层扮演系统指令」子条目开关必须真正生效：关闭后不再注入 mainPrompt，
+    // 但仍保留已启用的自定义提示词条目（core_rules 退化为只含这些条目）。
+    const mainPromptEnabled = settings.promptConfig?.useMainPrompt !== false;
+    if (mainPromptEnabled && settings.promptConfig?.mainPrompt) {
       mainPromptReplaced = this.replaceMacros(settings.promptConfig.mainPrompt, macroParams);
     }
     const hasCustomPrompts = settings.promptConfig?.customPrompts && settings.promptConfig.customPrompts.length > 0;
@@ -596,7 +590,9 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     // 3. GENERATION 生成偏好层（叙事风格与写作约束，固定不可变）
     // ==================================================
     let jailbreakSection = "";
-    if (settings.promptConfig?.useJailbreak && settings.promptConfig?.jailbreakPrompt) {
+    // 与预设列表的「规则提示词」子条目一致：未声明时按启用处理，只有显式 false 才跳过。
+    // 早先的 truthy 判定会让 UI 显示开启、运行时却不注入，用户看到的就是"开关没生效"。
+    if (settings.promptConfig?.useJailbreak !== false && settings.promptConfig?.jailbreakPrompt) {
       jailbreakSection = this.replaceMacros(settings.promptConfig.jailbreakPrompt, macroParams);
     }
     builder.registerSection({

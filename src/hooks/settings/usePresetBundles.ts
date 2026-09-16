@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import type { PromptConfig, SavedPresetBundle, UserSettings } from "../../types";
+import type { SavedPresetBundle, UserSettings } from "../../types";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IKernel, IPresetService, IRuntimeProfileService } from "@/src/application/serviceContracts";
 import { KernelServices } from "@/src/application/serviceContracts";
@@ -16,11 +16,12 @@ import {
 import { preparePresetBundleExport } from "../../application/useCases/preparePresetBundleExport";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "./defaults";
 import {
+  applyPresetBundleActivation,
   buildPresetBundleSnapshot,
   collectPresetBundleReferences,
   isPresetBundleInSync,
   resolvePresetBundleActivation,
-  type PresetBundleActivation,
+  type PresetBundleSource,
 } from "../../application/useCases/presetBundleLifecycle";
 import {
   createPromptPresetPlan,
@@ -80,24 +81,31 @@ const listRuntimeProfilesSafely = (kernel: IKernel): RuntimeProfileRecord[] => {
   }
 };
 
-/** 删除预设后的回退补丁：必须与切换共用同一套激活规则，避免漏掉预设正则等字段。 */
-const resolveFallbackActivation = (
-  remaining: SavedPresetBundle[],
-  currentPromptConfig: PromptConfig,
-): PresetBundleActivation => {
+/** 删除预设后的回退目标：必须与切换共用同一套激活规则，避免漏掉预设正则等字段。 */
+const resolveFallbackBundle = (remaining: SavedPresetBundle[]): PresetBundleSource => {
   const fallback = remaining[0];
-  if (fallback) {
-    return resolvePresetBundleActivation(currentPromptConfig, fallback, DEFAULT_SETTINGS.preset);
-  }
-  return resolvePresetBundleActivation(
-    currentPromptConfig,
-    {
-      preset: DEFAULT_SETTINGS.preset,
-      promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
-      promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
-    },
-    DEFAULT_SETTINGS.preset,
-  );
+  if (fallback) return fallback;
+  return {
+    preset: DEFAULT_SETTINGS.preset,
+    promptConfig: toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
+    promptPlan: createPromptPresetPlan(DEFAULT_SETTINGS.promptConfig),
+  };
+};
+
+/**
+ * 删除预设后的完整设置。
+ *
+ * 所有删除路径必须经由这里：既保证回退使用同一套激活规则，也保证落库走函数式
+ * `updateSettings` 通道——否则被删除预设未声明、而当前生效设置里存在的字段会残留。
+ */
+const buildSettingsAfterRemoval = (
+  prev: UserSettings,
+  nextSaved: SavedPresetBundle[],
+  removedActive: boolean,
+): UserSettings => {
+  const base: UserSettings = { ...prev, savedPresets: nextSaved };
+  if (!removedActive) return base;
+  return applyPresetBundleActivation(base, resolveFallbackBundle(nextSaved), DEFAULT_SETTINGS.preset);
 };
 
 /** 预设包管理子 Hook：只负责文件交互、用户确认、状态应用与持久化。 */
@@ -342,10 +350,10 @@ export const usePresetBundles = ({
       );
       if (!confirmed) return;
     }
-    updateSettings({
-      ...settings,
-      ...resolvePresetBundleActivation(settings.promptConfig, bundle, DEFAULT_SETTINGS.preset),
-    });
+    // 整体切换必须走函数式通道：值形式 updater 会先求 getNestedDelta（只遍历 next 的键）
+    // 再 deepMerge（只覆盖不删除），无法表达"目标预设未声明的字段应被删除"，
+    // 会把上一个预设的 useMainPrompt / usePostHistory / reasoningGuidancePrompt 等残留下来。
+    updateSettings((prev) => applyPresetBundleActivation(prev, bundle, DEFAULT_SETTINGS.preset));
   }, [settings, updateSettings, isActivePresetDirty, showCustomConfirm]);
 
   const handleDeletePresetBundle = useCallback(async (bundleId: string) => {
@@ -368,13 +376,7 @@ export const usePresetBundles = ({
       await showCustomAlert("删除预设失败，请稍后重试。", "删除失败");
       return;
     }
-    updateSettings({
-      ...settings,
-      savedPresets: nextSaved,
-      ...(isActiveDeleted
-        ? resolveFallbackActivation(nextSaved, settings.promptConfig)
-        : {}),
-    });
+    updateSettings((prev) => buildSettingsAfterRemoval(prev, nextSaved, isActiveDeleted));
   }, [settings, showCustomConfirm, showCustomAlert, updateSettings, presetService, buildDeleteConfirmMessage]);
 
   const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
@@ -405,13 +407,7 @@ export const usePresetBundles = ({
       await showCustomAlert("批量删除预设失败，请稍后重试。", "删除失败");
       return;
     }
-    updateSettings({
-      ...settings,
-      savedPresets: nextSaved,
-      ...(isCurrentDeleted
-        ? resolveFallbackActivation(nextSaved, settings.promptConfig)
-        : {}),
-    });
+    updateSettings((prev) => buildSettingsAfterRemoval(prev, nextSaved, isCurrentDeleted));
     await showCustomAlert("🎉 批量删除成功！");
   }, [settings, showCustomConfirm, updateSettings, showCustomAlert, presetService, buildDeleteConfirmMessage]);
 

@@ -109,19 +109,4 @@ describe("PresetSelectorSection", () => {
     expect(screen.queryByText("未保存")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: SAVE_LABEL })).toBeDisabled();
   });
-
-  it("会话已冻结行为预设时提示修改不会立即生效", () => {
-    renderSection(
-      <PresetSelectorSection
-        settings={DEFAULT_SETTINGS}
-        activeBundleId="bundle_mobile_tavern_basic"
-        isActivePresetDirty={false}
-        frozenPresetName="剧本助手"
-        {...createHandlers()}
-      />,
-    );
-
-    expect(screen.getByText(/已冻结行为预设/)).toBeInTheDocument();
-    expect(screen.getByText(/剧本助手/)).toBeInTheDocument();
-  });
 });

@@ -32,9 +32,14 @@
 - 预设导入遵循 ST Prompt Manager 语义：只有 `prompt_order` 中排序的 Prompt 转为编排区块（顺序与启用状态照搬）；未排序的候选 Prompt 仅存在于 ST 候选库、不进入管理器列表，因此不导入，并产生 `SKIPPED_UNORDERED_PROMPTS` 警告。完全没有 `prompt_order` 时降级保留全部 Prompt，避免静默丢失。
 - 导入后的外部编排必须进入版本化 `promptPlan` 快照；`source="sillytavern"` 只用于来源与往返诊断，运行时只能消费中立 `PromptComposition`。用户暂不启用自由编排时仍要把快照保存在该预设内，禁止继承其他预设的编排。
 - 旧 Mobile Tavern 预设缺少版本快照时明确按 `legacy` 运行，并生成独立、可见的迁移编排草稿；不得因为当前设置正启用自由编排而静默改变旧预设行为。
-- 导入必须自包含：外部文件自带 Prompt 字段（`prompts`/`prompt_order`/主提示词等）时，未表达的字段取应用出厂中立基底，不得用"当前预设"的字段补位；只有纯采样预设（完全不含 Prompt 字段）才允许沿用当前 Prompt。
+- 导入必须自包含：外部文件自带 Prompt 字段（`prompts`/`prompt_order`/主提示词等）时，内容字段只能来自文件，未表达即不写入预设包（记忆表提示词、区块标题、`roleplayMode`、`useMainPrompt`、推理指引、`renderingFormat` 等应用专有字段保持缺失，由运行时出厂默认兜底），不得固化出厂内容、也不得用"当前预设"的字段补位；只有传输结构字段（Instruct 模板、序列前后缀、Story 排列、请求整形）沿用基底；只有纯采样预设（完全不含 Prompt 字段）才允许沿用当前 Prompt。
 - 切换预设必须整体替换：目标预设未声明的字段回到运行时默认，禁止沿用上一个预设的值（历史缺陷：未声明这些字段的预设会沿用上一个预设的开关与文案，在对应运行模式下改变真实请求）。受影响字段按运行模式分别是——传统扮演模式：`requestShaping`（合并/压缩/预填充/停止串）、`tableMemoryPrompt`；非扮演模式：`enableReasoningGuidance`、`reasoningGuidancePrompt`；自由编排模式：`prompt.postHistory`（来自 `usePostHistory` / `postHistoryPrompt`）、`renderingFormat`。
+- 预设激活必须整体替换：切换、导入激活与删除回退只允许改采样、Prompt 快照与预设正则三个字段，并必须经函数式 `updateSettings` 通道落库——值形式 updater 会先求 `getNestedDelta`（只遍历 next 的键）再 `deepMerge`（只覆盖不删除），无法表达"删除字段"，会把上一个预设未声明的运行期字段残留到新预设。
 - ST 文件无法表达的运行期开关与提示词字段（`useMainPrompt`、`useJailbreak`、`usePostHistory`、推理指引、记忆表提示词、`sectionHeaders`、`renderingFormat`、`roleplayMode`）随导出写入 `extensions.mobile_tavern_preset`（版本 1）；导入优先恢复该命名空间，未知版本只告警并忽略，不影响通用字段导入。
+- 预设子条目必须两侧同源：`customPrompts`（传统列表）与 `composition.blocks`（自由编排）是同一批条目的两种视图，对应键为列表侧 `identifier || id`、区块侧 `compatibility.originalIdentifier`，两侧取值表达式必须一致否则同步静默失效。任一视图都要同时写另一侧（`promptSwitchSync`）；列表侧写入不依赖 `usePromptComposition` 是否开启。规则分三类——①**开关**双向同步；②**删除**双向连带（编排删区块连删列表条目，列表删条目连删同源区块，并统一经领域层 `removePromptBlocks` 清理场景方案的 `blockStates`）；③**内容与新增不自动同步**（外部预设区块的模板可能是数据源宏而非条目正文，按正文回写会破坏语义；列表新增条目在编排模式下不生效属已知边界，需显式设计）。编排侧纯开关写入（含撤销/重做）只在"两次编排之间仅有开关变化"时回写列表，新增/复制/排序/改模板/导入模板等结构变更绝不回写（复制区块会带出重复 identifier，用那时那版状态覆盖列表会误改无关条目）。切换编排模式时把即将失去视图权的一侧镜像进即将生效的一侧。
+- 编排编辑器的撤销栈记录的是「编排 + 提示词列表」整份快照（`PromptSwitchSnapshot`），不是只有编排：删除会连带删掉列表条目，只记编排会导致撤销后区块回来了、列表条目回不来，两侧立刻重新不一致。因此删除必须走 `commitSnapshot` 一次性写入两侧；外部列表写入只更新当前值并作废旧历史，避免回退覆盖用户新改动。
+- 连带删除必须有可见提示：编排侧与列表侧的删除确认文案都要说明会一并删除另一侧的同源条目（8 个语言同步），禁止静默连带删除用户数据。
+- 「底层扮演系统指令」（`useMainPrompt`）与「规则提示词」（`useJailbreak`）在预设列表里按"未声明即启用"展示，传统路径与编排数据源必须同样用 `!== false` 判定与界面一致；`usePostHistory` 未声明即关闭，同样是两侧一致的判据。任何"界面显示开启、请求里却是空的"都属于缺陷。
 - 出厂内容迁移（补齐/修复内置提示词区块、回填默认主提示词与记忆表提示词、统一 system 角色）只允许作用于内置预设；自定义与导入预设必须原样保留，禁止由系统代码注入行为引导区块。
 - 数据库附着、Agent Marker、TavernHelper/远程脚本和前端 DOM 生命周期不属于通用预设兼容范围，不得因样本流行度绕过边界。
 

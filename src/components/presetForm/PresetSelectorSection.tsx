@@ -15,8 +15,6 @@ interface PresetSelectorSectionProps {
   settings: UserSettings;
   activeBundleId: string;
   isActivePresetDirty: boolean;
-  /** 当前会话冻结的行为预设名称；存在时说明修改不会影响该会话。 */
-  frozenPresetName?: string;
   handleImportPresetJSON: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleExportPresetJSON: () => void;
   handleSaveNewPresetBundle: () => Promise<void>;
@@ -30,7 +28,6 @@ export default function PresetSelectorSection({
   settings,
   activeBundleId,
   isActivePresetDirty,
-  frozenPresetName,
   handleImportPresetJSON,
   handleExportPresetJSON,
   handleSaveNewPresetBundle,
@@ -154,12 +151,6 @@ export default function PresetSelectorSection({
             <span className="shrink-0 text-primary font-bold">全名:</span>
             <span className="line-clamp-2 text-foreground/90 font-medium">{currentBundleName}</span>
           </div>
-        )}
-
-        {frozenPresetName && (
-          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-amber-600">
-            {t("preset_selector.frozen_session_notice", { name: frozenPresetName })}
-          </p>
         )}
 
         <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40">

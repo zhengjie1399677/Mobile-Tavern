@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IPromptService } from "@/src/application/serviceContracts";
-import { readAgentSettingsFromComposition } from "../../application/runtimeProfiles/agentSettings";
 import type { CharacterCard, ChatSession, UserSettings, LorebookEntry } from "../../types";
 import { usePresetFormState } from "./usePresetFormState";
 import PresetSelectorSection from "./PresetSelectorSection";
@@ -178,20 +177,6 @@ export default function PresetForm({
     showPrompts,
   ]);
 
-  // 行为预设被会话冻结时，修改预设不会影响该会话；这里显式说明，避免"修改未生效"的困惑。
-  const frozenPresetName = useMemo(() => {
-    try {
-      const frozenPresetId = readAgentSettingsFromComposition(
-        activeSession?.compositionSnapshot,
-      )?.promptPresetId;
-      if (!frozenPresetId) return undefined;
-      return (settings.savedPresets ?? []).find((bundle) => bundle.id === frozenPresetId)
-        ?.preset.name ?? frozenPresetId;
-    } catch {
-      return undefined;
-    }
-  }, [activeSession, settings.savedPresets]);
-
   return (
     <div className="space-y-2.5">
       {/* 1. 预设选择与管理 */}
@@ -200,7 +185,6 @@ export default function PresetForm({
           settings={settings}
           activeBundleId={activeBundleId}
           isActivePresetDirty={isActivePresetDirty}
-          frozenPresetName={frozenPresetName}
           handleImportPresetJSON={handleImportPresetJSON}
           handleExportPresetJSON={handleExportPresetJSON}
           handleSaveNewPresetBundle={handleSaveNewPresetBundle}

@@ -46,7 +46,6 @@ import {
   buildPromptBlockListGroups,
   estimatePromptBlockTokens,
   patchSelectedBlockStates,
-  removePromptBlocks,
   type PromptBlockGroupMode,
   type PromptBlockSortMode,
 } from "./promptBlockListTools";
@@ -54,6 +53,11 @@ import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusCont
 import { PromptComposerButton } from "./PromptComposerControls";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
+import {
+  mirrorPromptSwitches,
+  removeCompositionBlocks,
+  type PromptSwitchSnapshot,
+} from "../../application/useCases/promptSwitchSync";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +67,9 @@ import {
 } from "../../../components/ui/dialog";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
+
+/** 列表缺失时的稳定空数组：避免每次渲染生成新引用、误清撤销栈。 */
+const EMPTY_CUSTOM_PROMPTS: NonNullable<UserSettings["promptConfig"]["customPrompts"]> = [];
 
 interface PromptCompositionEditorProps {
   settings: UserSettings;
@@ -81,7 +88,17 @@ export default function PromptCompositionEditor({
 }: PromptCompositionEditorProps) {
   const { t } = useTranslation();
   const showCustomConfirm = useUnifiedApp((state) => state.showCustomConfirm);
-  const composition = settings.promptConfig.composition ?? createBasicPromptComposition();
+  // 撤销栈按对象身份判断"这次写入是不是自己发起的"，因此快照内的两个引用必须稳定：
+  // 编排缺失时只生成一次兜底对象，列表缺失时复用同一份空数组常量。
+  const composition = useMemo(
+    () => settings.promptConfig.composition ?? createBasicPromptComposition(),
+    [settings.promptConfig.composition],
+  );
+  const customPrompts = settings.promptConfig.customPrompts ?? EMPTY_CUSTOM_PROMPTS;
+  const promptSnapshot = useMemo<PromptSwitchSnapshot>(
+    () => ({ composition, customPrompts }),
+    [composition, customPrompts],
+  );
   const [editingBlockId, setEditingBlockId] = useState<string>();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [workbenchOpen, setWorkbenchOpen] = useState(false);
@@ -154,24 +171,37 @@ export default function PromptCompositionEditor({
   const visibleBlockIds = visibleBlockItems.map((item) => item.block.id);
   const visibleTokens = visibleBlockItems.reduce((total, item) => total + item.estimatedTokens, 0);
 
-  const persistComposition = (next: PromptComposition) => {
-    updateSettings((previous) => ({
-      ...previous,
-      promptConfig: { ...previous.promptConfig, composition: next },
-    }));
+  const persistSnapshot = (next: PromptSwitchSnapshot) => {
+    updateSettings((previous) => {
+      // 编排写入是一条独立通道（编辑器提交、撤销、重做都走这里），必须连带写回列表：
+      // 否则在编排视图里删掉或用开关关掉子条目，列表仍显示原样，用户会以为"改动没生效"。
+      const promptConfig = { ...previous.promptConfig, composition: next.composition };
+      if (next.customPrompts === previous.promptConfig.customPrompts) {
+        return { ...previous, promptConfig };
+      }
+      return { ...previous, promptConfig: { ...promptConfig, customPrompts: next.customPrompts } };
+    });
   };
-  const compositionHistory = usePromptCompositionHistory(composition, persistComposition);
+  const compositionHistory = usePromptCompositionHistory(promptSnapshot, persistSnapshot);
   const updateComposition = compositionHistory.commit;
+  const commitSnapshot = compositionHistory.commitSnapshot;
 
   const setMode = (enabled: boolean) => {
-    updateSettings((previous) => ({
-      ...previous,
-      promptConfig: {
-        ...previous.promptConfig,
-        usePromptComposition: enabled,
-        composition: previous.promptConfig.composition ?? createBasicPromptComposition(),
-      },
-    }));
+    updateSettings((previous) => {
+      // 切换编排模式时把"即将失去视图权"的一侧状态镜像进"即将生效"的一侧：
+      // 开启编排以列表为准带入区块，关闭编排以区块为准写回列表。
+      const mirrored = mirrorPromptSwitches(
+        {
+          ...previous.promptConfig,
+          composition: previous.promptConfig.composition ?? createBasicPromptComposition(),
+        },
+        enabled ? "to-composition" : "to-legacy",
+      );
+      return {
+        ...previous,
+        promptConfig: { ...mirrored, usePromptComposition: enabled },
+      };
+    });
   };
 
   const saveTemplate = (value: PromptComposition, source: "user" | "external" = "user") => {
@@ -208,7 +238,8 @@ export default function PromptCompositionEditor({
 
   const batchDelete = async () => {
     if (selectedBlockIds.size === 0 || !await showCustomConfirm(t("prompt_composer.batch_delete_confirm", { count: String(selectedBlockIds.size) }))) return;
-    updateComposition(removePromptBlocks(composition, selectedBlockIds), "batch:delete");
+    // 连带删除同源的提示词列表条目，撤销时两侧一起还原。
+    commitSnapshot(removeCompositionBlocks(promptSnapshot, [...selectedBlockIds]), "batch:delete");
     setSelectedBlockIds(new Set());
     if (editingBlockId && selectedBlockIds.has(editingBlockId)) setEditingBlockId(undefined);
   };
@@ -257,14 +288,15 @@ export default function PromptCompositionEditor({
 
   const deleteBlock = useCallback(async (id: string) => {
     if (!await showCustomConfirm(t("prompt_composer.confirm_delete"))) return;
-    updateComposition(removePromptBlocks(composition, new Set([id])));
+    // 连带删除同源的提示词列表条目，撤销时两侧一起还原。
+    commitSnapshot(removeCompositionBlocks(promptSnapshot, [id]));
     setSelectedBlockIds((previous) => {
       const next = new Set(previous);
       next.delete(id);
       return next;
     });
     if (editingBlockId === id) setEditingBlockId(undefined);
-  }, [composition, editingBlockId, showCustomConfirm, t, updateComposition]);
+  }, [commitSnapshot, editingBlockId, promptSnapshot, showCustomConfirm, t]);
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedBlockIds((previous) => {
