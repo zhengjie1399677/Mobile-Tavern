@@ -81,8 +81,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
+        # 不要加回 'tools'：Google 已从 SDK 仓库下架该 legacy 包，
+        # sdkmanager 会以 "Failed to find package 'tools'" 退出 1 并中断整个 job。
+        # cmdline-tools 由该 action 自行安装，platform-tools + NDK 已足够构建。
         with:
-          packages: 'tools platform-tools ndk;29.0.14206865'
+          packages: 'platform-tools ndk;29.0.14206865'
 
       - name: Set NDK environment
         run: |
