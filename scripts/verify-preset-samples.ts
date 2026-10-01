@@ -3,6 +3,7 @@ import { basename, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { preparePresetBundleImport } from "../src/application/useCases/preparePresetBundleImport";
 import { compilePromptComposition } from "../src/domain/prompt-composition";
+import { sillyTavernPromptPresetCodec } from "../src/infrastructure/compat/sillytavern";
 import { DEFAULT_PROMPT_CONFIG } from "../src/hooks/settings/defaults";
 
 interface SampleVerificationResult {
@@ -41,6 +42,8 @@ async function verifyPresetSample(filePath: string): Promise<SampleVerificationR
       input: parsed,
       fallbackName: basename(absolutePath, ".json"),
       currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      // 验收必须使用与运行时相同的 Compatibility Codec，否则只能得到"仅通用字段"的降级结果。
+      compatibilityCodec: sillyTavernPromptPresetCodec,
     });
     const compiled = prepared.composition
       ? compilePromptComposition(prepared.composition, {

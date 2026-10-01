@@ -11,6 +11,7 @@ import { DEFAULT_SETTINGS } from "./defaults";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 import { persistImportedChatSession } from "../../application/useCases/chatImportUseCases";
+import { readPresetBundleList } from "../../domain/presets/bundleMigration";
 import {
   buildUnifiedBackupPayload,
   UNIFIED_BACKUP_MAGIC,
@@ -291,9 +292,9 @@ export const useBackupRestore = ({
         !Array.isArray(parsed.customWorldbooks)
         ? parsed.customWorldbooks
         : {};
-      const validatedSavedPresets = Array.isArray(parsed.savedPresets)
-        ? parsed.savedPresets
-        : [];
+      // 旧备份里的预设是 v1 记录，必须经领域迁移入口读取（能读就不能失效）；
+      // 修复与丢弃都留下诊断，恢复失败不得让整份备份不可用。
+      const validatedSavedPresets = readPresetBundleList(parsed.savedPresets).bundles;
       const validatedAttachments = parseAttachmentBackupRecords(parsed.attachments);
       const validatedAgentJournal = parseAgentJournalEvents(parsed.agentJournal);
 
@@ -390,7 +391,7 @@ export const useBackupRestore = ({
     setBackupStatus("正在读取聊天记录...");
     try {
       const textData = await file.text();
-      let lines = textData.split("\n").map(l => l.trim()).filter(Boolean);
+      const lines = textData.split("\n").map(l => l.trim()).filter(Boolean);
       let rawMessages: any[] = [];
       let characterNameFromFile = "";
 

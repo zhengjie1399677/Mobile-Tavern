@@ -5,7 +5,7 @@ import type {
   PromptPresetPlanSource,
   SavedPresetBundle,
 } from "../../types";
-import { createBasicPromptComposition, parsePromptComposition } from "../../domain/prompt-composition";
+import { resolvePromptFromV1Fields } from "../../domain/presets/promptSnapshot";
 
 /** 从完整设置中提取预设可拥有的传统 Prompt 字段。 */
 export function toPresetPromptConfig(config: PromptConfig): PresetPromptConfig {
@@ -82,19 +82,18 @@ function computePromptPresetPlan(
     "promptConfig" | "promptPlan" | "composition" | "usePromptComposition"
   >,
 ): PromptPresetPlan {
-  const explicit = parseStoredPromptPresetPlan(bundle.promptPlan);
-  if (explicit) return explicit;
-
-  const legacyComposition = parseStoredComposition(bundle.composition);
-  const source = inferPlanSource(legacyComposition);
-  if (bundle.usePromptComposition === true && legacyComposition) {
-    return { version: 1, mode: "composition", source, composition: legacyComposition };
-  }
+  // v1 快照规则已收口到领域层（`domain/presets/promptSnapshot`），供 v1 读取与 v1→v2 迁移共用。
+  const resolved = resolvePromptFromV1Fields({
+    promptConfig: bundle.promptConfig,
+    promptPlan: bundle.promptPlan,
+    composition: bundle.composition,
+    usePromptComposition: bundle.usePromptComposition,
+  });
   return {
     version: 1,
-    mode: "legacy",
-    source,
-    composition: legacyComposition ?? createLegacyCompositionSnapshot(bundle.promptConfig),
+    mode: resolved.mode,
+    source: resolved.source,
+    composition: resolved.composition,
   };
 }
 
@@ -135,61 +134,27 @@ export function applyPresetCompositionToPromptConfig(
   };
 }
 
-function parseStoredPromptPresetPlan(value: unknown): PromptPresetPlan | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  if (record.version !== 1 || (record.mode !== "legacy" && record.mode !== "composition")) return null;
-  const composition = parseStoredComposition(record.composition);
-  if (record.mode === "composition" && !composition) return null;
-  const source = record.source === "sillytavern" || record.source === "native"
-    ? record.source
-    : "mobile-tavern";
-  return { version: 1, mode: record.mode, source, composition };
+/**
+ * 预设快照的稳定序列化：键序无关、忽略 `undefined`。
+ *
+ * 切换脏检查与启动期引导的落库判断必须共用同一套比较语义，否则同一份数据会出现
+ * "一边认为脏、一边认为干净"的分歧。
+ */
+export function stableSerializePresetSnapshot(value: unknown): string {
+  return JSON.stringify(normalizeForPresetSnapshot(value));
 }
 
-function parseStoredComposition(value: unknown) {
-  if (value === undefined) return undefined;
-  try {
-    return parsePromptComposition(value);
-  } catch {
-    return undefined;
+function normalizeForPresetSnapshot(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeForPresetSnapshot);
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const normalized: Record<string, unknown> = {};
+    for (const key of Object.keys(record).sort()) {
+      const item = record[key];
+      if (item === undefined) continue;
+      normalized[key] = normalizeForPresetSnapshot(item);
+    }
+    return normalized;
   }
-}
-
-function inferPlanSource(composition: ReturnType<typeof parseStoredComposition>): PromptPresetPlanSource {
-  return composition?.compatibility?.source === "sillytavern" ? "sillytavern" : "mobile-tavern";
-}
-
-function createLegacyCompositionSnapshot(config: PresetPromptConfig) {
-  const composition = createBasicPromptComposition();
-  const customBlocks = (config.customPrompts ?? []).map((prompt, index) => ({
-    id: `legacy_custom_${index + 1}_${sanitizeBlockId(prompt.identifier || prompt.id || String(index + 1))}`,
-    name: prompt.name || `传统 Prompt ${index + 1}`,
-    enabled: prompt.enabled,
-    role: prompt.role === "assistant" || prompt.role === "user" ? prompt.role : "system" as const,
-    source: { type: "template" as const },
-    template: prompt.content,
-    order: 450 + index,
-    placement: { type: "ordered" as const },
-    compatibility: {
-      source: "mobile-tavern-legacy",
-      originalIdentifier: prompt.identifier || prompt.id,
-    },
-  }));
-  return {
-    ...composition,
-    id: `composition_legacy_${sanitizeBlockId(config.mainPrompt.slice(0, 24) || "preset")}`,
-    name: "传统预设迁移快照",
-    blocks: [
-      ...composition.blocks.slice(0, 4),
-      ...customBlocks,
-      ...composition.blocks.slice(4),
-    ],
-    compatibility: { source: "mobile-tavern-legacy", sourceVersion: "1" },
-  };
-}
-
-function sanitizeBlockId(value: string): string {
-  const sanitized = value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
-  return sanitized || "preset";
+  return value;
 }

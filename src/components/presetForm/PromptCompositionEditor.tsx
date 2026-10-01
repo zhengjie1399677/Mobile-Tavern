@@ -61,6 +61,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import CanvasPresetBanner from "./CanvasPresetBanner";
+import WorkflowNodeLibraryDialog from "./WorkflowNodeLibraryDialog";
+import { createBlockFromTemplate, type WorkflowNodeTemplate } from "./workflowNodeLibrary";
 
 export type { PromptCompositionPreviewData } from "./promptCompositionEditorTypes";
 
@@ -70,6 +74,13 @@ interface PromptCompositionEditorProps {
   preview?: PromptCompositionPreviewData;
   saveState?: SettingsSaveState;
   lastSavedAt?: number;
+  savedPresets?: PresetBundleV2[];
+  activeBundleId?: string;
+  isActivePresetDirty?: boolean;
+  frozenPresetName?: string;
+  onLoadPreset?: (bundleId: string) => Promise<void> | void;
+  onSaveCurrentPreset?: () => Promise<void> | void;
+  onSaveNewPreset?: () => Promise<void> | void;
 }
 
 export default function PromptCompositionEditor({
@@ -78,6 +89,13 @@ export default function PromptCompositionEditor({
   preview,
   saveState = "idle",
   lastSavedAt,
+  savedPresets,
+  activeBundleId,
+  isActivePresetDirty,
+  frozenPresetName,
+  onLoadPreset,
+  onSaveCurrentPreset,
+  onSaveNewPreset,
 }: PromptCompositionEditorProps) {
   const { t } = useTranslation();
   const showCustomConfirm = useUnifiedApp((state) => state.showCustomConfirm);
@@ -94,6 +112,7 @@ export default function PromptCompositionEditor({
   const [dragAnnouncement, setDragAnnouncement] = useState("");
   const [blockQuery, setBlockQuery] = useState("");
   const [manageOpen, setManageOpen] = useState(false);
+  const [workflowLibraryOpen, setWorkflowLibraryOpen] = useState(false);
   const [blockGroupMode, setBlockGroupMode] = useState<PromptBlockGroupMode>("none");
   const [blockSortMode, setBlockSortMode] = useState<PromptBlockSortMode>("order");
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(() => new Set());
@@ -232,6 +251,15 @@ export default function PromptCompositionEditor({
     };
     updateComposition({ ...composition, blocks: [...composition.blocks, block] });
     setEditingBlockId(id);
+  };
+
+  const handleSelectTemplate = (template: WorkflowNodeTemplate) => {
+    const block = createBlockFromTemplate(template, composition.blocks);
+    updateComposition({ ...composition, blocks: [...composition.blocks, block] });
+    setEditingBlockId(block.id);
+    if (!freeMode) {
+      setMode(true);
+    }
   };
 
   const reorder = useCallback((sourceId: string, targetId: string) => {
@@ -396,6 +424,20 @@ export default function PromptCompositionEditor({
         onToggleAdvancedOptions={() => setShowAdvancedOptions((prev) => !prev)}
         onOpenPreview={() => setPreviewOpen(true)}
         onOpenTutorial={() => setTutorialOpen(true)}
+      />
+
+      {/* 画布与预设一体化状态条 */}
+      <CanvasPresetBanner
+        savedPresets={savedPresets}
+        activeBundleId={activeBundleId}
+        isActivePresetDirty={isActivePresetDirty}
+        frozenPresetName={frozenPresetName}
+        freeMode={freeMode}
+        onSetMode={setMode}
+        onLoadPreset={onLoadPreset}
+        onSaveCurrentPreset={onSaveCurrentPreset}
+        onSaveNewPreset={onSaveNewPreset}
+        t={t}
       />
 
       {!freeMode && !promptFocus.active && <TraditionalPromptFlow />}
@@ -597,7 +639,10 @@ export default function PromptCompositionEditor({
               <p className="sr-only" role="status" aria-live="assertive">{dragAnnouncement}</p>
 
               {/* 底部新增与重置操作条 */}
-              <div className="grid grid-cols-3 gap-2 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                <ToolbarButton onClick={() => setWorkflowLibraryOpen(true)} icon={<Sparkles className="h-4 w-4 text-primary" />}>
+                  添加工作流节点
+                </ToolbarButton>
                 <ToolbarButton onClick={() => addBlock("template")} icon={<MessageSquarePlus className="h-4 w-4 text-primary" />}>
                   {t("prompt_composer.add_message")}
                 </ToolbarButton>
@@ -675,6 +720,13 @@ export default function PromptCompositionEditor({
 
       {/* 教程弹窗 */}
       <PromptCompositionTutorial open={tutorialOpen} onOpenChange={setTutorialOpen} />
+
+      {/* 工作流节点模版库弹窗 */}
+      <WorkflowNodeLibraryDialog
+        open={workflowLibraryOpen}
+        onOpenChange={setWorkflowLibraryOpen}
+        onSelectTemplate={handleSelectTemplate}
+      />
     </section>
   );
 }

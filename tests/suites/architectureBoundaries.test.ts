@@ -207,6 +207,43 @@ export async function testArchitectureBoundaries(): Promise<void> {
     }
   }
 
+  // 预设：读改写编排属于 application 用例，出厂迁移属于无 IO 用例，Hook 只做适配与写回。
+  const presetCatalogUseCase = read("src/application/useCases/presetCatalog.ts");
+  assert(
+    presetCatalogUseCase.includes("export function createPresetCatalog"),
+    "预设目录必须有唯一的读-改-写用例 createPresetCatalog，禁止把编排重新写回 Hook"
+  );
+
+  const presetBundlesHook = read("src/hooks/settings/usePresetBundles.ts");
+  assert(
+    presetBundlesHook.includes("createPresetCatalog") &&
+      !/await\s+presetService\.getStoredSavedPresets\s*\(/.test(presetBundlesHook),
+    "预设目录 Hook 只能把 PresetService 适配成 catalog 端口，不得自己「读库 → 拼数组 → 写库」"
+  );
+
+  const settingsLoaderHook = read("src/hooks/settings/useSettingsLoader.ts");
+  assert(
+    settingsLoaderHook.includes("resolvePresetBootstrap") &&
+      !/NARRATIVE ENGINE/.test(settingsLoaderHook),
+    "启动期预设引导必须走 application/useCases/presetBootstrap；Hook 不得内联出厂提示词启发式"
+  );
+
+  // 预设实体 v2：v2 是唯一写入形态，v1 只能经领域迁移入口读取；运行期只能经唯一投影激活。
+  const presetSettingsRepository = read("src/infrastructure/storage/repositories/settingsRepository.ts");
+  assert(
+    presetSettingsRepository.includes("readPresetBundleList"),
+    "预设列表的存储读取必须经 domain/presets/bundleMigration 的迁移入口，禁止按 v1 形状直接读"
+  );
+
+  for (const directory of ["src/hooks", "src/components", "src/tabs", "src/contexts"]) {
+    for (const file of listCodeFiles(directory)) {
+      assert(
+        !read(file).includes("resolvePresetBundleActivation"),
+        `${file} 必须经唯一投影 projectPresetActivation 激活预设，不得调用 v1 激活路径`
+      );
+    }
+  }
+
   const attachmentStorage = read("src/infrastructure/attachments/attachmentStorage.ts");
   assert(
     attachmentStorage.includes('MobileTavernAttachmentDB') &&
@@ -847,8 +884,11 @@ export async function testArchitectureBoundaries(): Promise<void> {
   const rerollMessage = read("src/hooks/useChat/useRerollMessage.ts");
   assert(
     read("src/types.ts").includes("interface PromptPresetPlan")
-      && presetPromptPlan.includes("normalizeSavedPresetPromptPlan")
-      && presetPromptPlan.includes('mode: "legacy"')
+      // v2 起"版本快照归一化"由领域层承担：v1 记录只能经迁移入口读取，降级规则只写一处。
+      && presetPromptPlan.includes("resolvePromptFromV1Fields")
+      && read("src/domain/presets/promptSnapshot.ts").includes('mode: "legacy"')
+      && read("src/domain/presets/bundleMigration.ts").includes("export function readPresetBundleList")
+      && read("src/domain/presets/contracts.ts").includes("PRESET_BUNDLE_SCHEMA_VERSION")
       && promptService.includes("assemblePromptComposition")
       && sendMessage.includes("assembleAuthoritativePromptEnvelope")
       && rerollMessage.includes("assembleAuthoritativePromptEnvelope")

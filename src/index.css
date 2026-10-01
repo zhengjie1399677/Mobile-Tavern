@@ -330,7 +330,7 @@
 }
 
 .settings-form-group {
-  padding: 0.75rem 0.75rem;
+  padding: 0.9rem 1rem;
   border-bottom: 1px solid color-mix(in oklch, var(--border) 36%, transparent);
 }
 
@@ -482,10 +482,10 @@
 }
 
 @media (max-width: 420px) {
-  .settings-shell { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .settings-shell { padding-left: 0.85rem; padding-right: 0.85rem; }
   .settings-category-row { min-height: 3.25rem; padding-left: 0.5rem; padding-right: 0.5rem; }
   .settings-connection-stack .settings-panel-trigger { min-height: 3.5rem; }
-  .settings-form-group { padding-left: 0; padding-right: 0; }
+  .settings-form-group { padding-left: 0.75rem; padding-right: 0.75rem; }
 }
 
 /* Portrait masking & glowing */

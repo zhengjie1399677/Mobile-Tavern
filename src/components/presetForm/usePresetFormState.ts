@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { UserSettings, CharacterCard, RegexScript, CustomPromptBlock } from "../../types";
+import { resolveActivePresetBundle } from "../../application/useCases/presetBundleLifecycle";
 
 export type RegexEditorScope = "global" | "preset" | "character";
 export type EditableRegexScript = RegexScript & { scope?: RegexEditorScope };
@@ -28,9 +29,7 @@ export function usePresetFormState({
   saveCharacter,
 }: UsePresetFormStateParams) {
   const { t } = useTranslation();
-  const activeBundleId = (settings.savedPresets || []).find(
-    (b) => b.preset.id === settings.preset.id
-  )?.id || "";
+  const activeBundleId = resolveActivePresetBundle(settings.savedPresets, settings.preset)?.id || "";
 
   // 子条目多选状态
   const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);

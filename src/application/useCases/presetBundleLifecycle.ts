@@ -6,12 +6,15 @@ import type {
   SavedPresetBundle,
   UserSettings,
 } from "../../types";
+import { PRESET_BUNDLE_SCHEMA_VERSION, type PresetBundleV2 } from "../../domain/presets/contracts";
+import { toPromptSnapshotV2 } from "../../domain/presets/promptSnapshot";
 import type { RuntimeProfileRecord } from "../runtimeProfiles/contracts";
 import {
   applyPresetCompositionToPromptConfig,
   applyPresetPromptConfig,
   createPromptPresetPlan,
   resolvePromptPresetPlan,
+  stableSerializePresetSnapshot,
   toPresetPromptConfig,
 } from "./presetPromptConfig";
 
@@ -54,6 +57,40 @@ export interface PresetBundleReferenceSummary {
   profileNames: string[];
 }
 
+export const BUILTIN_PRESET_BUNDLE_ID = "bundle_mobile_tavern_basic";
+export const BUILTIN_SAMPLER_PRESET_ID = "preset_mobile_tavern_basic";
+
+/** 判定预设是否为出厂内置预设（只读保护、启动重建）。 */
+export function isBuiltinBundle(bundle: PresetBundleV2 | undefined): boolean {
+  if (!bundle) return false;
+  return Boolean(bundle.isBuiltin)
+    || bundle.id === BUILTIN_PRESET_BUNDLE_ID
+    || bundle.sampler.id === BUILTIN_SAMPLER_PRESET_ID;
+}
+
+/**
+ * 权威定位活跃预设包。
+ * 1. 优先按 sampler.id 匹配（标准运行形态）
+ * 2. 其次按 bundle.id 匹配（防 ID 错位）
+ * 3. 再次按名称匹配（兼容采样参数被赋予 "custom" 或历史脏数据）
+ * 4. 兜底回落至内置预设或首个预设
+ */
+export function resolveActivePresetBundle(
+  savedPresets: readonly PresetBundleV2[] | undefined,
+  preset: Pick<SamplerPreset, "id" | "name"> | undefined,
+): PresetBundleV2 | undefined {
+  if (!savedPresets || savedPresets.length === 0) return undefined;
+  if (!preset) return savedPresets.find((b) => isBuiltinBundle(b)) ?? savedPresets[0];
+
+  return (
+    savedPresets.find((b) => b.sampler.id === preset.id) ??
+    savedPresets.find((b) => b.id === preset.id) ??
+    savedPresets.find((b) => b.sampler.name === preset.name) ??
+    savedPresets.find((b) => isBuiltinBundle(b)) ??
+    savedPresets[0]
+  );
+}
+
 /** 计算激活预设包后的设置补丁；所有切换入口都必须经由此函数。 */
 export function resolvePresetBundleActivation(
   currentPromptConfig: PromptConfig,
@@ -76,14 +113,21 @@ export function resolvePresetBundleActivation(
 export function buildPresetBundleSnapshot(
   selection: PresetBundleSelection,
   identity: PresetBundleIdentity,
-): SavedPresetBundle {
+): PresetBundleV2 {
+  const plan = createPromptPresetPlan(selection.promptConfig, identity.planSource ?? "native");
   return {
+    schemaVersion: PRESET_BUNDLE_SCHEMA_VERSION,
     id: identity.id,
     ...(identity.isBuiltin ? { isBuiltin: true } : {}),
-    preset: { ...selection.preset },
-    promptConfig: toPresetPromptConfig(selection.promptConfig),
-    promptPlan: createPromptPresetPlan(selection.promptConfig, identity.planSource ?? "native"),
-    presetRegexScripts: [...(selection.presetRegexScripts ?? [])],
+    sampler: { ...selection.preset },
+    // 唯一 Prompt 权威：模式与编排快照来自当前设置；传统字段只进只读兼容块。
+    prompt: toPromptSnapshotV2({
+      mode: plan.mode,
+      source: plan.source,
+      composition: plan.composition,
+    }),
+    legacyPromptConfig: toPresetPromptConfig(selection.promptConfig),
+    regexScripts: [...(selection.presetRegexScripts ?? [])],
   };
 }
 
@@ -94,24 +138,24 @@ export function buildPresetBundleSnapshot(
  * 因此这些字段不计入脏状态，避免旧预设一加载就显示"未保存"。
  */
 export function isPresetBundleInSync(
-  bundle: SavedPresetBundle,
+  bundle: PresetBundleV2,
   selection: PresetBundleSelection,
   presetDefaults?: SamplerPreset,
 ): boolean {
-  const plan = resolvePromptPresetPlan(bundle);
   const liveMode = selection.promptConfig.usePromptComposition ? "composition" : "legacy";
-  if (liveMode !== plan.mode) return false;
-  if (liveMode === "composition" && !isDeepEqual(selection.promptConfig.composition, plan.composition)) {
+  if (liveMode !== bundle.prompt.mode) return false;
+  if (liveMode === "composition" && !isDeepEqual(selection.promptConfig.composition, bundle.prompt.composition)) {
     return false;
   }
 
   const livePromptConfig = toPresetPromptConfig(selection.promptConfig) as unknown as Record<string, unknown>;
-  if (!hasOwnedKeysEqual(livePromptConfig, bundle.promptConfig as unknown as Record<string, unknown>)) {
+  const storedLegacy = (bundle.legacyPromptConfig ?? {}) as unknown as Record<string, unknown>;
+  if (!hasOwnedKeysEqual(livePromptConfig, storedLegacy)) {
     return false;
   }
 
   const livePreset = presetDefaults ? { ...presetDefaults, ...selection.preset } : selection.preset;
-  const storedPreset = presetDefaults ? { ...presetDefaults, ...bundle.preset } : bundle.preset;
+  const storedPreset = presetDefaults ? { ...presetDefaults, ...bundle.sampler } : bundle.sampler;
   if (!hasOwnedKeysEqual(
     livePreset as unknown as Record<string, unknown>,
     storedPreset as unknown as Record<string, unknown>,
@@ -119,7 +163,7 @@ export function isPresetBundleInSync(
     return false;
   }
 
-  return isDeepEqual(selection.presetRegexScripts ?? [], bundle.presetRegexScripts ?? []);
+  return isDeepEqual(selection.presetRegexScripts ?? [], bundle.regexScripts ?? []);
 }
 
 /** 汇总引用指定预设包的 Runtime Profile，供删除前提示使用。 */
@@ -141,25 +185,5 @@ function hasOwnedKeysEqual(
 }
 
 function isDeepEqual(left: unknown, right: unknown): boolean {
-  return stableSerialize(left) === stableSerialize(right);
-}
-
-/** 键序无关且忽略 undefined 的稳定序列化，用于快照比对。 */
-function stableSerialize(value: unknown): string {
-  return JSON.stringify(normalizeForCompare(value));
-}
-
-function normalizeForCompare(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalizeForCompare);
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    const normalized: Record<string, unknown> = {};
-    for (const key of Object.keys(record).sort()) {
-      const item = record[key];
-      if (item === undefined) continue;
-      normalized[key] = normalizeForCompare(item);
-    }
-    return normalized;
-  }
-  return value;
+  return stableSerializePresetSnapshot(left) === stableSerializePresetSnapshot(right);
 }

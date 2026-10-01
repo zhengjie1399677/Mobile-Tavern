@@ -434,7 +434,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     // 1. ENGINE 规则层（核心指令，固定不可变）
     // ==================================================
     let mainPromptReplaced = "";
-    if (settings.promptConfig?.mainPrompt) {
+    if (settings.promptConfig?.useMainPrompt !== false && settings.promptConfig?.mainPrompt) {
       mainPromptReplaced = this.replaceMacros(settings.promptConfig.mainPrompt, macroParams);
     }
     const hasCustomPrompts = settings.promptConfig?.customPrompts && settings.promptConfig.customPrompts.length > 0;

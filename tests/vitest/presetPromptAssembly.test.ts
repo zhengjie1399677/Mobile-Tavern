@@ -2,15 +2,13 @@ import { describe, expect, it } from "vitest";
 import { PromptService } from "../../src/application/services/PromptService";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import { createBasicPromptComposition } from "../../src/domain/prompt-composition";
-import {
-  buildPresetBundleSnapshot,
-  resolvePresetBundleActivation,
-} from "../../src/application/useCases/presetBundleLifecycle";
+import { buildPresetBundleSnapshot } from "../../src/application/useCases/presetBundleLifecycle";
+import { projectPresetActivation } from "../../src/application/useCases/presetProjection";
+import type { PresetBundleV2 } from "../../src/domain/presets/contracts";
 import type {
   CharacterCard,
   ChatSession,
   PromptConfig,
-  SavedPresetBundle,
   UserSettings,
 } from "../../src/types";
 
@@ -41,7 +39,7 @@ const CHAT = {
 function createBundle(
   id: string,
   promptConfig: PromptConfig,
-): SavedPresetBundle {
+): PresetBundleV2 {
   return buildPresetBundleSnapshot(
     {
       preset: { ...DEFAULT_SETTINGS.preset, id: `preset_${id}`, name: id },
@@ -55,11 +53,11 @@ function createBundle(
 /** 用给定的预设包激活设置，模拟下拉框里的真实切换路径。 */
 function activate(
   current: UserSettings,
-  bundle: SavedPresetBundle,
+  bundle: PresetBundleV2,
 ): UserSettings {
   return {
     ...current,
-    ...resolvePresetBundleActivation(current.promptConfig, bundle, DEFAULT_SETTINGS.preset),
+    ...projectPresetActivation(current.promptConfig, bundle, DEFAULT_SETTINGS.preset),
   };
 }
 
@@ -192,5 +190,22 @@ describe("预设整体提示词装配", () => {
     const legacyText = promptText(assemble(backToLegacy));
     expect(legacyText).toContain("LEGACY 主提示词");
     expect(legacyText).not.toContain("COMPOSED 编排区块");
+  });
+
+  it("useMainPrompt 为 false 时即使 mainPrompt 存在也不参与装配", () => {
+    const presetNoMain = createBundle("NO_MAIN", {
+      ...DEFAULT_PROMPT_CONFIG,
+      mainPrompt: "不应被注入的文字",
+      useMainPrompt: false,
+      customPrompts: [
+        { id: "custom_block", name: "模块", role: "system", content: "独立生效的模块", enabled: true },
+      ],
+    });
+
+    const base = structuredClone(DEFAULT_SETTINGS);
+    const activated = activate(base, presetNoMain);
+    const text = promptText(assemble(activated));
+    expect(text).not.toContain("不应被注入的文字");
+    expect(text).toContain("独立生效的模块");
   });
 });

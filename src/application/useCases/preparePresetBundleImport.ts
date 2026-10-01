@@ -4,9 +4,13 @@ import type {
   PromptConfig,
   PromptRequestShapingConfig,
   RegexScript,
-  SavedPresetBundle,
   SamplerPreset,
+  SillyTavernPresetAnalysis,
 } from "../../types";
+import {
+  PRESET_BUNDLE_SCHEMA_VERSION,
+  type PresetBundleV2,
+} from "../../domain/presets/contracts";
 import type {
   CompatibilityReport,
   PromptComposition,
@@ -19,6 +23,9 @@ import { parseMobileTavernPresetExtension } from "./presetRuntimeNamespace";
 
 type ExternalRecord = Record<string, unknown>;
 type ImportIdKind = "preset" | "regex" | "bundle";
+
+// 兼容分析结果的唯一定义在 `src/types.ts`；此处只转发既有导出名，保持调用方 API 稳定。
+export type { SillyTavernPresetAnalysis };
 
 export interface PreparePresetBundleImportOptions {
   input: unknown;
@@ -33,34 +40,12 @@ export interface PreparePresetBundleImportOptions {
   compatibilityCodec?: CompatibilityCodecDefinition | null;
 }
 
-export interface SillyTavernPresetAnalysis {
-  level: "full" | "core" | "recognize_only" | "invalid";
-  promptCount: number;
-  orderedPromptCount: number;
-  enabledPromptCount: number;
-  markerCount: number;
-  unknownMarkerCount: number;
-  inChatPromptCount: number;
-  attachmentPromptCount: number;
-  regexCount: number;
-  tavernHelperScriptCount: number;
-  enabledTavernHelperScriptCount: number;
-  remoteScriptCount: number;
-  tavernHelperScriptBytes: number;
-  diagnostics: string[];
-}
-
 export interface PreparedPresetBundleImport {
   name: string;
-  bundle: SavedPresetBundle;
+  bundle: PresetBundleV2;
   composition?: PromptComposition;
   compatibilityAnalysis?: SillyTavernPresetAnalysis;
   report: CompatibilityReport;
-}
-
-interface PromptOrderEntry {
-  identifier: string;
-  enabled: boolean;
 }
 
 /**
@@ -90,10 +75,13 @@ export function preparePresetBundleImport(
     maxTokens: readFirstNumber(data.max_tokens, data.openai_max_tokens, data.maxTokens) ?? 600,
   };
 
+  // 来源格式的 Prompt 语义只由 Compatibility Codec 解释，故先取出注入的 Codec 再收口 Prompt 字段。
+  const codec = options.compatibilityCodec;
   const promptConfigBase = preparePromptConfig(
     data,
     options.currentPromptConfig,
     options.neutralPromptConfig ?? options.currentPromptConfig,
+    codec,
   );
   const presetExtension = parseMobileTavernPresetExtension(
     isRecord(data.extensions) ? data.extensions : undefined,
@@ -105,7 +93,6 @@ export function preparePresetBundleImport(
   // 部分社区预设没有 prompt_order；Codec 会按 prompts 原顺序降级保留，
   // 因此正式入口只要求存在 prompts，不能在此提前把它排除。
   const isSillyTavernPromptPreset = Array.isArray(data.prompts);
-  const codec = options.compatibilityCodec;
   const compositionImport = isSillyTavernPromptPreset && codec?.canDecode(data)
     ? parseCodecImport(codec.decode({ ...data, name }))
     : undefined;
@@ -123,27 +110,28 @@ export function preparePresetBundleImport(
       }]
     : [];
 
-  const bundle: SavedPresetBundle = {
+  // v2 实体：`prompt` 快照是唯一 Prompt 权威；导入的传统字段只进只读兼容块
+  // `legacyPromptConfig`（SillyTavern 导出与运行期投影读取它）。
+  const bundle: PresetBundleV2 = {
+    schemaVersion: PRESET_BUNDLE_SCHEMA_VERSION,
     id: createId("bundle"),
-    preset,
-    promptConfig,
-    presetRegexScripts: regexResult.scripts,
+    sampler: preset,
+    prompt: composition
+      ? {
+          version: PRESET_BUNDLE_SCHEMA_VERSION,
+          mode: "composition",
+          source: "sillytavern",
+          composition,
+        }
+      : {
+          // 外部文件没有可解码编排时不得继承当前预设的编排快照（见 sillytavern_compat.md 第 4 节）。
+          version: PRESET_BUNDLE_SCHEMA_VERSION,
+          mode: "legacy",
+          source: "mobile-tavern",
+        },
+    legacyPromptConfig: promptConfig,
+    regexScripts: regexResult.scripts,
   };
-  if (composition) {
-    bundle.promptPlan = {
-      version: 1,
-      mode: "composition",
-      source: "sillytavern",
-      composition,
-    };
-  } else {
-    // 外部文件没有可解码编排时不得继承当前预设的编排快照（见 sillytavern_compat.md 第 4 节）。
-    bundle.promptPlan = {
-      version: 1,
-      mode: "legacy",
-      source: "mobile-tavern",
-    };
-  }
 
   return {
     name,
@@ -179,23 +167,47 @@ function isCompatibilityReport(value: unknown): value is CompatibilityReport {
   return isRecord(value) && Array.isArray(value.warnings) && Array.isArray(value.errors);
 }
 
+/**
+ * 收口 Codec 的兼容分析结果。
+ *
+ * Codec 贡献是进程内受信插件，但 `analyze` 在契约中按 `unknown` 暴露，
+ * 因此这里逐字段校验形状（不解释来源语义），并避免用整体断言强行改型。
+ */
 function parseCompatibilityAnalysis(value: unknown): SillyTavernPresetAnalysis {
-  if (!isRecord(value) || !["full", "core", "recognize_only", "invalid"].includes(String(value.level))) {
+  if (!isRecord(value)) throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
+  const level = value.level;
+  if (level !== "full" && level !== "core" && level !== "recognize_only" && level !== "invalid") {
     throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
   }
-  const numberFields = [
-    "promptCount", "orderedPromptCount", "enabledPromptCount", "markerCount",
-    "unknownMarkerCount", "inChatPromptCount", "attachmentPromptCount", "regexCount",
-    "tavernHelperScriptCount", "enabledTavernHelperScriptCount", "remoteScriptCount",
-    "tavernHelperScriptBytes",
-  ] as const;
-  if (numberFields.some((field) => typeof value[field] !== "number")) {
+  return {
+    level,
+    promptCount: requireAnalysisNumber(value, "promptCount"),
+    orderedPromptCount: requireAnalysisNumber(value, "orderedPromptCount"),
+    enabledPromptCount: requireAnalysisNumber(value, "enabledPromptCount"),
+    markerCount: requireAnalysisNumber(value, "markerCount"),
+    unknownMarkerCount: requireAnalysisNumber(value, "unknownMarkerCount"),
+    inChatPromptCount: requireAnalysisNumber(value, "inChatPromptCount"),
+    attachmentPromptCount: requireAnalysisNumber(value, "attachmentPromptCount"),
+    regexCount: requireAnalysisNumber(value, "regexCount"),
+    tavernHelperScriptCount: requireAnalysisNumber(value, "tavernHelperScriptCount"),
+    enabledTavernHelperScriptCount: requireAnalysisNumber(value, "enabledTavernHelperScriptCount"),
+    remoteScriptCount: requireAnalysisNumber(value, "remoteScriptCount"),
+    tavernHelperScriptBytes: requireAnalysisNumber(value, "tavernHelperScriptBytes"),
+    diagnostics: requireAnalysisDiagnostics(value.diagnostics),
+  };
+}
+
+function requireAnalysisNumber(record: ExternalRecord, field: string): number {
+  const candidate = record[field];
+  if (typeof candidate !== "number") throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
+  return candidate;
+}
+
+function requireAnalysisDiagnostics(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some((item: unknown) => typeof item !== "string")) {
     throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
   }
-  if (!Array.isArray(value.diagnostics) || value.diagnostics.some((item) => typeof item !== "string")) {
-    throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
-  }
-  return value as unknown as SillyTavernPresetAnalysis;
+  return value.filter((item: unknown): item is string => typeof item === "string");
 }
 
 export function formatSillyTavernCompatibilityAnalysis(
@@ -260,15 +272,15 @@ function preparePromptConfig(
   data: ExternalRecord,
   current: PromptConfig,
   neutral: PromptConfig,
+  codec: CompatibilityCodecDefinition | null | undefined,
 ): PresetPromptConfig {
   const mainPrompt = readString(data.system_prompt) ?? readString(data.mainPrompt) ?? "";
   const jailbreakPrompt = readString(data.jailbreak_prompt) ?? readString(data.jailbreakPrompt) ?? "";
   const postHistoryPrompt = readString(data.post_history_instructions) ?? readString(data.postHistoryPrompt) ?? "";
   const storyString = readString(data.story_string) ?? readString(data.storyString) ?? "";
-  const customPrompts = parseCustomPrompts(data);
+  const customPrompts = readCodecPresetPrompts(codec, data);
   const hasPromptFields = customPrompts.length > 0
-    || Array.isArray(data.prompt_order)
-    || Array.isArray(data.promptOrder)
+    || hasExternalPromptCandidates(data)
     || !!mainPrompt
     || !!jailbreakPrompt
     || !!postHistoryPrompt
@@ -292,10 +304,13 @@ function preparePromptConfig(
   return toPresetPromptConfig({
     ...base,
     mainPrompt: hasPromptFields ? mainPrompt : base.mainPrompt,
+    useMainPrompt: hasPromptFields
+      ? Boolean(mainPrompt && mainPrompt.trim().length > 0)
+      : (base.useMainPrompt ?? Boolean(base.mainPrompt && base.mainPrompt.trim().length > 0)),
     jailbreakPrompt: hasPromptFields ? jailbreakPrompt : base.jailbreakPrompt,
-    useJailbreak: hasPromptFields ? !!jailbreakPrompt : base.useJailbreak,
+    useJailbreak: hasPromptFields ? Boolean(jailbreakPrompt && jailbreakPrompt.trim().length > 0) : base.useJailbreak,
     postHistoryPrompt: hasPromptFields ? postHistoryPrompt : base.postHistoryPrompt,
-    usePostHistory: hasPromptFields ? !!postHistoryPrompt : base.usePostHistory,
+    usePostHistory: hasPromptFields ? Boolean(postHistoryPrompt && postHistoryPrompt.trim().length > 0) : base.usePostHistory,
     storyString: hasPromptFields ? storyString : base.storyString,
     customPrompts: hasPromptFields ? customPrompts : base.customPrompts,
     instructTemplate: instructTemplate ?? base.instructTemplate,
@@ -318,47 +333,32 @@ function preparePromptConfig(
   });
 }
 
-function parseCustomPrompts(data: ExternalRecord): CustomPromptBlock[] {
-  const rawPrompts = Array.isArray(data.prompts)
-    ? data.prompts
-    : Array.isArray(data.customPrompts) ? data.customPrompts : [];
-  const prompts = rawPrompts.filter(isRecord);
-  const preferredOrder = readPreferredPromptOrder(data.prompt_order ?? data.promptOrder);
-  const orderByIdentifier = new Map(preferredOrder.map((entry) => [entry.identifier, entry]));
-  const promptByIdentifier = new Map(prompts.map((prompt, index) => [
-    readString(prompt.identifier) ?? readString(prompt.id) ?? `prompt_${index + 1}`,
-    prompt,
-  ]));
-  // 与 ST Prompt Manager 一致：有排序时只保留排序条目，候选库不进入界面列表；
-  // 无排序时降级保留全部，避免静默丢失。
-  const identifiers = preferredOrder.length > 0
-    ? preferredOrder.map((entry) => entry.identifier)
-    : [...promptByIdentifier.keys()];
-  return identifiers.map((identifier) => {
-    const prompt = promptByIdentifier.get(identifier) ?? {};
-    const rawRole = readString(prompt.role);
-    const role: CustomPromptBlock["role"] = rawRole === "model"
-      ? "assistant"
-      : rawRole === "user" || rawRole === "assistant"
-        ? rawRole
-        : "system";
-    return {
-      id: readString(prompt.id) ?? identifier,
-      identifier,
-      name: readString(prompt.name) ?? "导入提示词模组",
-      role,
-      content: readString(prompt.content) ?? "",
-      enabled: orderByIdentifier.get(identifier)?.enabled
-        ?? (preferredOrder.length > 0 ? false : prompt.enabled !== false),
-      marker: prompt.marker === true || undefined,
-      system_prompt: typeof prompt.system_prompt === "boolean" ? prompt.system_prompt : undefined,
-      injection_position: readNumber(prompt.injection_position),
-      injection_depth: readNumber(prompt.injection_depth),
-      injection_order: readNumber(prompt.injection_order),
-      forbid_overrides: typeof prompt.forbid_overrides === "boolean" ? prompt.forbid_overrides : undefined,
-      injection_trigger: readStringArray(prompt.injection_trigger),
-    };
-  });
+/**
+ * 来源格式的 Prompt 候选列表只由 Compatibility Codec 解释（顺序容器、角色别名、
+ * 候选库丢弃与保留字段都在兼容边界收口）；通用用例只消费结果，不反向识别
+ * `prompts` / `prompt_order` / `marker` 等来源字段（见 `COMPAT-DATA`）。
+ */
+function readCodecPresetPrompts(
+  codec: CompatibilityCodecDefinition | null | undefined,
+  data: ExternalRecord,
+): CustomPromptBlock[] {
+  const provided = codec?.readPresetPrompts?.(data);
+  return Array.isArray(provided) ? [...provided] : [];
+}
+
+/**
+ * 判断外部文件是否自带 Prompt 候选字段，作为"自包含导入"的依据
+ * （见 sillytavern_compat.md 第 4 节）。
+ *
+ * 这里只做存在性判断，不解释来源语义：内容如何收口由 Compatibility Codec 决定。
+ */
+function hasExternalPromptCandidates(data: ExternalRecord): boolean {
+  const containsRecord = (value: unknown): boolean =>
+    Array.isArray(value) && value.some((item: unknown) => isRecord(item));
+  return containsRecord(data.prompts)
+    || containsRecord(data.customPrompts)
+    || Array.isArray(data.prompt_order)
+    || Array.isArray(data.promptOrder);
 }
 
 function parseRegexScripts(
@@ -410,19 +410,6 @@ function regexWarning(index: number, message: string): PromptCompositionDiagnost
     code: "SKIPPED_INVALID_REGEX_SCRIPT",
     message: `第 ${index + 1} 个${message}`,
   };
-}
-
-/** ST 导出通常用 100001 保存用户实际编排，100000 是基础默认编排。 */
-function readPreferredPromptOrder(value: unknown): PromptOrderEntry[] {
-  if (!Array.isArray(value)) return [];
-  const containers = value.filter(isRecord).filter((item) => Array.isArray(item.order));
-  const selected = containers.find((item) => item.character_id === 100001 || item.character_id === "100001")
-    ?? containers[0];
-  if (!selected || !Array.isArray(selected.order)) return [];
-  return selected.order.filter(isRecord).flatMap((item) => {
-    const identifier = readString(item.identifier);
-    return identifier ? [{ identifier, enabled: item.enabled !== false }] : [];
-  });
 }
 
 function parseInstructTemplate(value: unknown): PromptConfig["instructTemplate"] | undefined {

@@ -1,11 +1,15 @@
 import type * as React from "react";
 import { useEffect } from "react";
-import { UserSettings, LorebookEntry, CustomWorldbook, SavedPresetBundle } from "../../types";
+import { UserSettings, LorebookEntry, CustomWorldbook } from "../../types";
+import type { PresetBundleV2 } from "../../domain/presets/contracts";
 import {
-  isBuiltinPresetActive,
-  resolvePresetPromptMigration,
-} from "../../application/useCases/presetRuntimeMigration";
-import { toPresetPromptConfig } from "./presetPromptConfig";
+  readExternalPresetDefaults,
+  resolvePresetBootstrap,
+  type ExternalPresetDefaults,
+  type PresetBootstrapFactoryDefaults,
+} from "../../application/useCases/presetBootstrap";
+import { withoutPresetOwnedSettings } from "../../application/useCases/presetSettingsBoundary";
+import { resolveActivePresetBundle } from "../../application/useCases/presetBundleLifecycle";
 import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
@@ -20,7 +24,6 @@ import {
   DEFAULT_PROMPT_CONFIG,
   DEFAULT_SETTINGS,
   MOBILE_TAVERN_BASIC_PRESET_BUNDLE,
-  setMobileTavernBasicPresetBundle,
 } from "./defaults";
 import { cleanLorebookEntry } from "./mergeUtils";
 import {
@@ -36,10 +39,35 @@ interface UseSettingsLoaderDeps {
 }
 
 /**
+ * 预设引导需要的出厂常量。
+ *
+ * 显式注入而不是由用例反向 import `hooks/settings/defaults`，以保持 application 不依赖
+ * 界面层默认值（`ARCH-FLOW`）。
+ */
+const PRESET_BOOTSTRAP_FACTORY: PresetBootstrapFactoryDefaults = {
+  promptConfig: DEFAULT_PROMPT_CONFIG,
+  settingsPromptConfig: DEFAULT_SETTINGS.promptConfig,
+  tableMemoryPrompt: DEFAULT_TABLE_MEMORY_PROMPT,
+};
+
+/** 拉取并收口外部静态预设文件；失败时保持出厂常量，不阻塞启动。 */
+async function fetchExternalPresetDefaults(): Promise<ExternalPresetDefaults | null> {
+  try {
+    const res = await fetch("/default_presets.json");
+    if (!res.ok) return null;
+    return readExternalPresetDefaults(await res.json());
+  } catch (fetchErr) {
+    console.warn("[useSettings] Failed to fetch external default presets:", fetchErr);
+    return null;
+  }
+}
+
+/**
  * 设置加载与预设注入迁移子 Hook。
  *
- * 负责从 IndexedDB 读取已存储的设置、预设包与世界书，并与外部静态
- * default_presets.json 进行合并迁移。仅在挂载时执行一次。
+ * 预设职责（外部静态文件、内置预设重建、旧键与出厂内容迁移、活跃 Prompt 形状）已收口到
+ * `application/useCases/presetBootstrap`；本 Hook 只负责读取服务、调用用例、写回结果，
+ * 以及合并人设、API、记忆、主题等非预设字段。仅在挂载时执行一次。
  */
 export const useSettingsLoader = ({
   setSettings,
@@ -49,7 +77,7 @@ export const useSettingsLoader = ({
 }: UseSettingsLoaderDeps) => {
   const kernel = useKernel();
   const settingsService = kernel.getService<ISettingsService<UserSettings>>("settings");
-  const presetService = kernel.getService<IPresetService<SavedPresetBundle>>("preset");
+  const presetService = kernel.getService<IPresetService<PresetBundleV2>>("preset");
   const worldbookService = kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>("worldbook");
 
   // Load Settings and Lorebook from local DB
@@ -61,96 +89,23 @@ export const useSettingsLoader = ({
         const storedLores = await worldbookService.getGlobalLorebook();
         const storedWorldbooks = await worldbookService.getCustomWorldbooks();
 
-        // 💡 核心安全策略：如果检测到数据库中没有主提示词数据（首次运行或被清空），则从外部静态 JSON 文件异步拉取初始化
-        let externalPreset: any = null;
-        if (!storedSet || !storedSet.promptConfig?.mainPrompt) {
-          try {
-            const res = await fetch("/default_presets.json");
-            if (res.ok) {
-              externalPreset = await res.json();
-            }
-          } catch (fetchErr) {
-            console.warn("[useSettings] Failed to fetch external default presets:", fetchErr);
-          }
-        }
+        // 💡 核心安全策略：只有数据库完全无设置记录（首次运行）时，才从外部静态 JSON 文件拉取出厂初始化配置。
+        // 已有设置记录时（即使预设自身没有根级 mainPrompt），严禁强制拉取外部默认配置覆盖用户预设。
+        const externalDefaults =
+          !storedSet || !storedSet.promptConfig
+            ? await fetchExternalPresetDefaults()
+            : null;
+
+        const bootstrap = resolvePresetBootstrap({
+          storedSettings: storedSet ?? null,
+          storedPresets: storedSavedPresets,
+          externalDefaults,
+          compiledBuiltin: MOBILE_TAVERN_BASIC_PRESET_BUNDLE,
+          factory: PRESET_BOOTSTRAP_FACTORY,
+        });
 
         if (storedSet) {
-          if (externalPreset?.basicPresetBundle) {
-            setMobileTavernBasicPresetBundle({
-              ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE,
-              promptConfig: toPresetPromptConfig({
-                ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
-                ...externalPreset.basicPresetBundle.promptConfig,
-              })
-            });
-          }
-
-          // Backward compatibility: retrieve from storedSet if saved_presets_bundle key doesn't exist yet
-          let mergedSavedPresets = storedSavedPresets || [];
-          let needSave = false;
-          let needSavePresets = false;
-
-          if (!storedSavedPresets && storedSet.savedPresets && storedSet.savedPresets.length > 0) {
-            mergedSavedPresets = storedSet.savedPresets;
-            needSavePresets = true;
-            needSave = true;
-          }
-
-          // 出厂内容迁移只对内置预设生效；自定义/导入预设的 Prompt 配置必须原样保留。
-          const activePresetId = storedSet.preset?.id;
-          const isActivePresetBuiltin = isBuiltinPresetActive(
-            activePresetId,
-            MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset.id,
-          );
-
-          // Force upgrade current active prompts if they contain any old default prompt patterns
-          const isOldDefaultPrompt = isActivePresetBuiltin && (
-            storedSet.promptConfig?.mainPrompt?.includes("[NARRATIVE ENGINE:") ||
-            storedSet.promptConfig?.mainPrompt?.includes("[系统核心任务：") ||
-            storedSet.promptConfig?.mainPrompt?.includes("叙事共鸣沙盒")
-          );
-
-          if (isOldDefaultPrompt) {
-            storedSet.promptConfig.mainPrompt = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.mainPrompt;
-            storedSet.promptConfig.jailbreakPrompt = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.jailbreakPrompt;
-            storedSet.promptConfig.storyString = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.storyString;
-            storedSet.promptConfig.customPrompts = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts;
-            delete storedSet.promptConfig.postHistoryPrompt;
-            delete storedSet.promptConfig.usePostHistory;
-            delete storedSet.promptConfig.enableReasoningGuidance;
-            delete storedSet.promptConfig.reasoningGuidancePrompt;
-            needSave = true;
-          }
-
-          mergedSavedPresets = mergedSavedPresets.map((bundle) => ({
-            ...bundle,
-            presetRegexScripts: bundle.presetRegexScripts || []
-          }));
-
-          let didInject = false;
-          let nextMergedPresets = (mergedSavedPresets || []).filter(
-            (preset) => preset.id !== "bundle_format_preservation"
-          );
-          if (nextMergedPresets.length !== (mergedSavedPresets || []).length) {
-            didInject = true;
-          }
-
-          // 强制使用最新的内置默认预设包覆盖数据库中的旧默认预设包，确保内容完整（规避 fetch 失败及脏数据残留）
-          nextMergedPresets = (nextMergedPresets || []).filter(
-            (preset) => preset.id !== "bundle_mobile_tavern_basic"
-          );
-          nextMergedPresets = [
-            ...nextMergedPresets,
-            MOBILE_TAVERN_BASIC_PRESET_BUNDLE
-          ];
-          didInject = true;
-
-          mergedSavedPresets = nextMergedPresets;
-
-          if (didInject) {
-            needSavePresets = true;
-            needSave = true;
-          }
+          let needSave = bootstrap.settingsDirty;
 
           const personas = storedSet.userPersonas && storedSet.userPersonas.length > 0
             ? storedSet.userPersonas
@@ -166,12 +121,12 @@ export const useSettingsLoader = ({
           let activeId = storedSet.activePersonaId || personas[0].id;
 
           // 如果活跃人物 ID 在列表中找不到，强制重置为第一个人设的 ID
-          if (!personas.some((p: any) => p.id === activeId)) {
+          if (!personas.some((p) => p.id === activeId)) {
             activeId = personas[0].id;
           }
 
           // 强制同步活跃人设的名称、头像、背景到全局属性，确保完全一致
-          const activeIdx = personas.findIndex((p: any) => p.id === activeId);
+          const activeIdx = personas.findIndex((p) => p.id === activeId);
           let finalUserName = storedSet.userName || DEFAULT_SETTINGS.userName;
           let finalUserAvatar = storedSet.userAvatar || DEFAULT_SETTINGS.userAvatar || "";
           let finalUserInfo = storedSet.userInfo || DEFAULT_SETTINGS.userInfo || "";
@@ -194,27 +149,9 @@ export const useSettingsLoader = ({
             }
           }
 
-          const defaultPromptConfig = externalPreset
-            ? { ...DEFAULT_PROMPT_CONFIG, ...externalPreset.promptConfig }
-            : MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig;
-
-          const defaultMemory = externalPreset
-            ? { ...DEFAULT_SETTINGS.memory, ...externalPreset.memory }
+          const defaultMemory = externalDefaults?.memory
+            ? { ...DEFAULT_SETTINGS.memory, ...externalDefaults.memory }
             : DEFAULT_SETTINGS.memory;
-
-          const defaultPrompts = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts || [];
-          // 当前生效 Prompt 的出厂内容迁移同样只对内置预设生效：导入的第三方预设
-          // 不得在启动时被追加本应用区块或把 user/assistant 角色改写为 system。
-          const promptMigration = resolvePresetPromptMigration({
-            prompts: storedSet.promptConfig?.customPrompts || [],
-            defaultPrompts,
-            activePresetId,
-            builtinPresetId: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset.id,
-          });
-          const mergedCustomPrompts = promptMigration.prompts;
-          if (promptMigration.updated) {
-            needSave = true;
-          }
 
           // CHANGE-SAFE：旧数据只有布尔 disableReasoning，迁移为统一强度档位（true → off）后写回。
           const storedReasoningStrength = normalizeReasoningStrength({
@@ -222,6 +159,17 @@ export const useSettingsLoader = ({
             disableReasoning: storedSet.api?.disableReasoning,
           });
           if (storedSet.api && storedSet.api.reasoningStrength === undefined) {
+            needSave = true;
+          }
+
+          const resolvedPreset = { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) };
+          const activeBundleCandidate = resolveActivePresetBundle(bootstrap.savedPresets, resolvedPreset);
+          if (
+            activeBundleCandidate &&
+            (resolvedPreset.id === "custom" || !bootstrap.savedPresets.some((b) => b.sampler.id === resolvedPreset.id))
+          ) {
+            resolvedPreset.id = activeBundleCandidate.sampler.id;
+            resolvedPreset.name = activeBundleCandidate.sampler.name;
             needSave = true;
           }
 
@@ -237,7 +185,7 @@ export const useSettingsLoader = ({
               reasoningStrength: storedReasoningStrength,
               forceBasicParams: storedSet.api?.forceBasicParams ?? DEFAULT_SETTINGS.api.forceBasicParams,
             },
-            preset: { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) },
+            preset: resolvedPreset,
             memory: {
               ...defaultMemory,
               ...(storedSet.memory || {}),
@@ -251,31 +199,9 @@ export const useSettingsLoader = ({
               })(),
               timeTagTemplate: storedSet.memory?.timeTagTemplate || DEFAULT_SETTINGS.memory.timeTagTemplate,
             },
-            promptConfig: {
-              ...defaultPromptConfig,
-              ...(storedSet.promptConfig || {}),
-              // 出厂默认内容只回填内置预设；自定义/导入预设保留原值（含用户清空的空串）。
-              ...(isActivePresetBuiltin
-                ? {
-                    mainPrompt: storedSet.promptConfig?.mainPrompt || defaultPromptConfig.mainPrompt,
-                    postHistoryPrompt: storedSet.promptConfig?.postHistoryPrompt || defaultPromptConfig.postHistoryPrompt,
-                    reasoningGuidancePrompt: storedSet.promptConfig?.reasoningGuidancePrompt || defaultPromptConfig.reasoningGuidancePrompt,
-                    tableMemoryPrompt: (() => {
-                      const stored = storedSet.promptConfig?.tableMemoryPrompt;
-                      if (!stored || !stored.includes("【状态与结构化记忆引擎】")) {
-                        needSave = true;
-                        return DEFAULT_TABLE_MEMORY_PROMPT;
-                      }
-                      return stored;
-                    })(),
-                  }
-                : {}),
-              customPrompts: mergedCustomPrompts,
-              sectionHeaders: {
-                ...defaultPromptConfig.sectionHeaders,
-                ...(storedSet.promptConfig?.sectionHeaders || {}),
-              },
-            },
+            // 活跃 Prompt 配置由预设引导用例给出：外部文件收口、旧出厂提示词升级、
+            // 出厂区块迁移与内置预设回填都在那里完成（`COMPAT-DATA`：只作用于内置预设）。
+            promptConfig: bootstrap.promptConfig,
             userName: finalUserName,
             userInfo: finalUserInfo,
             userAvatar: finalUserAvatar,
@@ -289,7 +215,8 @@ export const useSettingsLoader = ({
             scriptSecurityMode: storedSet.scriptSecurityMode
               ?? (storedSet.enableScriptExecution === true ? "trusted" : "isolated"),
             enableLoopProtection: storedSet.enableLoopProtection ?? DEFAULT_SETTINGS.enableLoopProtection,
-            savedPresets: mergedSavedPresets,
+            savedPresets: bootstrap.savedPresets,
+            presetFactoryRevision: bootstrap.presetFactoryRevision,
             expressionTriggers: storedSet.expressionTriggers || DEFAULT_SETTINGS.expressionTriggers,
             hasInjectedFormatPreset: true,
             variables: storedSet.variables || {},
@@ -348,58 +275,33 @@ export const useSettingsLoader = ({
             enableFloatingCharacter: storedSet.enableFloatingCharacter ?? DEFAULT_SETTINGS.enableFloatingCharacter,
           } as UserSettings;
 
-          if (externalPreset) {
-            needSave = true;
-          }
-
           setSettings(mergedSet);
 
-          if (needSavePresets) {
-            await presetService.saveStoredSavedPresets(mergedSavedPresets);
+          if (bootstrap.presetsDirty) {
+            await presetService.saveStoredSavedPresets(bootstrap.savedPresets);
           }
           if (needSave) {
-            const cleanSet = { ...mergedSet };
-            delete cleanSet.savedPresets;
-            await settingsService.saveStoredSettings(cleanSet);
+            await settingsService.saveStoredSettings(withoutPresetOwnedSettings(mergedSet));
           }
         } else {
           // 全新安装/首次运行（storedSet 为空），默认把初始化的预设组合包写入数据库并持久化设置
-          const initialSet = { ...DEFAULT_SETTINGS };
-          if (externalPreset) {
-            initialSet.promptConfig = {
-              ...initialSet.promptConfig,
-              ...externalPreset.promptConfig,
+          const initialSet: UserSettings = {
+            ...DEFAULT_SETTINGS,
+            promptConfig: bootstrap.promptConfig,
+            savedPresets: bootstrap.savedPresets,
+            presetFactoryRevision: bootstrap.presetFactoryRevision,
+          };
+          if (externalDefaults?.memory) {
+            initialSet.memory = {
+              ...initialSet.memory,
+              ...externalDefaults.memory,
             };
-            if (externalPreset.memory) {
-              initialSet.memory = {
-                ...initialSet.memory,
-                ...externalPreset.memory,
-              };
-            }
-            if (externalPreset.basicPresetBundle) {
-              setMobileTavernBasicPresetBundle({
-                ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE,
-                promptConfig: toPresetPromptConfig({
-                  ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
-                  ...externalPreset.basicPresetBundle.promptConfig,
-                })
-              });
-              initialSet.preset = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset;
-              initialSet.promptConfig = {
-                ...initialSet.promptConfig,
-                ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
-              };
-              initialSet.savedPresets = [MOBILE_TAVERN_BASIC_PRESET_BUNDLE];
-            }
-
           }
           setSettings(initialSet);
 
           try {
-            await presetService.saveStoredSavedPresets(initialSet.savedPresets || []);
-            const cleanSet = { ...initialSet };
-            delete cleanSet.savedPresets;
-            await settingsService.saveStoredSettings(cleanSet);
+            await presetService.saveStoredSavedPresets(bootstrap.savedPresets);
+            await settingsService.saveStoredSettings(withoutPresetOwnedSettings(initialSet));
           } catch (e) {
             console.error("Failed to initialize saved presets for new user:", e);
           }

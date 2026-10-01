@@ -7,6 +7,7 @@ import {
   IWorldbookService,
 } from "@/src/application/serviceContracts";
 import { getNestedDelta, deepMerge, cleanLorebookEntry } from "./mergeUtils";
+import { withoutPresetOwnedSettings } from "../../application/useCases/presetSettingsBoundary";
 
 interface UseSettingsPersistenceDeps {
   settings: UserSettings;
@@ -56,7 +57,7 @@ export const useSettingsPersistence = ({
   const worldbookService = kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>("worldbook");
 
   // Debounced settings save to prevent locking IndexedDB on sliders
-  const saveTimeoutRef = useRef<any>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isWritingRef = useRef<boolean>(false);
   const pendingSettingsRef = useRef<UserSettings | null>(null);
   const latestSettingsRef = useRef(settings);
@@ -64,7 +65,9 @@ export const useSettingsPersistence = ({
   const [settingsSaveState, setSettingsSaveState] = useState<SettingsSaveState>("idle");
   const [settingsLastSavedAt, setSettingsLastSavedAt] = useState<number>();
   const settingsSaveStateRef = useRef<SettingsSaveState>("idle");
-  settingsSaveStateRef.current = settingsSaveState;
+  useEffect(() => {
+    settingsSaveStateRef.current = settingsSaveState;
+  }, [settingsSaveState]);
 
   const performSave = useCallback(async (data: UserSettings) => {
     if (isWritingRef.current) {
@@ -75,8 +78,7 @@ export const useSettingsPersistence = ({
     isWritingRef.current = true;
     setSettingsSaveState("saving");
     try {
-      const cleanData = { ...data };
-      delete cleanData.savedPresets; // Exclude preset arrays to prevent database bloat and I/O lag
+      const cleanData = withoutPresetOwnedSettings(data); // Exclude preset arrays to prevent database bloat and I/O lag
       await settingsService.saveStoredSettings(cleanData);
       setSettingsLastSavedAt(Date.now());
       setSettingsSaveState(pendingSettingsRef.current ? "pending" : "saved");
@@ -92,7 +94,9 @@ export const useSettingsPersistence = ({
       }
     }
   }, [settingsService]);
-  performSaveRef.current = performSave;
+  useEffect(() => {
+    performSaveRef.current = performSave;
+  }, [performSave]);
 
   const updateSettings = useCallback((updater: UserSettings | ((prev: UserSettings) => UserSettings)) => {
     setSettings((prev) => {
@@ -119,7 +123,7 @@ export const useSettingsPersistence = ({
       const activeId = merged.activePersonaId || "default-persona";
       const personas = merged.userPersonas || [];
       if (personas.length > 0) {
-        const idx = personas.findIndex((p: any) => p.id === activeId);
+        const idx = personas.findIndex((p) => p.id === activeId);
         if (idx !== -1) {
           const activePers = { ...personas[idx] };
           let changed = false;

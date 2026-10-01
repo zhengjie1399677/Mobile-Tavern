@@ -10,6 +10,10 @@ import {
   SelectValue,
 } from "../../../components/ui/select";
 import type { UserSettings } from "../../types";
+import {
+  isBuiltinBundle,
+  resolveActivePresetBundle,
+} from "../../application/useCases/presetBundleLifecycle";
 
 interface PresetSelectorSectionProps {
   settings: UserSettings;
@@ -39,12 +43,9 @@ export default function PresetSelectorSection({
   handleDeletePresetBundle,
 }: PresetSelectorSectionProps) {
   const { t } = useTranslation();
-  const activeBundle = (settings.savedPresets || []).find(
-    (p) => p.preset.id === settings.preset.id,
-  );
-  const isActiveBuiltin = !!activeBundle?.isBuiltin ||
-    settings.preset.id === "preset_mobile_tavern_basic";
-  const currentBundleName = activeBundle?.preset.name || settings.preset.name || "Default";
+  const activeBundle = resolveActivePresetBundle(settings.savedPresets, settings.preset);
+  const isActiveBuiltin = isBuiltinBundle(activeBundle);
+  const currentBundleName = activeBundle?.sampler.name || settings.preset.name || "Default";
 
   return (
     <Card className="rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md shadow-xs p-3">
@@ -86,7 +87,7 @@ export default function PresetSelectorSection({
                       ) : (
                         <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
                       )}
-                      <span className="truncate font-semibold text-foreground">{p.preset.name}</span>
+                      <span className="truncate font-semibold text-foreground">{p.sampler.name}</span>
                       <span className={`ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-mono ${
                         p.isBuiltin
                           ? "bg-sky-500/10 text-sky-500 border border-sky-500/20"

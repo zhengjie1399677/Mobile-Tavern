@@ -105,4 +105,74 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
     fireEvent.click(screen.getByRole("button", { name: "删除提示词 第一人称约束" }));
     expect(handleDelete).toHaveBeenCalledWith("custom-1");
   });
+
+  it("自动过滤 marker 为 true 的系统插槽锚点，不作为提示词平铺", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.customPrompts = [
+      {
+        id: "marker-chat-history",
+        name: "chatHistory",
+        role: "system",
+        content: "",
+        enabled: true,
+        marker: true,
+      },
+      {
+        id: "normal-custom-1",
+        name: "正常模组",
+        role: "system",
+        content: "这是有效内容",
+        enabled: true,
+      },
+    ];
+
+    render(<Harness initial={settings} />);
+
+    // 正常模组应该显示
+    expect(screen.getByText("正常模组")).toBeInTheDocument();
+    // marker 锚点绝对不能在提示词列表中作为卡片平铺展示
+    expect(screen.queryByText("chatHistory")).not.toBeInTheDocument();
+  });
+
+  it("支持关键字搜索与生效中/备选库胶囊筛选", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.customPrompts = [
+      {
+        id: "active-mod",
+        name: "激活的文风模组",
+        role: "system",
+        content: "细腻小说叙事",
+        enabled: true,
+      },
+      {
+        id: "inactive-mod",
+        name: "备用的视角模组",
+        role: "user",
+        content: "第二人称代入",
+        enabled: false,
+      },
+    ];
+
+    render(<Harness initial={settings} />);
+
+    // 默认展示「生效中」，应该看到激活的文风模组，看不到备用的视角模组
+    expect(screen.getByText("激活的文风模组")).toBeInTheDocument();
+    expect(screen.queryByText("备用的视角模组")).not.toBeInTheDocument();
+
+    // 切换到「备选库」胶囊
+    fireEvent.click(screen.getByRole("button", { name: /备选库/ }));
+    expect(screen.getByText("备用的视角模组")).toBeInTheDocument();
+    expect(screen.queryByText("激活的文风模组")).not.toBeInTheDocument();
+
+    // 切换到「全部」胶囊
+    fireEvent.click(screen.getByRole("button", { name: /全部/ }));
+    expect(screen.getByText("激活的文风模组")).toBeInTheDocument();
+    expect(screen.getByText("备用的视角模组")).toBeInTheDocument();
+
+    // 搜索框过滤
+    const searchInput = screen.getByPlaceholderText(/搜索提示词/);
+    fireEvent.change(searchInput, { target: { value: "第二人称" } });
+    expect(screen.getByText("备用的视角模组")).toBeInTheDocument();
+    expect(screen.queryByText("激活的文风模组")).not.toBeInTheDocument();
+  });
 });

@@ -12,7 +12,9 @@
  *  - settled 守卫：getStoredSettings 嵌套 onsuccess 防止 resolve-after-reject
  */
 
-import type { UserSettings, SavedPresetBundle } from "../../../types";
+import type { UserSettings } from "../../../types";
+import type { PresetBundleV2 } from "../../../domain/presets/contracts";
+import { readPresetBundleList } from "../../../domain/presets/bundleMigration";
 import { getDB } from "../idbConnection";
 import {
   enqueueWrite,
@@ -293,20 +295,30 @@ export async function prepareSettingsStorageRecords(
   return { settings: clonedSettings, largePrompts };
 }
 
-export async function getStoredSavedPresets(): Promise<SavedPresetBundle[] | null> {
+/**
+ * 读取预设实体列表。
+ *
+ * 存储里可能是 v2 记录，也可能是历史 v1 记录（`preset`/`promptConfig`/`promptPlan`），
+ * 因此一律经 `readPresetBundleList` 迁移：能读就不能失效，迁移与修复的结论由诊断返回，
+ * 不对调用方抛错（`CHANGE-SAFE`）。
+ */
+export async function getStoredSavedPresets(): Promise<PresetBundleV2[] | null> {
   const db = await getDB();
-  return new Promise((resolve, reject) => {
+  const raw = await new Promise<unknown>((resolve, reject) => {
     const transaction = db.transaction("settings", "readonly");
     const store = transaction.objectStore("settings");
     const request = store.get("saved_presets_bundle");
 
-    request.onsuccess = () => resolve(request.result || null);
+    request.onsuccess = () => resolve(request.result ?? null);
     request.onerror = () => reject(request.error);
     bindReadonlyTransactionAbort(transaction, reject);
   });
+  if (raw === null || raw === undefined) return null;
+  return readPresetBundleList(raw).bundles;
 }
 
-export async function saveStoredSavedPresets(presets: SavedPresetBundle[], signal?: AbortSignal): Promise<void> {
+/** 写出预设实体列表；参数类型即 v2，历史形状无法写回。 */
+export async function saveStoredSavedPresets(presets: PresetBundleV2[], signal?: AbortSignal): Promise<void> {
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {

@@ -194,7 +194,20 @@ export default function SettingsTab() {
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
   const [isCheckingUpdate, setIsCheckingUpdate] = React.useState(false);
   const lastApiRef = React.useRef(JSON.stringify(settings.api));
-  const selectedSection = activeSection ?? (isLandscape ? "connection" : null);
+
+  const visibleSections = React.useMemo(() => {
+    return SETTINGS_SECTIONS.filter((section) => {
+      if (section.id === "composer" && !settings.enablePromptComposition) {
+        return false;
+      }
+      return true;
+    });
+  }, [settings.enablePromptComposition]);
+
+  const effectiveActiveSection = (activeSection === "composer" && !settings.enablePromptComposition)
+    ? "prompt"
+    : activeSection;
+  const selectedSection = effectiveActiveSection ?? (isLandscape ? "connection" : null);
   const selectedMeta = SETTINGS_SECTIONS.find((section) => section.id === selectedSection);
   const handleCheckUpdate = async () => {
     if (isCheckingUpdate) return;
@@ -266,7 +279,12 @@ export default function SettingsTab() {
           </div>
         );
       case "prompt":
-        return <PresetForm sections={["preset", "prompts", "regex"]} onOpenComposer={() => setActiveSection("composer")} />;
+        return (
+          <PresetForm
+            sections={["preset", "prompts", "regex"]}
+            onOpenComposer={settings.enablePromptComposition ? () => setActiveSection("composer") : undefined}
+          />
+        );
       case "appearance":
         return (
           <ThemeConfigSection
@@ -425,7 +443,7 @@ export default function SettingsTab() {
     </React.Suspense>
   );
 
-  if (promptFocus.active) {
+  if (promptFocus.active && settings.enablePromptComposition) {
     return (
       <main
         data-testid="prompt-workbench-focus"
@@ -440,7 +458,7 @@ export default function SettingsTab() {
 
   const renderSectionList = (compact: boolean) => (
     <nav aria-label={t("settings_hub.categories")} className={`settings-category-list ${compact ? "settings-category-list-compact" : ""}`}>
-      {SETTINGS_SECTIONS.map((section) => {
+      {visibleSections.map((section) => {
         const Icon = section.icon;
         const selected = section.id === selectedSection;
         return (
@@ -482,8 +500,8 @@ export default function SettingsTab() {
   );
 
   return (
-    <div className="settings-shell h-full min-h-0 flex flex-col overflow-hidden px-2 pt-2 pb-1">
-      <header className="settings-header min-h-11 shrink-0 flex items-center gap-2.5 px-2 pb-2.5">
+    <div className="settings-shell h-full min-h-0 flex flex-col overflow-hidden px-3.5 sm:px-6 md:px-8 pt-2.5 pb-2 max-w-4xl mx-auto w-full">
+      <header className="settings-header min-h-11 shrink-0 flex items-center gap-2.5 px-1 pb-2.5">
         {!isLandscape && selectedSection ? (
           <button
             type="button"
@@ -531,11 +549,11 @@ export default function SettingsTab() {
           </section>
         </div>
       ) : selectedSection ? (
-        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-3 pb-2 custom-scrollbar">
+        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-2 pb-3 custom-scrollbar">
           {renderLazySection(selectedSection)}
         </main>
       ) : (
-        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-3 pb-2 custom-scrollbar">
+        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-2 pb-3 custom-scrollbar">
           <p className="settings-category-heading">{t("settings_hub.categories")}</p>
           {renderSectionList(false)}
         </main>

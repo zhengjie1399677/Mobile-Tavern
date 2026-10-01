@@ -109,7 +109,7 @@ export interface UnifiedAppContextProps {
   /** 当前设置与当前预设快照是否已不一致（存在未保存到预设的修改）。 */
   isActivePresetDirty: boolean;
   handleToggleCustomPrompt: (id: string, enabled: boolean) => void;
-  handleUpdateCustomPrompt: (id: string, name: string, role: any, content: string) => void;
+  handleUpdateCustomPrompt: (id: string, name: string, role: "system" | "user" | "assistant", content: string) => void;
   handleAddNewCustomPrompt: () => void;
   handleDeleteCustomPrompt: (id: string) => Promise<void>;
   backupPass: string;

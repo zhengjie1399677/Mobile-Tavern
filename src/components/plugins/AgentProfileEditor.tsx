@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Play, Save, SlidersHorizontal, Wrench } from "lucide-react";
-import type { CharacterCard, SamplerPreset, SavedPresetBundle } from "../../types";
+import type { CharacterCard, SamplerPreset } from "../../types";
+import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import { projectSamplerPreset } from "../../application/useCases/presetProjection";
 import type {
   RuntimeProfileAgentSettings,
   RuntimeProfileRecord,
@@ -10,7 +12,7 @@ import type {
 interface AgentProfileEditorProps {
   readonly profile: RuntimeProfileRecord;
   readonly characters: readonly CharacterCard[];
-  readonly promptPresets: readonly SavedPresetBundle[];
+  readonly promptPresets: readonly PresetBundleV2[];
   readonly fallbackSampling: SamplerPreset;
   readonly tools: readonly RuntimeProfileToolMount[];
   readonly unavailableToolNames?: readonly string[];
@@ -162,7 +164,10 @@ export default function AgentProfileEditor({
               const nextId = event.target.value;
               setPromptPresetId(nextId);
               const nextPreset = promptPresets.find((preset) => preset.id === nextId);
-              if (nextPreset && !customSampling) setSampling(toSampling(nextPreset.preset));
+              // 预设采样可能缺省；缺省值取当前全局采样（fallbackSampling），与运行期其它入口一致。
+              if (nextPreset && !customSampling) {
+                setSampling(toSampling(projectSamplerPreset(nextPreset.sampler, fallbackSampling)));
+              }
             }}
             className="mt-1 h-8.5 w-full rounded-xl border border-border/70 bg-background/80 px-2.5 text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-primary/60 disabled:opacity-50 shadow-2xs"
           >
@@ -171,11 +176,11 @@ export default function AgentProfileEditor({
               <option value={promptPresetId}>缺失预设：{promptPresetId}</option>
             )}
             {promptPresets.map((preset) => (
-              <option key={preset.id} value={preset.id}>{preset.preset.name}</option>
+              <option key={preset.id} value={preset.id}>{preset.sampler.name}</option>
             ))}
           </select>
           <span className="mt-1 block font-normal text-[10px] text-muted-foreground/75 leading-tight">
-            {selectedPreset ? `已引用：${selectedPreset.preset.name}` : "未选择时使用会话当前全局 Prompt 与 Regex。"}
+            {selectedPreset ? `已引用：${selectedPreset.sampler.name}` : "未选择时使用会话当前全局 Prompt 与 Regex。"}
           </span>
         </label>
       </div>

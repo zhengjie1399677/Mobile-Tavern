@@ -199,7 +199,7 @@ export default function RuntimeProfileManagerSection() {
           ? { id: character.id, name: character.name }
           : characterId ? { id: characterId, name: characterId } : undefined,
         promptPreset: promptPreset
-          ? { id: promptPreset.id, name: promptPreset.preset.name }
+          ? { id: promptPreset.id, name: promptPreset.sampler.name }
           : promptPresetId ? { id: promptPresetId, name: promptPresetId } : undefined,
       });
       const location = saveJsonFile(prepared.fileName, JSON.stringify(prepared.data, null, 2));
@@ -391,7 +391,7 @@ export default function RuntimeProfileManagerSection() {
                   <span className="text-border/80">·</span>
                   <span className="inline-flex items-center gap-1 truncate">
                     <FileText className="h-3 w-3 shrink-0 text-muted-foreground/80" />
-                    <span>{profileBoundPreset?.preset.name || "默认预设"}</span>
+                    <span>{profileBoundPreset?.sampler.name || "默认预设"}</span>
                   </span>
                   {profileToolsCount > 0 && (
                     <>

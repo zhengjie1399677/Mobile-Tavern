@@ -7,8 +7,8 @@ import {
 import { MOBILE_TAVERN_BASIC_PRESET_BUNDLE } from "../../src/hooks/settings/defaults";
 import type { CustomPromptBlock } from "../../src/types";
 
-const BUILTIN_PRESET_ID = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset.id;
-const BUILTIN_PROMPTS = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig.customPrompts ?? [];
+const BUILTIN_PRESET_ID = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.sampler.id;
+const BUILTIN_PROMPTS = MOBILE_TAVERN_BASIC_PRESET_BUNDLE.legacyPromptConfig?.customPrompts ?? [];
 
 describe("presetRuntimeMigration", () => {
   it("缺失预设 id 时按内置处理，其余自定义预设一律判定为非内置", () => {

@@ -62,7 +62,7 @@ describe("preparePresetBundleExport", () => {
     const result = preparePresetBundleExport({
       preset: { ...DEFAULT_SETTINGS.preset, name: "正式导出" },
       promptConfig,
-      presetRegexScripts: imported.bundle.presetRegexScripts,
+      presetRegexScripts: imported.bundle.regexScripts,
     });
     const order = result.data.prompt_order as Array<{
       character_id: number;
@@ -129,7 +129,7 @@ describe("preparePresetBundleExport", () => {
         usePromptComposition: true,
         composition: imported.composition,
       },
-      presetRegexScripts: imported.bundle.presetRegexScripts,
+      presetRegexScripts: imported.bundle.regexScripts,
     });
     const serialized = JSON.stringify(result.data);
 
@@ -159,7 +159,7 @@ describe("preparePresetBundleExport", () => {
       currentPromptConfig: DEFAULT_PROMPT_CONFIG,
     });
 
-    expect(imported.bundle.promptConfig.requestShaping).toEqual({
+    expect(imported.bundle.legacyPromptConfig?.requestShaping).toEqual({
       enabled: true,
       mergeAdjacentMessages: true,
       squashSystemMessages: true,
@@ -201,12 +201,12 @@ describe("preparePresetBundleExport", () => {
       },
     });
 
-    expect(imported.bundle.promptConfig.useJailbreak).toBe(false);
-    expect(imported.bundle.promptConfig.enableReasoningGuidance).toBe(false);
-    expect(imported.bundle.promptConfig.reasoningGuidancePrompt).toBe("导出的推理指引");
-    expect(imported.bundle.promptConfig.tableMemoryPrompt).toBe("导出的记忆表提示词");
-    expect(imported.bundle.promptConfig.renderingFormat).toBe("xml");
-    expect(imported.bundle.promptConfig.sectionHeaders?.system).toBe("导出的标题");
+    expect(imported.bundle.legacyPromptConfig?.useJailbreak).toBe(false);
+    expect(imported.bundle.legacyPromptConfig?.enableReasoningGuidance).toBe(false);
+    expect(imported.bundle.legacyPromptConfig?.reasoningGuidancePrompt).toBe("导出的推理指引");
+    expect(imported.bundle.legacyPromptConfig?.tableMemoryPrompt).toBe("导出的记忆表提示词");
+    expect(imported.bundle.legacyPromptConfig?.renderingFormat).toBe("xml");
+    expect(imported.bundle.legacyPromptConfig?.sectionHeaders?.system).toBe("导出的标题");
   });
 });
 

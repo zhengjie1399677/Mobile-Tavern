@@ -2,6 +2,7 @@ import type { CustomThemePackage } from "./utils/themePackage";
 import type { PromptComposition, PromptCompositionTemplateRecord } from "./domain/prompt-composition";
 import type { MessageContentPart } from "./domain/messages/messageContent";
 import type { AgentCompositionSnapshot } from "./domain/agents/contracts";
+import type { PresetBundleV2 } from "./domain/presets/contracts";
 
 export interface LorebookEntry {
   id: string;
@@ -377,6 +378,31 @@ export interface SavedPresetBundle {
   isBuiltin?: boolean;
 }
 
+export type SillyTavernCompatibilityLevel = "full" | "core" | "recognize_only" | "invalid";
+
+/**
+ * 外部预设导入前的只读兼容分析结果（唯一权威形状：由解释来源格式的 Compatibility Codec 产出）。
+ *
+ * 只描述可移植语义与降级风险，不承载作者提示词正文；通用用例与界面只消费该形状，
+ * 不得据此反向识别来源生态字段（见 `COMPAT-DATA`）。
+ */
+export interface SillyTavernPresetAnalysis {
+  level: SillyTavernCompatibilityLevel;
+  promptCount: number;
+  orderedPromptCount: number;
+  enabledPromptCount: number;
+  markerCount: number;
+  unknownMarkerCount: number;
+  inChatPromptCount: number;
+  attachmentPromptCount: number;
+  regexCount: number;
+  tavernHelperScriptCount: number;
+  enabledTavernHelperScriptCount: number;
+  remoteScriptCount: number;
+  tavernHelperScriptBytes: number;
+  diagnostics: string[];
+}
+
 export interface UserPersona {
   id: string;
   name: string;
@@ -398,10 +424,23 @@ export interface UserSettings {
   userAvatar?: string;
   userPersonas?: UserPersona[];
   activePersonaId?: string;
-  savedPresets?: SavedPresetBundle[]; // Collection of saved multiple presets
+  /**
+   * 预设实体列表。
+   *
+   * 自 v2 起这里是 `PresetBundleV2`（`prompt` 快照是唯一 Prompt 权威）；v1 记录（`SavedPresetBundle`）
+   * 只作为迁移输入存在，读取一律经 `domain/presets/bundleMigration`。
+   */
+  savedPresets?: PresetBundleV2[];
+  /**
+   * 出厂内容修订标记（见 `useCases/presetBootstrap` 的 `CURRENT_PRESET_FACTORY_REVISION`）。
+   *
+   * 缺少该字段表示旧数据，启动引导会做一次兜底识别并写回；已是当前值时引导不再按文本
+   * 特征扫描或改写用户可见提示词。
+   */
+  presetFactoryRevision?: number;
   enableHtmlRendering?: boolean; // Render exact HTML/CSS from AI output
+  enablePromptComposition?: boolean; // 是否启用实验性 Prompt 自由组装 (默认 false)
   expressionTriggers?: Record<string, string>;
-  hasInjectedFormatPreset?: boolean; // Track if the format preservation preset has been injected
   enableScriptExecution?: boolean; // Toggle to execute custom interactive iframe scripts
   /**
    * isolated：opaque-origin iframe + 最小 postMessage bridge；

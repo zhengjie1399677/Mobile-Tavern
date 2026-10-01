@@ -3,9 +3,9 @@ import type {
   ChatSession,
   CustomWorldbook,
   LorebookEntry,
-  SavedPresetBundle,
   UserSettings,
 } from "../../types";
+import type { PresetBundleV2 } from "../../domain/presets/contracts";
 import type {
   MemoryDictEntry,
   MemoryFragment,
@@ -29,7 +29,7 @@ export interface UnifiedBackupPayload {
   memoryFragments: MemoryFragment[];
   memoryFacts: TemporalFact[];
   settings: UserSettings;
-  savedPresets: SavedPresetBundle[];
+  savedPresets: PresetBundleV2[];
   globalLorebook: LorebookEntry[];
   customWorldbooks: Record<string, CustomWorldbook>;
   attachments: AttachmentBackupRecord[];
@@ -43,7 +43,7 @@ export type UnifiedBackupPayloadInput = Omit<
   "magic" | "version" | "memoryDictEntries" | "savedPresets" | "attachments" | "agentJournal"
 > & {
   memoryDictEntries?: MemoryDictEntry[];
-  savedPresets?: SavedPresetBundle[];
+  savedPresets?: PresetBundleV2[];
   attachments?: AttachmentBackupRecord[];
   agentJournal?: AgentJournalEvent[];
 };

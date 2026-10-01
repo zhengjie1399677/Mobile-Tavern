@@ -932,7 +932,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           }
           aria-label={t("chat_input.aria_label", { name: activeCharacter?.name || "角色" })}
           rows={1}
-          className={`chat-composer-input min-h-[38px] max-h-[160px] flex-1 resize-none overflow-y-auto rounded-xl bg-transparent px-2.5 py-[9px] text-sm font-normal leading-5 text-foreground placeholder:text-muted-foreground/55 focus:outline-none ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
+          className={`chat-composer-input min-h-[38px] max-h-[160px] flex-1 resize-none overflow-y-auto rounded-xl bg-transparent pl-1 pr-2.5 py-[9px] text-sm font-normal leading-5 text-foreground placeholder:text-muted-foreground/55 focus:outline-none ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
             }`}
         />
         {supportsNativeAudioInput && (

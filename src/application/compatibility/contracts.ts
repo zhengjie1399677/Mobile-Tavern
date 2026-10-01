@@ -3,6 +3,7 @@ import type {
   CharacterCard,
   ChatSession,
   CompatibilityScriptSecurityMode,
+  CustomPromptBlock,
   LorebookEntry,
   Message,
   UserSettings,
@@ -112,6 +113,14 @@ export interface CompatibilityCodecDefinition {
   canDecode(input: unknown): boolean;
   analyze?(input: unknown): unknown;
   decode(input: unknown): unknown;
+  /**
+   * 可选：把来源格式的私有 Prompt 候选列表收口为应用内部传统 Prompt 块。
+   *
+   * 顺序容器、角色别名与候选库语义只能由解释该来源格式的 Codec 判定；通用用例只消费结果，
+   * 不反向识别来源生态字段（见 `COMPAT-DATA` 与 sillytavern_compat.md 第 5 节）。
+   * 未实现该能力的 Codec 必须让调用方安全降级为空列表。
+   */
+  readPresetPrompts?(input: unknown): readonly CustomPromptBlock[];
   encode(input: unknown): unknown;
 }
 

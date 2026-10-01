@@ -67,8 +67,6 @@ export {
 export {
   getStoredSettings,
   saveStoredSettings,
-  getStoredSavedPresets,
-  saveStoredSavedPresets,
   getStoredDefaultCharactersInitializedFlag,
   saveStoredDefaultCharactersInitializedFlag,
   getStoredUsageMetrics,

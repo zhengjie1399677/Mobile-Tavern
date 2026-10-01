@@ -186,7 +186,7 @@ export default function PresetForm({
       )?.promptPresetId;
       if (!frozenPresetId) return undefined;
       return (settings.savedPresets ?? []).find((bundle) => bundle.id === frozenPresetId)
-        ?.preset.name ?? frozenPresetId;
+        ?.sampler.name ?? frozenPresetId;
     } catch {
       return undefined;
     }
@@ -250,6 +250,13 @@ export default function PresetForm({
           preview={promptCompositionPreview}
           saveState={settingsSaveState}
           lastSavedAt={settingsLastSavedAt}
+          savedPresets={settings.savedPresets}
+          activeBundleId={activeBundleId}
+          isActivePresetDirty={isActivePresetDirty}
+          frozenPresetName={frozenPresetName}
+          onLoadPreset={handleLoadPresetBundle}
+          onSaveCurrentPreset={handleSaveCurrentPresetBundle}
+          onSaveNewPreset={handleSaveNewPresetBundle}
         />
       )}
 

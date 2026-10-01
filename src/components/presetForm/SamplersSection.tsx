@@ -72,14 +72,13 @@ export default function SamplersSection({
                 step="0.05"
                 value={settings.preset.temperature}
                 onChange={(e) =>
-                  updateSettings({
-                    ...settings,
+                  updateSettings((prev) => ({
+                    ...prev,
                     preset: {
-                      ...settings.preset,
-                      id: "custom",
+                      ...prev.preset,
                       temperature: parseFloat(e.target.value),
                     },
-                  })
+                  }))
                 }
                 className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
               />
@@ -98,14 +97,13 @@ export default function SamplersSection({
                 step="0.05"
                 value={settings.preset.topP}
                 onChange={(e) =>
-                  updateSettings({
-                    ...settings,
+                  updateSettings((prev) => ({
+                    ...prev,
                     preset: {
-                      ...settings.preset,
-                      id: "custom",
+                      ...prev.preset,
                       topP: parseFloat(e.target.value),
                     },
-                  })
+                  }))
                 }
                 className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
               />
@@ -126,14 +124,13 @@ export default function SamplersSection({
                 step="0.01"
                 value={settings.preset.repetitionPenalty}
                 onChange={(e) =>
-                  updateSettings({
-                    ...settings,
+                  updateSettings((prev) => ({
+                    ...prev,
                     preset: {
-                      ...settings.preset,
-                      id: "custom",
+                      ...prev.preset,
                       repetitionPenalty: parseFloat(e.target.value),
                     },
-                  })
+                  }))
                 }
                 className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
               />
@@ -154,14 +151,13 @@ export default function SamplersSection({
                 step="1000"
                 value={settings.preset.maxTokens}
                 onChange={(e) =>
-                  updateSettings({
-                    ...settings,
+                  updateSettings((prev) => ({
+                    ...prev,
                     preset: {
-                      ...settings.preset,
-                      id: "custom",
+                      ...prev.preset,
                       maxTokens: parseInt(e.target.value),
                     },
-                  })
+                  }))
                 }
                 className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
               />

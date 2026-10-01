@@ -30,18 +30,24 @@
 - 本地原文件通过 `npm run verify:preset-samples -- <文件路径...>` 验收；工具只输出文件名、大小、兼容等级、计数、诊断数量和耗时，不输出预设内容。
 - `full` 表示通用 Prompt 语义完整兼容；`core` 表示 Prompt 核心可用但插件脚本不执行；`recognize_only` 表示仅安全识别和降级导入。
 - 预设导入遵循 ST Prompt Manager 语义：只有 `prompt_order` 中排序的 Prompt 转为编排区块（顺序与启用状态照搬）；未排序的候选 Prompt 仅存在于 ST 候选库、不进入管理器列表，因此不导入，并产生 `SKIPPED_UNORDERED_PROMPTS` 警告。完全没有 `prompt_order` 时降级保留全部 Prompt，避免静默丢失。
-- 导入后的外部编排必须进入版本化 `promptPlan` 快照；`source="sillytavern"` 只用于来源与往返诊断，运行时只能消费中立 `PromptComposition`。用户暂不启用自由编排时仍要把快照保存在该预设内，禁止继承其他预设的编排。
+- 导入后的外部编排必须进入版本化 Prompt 快照（`PresetBundleV2.prompt`；v1 时代的字段名是 `promptPlan`）；`source="sillytavern"` 只用于来源与往返诊断，运行时只能消费中立 `PromptComposition`。用户暂不启用自由编排时仍要把快照保存在该预设内，禁止继承其他预设的编排。
 - 旧 Mobile Tavern 预设缺少版本快照时明确按 `legacy` 运行，并生成独立、可见的迁移编排草稿；不得因为当前设置正启用自由编排而静默改变旧预设行为。
 - 导入必须自包含：外部文件自带 Prompt 字段（`prompts`/`prompt_order`/主提示词等）时，未表达的字段取应用出厂中立基底，不得用"当前预设"的字段补位；只有纯采样预设（完全不含 Prompt 字段）才允许沿用当前 Prompt。
 - 切换预设必须整体替换：目标预设未声明的字段回到运行时默认，禁止沿用上一个预设的值（历史缺陷：未声明这些字段的预设会沿用上一个预设的开关与文案，在对应运行模式下改变真实请求）。受影响字段按运行模式分别是——传统扮演模式：`requestShaping`（合并/压缩/预填充/停止串）、`tableMemoryPrompt`；非扮演模式：`enableReasoningGuidance`、`reasoningGuidancePrompt`；自由编排模式：`prompt.postHistory`（来自 `usePostHistory` / `postHistoryPrompt`）、`renderingFormat`。
 - ST 文件无法表达的运行期开关与提示词字段（`useMainPrompt`、`useJailbreak`、`usePostHistory`、推理指引、记忆表提示词、`sectionHeaders`、`renderingFormat`、`roleplayMode`）随导出写入 `extensions.mobile_tavern_preset`（版本 1）；导入优先恢复该命名空间，未知版本只告警并忽略，不影响通用字段导入。
 - 出厂内容迁移（补齐/修复内置提示词区块、回填默认主提示词与记忆表提示词、统一 system 角色）只允许作用于内置预设；自定义与导入预设必须原样保留，禁止由系统代码注入行为引导区块。
+- 启动期预设引导必须由**无 IO 用例**完成（`src/application/useCases/presetBootstrap.ts`）：外部静态文件收口、内置预设重建、`saved_presets_bundle` 旧键迁移、旧出厂提示词整块升级与活跃 Prompt 配置的最终形状都在那里；Hook 只允许「读服务 → 调用例 → 写回」，禁止在 Hook 内再解释预设语义或读写存储。
+- 内置预设必须是常量：禁止模块级可变单例在启动时被外部文件就地改写（历史缺陷：`setMobileTavernBasicPresetBundle` 会让"导入顺序决定默认值"）。外部文件对内置预设的覆盖只能通过用例的显式返回值传递。
+- 预设落库判断必须与切换脏检查共用同一套稳定序列化比较；引导结果必须幂等——同一份数据第二次引导不产生任何写入。
+- 预设实体 `PresetBundleV2` 的 `prompt` 快照是唯一 Prompt 权威：SillyTavern 来源的 Prompt 只能进入该快照的中立 `composition`，传统 Prompt 字段只作为只读兼容块 `legacyPromptConfig` 存在（导出与运行期投影读取它，预设切换不再以它为权威）。导入时未识别的来源字段只能进 `extensions` 保真保存，禁止通用代码解释。
 - 数据库附着、Agent Marker、TavernHelper/远程脚本和前端 DOM 生命周期不属于通用预设兼容范围，不得因样本流行度绕过边界。
 
 ### 5. Runtime Plugin 边界与旧数据降级
 
 - SillyTavern 兼容实现只由 `mobile-tavern.sillytavern-compat` 受信 Runtime Plugin 接入；Database、Prompt、Script、聊天 Hook 和通用 UI 只能依赖 `CompatibilityRuntimeService` 的类型化贡献契约。
 - SillyTavern `prompts`、`prompt_order`、Marker 与注入字段只能由 Compatibility Codec 转为中立编排；通用 Prompt 管线负责统一编译、请求整形和最终 Token 审计，不得反向识别 SillyTavern identifier。
+- SillyTavern 预设解析在代码里只能有一份实现（`promptPresetAdapter`）：排序语义（`100001` 优先、完全缺失 `prompt_order` 时按 `prompts` 原序保留）、候选库丢弃与 `model → assistant` 映射都必须复用同一函数。通用导入用例只允许消费 Codec 的产物，禁止自行解析 `prompts`/`prompt_order`。
+- Codec 未装载、或第三方 Codec 未实现可选能力 `readPresetPrompts` 时，SillyTavern 的 Prompt 候选只能降级为不入库（只导入通用预设字段）并产生 `COMPATIBILITY_CODEC_UNAVAILABLE` 警告；这是刻意的边界收窄，不再由通用用例兜底解析生态字段。预设样本验收脚本必须注入同一 Codec，否则分级与计数输出会失真。
 - `mobile-tavern.base` 必须在不装载兼容插件时继续提供基础 Agent、纯文本聊天、多模态附件和通用工具；兼容插件卸载时必须清理贡献、Bridge、iframe 运行态和生成标记。
 - 会话插件状态以 `runtimePluginState["mobile-tavern.sillytavern-compat"]` 为新权威位置。新写入不得再镜像至旧 `variables`；读取优先命名空间，缺失时读取旧字段。Bridge 需要旧形状时只能由 Compatibility Plugin 瞬时投影，并在 `setSessions`/`saveSession` 边界归一化回命名空间；不得批量改写旧会话或静默删除未知插件状态。
 - TavernHelper 全局对象只属于 Renderer/Bridge 实现细节，通用生产代码不得直接读写；状态同步、脚本库就绪检查和 iframe 构建必须经 Renderer 契约。

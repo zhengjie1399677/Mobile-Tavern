@@ -25,6 +25,10 @@ export default defineConfig({
     environment: "happy-dom",
     setupFiles: ["./tests/vitest/setup.ts"],
     include: ["tests/vitest/**/*.test.ts", "tests/vitest/**/*.test.tsx"],
+    // 重 IndexedDB 用例（千条消息的会话时间线/备份导出）在满载并行下会超过默认 5 秒而被误杀，
+    // 表现为"单跑通过、全量失败"的顺序相关假红。这里统一放宽到 20 秒：仍然能暴露真正的死循环，
+    // 但不再把并行调度抖动当成回归。
+    testTimeout: 20_000,
     // 非 TTY（管道/CI/自动化）只输出失败与汇总，交互终端保持默认进度。
     reporters: [new QuietReporter()],
     // tavernHelperBridge 通过 ?raw 引入 MVU 脚本字符串，依赖 vite 的 ?raw 处理

@@ -3,12 +3,14 @@ import type { ChangeEvent } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CompatibilityCodecDefinition } from "../../src/application/compatibility/contracts";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
-import type { SavedPresetBundle, UserSettings } from "../../src/types";
+import { requirePresetBundleV2 } from "../../src/domain/presets/bundleMigration";
+import type { PresetBundleV2 } from "../../src/domain/presets/contracts";
+import type { UserSettings } from "../../src/types";
 import { testSillyTavernCompatibilityCodec } from "../fixtures/sillyTavernCompatibilityCodec";
 
 const mocks = vi.hoisted(() => ({
-  saveStoredSavedPresets: vi.fn(async (_bundles: SavedPresetBundle[]): Promise<void> => undefined),
-  getStoredSavedPresets: vi.fn(async (): Promise<SavedPresetBundle[]> => []),
+  saveStoredSavedPresets: vi.fn(async (_bundles: PresetBundleV2[]): Promise<void> => undefined),
+  getStoredSavedPresets: vi.fn(async (): Promise<PresetBundleV2[]> => []),
   compatibilityCodec: undefined as CompatibilityCodecDefinition | undefined,
 }));
 
@@ -80,12 +82,12 @@ describe("usePresetBundles 预设导入", () => {
     await waitFor(() => expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1));
     expect(latestSettings?.savedPresets).toHaveLength((DEFAULT_SETTINGS.savedPresets || []).length + 1);
     const imported = latestSettings?.savedPresets?.find(
-      (bundle) => bundle.preset.name === "导入测试预设"
+      (bundle) => bundle.sampler.name === "导入测试预设"
     );
     expect(imported).toBeDefined();
     // 导入的预设不标记为内置（来源标识：内置仅限出厂 bundle）
     expect(imported?.isBuiltin).toBeFalsy();
-    expect(latestSettings?.preset.id).toBe(imported?.preset.id);
+    expect(latestSettings?.preset.id).toBe(imported?.sampler.id);
     expect(latestSettings?.preset.temperature).toBe(0.63);
     expect(input.value).toBe("");
     expect(showCustomAlert).toHaveBeenCalledWith(
@@ -139,16 +141,17 @@ describe("usePresetBundles 预设导入", () => {
     expect(latestSettings.promptCompositionTemplates).toEqual(initial.promptCompositionTemplates);
     const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
     const storedBundle = storedBundles[storedBundles.length - 1];
-    expect(storedBundle.promptConfig).not.toHaveProperty("usePromptComposition");
-    expect(storedBundle.promptConfig).not.toHaveProperty("composition");
-    expect(storedBundle.promptPlan).toMatchObject({
-      version: 1,
+    expect(storedBundle.legacyPromptConfig).not.toHaveProperty("usePromptComposition");
+    expect(storedBundle.legacyPromptConfig).not.toHaveProperty("composition");
+    // v2 实体的 Prompt 快照版本恒为 PRESET_BUNDLE_SCHEMA_VERSION（2）；mode/source/编排不变。
+    expect(storedBundle.prompt).toMatchObject({
+      version: 2,
       mode: "legacy",
       source: "sillytavern",
     });
-    expect(storedBundle.promptPlan?.composition).toBeDefined();
-    expect(storedBundle.composition).toBeUndefined();
-    expect(storedBundle.usePromptComposition).toBeUndefined();
+    expect(storedBundle.prompt?.composition).toBeDefined();
+    expect((storedBundle as unknown as Record<string, unknown>).composition).toBeUndefined();
+    expect((storedBundle as unknown as Record<string, unknown>).usePromptComposition).toBeUndefined();
   });
 
   it("base Profile 未装载兼容 Codec 时只导入通用字段并给出降级报告", async () => {
@@ -182,8 +185,8 @@ describe("usePresetBundles 预设导入", () => {
     await waitFor(() => expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1));
     const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
     const storedBundle = storedBundles[storedBundles.length - 1];
-    expect(storedBundle.preset.temperature).toBe(0.42);
-    expect(storedBundle.composition).toBeUndefined();
+    expect(storedBundle.sampler.temperature).toBe(0.42);
+    expect((storedBundle as unknown as Record<string, unknown>).composition).toBeUndefined();
     expect(showCustomAlert).toHaveBeenCalledWith(
       expect.stringContaining("当前 Profile 未启用 SillyTavern 兼容 Codec"),
     );
@@ -224,14 +227,15 @@ describe("usePresetBundles 预设导入", () => {
     await waitFor(() => expect(mocks.saveStoredSavedPresets).toHaveBeenCalledTimes(1));
     const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
     const storedBundle = storedBundles[storedBundles.length - 1];
-    expect(storedBundle.promptPlan).toMatchObject({
-      version: 1,
+    // v2 实体的 Prompt 快照版本恒为 2。
+    expect(storedBundle.prompt).toMatchObject({
+      version: 2,
       mode: "composition",
       source: "sillytavern",
     });
-    expect(storedBundle.promptPlan?.composition).toBeDefined();
+    expect(storedBundle.prompt?.composition).toBeDefined();
     expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
-    expect(latestSettings.promptConfig.composition?.id).toBe(storedBundle.promptPlan?.composition?.id);
+    expect(latestSettings.promptConfig.composition?.id).toBe(storedBundle.prompt?.composition?.id);
   });
 
   it("加载无版本旧预设时明确回到传统模式并生成独立迁移快照", async () => {
@@ -254,12 +258,12 @@ describe("usePresetBundles 预设导入", () => {
         blocks: [],
       },
     };
-    initial.savedPresets = [{
+    // 模拟历史版本（v1 记录）已写入自由编排字段的持久化数据；存储边界统一迁移为 v2 实体。
+    initial.savedPresets = [requirePresetBundleV2({
       id: "legacy-bundle",
       preset: { ...initial.preset, id: "legacy-preset", name: "旧预设" },
-      // 模拟历史版本已写入自由编排字段的持久化数据。
-      promptConfig: legacyPromptConfig as SavedPresetBundle["promptConfig"],
-    }];
+      promptConfig: legacyPromptConfig,
+    })];
     let latestSettings = initial;
     const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
       latestSettings = typeof next === "function" ? next(latestSettings) : next;
@@ -293,10 +297,11 @@ describe("usePresetBundles 预设导入", () => {
       version: 1,
       blocks: [],
     };
-    initial.savedPresets = [{
+    // 模拟历史版本（v1 记录）携带编排快照的持久化数据；存储边界统一迁移为 v2 实体。
+    initial.savedPresets = [requirePresetBundleV2({
       id: "bundle-with-composition",
       preset: { ...initial.preset, id: "preset-with-composition", name: "带编排预设" },
-      promptConfig: initial.promptConfig as SavedPresetBundle["promptConfig"],
+      promptConfig: initial.promptConfig,
       composition: {
         id: "preset-composition",
         name: "预设自己的编排",
@@ -315,7 +320,7 @@ describe("usePresetBundles 预设导入", () => {
         ],
       },
       usePromptComposition: true,
-    }];
+    })];
     let latestSettings = initial;
     const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
       latestSettings = typeof next === "function" ? next(latestSettings) : next;
@@ -369,11 +374,12 @@ describe("usePresetBundles 预设导入", () => {
 
     const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
     const saved = storedBundles.find(
-      (bundle: SavedPresetBundle) => bundle.preset.name === "新预设副本",
+      (bundle: PresetBundleV2) => bundle.sampler.name === "新预设副本",
     );
     expect(saved).toBeDefined();
-    expect(saved?.promptPlan).toMatchObject({ version: 1, mode: "composition", source: "native" });
-    expect(saved?.promptPlan?.composition?.id).toBe("save-composition");
+    // v2 实体的 Prompt 快照版本恒为 2。
+    expect(saved?.prompt).toMatchObject({ version: 2, mode: "composition", source: "native" });
+    expect(saved?.prompt?.composition?.id).toBe("save-composition");
     expect(latestSettings.promptConfig.usePromptComposition).toBe(true);
     expect(latestSettings.promptConfig.composition?.id).toBe("save-composition");
   });
@@ -406,12 +412,12 @@ describe("usePresetBundles 预设导入", () => {
     const storedBundles = mocks.saveStoredSavedPresets.mock.calls[0][0];
     expect(storedBundles.some((bundle) => bundle.id === "bundle_mobile_tavern_basic")).toBe(true);
     const forked = storedBundles.find(
-      (bundle: SavedPresetBundle) => bundle.preset.id !== initial.preset.id,
+      (bundle: PresetBundleV2) => bundle.sampler.id !== initial.preset.id,
     );
     expect(forked).toBeDefined();
-    expect(forked?.promptConfig.mainPrompt).toBe("我改过的主提示词");
+    expect(forked?.legacyPromptConfig?.mainPrompt).toBe("我改过的主提示词");
     expect(forked?.isBuiltin).toBeFalsy();
-    expect(latestSettings.preset.id).toBe(forked?.preset.id);
+    expect(latestSettings.preset.id).toBe(forked?.sampler.id);
     expect(latestSettings.promptConfig.mainPrompt).toBe("我改过的主提示词");
     expect(showCustomAlert).toHaveBeenCalledWith(expect.stringContaining("另存为"));
   });
@@ -419,11 +425,12 @@ describe("usePresetBundles 预设导入", () => {
   it("新增预设以 Preset Store 为准，不覆盖设置页尚未同步的预设", async () => {
     const initial: UserSettings = structuredClone(DEFAULT_SETTINGS);
     initial.savedPresets = [];
-    const storedExisting: SavedPresetBundle = {
+    // v1 字面量只作为存储边界的迁移输入，Store 中已有的预设本身是 v2 实体。
+    const storedExisting = requirePresetBundleV2({
       id: "stored-existing",
       preset: { ...DEFAULT_SETTINGS.preset, id: "stored-preset", name: "已保存预设" },
       promptConfig: structuredClone(DEFAULT_SETTINGS.promptConfig),
-    };
+    });
     mocks.getStoredSavedPresets.mockResolvedValueOnce([storedExisting]);
     let latestSettings = initial;
     const updateSettings = vi.fn((next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
@@ -441,9 +448,9 @@ describe("usePresetBundles 预设导入", () => {
       await result.current.handleSaveNewPresetBundle();
     });
 
-    const persisted = mocks.saveStoredSavedPresets.mock.calls[0][0] as SavedPresetBundle[];
+    const persisted = mocks.saveStoredSavedPresets.mock.calls[0][0] as PresetBundleV2[];
     expect(persisted.map((bundle) => bundle.id)).toContain("stored-existing");
-    expect(persisted.some((bundle) => bundle.preset.name === "新预设")).toBe(true);
+    expect(persisted.some((bundle) => bundle.sampler.name === "新预设")).toBe(true);
     expect(latestSettings.savedPresets).toEqual(persisted);
   });
   it("imports ST order 100001, identifiers, and extended fields", async () => {

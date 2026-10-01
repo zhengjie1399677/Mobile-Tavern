@@ -50,23 +50,23 @@ describe("preparePresetBundleImport", () => {
     expect(result.name).toBe("文件名预设");
     expect(result.bundle).toMatchObject({
       id: "bundle-fixture-id",
-      preset: {
+      sampler: {
         id: "preset-fixture-id",
         name: "文件名预设",
         temperature: 0.66,
         topP: 0.92,
         maxTokens: 4096,
       },
-      promptConfig: {
+      legacyPromptConfig: {
         mainPrompt: DEFAULT_PROMPT_CONFIG.mainPrompt,
         jailbreakPrompt: DEFAULT_PROMPT_CONFIG.jailbreakPrompt,
       },
-      presetRegexScripts: [],
+      regexScripts: [],
     });
     expect(result.composition).toBeUndefined();
     expect(result.compatibilityAnalysis).toBeUndefined();
-    expect(result.bundle.promptConfig).not.toHaveProperty("composition");
-    expect(result.bundle.promptConfig).not.toHaveProperty("usePromptComposition");
+    expect(result.bundle.legacyPromptConfig).not.toHaveProperty("composition");
+    expect(result.bundle.legacyPromptConfig).not.toHaveProperty("usePromptComposition");
   });
 
   it("统一解析 100001 顺序、扩展 Prompt 字段、请求整形和正则", () => {
@@ -103,23 +103,23 @@ describe("preparePresetBundleImport", () => {
       createId,
     });
 
-    expect(result.bundle.preset.maxTokens).toBe(32000);
-    expect(result.bundle.promptConfig.customPrompts?.map((prompt) => prompt.identifier)).toEqual([
+    expect(result.bundle.sampler.maxTokens).toBe(32000);
+    expect(result.bundle.legacyPromptConfig?.customPrompts?.map((prompt) => prompt.identifier)).toEqual([
       "chatHistory", "main",
     ]);
-    expect(result.bundle.promptConfig.customPrompts?.map((prompt) => prompt.enabled)).toEqual([
+    expect(result.bundle.legacyPromptConfig?.customPrompts?.map((prompt) => prompt.enabled)).toEqual([
       true, true,
     ]);
-    expect(result.bundle.promptConfig.customPrompts?.[0].marker).toBe(true);
-    expect(result.bundle.promptConfig.customPrompts?.[1].injection_order).toBe(100);
-    expect(result.bundle.promptConfig.requestShaping).toEqual({
+    expect(result.bundle.legacyPromptConfig?.customPrompts?.[0].marker).toBe(true);
+    expect(result.bundle.legacyPromptConfig?.customPrompts?.[1].injection_order).toBe(100);
+    expect(result.bundle.legacyPromptConfig?.requestShaping).toEqual({
       enabled: true,
       mergeAdjacentMessages: false,
       squashSystemMessages: true,
       assistantPrefill: "继续：",
       stopSequences: ["User:", "<END>"],
     });
-    expect(result.bundle.presetRegexScripts?.[0]).toMatchObject({
+    expect(result.bundle.regexScripts?.[0]).toMatchObject({
       id: "regex-fixture-id",
       minDepth: 1,
       maxDepth: 9,
@@ -160,7 +160,7 @@ describe("preparePresetBundleImport", () => {
     expect(result.composition?.blocks.map(
       (block) => block.compatibility?.originalIdentifier,
     )).toEqual(["main", "chatHistory"]);
-    expect(result.bundle.promptConfig.customPrompts?.map(
+    expect(result.bundle.legacyPromptConfig?.customPrompts?.map(
       (prompt) => prompt.identifier,
     )).toEqual(["main", "chatHistory"]);
     expect(result.composition?.blocks.every(
@@ -188,8 +188,9 @@ describe("preparePresetBundleImport", () => {
     expect(result.composition?.blocks.map((block) => block.compatibility?.originalIdentifier)).toEqual([
       "first", "second",
     ]);
-    expect(result.bundle.promptPlan).toMatchObject({
-      version: 1,
+    // v2 实体的 Prompt 快照版本恒为 2。
+    expect(result.bundle.prompt).toMatchObject({
+      version: 2,
       mode: "composition",
       source: "sillytavern",
     });
@@ -211,7 +212,7 @@ describe("preparePresetBundleImport", () => {
       });
 
       expect(result.compatibilityAnalysis?.level).toBe(expected.level);
-      expect(result.bundle.presetRegexScripts).toHaveLength(expected.regexCount);
+      expect(result.bundle.regexScripts).toHaveLength(expected.regexCount);
       expect(result.composition?.blocks).toHaveLength(expected.promptCount);
     },
   );
@@ -230,8 +231,8 @@ describe("preparePresetBundleImport", () => {
       createId,
     });
 
-    expect(result.bundle.presetRegexScripts).toHaveLength(1);
-    expect(result.bundle.presetRegexScripts?.[0]).toMatchObject({
+    expect(result.bundle.regexScripts).toHaveLength(1);
+    expect(result.bundle.regexScripts?.[0]).toMatchObject({
       scriptName: "有效",
       findRegex: "/ok/g",
     });
@@ -255,7 +256,7 @@ describe("preparePresetBundleImport", () => {
       createId,
     });
 
-    expect(result.bundle.promptConfig.customPrompts?.[0].role).toBe("assistant");
+    expect(result.bundle.legacyPromptConfig?.customPrompts?.[0].role).toBe("assistant");
     expect(result.composition?.blocks[0].role).toBe("assistant");
     expect(result.report.warnings).not.toContainEqual(
       expect.objectContaining({ code: "INVALID_ROLE_FALLBACK" }),
@@ -304,10 +305,10 @@ describe("preparePresetBundleImport", () => {
       createId,
     });
 
-    expect(importedUnderPresetA.bundle.promptConfig).toEqual(importedUnderPresetB.bundle.promptConfig);
-    expect(importedUnderPresetA.bundle.promptPlan).toEqual(importedUnderPresetB.bundle.promptPlan);
-    expect(importedUnderPresetA.bundle.promptConfig.mainPrompt).toBe("");
-    expect(importedUnderPresetA.bundle.promptConfig.tableMemoryPrompt).toBe(
+    expect(importedUnderPresetA.bundle.legacyPromptConfig).toEqual(importedUnderPresetB.bundle.legacyPromptConfig);
+    expect(importedUnderPresetA.bundle.prompt).toEqual(importedUnderPresetB.bundle.prompt);
+    expect(importedUnderPresetA.bundle.legacyPromptConfig?.mainPrompt).toBe("");
+    expect(importedUnderPresetA.bundle.legacyPromptConfig?.tableMemoryPrompt).toBe(
       DEFAULT_PROMPT_CONFIG.tableMemoryPrompt,
     );
   });
@@ -325,8 +326,9 @@ describe("preparePresetBundleImport", () => {
       createId,
     });
 
-    expect(result.bundle.promptPlan).toEqual({
-      version: 1,
+    // v2 实体的 Prompt 快照版本恒为 2。
+    expect(result.bundle.prompt).toEqual({
+      version: 2,
       mode: "legacy",
       source: "mobile-tavern",
     });
@@ -340,6 +342,25 @@ describe("preparePresetBundleImport", () => {
     expect(formatSillyTavernCompatibilityAnalysis(database)).toContain(
       "数据库附着 Prompt 不执行附着语义",
     );
+  });
+
+  it("导入无根级 system_prompt 的 SillyTavern 预设时 mainPrompt 保持为空且 useMainPrompt 为 false", () => {
+    const result = preparePresetBundleImport({
+      input: {
+        name: "ordered-preset-no-system",
+        prompts: [
+          { identifier: "1", name: "模块一", content: "规则一", role: "system" },
+        ],
+        prompt_order: [{ character_id: 1, order: [{ identifier: "1", enabled: true }] }],
+      },
+      fallbackName: "ordered-preset-no-system",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      neutralPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+
+    expect(result.bundle.legacyPromptConfig?.mainPrompt).toBe("");
+    expect(result.bundle.legacyPromptConfig?.useMainPrompt).toBe(false);
   });
 });
 

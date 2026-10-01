@@ -16,7 +16,8 @@
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
 import type { IKernel } from "@/src/application/serviceContracts";
-import type { CharacterCard, LorebookEntry, CustomWorldbook, UserSettings, SavedPresetBundle } from "../../src/types";
+import type { PresetBundleV2 } from "../../src/domain/presets/contracts";
+import type { CharacterCard, LorebookEntry, CustomWorldbook, UserSettings } from "../../src/types";
 
 export async function testCharacterService() {
   console.log("\n--- Running CharacterService Verification ---");
@@ -181,17 +182,30 @@ export async function testPresetService() {
   const initial = await service.getStoredSavedPresets();
   assert(initial === null, "Initial presets should be null");
 
-  // 2. saveStoredSavedPresets → getStoredSavedPresets
-  const presets = [
-    { id: "preset_1", name: "预设A", settings: { temperature: 0.8 } },
-    { id: "preset_2", name: "预设B", settings: { temperature: 1.0 } },
-  ] as unknown as SavedPresetBundle[];
+  // 2. saveStoredSavedPresets → getStoredSavedPresets（v2 实体：采样参数位于 sampler 下）
+  const presets: PresetBundleV2[] = [
+    {
+      schemaVersion: 2,
+      id: "preset_1",
+      sampler: { id: "preset_1", name: "预设A", temperature: 0.8 },
+      prompt: { version: 2, mode: "legacy", source: "native" },
+      regexScripts: [],
+    },
+    {
+      schemaVersion: 2,
+      id: "preset_2",
+      sampler: { id: "preset_2", name: "预设B", temperature: 1.0 },
+      prompt: { version: 2, mode: "legacy", source: "native" },
+      regexScripts: [],
+    },
+  ];
   await service.saveStoredSavedPresets(presets);
-  const saved = await service.getStoredSavedPresets() as unknown as Array<{ id: string; name: string }>;
+  const saved = await service.getStoredSavedPresets() as unknown as
+    Array<{ id: string; sampler: { name: string } }>;
   assert(Array.isArray(saved), "Saved presets should be an array");
   assert(saved.length === 2, "Should have 2 presets");
   assert(saved[0].id === "preset_1", "First preset id matches");
-  assert(saved[1].name === "预设B", "Second preset name matches");
+  assert(saved[1].sampler.name === "预设B", "Second preset name matches");
 
   service.destroy();
   console.log("✔ PresetService verified successfully!");

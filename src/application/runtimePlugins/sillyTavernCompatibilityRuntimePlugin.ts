@@ -17,12 +17,9 @@ import {
 import { applySillyTavernRegexScripts } from "../../compatibility/sillytavern/mvuParser";
 import { resolveSillyTavernWorldInfo } from "../../compatibility/sillytavern/worldInfoResolver";
 import {
-  analyzeSillyTavernPreset,
-  exportSillyTavernComposition,
-  importSillyTavernPreset,
+  sillyTavernPromptPresetCodec,
 } from "../../infrastructure/compat/sillytavern";
 import { z } from "zod";
-import { parsePromptComposition } from "../../domain/prompt-composition";
 import type { CharacterCard, ChatSession } from "../../types";
 import {
   SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID,
@@ -327,19 +324,8 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
       lifecycle: "lazy",
     }]));
     if (isContributionEnabled(profile, "compat.codec", "compat.sillytavern.codec.prompt-preset")) {
-      scope.add(runtime.registerCodec({
-      id: "compat.sillytavern.codec.prompt-preset",
-      version: CONTRIBUTION_VERSION,
-      format: "sillytavern.prompt-preset",
-      canDecode(input) {
-        return analyzeSillyTavernPreset(input).level !== "invalid";
-      },
-      analyze: analyzeSillyTavernPreset,
-      decode: importSillyTavernPreset,
-      encode(input) {
-        return exportSillyTavernComposition(parsePromptComposition(input));
-      },
-      }));
+      // Codec 定义由 Compatibility 侧单点提供，插件只负责按 Profile 贡献 Slot 注册。
+      scope.add(runtime.registerCodec(sillyTavernPromptPresetCodec));
     }
     if (isContributionEnabled(profile, "compat.context-source", "compat.sillytavern.context.mvu-state")) {
       scope.add(runtime.registerContextSource({

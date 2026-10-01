@@ -277,9 +277,12 @@ someAsyncOp().then(() => {
 
 ### Prompt 预设与最终消息包
 
-- `SavedPresetBundle.promptPlan` 是新预设的唯一权威 Prompt 快照，当前版本为 `1`；`mode` 明确区分 `legacy` 与 `composition`，`source` 只记录来源，不参与通用编译。
-- 旧 `composition` / `usePromptComposition` 仅作为读取降级字段；应用服务归一化后不再写回。完全缺少快照的旧预设必须回到 `legacy`，不能继承当前预设模式。
-- SillyTavern Codec 只输出中立 `PromptComposition`。有 `prompt_order` 时按 100001 优先顺序导入；完全缺失时按 `prompts` 原顺序保留。
+- 预设实体的当前版本是 `PresetBundleV2`（`schemaVersion: 2`）：`prompt` 快照（`version`/`mode`/`source`/`composition`）是**唯一 Prompt 权威**，传统 Prompt 字段降级为只读兼容块 `legacyPromptConfig`，未识别字段进 `extensions` 保真保存。v2 记录必须通过实体 Zod 校验；运行期只能经唯一投影 `projectPresetActivation` 消费，自由编排改造成工作画布时它是唯一需要改写的适配点。
+- v1 记录（`SavedPresetBundle`）只能经 `domain/presets/bundleMigration` 读取迁移：构造候选 → 实体 schema 校验 → 逐级降级修复 → 记录诊断。存储边界必须"能读就不能失效"，禁止用 `parse` 抛错让整份预设列表失效，也禁止静默丢字段；只有导入边界允许 fail-closed。
+- `SavedPresetBundle.promptPlan`（版本 `1`）是历史 v1 快照：`mode` 明确区分 `legacy` 与 `composition`，`source` 只记录来源，不参与通用编译；`composition` / `usePromptComposition` 仅作为读取降级字段，完全缺少快照的旧预设必须回到 `legacy`，不能继承当前预设模式。这些 v1 规则由领域层 `domain/presets/promptSnapshot` 承担，v1 读取与 v1→v2 迁移共用同一实现。
+- 启动期预设引导是无 IO 用例：内置预设列表始终以出厂内容重建并置于列表末尾，自定义预设保持原样；`settings.savedPresets` 只在 `saved_presets_bundle` 缺失时继承一次。出厂内容迁移只作用于内置预设。
+- 预设落库判断与切换脏检查共用同一套稳定序列化比较；引导结果幂等——同一份数据第二次引导不得产生写入。
+- SillyTavern Codec 只输出中立 `PromptComposition`；来源 Prompt 候选列表另经可选 `readPresetPrompts` 收口为内部传统 Prompt 块，顺序容器、候选库丢弃与 `model → assistant` 只能由该 Codec 判定，通用用例不得反向识别来源字段。有 `prompt_order` 时按 100001 优先顺序导入；完全缺失时按 `prompts` 原顺序保留。
 - `PromptAssemblyResult.messages` 是 Provider 投影前唯一权威消息；发送和重生成不得从 `systemInstruction + history` 再建第二份消息。
 - 自由编排依次执行场景覆盖、领域编译、请求整形和最终 Token 审计。role wrapper、system squash 与 assistant prefill 的开销必须进入最终预算报告；不可裁剪内容超限必须产生明确错误诊断。
 - Prompt 历史查询窗口同时满足编排历史块与世界书扫描；未声明 `chat_history` 只代表不发送历史，不代表禁用世界书触发上下文。

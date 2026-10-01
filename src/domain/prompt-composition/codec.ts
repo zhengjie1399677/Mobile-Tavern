@@ -7,9 +7,9 @@ import type {
   PromptMessageRole,
 } from "./types";
 
-const MAX_BLOCKS = 200;
-const MAX_SCENE_PROFILES = 50;
-const MAX_NAME_LENGTH = 120;
+const MAX_BLOCKS = 2000;
+const MAX_SCENE_PROFILES = 100;
+const MAX_NAME_LENGTH = 300;
 const MAX_TEMPLATE_LENGTH = 100_000;
 const MAX_COMPATIBILITY_JSON_LENGTH = 1_000_000;
 const ROLES: PromptMessageRole[] = ["system", "user", "assistant"];

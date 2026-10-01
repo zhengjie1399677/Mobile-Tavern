@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildPresetBundleSnapshot,
   collectPresetBundleReferences,
+  isBuiltinBundle,
   isPresetBundleInSync,
-  resolvePresetBundleActivation,
+  resolveActivePresetBundle,
 } from "../../src/application/useCases/presetBundleLifecycle";
+import { projectPresetActivation } from "../../src/application/useCases/presetProjection";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import { createBasicPromptComposition } from "../../src/domain/prompt-composition";
 import type {
@@ -44,17 +46,17 @@ describe("presetBundleLifecycle", () => {
       id: "bundle_probe",
       planSource: "native",
     });
-    bundle.preset = { ...bundle.preset, temperature: 0.42 };
-    bundle.presetRegexScripts = [{ ...SAMPLE_REGEX }];
+    bundle.sampler = { ...bundle.sampler, temperature: 0.42 };
+    bundle.regexScripts = [{ ...SAMPLE_REGEX }];
 
-    const activation = resolvePresetBundleActivation(
+    const activation = projectPresetActivation(
       { ...DEFAULT_PROMPT_CONFIG, mainPrompt: "旧的主提示词" },
       bundle,
       DEFAULT_SETTINGS.preset,
     );
 
     expect(activation.preset.temperature).toBe(0.42);
-    expect(activation.promptConfig.mainPrompt).toBe(bundle.promptConfig.mainPrompt);
+    expect(activation.promptConfig.mainPrompt).toBe(bundle.legacyPromptConfig?.mainPrompt);
     expect(activation.promptConfig.usePromptComposition).toBe(false);
     expect(activation.presetRegexScripts).toHaveLength(1);
     expect(activation.presetRegexScripts?.[0].scriptName).toBe("探针正则");
@@ -67,7 +69,7 @@ describe("presetBundleLifecycle", () => {
       { id: "bundle_legacy", planSource: "mobile-tavern" },
     );
 
-    const activation = resolvePresetBundleActivation(
+    const activation = projectPresetActivation(
       {
         ...DEFAULT_PROMPT_CONFIG,
         usePromptComposition: true,
@@ -89,7 +91,7 @@ describe("presetBundleLifecycle", () => {
       { id: "bundle_composition", planSource: "native" },
     );
 
-    const activation = resolvePresetBundleActivation(
+    const activation = projectPresetActivation(
       DEFAULT_PROMPT_CONFIG,
       bundle,
       DEFAULT_SETTINGS.preset,
@@ -123,7 +125,7 @@ describe("presetBundleLifecycle", () => {
     );
 
     for (const bundle of [legacyBundle, compositionBundle]) {
-      const activation = resolvePresetBundleActivation(
+      const activation = projectPresetActivation(
         { ...DEFAULT_PROMPT_CONFIG, mainPrompt: "上一个预设的主提示词" },
         bundle,
         DEFAULT_SETTINGS.preset,
@@ -195,14 +197,14 @@ describe("presetBundleLifecycle", () => {
       { id: "bundle_custom", planSource: "native" },
     );
 
-    const afterCustom = resolvePresetBundleActivation(
+    const afterCustom = projectPresetActivation(
       DEFAULT_PROMPT_CONFIG,
       customBundle,
       DEFAULT_SETTINGS.preset,
     );
     expect(afterCustom.promptConfig.usePostHistory).toBe(true);
 
-    const backToBuiltin = resolvePresetBundleActivation(
+    const backToBuiltin = projectPresetActivation(
       afterCustom.promptConfig,
       builtinBundle,
       DEFAULT_SETTINGS.preset,
@@ -233,7 +235,7 @@ describe("presetBundleLifecycle", () => {
       createSelection({ promptConfig: { ...DEFAULT_PROMPT_CONFIG, mainPrompt: "外部预设主提示词" } }),
       { id: "bundle_sparse", planSource: "sillytavern" },
     );
-    bundle.promptConfig = sparsePromptConfig;
+    bundle.legacyPromptConfig = sparsePromptConfig;
 
     expect(isPresetBundleInSync(
       bundle,
@@ -258,6 +260,53 @@ describe("presetBundleLifecycle", () => {
     expect(collectPresetBundleReferences("bundle_missing", profiles)).toEqual({
       count: 0,
       profileNames: [],
+    });
+  });
+
+  describe("resolveActivePresetBundle", () => {
+    const builtinBundle = buildPresetBundleSnapshot(createSelection(), {
+      id: "bundle_mobile_tavern_basic",
+      isBuiltin: true,
+      planSource: "mobile-tavern",
+    });
+    builtinBundle.sampler.id = "preset_mobile_tavern_basic";
+    builtinBundle.sampler.name = "Mobile Tavern 基础预设";
+
+    const customBundle = buildPresetBundleSnapshot(createSelection(), {
+      id: "bundle_custom_1",
+      isBuiltin: false,
+      planSource: "native",
+    });
+    customBundle.sampler.id = "preset_custom_1";
+    customBundle.sampler.name = "我的自定义预设";
+
+    const presets = [builtinBundle, customBundle];
+
+    it("识别出厂内置预设", () => {
+      expect(isBuiltinBundle(builtinBundle)).toBe(true);
+      expect(isBuiltinBundle(customBundle)).toBe(false);
+      expect(isBuiltinBundle(undefined)).toBe(false);
+    });
+
+    it("标准情况下按 sampler.id 精确匹配活跃预设", () => {
+      const matched = resolveActivePresetBundle(presets, { id: "preset_custom_1", name: "我的自定义预设" });
+      expect(matched?.id).toBe("bundle_custom_1");
+    });
+
+    it("在 sampler.id 与 bundle.id 错位时支持按 bundle.id 匹配", () => {
+      const matched = resolveActivePresetBundle(presets, { id: "bundle_custom_1", name: "随便什么名字" });
+      expect(matched?.id).toBe("bundle_custom_1");
+    });
+
+    it("在采样被误赋予 custom 等脏 ID 时能按预设名称兜底修复匹配", () => {
+      const matched = resolveActivePresetBundle(presets, { id: "custom", name: "我的自定义预设" });
+      expect(matched?.id).toBe("bundle_custom_1");
+    });
+
+    it("没有任何匹配时兜底回落至内置预设或首个预设", () => {
+      const matched = resolveActivePresetBundle(presets, { id: "custom", name: "完全不存在的预设" });
+      expect(matched?.id).toBe("bundle_mobile_tavern_basic");
+      expect(resolveActivePresetBundle([], { id: "test", name: "test" })).toBeUndefined();
     });
   });
 });

@@ -772,9 +772,9 @@ export interface IDataMigrationService<TSettings = unknown, TPayload = unknown> 
 /**
  * 预设服务契约。
  *
- * 泛型参数（默认 unknown）：TPreset 为预设包实体类型（如 SavedPresetBundle）。
+ * 泛型参数（默认 unknown）：TPreset 为预设实体类型（当前为 `PresetBundleV2`）。
  * 实现方必须显式声明类型参数，例如：
- *   `class PresetService implements IPresetService<SavedPresetBundle>`
+ *   `class PresetService implements IPresetService<PresetBundleV2>`
  */
 export interface IPresetService<TPreset = unknown> extends IKernelService {
   getStoredSavedPresets(): Promise<TPreset[] | null>;

@@ -5,6 +5,17 @@ import type {
   PromptCompositionDiagnostic,
   PromptMessageRole,
 } from "../../../domain/prompt-composition";
+import { parsePromptComposition } from "../../../domain/prompt-composition";
+import type { CompatibilityCodecDefinition } from "../../../application/compatibility/contracts";
+import type {
+  CustomPromptBlock,
+  SillyTavernCompatibilityLevel,
+  SillyTavernPresetAnalysis,
+} from "../../../types";
+
+// 分析结果与兼容分级的唯一定义在 `src/types.ts`：通用用例与本适配器都只 import，
+// 不再各自声明一份必然漂移的类型。
+export type { SillyTavernCompatibilityLevel, SillyTavernPresetAnalysis };
 
 interface SillyTavernPromptOrderEntry {
   identifier: string;
@@ -28,25 +39,6 @@ export interface SillyTavernExportResult {
     prompt_order: SillyTavernPromptOrder[];
   };
   report: CompatibilityReport;
-}
-
-export type SillyTavernCompatibilityLevel = "full" | "core" | "recognize_only" | "invalid";
-
-export interface SillyTavernPresetAnalysis {
-  level: SillyTavernCompatibilityLevel;
-  promptCount: number;
-  orderedPromptCount: number;
-  enabledPromptCount: number;
-  markerCount: number;
-  unknownMarkerCount: number;
-  inChatPromptCount: number;
-  attachmentPromptCount: number;
-  regexCount: number;
-  tavernHelperScriptCount: number;
-  enabledTavernHelperScriptCount: number;
-  remoteScriptCount: number;
-  tavernHelperScriptBytes: number;
-  diagnostics: string[];
 }
 
 const ROOT_KNOWN_FIELDS = new Set([
@@ -144,12 +136,13 @@ export function analyzeSillyTavernPreset(input: unknown): SillyTavernPresetAnaly
 
   const prompts = input.prompts.filter(isRecord);
   const order = readPromptOrder(input.prompt_order ?? input.promptOrder);
-  const effectiveOrder = order.length > 0
-    ? order
-    : prompts.map((prompt, index) => ({
-        identifier: getIdentifier(prompt, index),
-        enabled: prompt.enabled !== false,
-      }));
+  const effectiveOrder = selectOrderedPromptEntries(
+    order,
+    prompts.map((prompt, index) => ({
+      identifier: getIdentifier(prompt, index),
+      enabled: prompt.enabled !== false,
+    })),
+  );
   const markers = prompts.filter((prompt) => prompt.marker === true);
   const unknownMarkers = markers.filter((prompt, index) => {
     const identifier = getIdentifier(prompt, index);
@@ -250,9 +243,10 @@ export function importSillyTavernPreset(input: unknown): SillyTavernImportResult
   // 完全没有 prompt_order 时降级保留全部，避免静默丢失无排序预设的内容。
   const unorderedIdentifiers = [...promptByIdentifier.keys()]
     .filter((identifier) => !order.some((item) => item.identifier === identifier));
-  const identifiers = order.length > 0
-    ? order.map((item) => item.identifier)
-    : unorderedIdentifiers;
+  const identifiers = selectOrderedPromptEntries(
+    order,
+    unorderedIdentifiers.map((identifier) => ({ identifier })),
+  ).map((entry) => entry.identifier);
   if (order.length > 0 && unorderedIdentifiers.length > 0) {
     warnings.push(warning(
       "SKIPPED_UNORDERED_PROMPTS",
@@ -346,6 +340,73 @@ export function exportSillyTavernComposition(composition: PromptComposition): Si
   };
 }
 
+/**
+ * 把来源预设的 Prompt 候选列表收口为应用内部传统 Prompt 块。
+ *
+ * 与 `importSillyTavernPreset` 共用同一套顺序与角色语义：存在 `prompt_order` 时只保留
+ * 排序条目（候选库 Prompt 不进入界面列表），完全缺失时按 `prompts` 原序降级保留。
+ * `marker` / `injection_*` 等自包含导入所需字段在此一次性收口，通用用例只消费结果，
+ * 不反向识别来源字段（见 `COMPAT-DATA` 与 sillytavern_compat.md 第 5 节）。
+ */
+export function readSillyTavernPresetPrompts(input: unknown): CustomPromptBlock[] {
+  const data = isRecord(input) ? input : {};
+  const rawPrompts = Array.isArray(data.prompts)
+    ? data.prompts
+    : Array.isArray(data.customPrompts) ? data.customPrompts : [];
+  const prompts = rawPrompts.filter(isRecord);
+  const order = readPromptOrder(data.prompt_order ?? data.promptOrder);
+  const orderByIdentifier = new Map(order.map((entry) => [entry.identifier, entry]));
+  const promptByIdentifier = new Map(prompts.map((prompt, index) => [
+    readLegacyPromptIdentifier(prompt, index),
+    prompt,
+  ]));
+  const identifiers = selectOrderedPromptEntries(
+    order,
+    [...promptByIdentifier.keys()].map((identifier) => ({ identifier })),
+  ).map((entry) => entry.identifier);
+
+  return identifiers.map((identifier) => {
+    const prompt = promptByIdentifier.get(identifier) ?? {};
+    return {
+      id: readStringOrUndefined(prompt.id) ?? identifier,
+      identifier,
+      name: readStringOrUndefined(prompt.name) ?? "导入提示词模组",
+      role: resolvePromptRole(readStringOrUndefined(prompt.role)),
+      content: readStringOrUndefined(prompt.content) ?? "",
+      enabled: orderByIdentifier.get(identifier)?.enabled
+        ?? (order.length > 0 ? false : prompt.enabled !== false),
+      marker: prompt.marker === true || undefined,
+      system_prompt: typeof prompt.system_prompt === "boolean" ? prompt.system_prompt : undefined,
+      injection_position: readOptionalNumber(prompt.injection_position),
+      injection_depth: readOptionalNumber(prompt.injection_depth),
+      injection_order: readOptionalNumber(prompt.injection_order),
+      forbid_overrides: typeof prompt.forbid_overrides === "boolean" ? prompt.forbid_overrides : undefined,
+      injection_trigger: readOptionalStringArray(prompt.injection_trigger),
+    };
+  });
+}
+
+/**
+ * SillyTavern Prompt 预设 Codec 的唯一定义。
+ *
+ * 受信 Runtime Plugin、预设样例验收工具与夹具都复用同一份来源语义与容器 wiring，
+ * 避免各处自行拼装导致顺序、分级或字段收口漂移（见 `COMPAT-DATA`）。
+ */
+export const sillyTavernPromptPresetCodec: CompatibilityCodecDefinition = {
+  id: "compat.sillytavern.codec.prompt-preset",
+  version: "1.0.0",
+  format: "sillytavern.prompt-preset",
+  canDecode(input) {
+    return analyzeSillyTavernPreset(input).level !== "invalid";
+  },
+  analyze: analyzeSillyTavernPreset,
+  decode: importSillyTavernPreset,
+  readPresetPrompts: readSillyTavernPresetPrompts,
+  encode(input) {
+    return exportSillyTavernComposition(parsePromptComposition(input));
+  },
+};
+
 function convertPrompt(
   prompt: Record<string, unknown>,
   identifier: string,
@@ -362,11 +423,7 @@ function convertPrompt(
     warnings.push(warning("PRESERVED_UNKNOWN_FIELDS", `Prompt“${identifier}”的未知字段已隔离保留。`));
   }
   const rawRole = readOptionalString(prompt.role);
-  const role: PromptMessageRole = rawRole === "model"
-    ? "assistant"
-    : rawRole === "user" || rawRole === "assistant" || rawRole === "system"
-      ? rawRole
-      : "system";
+  const role = resolvePromptRole(rawRole);
   if (rawRole && rawRole !== role && rawRole !== "model") {
     warnings.push(warning("INVALID_ROLE_FALLBACK", `Prompt“${identifier}”的角色无效，已降级为 system。`));
   }
@@ -413,6 +470,24 @@ function convertPrompt(
   };
 }
 
+/**
+ * ST Prompt Manager 顺序语义的唯一实现：存在 `prompt_order` 时只保留排序条目
+ * （未排序的候选 Prompt 仅存在于候选库、不进入管理器列表），完全缺失时按来源
+ * `prompts` 原序降级保留，避免静默丢失无排序预设的内容。
+ */
+function selectOrderedPromptEntries(
+  order: readonly SillyTavernPromptOrderEntry[],
+  fallback: readonly SillyTavernPromptOrderEntry[],
+): readonly SillyTavernPromptOrderEntry[] {
+  return order.length > 0 ? order : fallback;
+}
+
+/** ST 的 `model` 角色等价于 assistant；只识别 system/user/assistant，其余降级为 system。 */
+function resolvePromptRole(rawRole: string | undefined): PromptMessageRole {
+  if (rawRole === "model") return "assistant";
+  return rawRole === "user" || rawRole === "assistant" || rawRole === "system" ? rawRole : "system";
+}
+
 function readPromptOrder(value: unknown): SillyTavernPromptOrderEntry[] {
   if (!Array.isArray(value)) return [];
   const containers = value.filter((item) => isRecord(item) && Array.isArray(item.order));
@@ -447,6 +522,20 @@ function getIdentifier(prompt: Record<string, unknown>, index: number): string {
   return readOptionalString(prompt.identifier ?? prompt.id) || `prompt_${index + 1}`;
 }
 
+/**
+ * 传统 Prompt 列表的历史标识符推导：只接受字符串 `identifier`，其次字符串 `id`，
+ * 最后按下标兜底。
+ *
+ * 与编排路径的 `getIdentifier` 有意区分：后者把空串或非字符串 `identifier` 也回落到
+ * `prompt_N`，而传统列表历史上保留空串/改用字符串 `id`；单点化不得改变既有导入结果
+ * （`CHANGE-SAFE`）。两者共享的是顺序容器、候选库丢弃与角色别名语义。
+ */
+function readLegacyPromptIdentifier(prompt: Record<string, unknown>, index: number): string {
+  return readStringOrUndefined(prompt.identifier)
+    ?? readStringOrUndefined(prompt.id)
+    ?? `prompt_${index + 1}`;
+}
+
 function pickUnknownFields(
   value: Record<string, unknown>,
   knownFields: ReadonlySet<string>
@@ -462,6 +551,19 @@ function warning(code: string, message: string, blockId?: string): PromptComposi
 
 function readOptionalString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+/** 原样保留空字符串，只把非字符串视为未提供（与 `readOptionalString` 的空串兜底语义区分）。 */
+function readStringOrUndefined(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function readOptionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readOptionalStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : undefined;
 }
 
 function readFiniteNumber(value: unknown, fallback: number): number {

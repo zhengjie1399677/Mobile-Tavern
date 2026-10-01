@@ -5,7 +5,13 @@ import {
   DEFAULT_TABLE_MEMORY_PROMPT,
 } from "../../defaults/promptTemplates";
 import { createBasicPromptComposition } from "../../domain/prompt-composition";
-import { createPromptPresetPlan, toPresetPromptConfig } from "./presetPromptConfig";
+import {
+  type PresetBundleV2,
+  type PresetSamplerV2,
+} from "../../domain/presets/contracts";
+import { requirePresetBundleV2 } from "../../domain/presets/bundleMigration";
+import { CURRENT_PRESET_FACTORY_REVISION } from "../../application/useCases/presetBootstrap";
+import { createPromptPresetPlan, toPresetPromptConfig } from "../../application/useCases/presetPromptConfig";
 
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_TABLE_MEMORY_PROMPT };
 
@@ -151,7 +157,14 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
 
 
 
-export let MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
+/**
+ * 内置预设的可读来源（v1 形状）。
+ *
+ * 出厂内容用 v1 字面量书写最直观（传统 Prompt 字段是主要维护对象），运行时统一经
+ * `requirePresetBundleV2` 迁移为 v2 实体导出；迁移结果由 `tests/vitest/presetEntityV2.test.ts`
+ * 锁定，因此这里不允许出现手写的 v2 结构分支。v1 字面量保持导出，供迁移对照测试使用。
+ */
+export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1: SavedPresetBundle = {
   id: "bundle_mobile_tavern_basic",
   isBuiltin: true,
   preset: {
@@ -384,9 +397,29 @@ export let MOBILE_TAVERN_BASIC_PRESET_BUNDLE: SavedPresetBundle = {
   promptPlan: createPromptPresetPlan(DEFAULT_PROMPT_CONFIG),
 };
 
-export const setMobileTavernBasicPresetBundle = (next: SavedPresetBundle) => {
-  MOBILE_TAVERN_BASIC_PRESET_BUNDLE = next;
-};
+/** 内置预设实体（v2）：`prompt` 快照是唯一 Prompt 权威，传统字段只进只读兼容块。 */
+export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE: PresetBundleV2 =
+  requirePresetBundleV2(MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1);
+
+/**
+ * 出厂采样参数必须完整。
+ *
+ * v2 实体允许采样数值缺省（缺省由运行期与出厂默认合并），但 `UserSettings.preset` 是
+ * 完整形状，因此这里对内置预设做一次 fail-fast 校验，避免缺字段时静默使用零值采样。
+ */
+function requireCompleteSampler(sampler: PresetSamplerV2): SamplerPreset {
+  const { temperature, topP, topK, repetitionPenalty, maxTokens } = sampler;
+  if (
+    temperature === undefined
+    || topP === undefined
+    || topK === undefined
+    || repetitionPenalty === undefined
+    || maxTokens === undefined
+  ) {
+    throw new Error("MOBILE_TAVERN_BASIC_PRESET_SAMPLER_INCOMPLETE");
+  }
+  return { ...sampler, temperature, topP, topK, repetitionPenalty, maxTokens };
+}
 
 export const DEFAULT_SETTINGS: UserSettings = {
   api: {
@@ -404,7 +437,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     supportsVision: false,
     supportsAudioInput: false,
   },
-  preset: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.preset,
+  preset: requireCompleteSampler(MOBILE_TAVERN_BASIC_PRESET_BUNDLE.sampler),
   memory: {
     recentTurns: 6,
     summaryTriggerTurns: 0,
@@ -417,7 +450,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     recallTimeoutMs: 3000,
   },
   promptConfig: {
-    ...MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig,
+    ...((MOBILE_TAVERN_BASIC_PRESET_BUNDLE.legacyPromptConfig ?? {}) as PromptConfig),
     usePromptComposition: false,
     composition: createBasicPromptComposition(),
   },
@@ -436,6 +469,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   activePersonaId: "default-persona",
   globalChatBg: "",
   enableHtmlRendering: true,
+  enablePromptComposition: false,
   enableScriptExecution: false,
   scriptSecurityMode: "isolated",
   enableLoopProtection: true,
@@ -453,7 +487,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     shy: "脸红|害羞|😳|blush|shy",
   },
   savedPresets: [MOBILE_TAVERN_BASIC_PRESET_BUNDLE],
-  hasInjectedFormatPreset: true,
+  presetFactoryRevision: CURRENT_PRESET_FACTORY_REVISION,
   hasInitializedDefaultCharacters: false,
   chatBackgroundBlur: 4,
   chatBackgroundDim: 40,
