@@ -36,7 +36,7 @@ export default function SettingsToggleRow({
           <label className="text-xs sm:text-[13px] font-semibold text-foreground leading-tight">{label}</label>
           {badge && <span className={badgeClass}>{badge}</span>}
         </div>
-        <p className="text-[10.5px] leading-normal text-muted-foreground/75">{description}</p>
+        <p className="text-[11px] leading-relaxed text-muted-foreground/75">{description}</p>
       </div>
       <Switch
         aria-label={label}

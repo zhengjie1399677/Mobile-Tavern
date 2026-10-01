@@ -59,6 +59,7 @@ const DialogueHistoryView = ({
     isSending,
     isSummarizing,
     chatBottomRef,
+    editingMsgId,
     // 单会话消息分页懒加载
     hasMoreMessages,
     isLoadingMoreMessages,
@@ -74,6 +75,7 @@ const DialogueHistoryView = ({
     isSending: state.isSending,
     isSummarizing: state.isSummarizing,
     chatBottomRef: state.chatBottomRef,
+    editingMsgId: state.editingMsgId,
     hasMoreMessages: state.hasMoreMessages,
     isLoadingMoreMessages: state.isLoadingMoreMessages,
     loadMoreMessages: state.loadMoreMessages,
@@ -97,6 +99,11 @@ const DialogueHistoryView = ({
   // 不依赖此处的 deferred 值，流式渲染判断逻辑不受影响。
   const messagesToRender = React.useDeferredValue(rawMessages);
 
+  // 仅当当前渲染列表中确实存在正在被编辑的消息时才解除底部锚定，杜绝跨会话残留 ID 导致虚拟列表永久失锚
+  const isEditingAnyMessage = Boolean(
+    editingMsgId && messagesToRender.some((m) => m.id === editingMsgId)
+  );
+
   // 消息流不再折叠：历史消息完整性由"故事年表"子页维护（总结卡片与检索入口），
   // 正文渲染只由分页懒加载（内存规模）与虚拟列表（DOM 数量）控制。
 
@@ -116,7 +123,7 @@ const DialogueHistoryView = ({
   // - estimateSize 400px：与原 content-visibility 的 containIntrinsicSize 一致
   // - overscan 5：移动端快速滚动时预渲染 5 条避免空白
   // - measureElement：动态测量实际高度，流式消息高度变化时 ResizeObserver 自动重测
-  // - gap strategy: paddingBottom 1rem 模拟原 space-y-4 间距
+  // - 当用户在移动端编辑消息时，禁用 anchorTo: "end" 避免软键盘弹起时与视口对齐冲突造成上下大片留白撕裂
   const virtualizer = useVirtualizer({
     count: isMessageHydrated ? messagesToRender.length : 0,
     getScrollElement: () => scrollContainerRef.current,
@@ -124,8 +131,8 @@ const DialogueHistoryView = ({
     overscan: 5,
     measureElement: (element) => element.getBoundingClientRect().height,
     getItemKey: (index) => messagesToRender[index]?.id ?? index,
-    anchorTo: "end",
-    followOnAppend: "auto",
+    anchorTo: isEditingAnyMessage ? undefined : "end",
+    followOnAppend: isEditingAnyMessage ? false : "auto",
     scrollEndThreshold: 60,
     useAnimationFrameWithResizeObserver: true,
   });

@@ -193,6 +193,15 @@ export async function readSSEStream(
             pbuf += finalChunk;
           }
           flushBuffer(true);
+          // 服务端可能不发 [DONE] 就直接关闭连接（部分中转站 / 本地推理服务 / 被截断的响应）。
+          // 此时必须补发一次完成通知，否则消费方永远等不到 onDone：readSSEStream 是 resolve 而非
+          // reject，消费方的 isFinished 会一直为 false，卡在等队列的 await 上永久挂起。
+          // 空闲超时与主动取消两种情况不补发——它们各自有独立的错误/中止通路，
+          // 补发会先把消费方唤醒成"正常结束"，把真正的错误吞掉。
+          if (!idleTimedOut && !signal?.aborted) {
+            streamDone = true;
+            callbacks.onDone?.();
+          }
         }
         break;
       }

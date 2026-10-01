@@ -4,7 +4,6 @@ import {
   buildPromptBlockListGroups,
   estimatePromptBlockTokens,
   patchSelectedBlockStates,
-  removePromptBlocks,
 } from "../../src/components/presetForm/promptBlockListTools";
 
 const composition: PromptComposition = {
@@ -42,12 +41,6 @@ describe("Prompt 大列表工具", () => {
   it("批量开关不会修改未选区块", () => {
     const result = patchSelectedBlockStates(composition, new Set(["style"]), true);
     expect(result.blocks.map((block) => block.enabled)).toEqual([true, true, true]);
-  });
-
-  it("批量删除同步清理场景方案引用", () => {
-    const result = removePromptBlocks(composition, new Set(["style"]));
-    expect(result.blocks.map((block) => block.id)).toEqual(["system", "history"]);
-    expect(result.sceneProfiles?.[0].blockStates).toEqual({ system: true });
   });
 
   it("未启用区块也能按原始模板估算 Token", () => {

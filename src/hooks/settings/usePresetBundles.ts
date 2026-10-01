@@ -17,6 +17,7 @@ import {
 import { preparePresetBundleExport } from "../../application/useCases/preparePresetBundleExport";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "./defaults";
 import {
+  applyPresetBundleActivation,
   buildPresetBundleSnapshot,
   collectPresetBundleReferences,
   isBuiltinBundle,
@@ -82,18 +83,11 @@ const listRuntimeProfilesSafely = (kernel: IKernel): RuntimeProfileRecord[] => {
   }
 };
 
-/** 删除预设后的回退补丁：必须与切换共用同一套激活规则，避免漏掉预设正则等字段。 */
-const resolveFallbackActivation = (
-  remaining: PresetBundleV2[],
-  currentPromptConfig: PromptConfig,
-): PresetBundleActivation => {
+/** 删除预设后的回退目标：必须与切换共用同一套激活规则，避免漏掉预设正则等字段。 */
+const resolveFallbackBundle = (remaining: PresetBundleV2[]): PresetBundleV2 => {
   const fallback = remaining[0];
-  if (fallback) {
-    return projectPresetActivation(currentPromptConfig, fallback, DEFAULT_SETTINGS.preset);
-  }
-  // 列表清空时回退到出厂默认：用出厂字段生成一份 v2 快照，再走同一个唯一投影，
-  // 避免这里再手写一套激活形状（`ARCH-FLOW`：激活只有 `projectPresetActivation` 一个入口）。
-  const defaultBundle = buildPresetBundleSnapshot(
+  if (fallback) return fallback;
+  return buildPresetBundleSnapshot(
     {
       preset: DEFAULT_SETTINGS.preset,
       promptConfig: DEFAULT_PROMPT_CONFIG,
@@ -101,7 +95,25 @@ const resolveFallbackActivation = (
     },
     { id: "bundle_default_fallback", planSource: "mobile-tavern" },
   );
-  return projectPresetActivation(currentPromptConfig, defaultBundle, DEFAULT_SETTINGS.preset);
+};
+
+/**
+ * 删除预设后的完整设置。
+ *
+ * 所有删除路径必须经由这里：既保证回退使用同一套激活规则，也保证落库走函数式
+ * `updateSettings` 通道——否则被删除预设未声明、而当前生效设置里存在的字段会残留。
+ */
+const buildSettingsAfterRemoval = (
+  prev: UserSettings,
+  nextSaved: PresetBundleV2[],
+  removedActive: boolean,
+): UserSettings => {
+  const base: UserSettings = { ...prev, savedPresets: nextSaved };
+  if (!removedActive) return base;
+  return {
+    ...base,
+    ...projectPresetActivation(base.promptConfig, resolveFallbackBundle(nextSaved), DEFAULT_SETTINGS.preset),
+  };
 };
 
 /** 预设包管理子 Hook：只负责文件交互、用户确认、状态应用与持久化。 */
@@ -229,7 +241,11 @@ export const usePresetBundles = ({
       return;
     }
     const content = JSON.stringify(prepared.data, null, 2);
-    const fileName = `SillyTavern_${settings.preset.name.replace(/\s+/g, "_")}_profile.json`;
+    const safeName = (settings.preset.name || "Default")
+      .replace(/[\\/:*?"<>|]+/g, "_")
+      .replace(/\s+/g, "_")
+      .slice(0, 30);
+    const fileName = `SillyTavern_${safeName}_profile.json`;
     const androidBridge = (window as WindowWithAndroidBridge).AndroidThemeBridge;
     if (androidBridge && typeof androidBridge.saveFile === "function") {
       const path = androidBridge.saveFile(fileName, content);
@@ -253,17 +269,18 @@ export const usePresetBundles = ({
 
   const handleSaveNewPresetBundle = useCallback(async () => {
     const name = await showCustomPrompt(
-      "请输入新预设的名称",
-      settings.preset.name + " 的副本",
+      "请输入新预设的名称（建议 30 字符以内）",
+      (settings.preset.name + " 的副本").slice(0, 35),
     );
-    if (!name) return;
+    if (!name || !name.trim()) return;
+    const finalName = name.trim().slice(0, 60);
 
     const newBundle = buildPresetBundleSnapshot(
       {
         preset: {
           ...settings.preset,
           id: "preset_" + Math.random().toString(36).substring(2, 9),
-          name,
+          name: finalName,
         },
         promptConfig: settings.promptConfig,
         presetRegexScripts: settings.presetRegexScripts,
@@ -302,7 +319,7 @@ export const usePresetBundles = ({
             preset: {
               ...settings.preset,
               id: "preset_" + Math.random().toString(36).substring(2, 9),
-              name: `${settings.preset.name}（我的修改）`,
+              name: `${settings.preset.name.slice(0, 35)}（我的修改）`,
             },
           },
           {
@@ -344,6 +361,9 @@ export const usePresetBundles = ({
       );
       if (!confirmed) return;
     }
+    // 整体切换必须走函数式通道：值形式 updater 会先求 getNestedDelta（只遍历 next 的键）
+    // 再 deepMerge（只覆盖不删除），无法表达"目标预设未声明的字段应被删除"，
+    // 会把上一个预设的 useMainPrompt / usePostHistory / reasoningGuidancePrompt 等残留下来。
     updateSettings((prev) => ({
       ...prev,
       ...projectPresetActivation(prev.promptConfig, bundle, DEFAULT_SETTINGS.preset),
@@ -370,13 +390,7 @@ export const usePresetBundles = ({
       await showCustomAlert("删除预设失败，请稍后重试。", "删除失败");
       return;
     }
-    updateSettings({
-      ...settings,
-      savedPresets: nextSaved,
-      ...(isActiveDeleted
-        ? resolveFallbackActivation(nextSaved, settings.promptConfig)
-        : {}),
-    });
+    updateSettings((prev) => buildSettingsAfterRemoval(prev, nextSaved, isActiveDeleted));
   }, [settings, showCustomConfirm, showCustomAlert, updateSettings, catalog, buildDeleteConfirmMessage]);
 
   const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
@@ -404,13 +418,7 @@ export const usePresetBundles = ({
       await showCustomAlert("批量删除预设失败，请稍后重试。", "删除失败");
       return;
     }
-    updateSettings({
-      ...settings,
-      savedPresets: nextSaved,
-      ...(isCurrentDeleted
-        ? resolveFallbackActivation(nextSaved, settings.promptConfig)
-        : {}),
-    });
+    updateSettings((prev) => buildSettingsAfterRemoval(prev, nextSaved, isCurrentDeleted));
     await showCustomAlert("🎉 批量删除成功！");
   }, [settings, showCustomConfirm, updateSettings, showCustomAlert, catalog, buildDeleteConfirmMessage]);
 

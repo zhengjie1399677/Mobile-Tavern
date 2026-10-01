@@ -10,6 +10,7 @@ import {
   Palette,
   Volume2,
   VolumeX,
+  Loader2,
 } from "lucide-react";
 
 import { useUnifiedApp, unifiedAppStore } from "../../UnifiedAppContext";
@@ -121,6 +122,7 @@ const MessageBubble = ({
   const [dragOffset, setDragOffset] = React.useState(0);
   const [isDragging, setIsDragging] = React.useState(false);
   const [isSpeakingThis, setIsSpeakingThis] = React.useState(false);
+  const [isSavingEdit, setIsSavingEdit] = React.useState(false);
 
   const dragDirection = isUser ? 1 : -1;
   const SWIPE_MENU_WIDTH = 46;
@@ -157,10 +159,14 @@ const MessageBubble = ({
     const textarea = editorTextareaRef.current;
     if (!textarea) return;
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-    const minHeight = Math.max(140, Math.min(220, viewportHeight * 0.32));
-    const maxHeight = Math.max(minHeight, viewportHeight * 0.58);
+    // 移动端自适应：单行最小 42px，绝不强撑 220px 大片黑底空白
+    const minHeight = 42;
+    // 软键盘弹起时，最大高度控制在可视区域 45% 以内，避免撑爆小屏手机
+    const maxHeight = Math.max(120, Math.min(280, viewportHeight * 0.45));
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight)}px`;
+    const naturalHeight = textarea.scrollHeight;
+    const finalHeight = Math.min(Math.max(naturalHeight, minHeight), maxHeight);
+    textarea.style.height = `${finalHeight}px`;
   }, []);
 
   React.useLayoutEffect(() => {
@@ -616,7 +622,7 @@ const MessageBubble = ({
 
         {editingMsgId === message.id ? (
           <div
-            className="w-full rounded-2xl border border-border bg-card p-2.5 text-sm shadow-sm"
+            className="w-full rounded-2xl border border-primary/30 bg-card/95 p-3 text-sm shadow-md backdrop-blur-md transition-all duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <textarea
@@ -625,7 +631,7 @@ const MessageBubble = ({
               onChange={(e) =>
                 setEditingMsgContent(e.target.value)
               }
-              className="mb-2 block max-h-[58dvh] w-full resize-none overflow-y-auto rounded-xl border border-border bg-background p-3 text-sm font-normal leading-relaxed text-foreground outline-none focus:border-primary/55 focus:ring-2 focus:ring-primary/10"
+              className="mb-2.5 block max-h-[48dvh] w-full resize-none overflow-y-auto rounded-xl border border-border/80 bg-background/90 p-3 text-sm font-normal leading-relaxed text-foreground outline-none focus:border-primary/55 focus:ring-2 focus:ring-primary/15 transition-all shadow-inner"
               style={{
                 fontSize: settings?.chatFontSize ? `${settings.chatFontSize}px` : undefined,
                 lineHeight: settings?.chatLineHeight ? `${settings.chatLineHeight}` : undefined,
@@ -642,39 +648,52 @@ const MessageBubble = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  if (isSavingEdit || isSending) return;
                   const currentSession = unifiedAppStore.getState().activeSession;
                   if (!currentSession) return;
-                  const nextMsgs = (currentSession.messages || []).map(
-                    (currentMessage) =>
-                      currentMessage.id === message.id
-                        ? { ...currentMessage, content: editingMsgContent }
-                        : currentMessage,
-                  );
-                  const updated = {
-                    ...currentSession,
-                    messages: nextMsgs,
-                  };
-                  const editedMessage = updated.messages.find((item) => item.id === message.id);
-                  if (!editedMessage) return;
-                  const persistedSession = await saveSessionWithMvu(updated, editedMessage);
-                  setSessionViews((previous) =>
-                    previous.map((session) =>
-                      session.id === persistedSession.id ? persistedSession : session,
-                    ),
-                  );
-                  setEditingMsgId(null);
+                  setIsSavingEdit(true);
+                  try {
+                    const nextMsgs = (currentSession.messages || []).map(
+                      (currentMessage) =>
+                        currentMessage.id === message.id
+                          ? { ...currentMessage, content: editingMsgContent }
+                          : currentMessage,
+                    );
+                    const updated = {
+                      ...currentSession,
+                      messages: nextMsgs,
+                    };
+                    const editedMessage = updated.messages.find((item) => item.id === message.id);
+                    if (!editedMessage) return;
+                    const persistedSession = await saveSessionWithMvu(updated, editedMessage);
+                    setSessionViews((previous) =>
+                      previous.map((session) =>
+                        session.id === persistedSession.id ? persistedSession : session,
+                      ),
+                    );
+                    setEditingMsgId(null);
+                  } catch (error) {
+                    console.error("Failed to save edited message:", error);
+                    showCustomAlert(t("message_bubble.save_error"));
+                  } finally {
+                    setIsSavingEdit(false);
+                  }
                 }}
-                disabled={isSending}
+                disabled={isSending || isSavingEdit}
                 className="flex min-h-11 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Check className="w-3.5 h-3.5" /> {t("message_bubble.edit_save")}
+                {isSavingEdit ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )} {t("message_bubble.edit_save")}
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditingMsgId(null);
                 }}
-                disabled={isSending}
+                disabled={isSending || isSavingEdit}
                 className="flex min-h-11 items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 text-xs font-semibold text-muted-foreground active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X className="w-3.5 h-3.5" /> {t("message_bubble.edit_cancel")}

@@ -38,11 +38,11 @@ export default function BackupRestoreCard({
         onClick={() => setShowBackupUI(!showBackupUI)}
       >
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm flex items-center gap-2 font-semibold text-foreground">
+          <CardTitle className="text-xs sm:text-[13px] flex items-center gap-2 font-bold text-foreground">
             <Lock className="w-4 h-4 text-emerald-500" />{" "}
             {t("backup.title")}
           </CardTitle>
-          <span className="text-muted-foreground text-[10px] flex items-center gap-1">
+          <span className="text-muted-foreground text-[11px] flex items-center gap-1 font-medium">
             {showBackupUI ? t("backup.collapse") : t("backup.expand")}
             <ChevronDown aria-hidden="true" className={toggleIconClass} />
           </span>
@@ -52,10 +52,10 @@ export default function BackupRestoreCard({
         <CardContent className="pt-3 px-3 pb-3 space-y-3 bg-muted/10 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-center justify-between border-b border-border/20 pb-2.5">
             <div className="flex flex-col">
-              <span className="text-sm font-semibold flex items-center gap-2 text-destructive">
+              <span className="text-xs sm:text-[13px] font-semibold flex items-center gap-2 text-destructive">
                 {t("backup.encrypt_switch")}
               </span>
-              <span className="text-[9px] text-muted-foreground mt-0.5">
+              <span className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
                 {t("backup.pass_tip")}
               </span>
             </div>
@@ -69,7 +69,7 @@ export default function BackupRestoreCard({
 
           {encryptBackup && (
             <div className="space-y-1 animate-in fade-in duration-300">
-              <label className="text-[11px] font-semibold text-foreground">
+              <label className="text-xs font-semibold text-foreground">
                 {t("backup.pass_title")}
               </label>
               <Input
@@ -80,20 +80,20 @@ export default function BackupRestoreCard({
                 value={backupPass}
                 onChange={(e) => setBackupPass(e.target.value)}
                 placeholder={t("backup.pass_placeholder")}
-                className="h-9 placeholder:text-muted-foreground/50 bg-background border-destructive/30 focus-visible:ring-destructive/40 text-xs font-mono"
+                className="h-8.5 rounded-xl placeholder:text-muted-foreground/50 bg-background border-destructive/30 focus-visible:ring-destructive/40 text-xs font-mono"
               />
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2 text-xs font-bold pt-1">
+          <div className="grid grid-cols-2 gap-2 text-xs font-semibold pt-1">
             <button
               onClick={handleExportLocalDataBackup}
-              className="bg-background hover:bg-muted border border-border shadow-sm text-foreground py-2 rounded-md transition flex justify-center items-center gap-1.5"
+              className="h-8.5 bg-background hover:bg-muted border border-border/70 shadow-2xs text-foreground rounded-xl transition flex justify-center items-center gap-1.5 active:scale-95"
             >
               <Download className="w-3.5 h-3.5 text-primary" />{" "}
               {t("backup.export_btn")}
             </button>
-            <label className="bg-background hover:bg-muted border border-border shadow-sm text-foreground py-2 rounded-md transition flex justify-center items-center gap-1.5 cursor-pointer">
+            <label className="h-8.5 bg-background hover:bg-muted border border-border/70 shadow-2xs text-foreground rounded-xl transition flex justify-center items-center gap-1.5 cursor-pointer active:scale-95">
               <Upload className="w-3.5 h-3.5 text-emerald-500" />{" "}
               {t("backup.import_btn")}
               <input
@@ -106,7 +106,7 @@ export default function BackupRestoreCard({
           </div>
 
           {backupStatus && (
-            <div className="bg-background border border-border rounded p-2 text-[10px] text-muted-foreground text-center font-mono animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-background border border-border rounded-lg p-2 text-[11px] text-muted-foreground text-center font-mono animate-in fade-in zoom-in-95 duration-200">
               {backupStatus}
             </div>
           )}

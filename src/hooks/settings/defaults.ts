@@ -12,6 +12,7 @@ import {
 import { requirePresetBundleV2 } from "../../domain/presets/bundleMigration";
 import { CURRENT_PRESET_FACTORY_REVISION } from "../../application/useCases/presetBootstrap";
 import { createPromptPresetPlan, toPresetPromptConfig } from "../../application/useCases/presetPromptConfig";
+import { DEFAULT_HEADLESS_PORT } from "../../utils/hostBindingPolicy";
 
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_TABLE_MEMORY_PROMPT };
 
@@ -552,4 +553,17 @@ export const DEFAULT_SETTINGS: UserSettings = {
   lastBackupTime: 0,
   enableFloatingCharacter: false,
   ambientGlowIntensity: 0.6,
+  hostBinding: {
+    // 默认仅监听回环：与 headless 启动闸门一致，未知状态下不把能力暴露到网络上。
+    bindHost: "127.0.0.1",
+    bindPort: DEFAULT_HEADLESS_PORT,
+    accessKey: "",
+    corsOrigins: "",
+    remoteUrl: "",
+    remoteAccessKey: "",
+    // 跨设备日常同步默认合并：覆盖式会抹掉另一端的独有数据，属于要主动选择的破坏性操作。
+    syncMode: "merge",
+    // 合并预览默认开启：把「这次会新增/更新/删除什么」摊开，是合并结果可信的前提。
+    syncPreviewEnabled: true,
+  },
 };

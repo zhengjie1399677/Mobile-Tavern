@@ -2,6 +2,7 @@ import type { ChatSession, SummaryCard } from "../../../types";
 import type { MemoryFragment, TemporalFact } from "../../../application/services/memory/types";
 import { getDB } from "../idbConnection";
 import { bindTransactionAbort, enqueueWrite } from "../idbQueue";
+import { buildMessageTombstone, putTombstones } from "./tombstoneRepository";
 import {
   advanceSessionContentRevision,
   deriveTurnCount,
@@ -28,7 +29,7 @@ export function deleteSessionMessage(
     const db = await getDB();
     return new Promise<ChatSession>((resolve, reject) => {
       const transaction = db.transaction(
-        ["sessions", "messages", "memory_dict", "memory_fragments", "memory_facts"],
+        ["sessions", "messages", "memory_dict", "memory_fragments", "memory_facts", "sync_tombstones"],
         "readwrite",
       );
       const sessionsStore = transaction.objectStore("sessions");
@@ -36,6 +37,7 @@ export function deleteSessionMessage(
       const dictStore = transaction.objectStore("memory_dict");
       const fragmentsStore = transaction.objectStore("memory_fragments");
       const factsStore = transaction.objectStore("memory_facts");
+      const tombstonesStore = transaction.objectStore("sync_tombstones");
       const sessionRequest = sessionsStore.get(sessionId);
       const messageRequest = messagesStore.get(messageId);
       let session: SessionStorageRecord | undefined;
@@ -116,6 +118,8 @@ export function deleteSessionMessage(
           charCount: Math.max(0, charCount - getStoredMessageText(target).length),
         }, { activityTime: Date.now() });
         messagesStore.delete(messageId);
+        // 同一事务内留墓碑：消息删除必须能传播到其他设备，否则对端会把它推回来。
+        putTombstones(tombstonesStore, [buildMessageTombstone(sessionId, messageId)]);
         sessionsStore.put(nextRecord);
         sweepDerivedMemory(target.turnIndex, nextRecord);
         updatedSession = fromSessionStorageRecord(nextRecord);

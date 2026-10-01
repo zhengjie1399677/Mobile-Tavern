@@ -130,6 +130,10 @@ export interface UnifiedAppContextProps {
   handleExportLocalDataBackup: () => Promise<void>;
   handleImportLocalDataBackup: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleImportSillyChatHistory: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  /** 用远程宿主快照覆盖本机数据（覆盖式，保留本机设置）。 */
+  handlePullFromHost: () => Promise<void>;
+  /** 用本机数据覆盖远程宿主快照（覆盖式，保留宿主设置）。 */
+  handlePushToHost: () => Promise<void>;
   handleSilentDailyBackup: (characters: any[]) => Promise<boolean>;
   customWorldbooks: Record<string, CustomWorldbook>;
   updateCustomWorldbooks: (

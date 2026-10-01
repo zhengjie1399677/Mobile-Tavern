@@ -41,26 +41,26 @@ export function SystemReportPanel({
   const warningCount = sections.filter((section) => section.hasWarning).length;
 
   return (
-    <div className="mt-6 text-center space-y-1 pb-4 select-text font-mono text-[9px] text-muted-foreground">
-      <div className="font-bold text-[10px] text-muted-foreground mb-1 select-none flex flex-wrap items-center justify-center gap-2">
+    <div className="mt-6 text-center space-y-1 pb-4 select-text font-mono text-[11px] text-muted-foreground">
+      <div className="font-bold text-xs text-muted-foreground mb-1 select-none flex flex-wrap items-center justify-center gap-2">
         🛠️ {t("report.title")}
         <button
           onClick={onCopyFullReport}
-          className="text-[9px] text-primary hover:underline font-normal cursor-pointer select-none px-2 py-0.5 border border-primary/20 rounded bg-primary/5 hover:bg-primary/10 active:scale-95 transition-all"
+          className="text-[10px] font-semibold text-primary hover:underline cursor-pointer select-none px-2 py-0.5 border border-primary/20 rounded-md bg-primary/5 hover:bg-primary/10 active:scale-95 transition-all"
         >
           {t("report.copy")}
         </button>
         <button
           onClick={() => void onRunSelfCheck()}
           disabled={isChecking}
-          className="text-[9px] text-emerald-400 hover:underline font-normal cursor-pointer select-none px-2 py-0.5 border border-emerald-400/30 rounded bg-emerald-400/10 hover:bg-emerald-400/15 active:scale-95 transition-all disabled:opacity-55"
+          className="text-[10px] font-semibold text-emerald-400 hover:underline cursor-pointer select-none px-2 py-0.5 border border-emerald-400/30 rounded-md bg-emerald-400/10 hover:bg-emerald-400/15 active:scale-95 transition-all disabled:opacity-55"
         >
           {isChecking ? t("report.checking") : t("report.check_start")}
         </button>
         {sections.length > 0 && (errorCount > 0 || warningCount > 0) && (
           <button
             onClick={onCopyErrorsOnly}
-            className="text-[9px] text-amber-400 hover:underline font-normal cursor-pointer select-none px-2 py-0.5 border border-amber-400/30 rounded bg-amber-400/10 hover:bg-amber-400/15 active:scale-95 transition-all"
+            className="text-[10px] font-semibold text-amber-400 hover:underline cursor-pointer select-none px-2 py-0.5 border border-amber-400/30 rounded-md bg-amber-400/10 hover:bg-amber-400/15 active:scale-95 transition-all"
           >
             {t("report.copy_errors")}
           </button>
@@ -108,19 +108,19 @@ export function SystemReportPanel({
                     : "border-zinc-800"
               }`}
             >
-              <div className="flex justify-between items-center border-b border-zinc-800 pb-1 mb-1 text-[8px] font-bold select-none">
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-1 mb-1 text-[10px] font-semibold select-none">
                 <span className={section.hasError ? "text-red-400" : section.hasWarning ? "text-amber-400" : "text-zinc-500"}>
                   {section.hasError ? "⛔ " : section.hasWarning ? "⚠️ " : "✓ "}
                   {section.title}
                 </span>
                 <button
                   onClick={() => onCopySection(section)}
-                  className="text-primary hover:underline text-[8px]"
+                  className="text-primary hover:underline text-[10px]"
                 >
                   [{t("report.copy_section")}]
                 </button>
               </div>
-              <pre className="whitespace-pre-wrap break-all select-text font-mono text-[8.5px] leading-relaxed text-zinc-300 touch-pan-y">
+              <pre className="whitespace-pre-wrap break-all select-text font-mono text-[10px] leading-relaxed text-zinc-300 touch-pan-y">
                 {section.lines.filter((line) => !line.startsWith("\n[")).join("\n")}
               </pre>
             </div>
@@ -130,24 +130,24 @@ export function SystemReportPanel({
 
       {diagnoseLog && sections.length === 0 && (
         <div className="mt-3 text-left p-2.5 bg-zinc-950/90 border border-zinc-800 rounded-lg text-zinc-300 font-sans tracking-wide max-w-full shadow-inner leading-relaxed touch-pan-y">
-          <div className="flex justify-between items-center border-b border-zinc-800 pb-1 mb-1.5 text-[8px] font-bold text-zinc-500 select-none">
+          <div className="flex justify-between items-center border-b border-zinc-800 pb-1 mb-1.5 text-[10px] font-semibold text-zinc-500 select-none">
             <span>🛠️ {t("report.title")} DEBUGLOG</span>
             <div className="flex gap-2">
               <button
                 onClick={onCopyDiagnoseLog}
-                className="text-primary hover:underline text-[8px]"
+                className="text-primary hover:underline text-[10px]"
               >
                 [{t("report.copy")}]
               </button>
               <button
                 onClick={onClearDiagnoseLog}
-                className="text-zinc-500 hover:text-zinc-400 text-[8px]"
+                className="text-zinc-500 hover:text-zinc-400 text-[10px]"
               >
                 [clear]
               </button>
             </div>
           </div>
-          <pre className="whitespace-pre-wrap break-all select-text font-mono text-[8.5px] leading-relaxed text-zinc-300 touch-pan-y">
+          <pre className="whitespace-pre-wrap break-all select-text font-mono text-[10px] leading-relaxed text-zinc-300 touch-pan-y">
             {diagnoseLog}
           </pre>
         </div>

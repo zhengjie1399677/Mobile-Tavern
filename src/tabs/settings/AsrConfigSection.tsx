@@ -35,12 +35,12 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
   return (
     <AccordionItem value="asr-api-config" className="settings-connection-item overflow-hidden">
       <AccordionTrigger className="settings-panel-trigger px-3 py-2 hover:no-underline hover:bg-muted/30 transition">
-        <div className="flex items-center justify-between w-full pr-2">
+        <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="settings-panel-icon"><Mic className="w-4 h-4 text-primary" /></span>
+            <span className="settings-panel-icon shrink-0"><Mic className="w-4 h-4 text-primary" /></span>
             <div className="flex flex-col items-start gap-0.5 min-w-0">
-              <span className="text-xs sm:text-[13px] font-semibold text-foreground">{t("asr.title")}</span>
-              <span className="text-[10.5px] text-muted-foreground/75 font-normal truncate max-w-[200px] sm:max-w-none">
+              <span className="text-xs sm:text-[13px] font-semibold text-foreground shrink-0">{t("asr.title")}</span>
+              <span className="text-[10px] text-muted-foreground/75 font-normal truncate max-w-[140px] sm:max-w-none">
                 {t("asr.subtitle")}
               </span>
             </div>

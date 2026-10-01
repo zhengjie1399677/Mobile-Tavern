@@ -26,7 +26,8 @@ export const DB_NAME = "MobileTavernLiteDB";
 // v14: 增加会话生命周期与最近活动索引，并为旧会话补齐安全目录默认值
 // v15: 增加会话目录稳定排序与分支计数索引
 // v16: 为缺少 turnCount 的旧会话按权威消息统计回填，避免轮次排序索引漏项
-export const DB_VERSION = 16;
+// v17: 新增 sync_tombstones Store，承载跨设备同步的删除墓碑
+export const DB_VERSION = 17;
 
 export interface IndexSchema {
   name: string;
@@ -36,8 +37,8 @@ export interface IndexSchema {
 
 export interface StoreSchema {
   name: string;
-  /** undefined 表示 out-of-line keys（put 时显式传入 key） */
-  keyPath?: string;
+  /** undefined 表示 out-of-line keys（put 时显式传入 key）；数组表示复合主键。 */
+  keyPath?: string | string[];
   indexes: IndexSchema[];
 }
 
@@ -108,6 +109,16 @@ export const DB_SCHEMA: StoreSchema[] = [
       { name: "tags", keyPath: "tags", multiEntry: true },
       { name: "status", keyPath: "status" },
       { name: "sessionId_subject_predicate", keyPath: ["sessionId", "subject", "predicate"] },
+    ],
+  },
+  {
+    // 跨设备同步的删除墓碑。复合主键保证同一实体只保留一条删除事实；
+    // sessionId 索引用于会话删除时清理其历史消息墓碑。
+    name: "sync_tombstones",
+    keyPath: ["entity", "targetId"],
+    indexes: [
+      { name: "deletedAt", keyPath: "deletedAt" },
+      { name: "sessionId", keyPath: "sessionId" },
     ],
   },
 ];

@@ -348,14 +348,14 @@ export default function RuntimeProfileManagerSection() {
                   </span>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold text-foreground truncate">
+                      <span className="text-xs sm:text-[13px] font-bold text-foreground truncate">
                         {profile.name}
                       </span>
-                      <span className="text-[11px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-full">
+                      <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
                         v{profile.version}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    <p className="text-[11px] leading-relaxed text-muted-foreground truncate mt-0.5">
                       {isTavern ? "SillyTavern 兼容扩展 · 角色卡/世界书/宏" : "纯净原生通用 Agent · 零外部规则干扰"}
                     </p>
                   </div>
@@ -363,7 +363,7 @@ export default function RuntimeProfileManagerSection() {
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   {active ? (
-                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       运行中
                     </span>
@@ -372,7 +372,7 @@ export default function RuntimeProfileManagerSection() {
                       type="button"
                       disabled={busy}
                       onClick={() => void activateProfile(profile, "切换并应用")}
-                      className="flex h-8 items-center gap-1 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-3 text-xs font-bold transition-all active:scale-95 shadow-xs"
+                      className="flex h-8 items-center gap-1 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-3 text-xs font-semibold transition-all active:scale-95 shadow-xs"
                     >
                       <Power className="h-3.5 w-3.5" />
                       <span>切换运行</span>
@@ -382,7 +382,7 @@ export default function RuntimeProfileManagerSection() {
               </div>
 
               {/* 紧凑装配插槽与快捷操作行 */}
-              <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40 text-xs">
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40 text-[11px]">
                 <div className="flex items-center gap-2 text-muted-foreground flex-wrap min-w-0">
                   <span className="inline-flex items-center gap-1 truncate">
                     <User className="h-3 w-3 shrink-0 text-muted-foreground/80" />
@@ -411,7 +411,7 @@ export default function RuntimeProfileManagerSection() {
                       setInspectedId(profile.id);
                       setEditorOpen(true);
                     }}
-                    className="flex h-7 items-center gap-1 rounded-lg border border-border/60 bg-background/60 hover:bg-muted px-2 text-[11px] font-semibold text-foreground transition-all active:scale-95"
+                    className="flex h-7.5 items-center gap-1 rounded-lg border border-border/60 bg-background/60 hover:bg-muted px-2.5 text-xs font-medium text-foreground transition-all active:scale-95"
                   >
                     <Settings2 className="h-3 w-3 text-primary" />
                     <span>装配</span>
@@ -548,7 +548,7 @@ export default function RuntimeProfileManagerSection() {
         </DialogContent>
       </Dialog>
 
-      <p className="text-xs leading-relaxed text-muted-foreground/75 px-1">
+      <p className="text-[11px] leading-relaxed text-muted-foreground/80 px-1">
         Runtime Plugin 目前只允许随安装包分发的受信实现。签名、来源验证与回滚机制完成前，不开放任意 Runtime Plugin 安装。
       </p>
     </section>

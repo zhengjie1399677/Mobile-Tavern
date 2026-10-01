@@ -158,7 +158,7 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
               <Wrench className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <h2 className="text-sm font-bold text-foreground truncate">Tool 插件扩展</h2>
+              <h2 className="text-xs sm:text-[13px] font-bold text-foreground truncate">Tool 插件扩展</h2>
               <p className="text-[11px] text-muted-foreground truncate">
                 已启用 {enabledCount} / 共 {displayPlugins.length} 项
               </p>
@@ -169,7 +169,7 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
             type="button"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
-            className="flex h-7.5 items-center gap-1 rounded-xl border border-border/70 bg-background/80 hover:bg-muted px-2.5 text-xs font-bold text-foreground transition-all active:scale-95 shadow-2xs shrink-0"
+            className="flex h-8 items-center gap-1 rounded-xl border border-border/70 bg-background/80 hover:bg-muted px-2.5 text-xs font-semibold text-foreground transition-all active:scale-95 shadow-2xs shrink-0"
             aria-label="导入 .mttool / Manifest"
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5 text-primary" />}

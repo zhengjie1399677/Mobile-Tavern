@@ -228,8 +228,14 @@ export const useChat = (
           databaseService.appendSessionMessage(updatedSession.id, updatedMsg, 0).then(() => {
             // P1-7: 卸载保护，避免组件卸载后 setSessionViews 触发状态更新泄漏
             if (!isMountedRef.current) return;
+            // 必须做字段级更新：写库期间该会话可能已经新增了消息，用 effect 运行时的整条
+            // 快照覆盖会把新消息回滚掉。仅当会话仍是"只有这一条过期开场白"时才同步。
             setSessionViews((prev) =>
-              prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+              prev.map((s) => {
+                if (s.id !== updatedSession.id) return s;
+                if (s.messages?.length !== 1 || s.messages[0]?.id !== firstMsg.id) return s;
+                return { ...s, messages: [updatedMsg] };
+              })
             );
           }).catch((err) => {
             console.error("Failed to sync stale greeting session:", err);
@@ -257,8 +263,14 @@ export const useChat = (
         databaseService.updateSessionMetadata(updatedSession.id, { tableMemory: defaultSheets }).then(() => {
           // P1-7: 卸载保护，避免组件卸载后 setSessionViews 触发状态更新泄漏
           if (!isMountedRef.current) return;
+          // 同样是字段级更新：写库期间会话可能已新增消息，整条快照覆盖会丢消息。
+          // 仅在表格仍为空时填充，避免覆盖其他路径已经写入的初始化结果。
           setSessionViews((prev) =>
-            prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+            prev.map((s) => {
+              if (s.id !== updatedSession.id) return s;
+              if (s.tableMemory && s.tableMemory.length > 0) return s;
+              return { ...s, tableMemory: defaultSheets };
+            })
           );
         }).catch((err) => {
           console.error("Failed to automatically initialize default sheets:", err);

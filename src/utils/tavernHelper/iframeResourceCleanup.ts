@@ -50,18 +50,17 @@ export function createIframeResourceCleanupBootstrap(): string {
   };
   window.clearTimeout = function (id) {
     remove(timeoutIds, id);
+    remove(intervalIds, id);
     nativeClearTimeout(id);
   };
   window.setInterval = function (handler, delay) {
-    var args = Array.prototype.slice.call(arguments, 2);
-    var id = nativeSetInterval(function () {
-      if (typeof handler === "function") handler.apply(window, args);
-    }, delay);
+    var id = nativeSetInterval.apply(window, arguments);
     intervalIds.push(id);
     return id;
   };
   window.clearInterval = function (id) {
     remove(intervalIds, id);
+    remove(timeoutIds, id);
     nativeClearInterval(id);
   };
   if (nativeRequestAnimationFrame && nativeCancelAnimationFrame) {

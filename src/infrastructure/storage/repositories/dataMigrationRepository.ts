@@ -18,6 +18,7 @@ const REPLACED_STORES = [
   "settings",
   "lorebooks",
   "worldbooks",
+  "sync_tombstones",
 ] as const;
 
 /**
@@ -44,6 +45,7 @@ export async function replaceLocalDataFromBackup(
       const settingsStore = transaction.objectStore("settings");
       const lorebooksStore = transaction.objectStore("lorebooks");
       const worldbooksStore = transaction.objectStore("worldbooks");
+      const tombstonesStore = transaction.objectStore("sync_tombstones");
 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error || new Error("数据覆盖事务失败"));
@@ -60,6 +62,7 @@ export async function replaceLocalDataFromBackup(
           factsStore,
           lorebooksStore,
           worldbooksStore,
+          tombstonesStore,
         ]) {
           store.clear();
         }
@@ -89,6 +92,9 @@ export async function replaceLocalDataFromBackup(
         settingsStore.put(payload.savedPresets, "saved_presets_bundle");
         lorebooksStore.put(payload.globalLorebook, "global_lorebook");
         worldbooksStore.put(payload.customWorldbooks, "custom_worldbooks");
+
+        // v6 及更早备份没有 tombstones 字段；缺省等价于"该备份未记录任何删除"。
+        for (const tombstone of payload.tombstones ?? []) tombstonesStore.put(tombstone);
       } catch (error: unknown) {
         try { transaction.abort(); } catch { /* 事务可能已自动中止 */ }
         reject(error);

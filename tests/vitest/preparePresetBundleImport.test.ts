@@ -308,9 +308,21 @@ describe("preparePresetBundleImport", () => {
     expect(importedUnderPresetA.bundle.legacyPromptConfig).toEqual(importedUnderPresetB.bundle.legacyPromptConfig);
     expect(importedUnderPresetA.bundle.prompt).toEqual(importedUnderPresetB.bundle.prompt);
     expect(importedUnderPresetA.bundle.legacyPromptConfig?.mainPrompt).toBe("");
-    expect(importedUnderPresetA.bundle.legacyPromptConfig?.tableMemoryPrompt).toBe(
-      DEFAULT_PROMPT_CONFIG.tableMemoryPrompt,
-    );
+    // 契约收紧：文件自带 Prompt 字段时，本应用专有字段一律不写入预设包——既不得继承"当前预设"，
+    // 也不得固化出厂内容（tableMemoryPrompt / sectionHeaders / roleplayMode 等）；
+    // 这些键保持缺失后由运行时出厂默认兜底，避免第三方预设"自带系统内置内容"。
+    const presetOwnedKeys = Object.keys(importedUnderPresetA.bundle.legacyPromptConfig ?? {});
+    for (const key of [
+      "tableMemoryPrompt",
+      "sectionHeaders",
+      "roleplayMode",
+      "useMainPrompt",
+      "enableReasoningGuidance",
+      "reasoningGuidancePrompt",
+      "renderingFormat",
+    ]) {
+      expect(presetOwnedKeys).not.toContain(key);
+    }
   });
 
   it("无可解码编排时不继承当前预设的编排快照", () => {
@@ -344,7 +356,7 @@ describe("preparePresetBundleImport", () => {
     );
   });
 
-  it("导入无根级 system_prompt 的 SillyTavern 预设时 mainPrompt 保持为空且 useMainPrompt 为 false", () => {
+  it("导入无根级 system_prompt 的 SillyTavern 预设时 mainPrompt 保持为空且不固化出厂 useMainPrompt", () => {
     const result = preparePresetBundleImport({
       input: {
         name: "ordered-preset-no-system",
@@ -360,7 +372,7 @@ describe("preparePresetBundleImport", () => {
     });
 
     expect(result.bundle.legacyPromptConfig?.mainPrompt).toBe("");
-    expect(result.bundle.legacyPromptConfig?.useMainPrompt).toBe(false);
+    expect(result.bundle.legacyPromptConfig?.useMainPrompt).toBeUndefined();
   });
 });
 

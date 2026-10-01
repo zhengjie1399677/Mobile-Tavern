@@ -85,11 +85,18 @@ export function useChatUI(params: {
   }, [userInputMessage]);
 
   const prevSessionIdRef = React.useRef<string | null>(null);
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editingMsgContent, setEditingMsgContent] = useState("");
+  const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
+
   useEffect(() => {
     const prevSessionId = prevSessionIdRef.current;
     const currentSessionId = activeSessionId;
     if (prevSessionId && prevSessionId !== currentSessionId) {
       draftsRef.current[prevSessionId] = userInputMessageRef.current;
+      setEditingMsgId(null);
+      setEditingMsgContent("");
+      setMsgMenuId(null);
     }
     if (currentSessionId) {
       setUserInputMessage(draftsRef.current[currentSessionId] || "");
@@ -98,10 +105,6 @@ export function useChatUI(params: {
     }
     prevSessionIdRef.current = currentSessionId;
   }, [activeSessionId]);
-
-  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
-  const [editingMsgContent, setEditingMsgContent] = useState("");
-  const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
 
   const [isBisonLocking, setIsBisonLocking] = useState(false);
   const bisonRemainingCountRef = React.useRef<number>(0);

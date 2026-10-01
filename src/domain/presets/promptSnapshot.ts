@@ -114,9 +114,11 @@ export function createLegacyCompositionSnapshot(config: PresetPromptConfig | und
       originalIdentifier: prompt.identifier || prompt.id,
     },
   }));
+  const rawMainPrompt = (config as { mainPrompt?: unknown })?.mainPrompt;
+  const legacyMainPrompt = typeof rawMainPrompt === "string" ? rawMainPrompt : "";
   return {
     ...composition,
-    id: `composition_legacy_${sanitizeBlockId(config?.mainPrompt?.slice(0, 24) || "preset")}`,
+    id: `composition_legacy_${sanitizeBlockId(legacyMainPrompt.slice(0, 24) || "preset")}`,
     name: "传统预设迁移快照",
     blocks: [
       ...composition.blocks.slice(0, 4),

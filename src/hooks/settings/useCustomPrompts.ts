@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { useCallback } from "react";
 import { UserSettings } from "../../types";
+import { applyLegacyPromptRemoval, applyLegacyPromptSwitch } from "../../application/useCases/promptSwitchSync";
 
 interface UseCustomPromptsDeps {
   settings: UserSettings;
@@ -34,17 +35,17 @@ export const useCustomPrompts = ({
   setExpandedPromptIds,
   showCustomConfirm,
 }: UseCustomPromptsDeps): UseCustomPromptsReturn => {
+  /**
+   * 列表侧开关。
+   *
+   * 必须走函数式通道（值形式会被 getNestedDelta + deepMerge 撤销数组/字段级删除语义），
+   * 并同步同源编排区块：列表与编排放任一处关闭，两侧与运行时都必须一致。
+   */
   const handleToggleCustomPrompt = useCallback((id: string, enabled: boolean) => {
-    updateSettings((prev) => {
-      const list = prev.promptConfig.customPrompts || [];
-      const updated = list.map((item) =>
-        item.id === id ? { ...item, enabled } : item,
-      );
-      return {
-        ...prev,
-        promptConfig: { ...prev.promptConfig, customPrompts: updated },
-      };
-    });
+    updateSettings((prev) => ({
+      ...prev,
+      promptConfig: applyLegacyPromptSwitch(prev.promptConfig, id, enabled),
+    }));
   }, [updateSettings]);
 
   const handleUpdateCustomPrompt = useCallback((
@@ -53,9 +54,6 @@ export const useCustomPrompts = ({
     role: "system" | "user" | "assistant",
     content: string,
   ) => {
-    // 现行实现统一把提示词区块写作 system 角色；`role` 参数保留为调用方签名，
-    // 实际写入值见下方 `role: "system"`（角色归一化由出厂迁移负责）。
-    void role;
     updateSettings((prev) => {
       const list = prev.promptConfig.customPrompts || [];
       const updated = list.map((item) =>
@@ -91,17 +89,19 @@ export const useCustomPrompts = ({
     });
   }, [setExpandedPromptIds, updateSettings]);
 
+  /**
+   * 列表侧删除。
+   *
+   * 必须连带删除同源的编排区块：只删列表会让条目在编排模式下既不生效、又和已被删掉的区块对不上。
+   * 编排侧若开着编辑器仍可从它的撤销栈整份还原，列表侧本身不提供撤销。
+   */
   const handleDeleteCustomPrompt = useCallback(async (id: string) => {
-    const ok = await showCustomConfirm("确定删除这个自定义预设指令组件吗？");
+    const ok = await showCustomConfirm("确定删除这个自定义预设指令组件吗？编排中的同源区块会一并删除。");
     if (!ok) return;
-    updateSettings((prev) => {
-      const list = prev.promptConfig.customPrompts || [];
-      const updated = list.filter((item) => item.id !== id);
-      return {
-        ...prev,
-        promptConfig: { ...prev.promptConfig, customPrompts: updated },
-      };
-    });
+    updateSettings((prev) => ({
+      ...prev,
+      promptConfig: applyLegacyPromptRemoval(prev.promptConfig, [id]),
+    }));
   }, [showCustomConfirm, updateSettings]);
 
   return {

@@ -174,24 +174,24 @@ export default function PersonaConfigSection({
                     )}
                   </div>
                   {isPersonaActive ? (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       当前生效
                     </span>
                   ) : isPersonaSelected ? (
-                    <span className="inline-flex items-center rounded-md bg-primary/20 border border-primary/30 px-1.5 py-0.5 text-[9px] font-bold text-primary">
+                    <span className="inline-flex items-center rounded-md bg-primary/20 border border-primary/30 px-1.5 py-0.5 text-[10px] font-semibold text-primary font-mono">
                       编辑中
                     </span>
                   ) : (
-                    <span className="text-[9px] text-muted-foreground/80">点击切换</span>
+                    <span className="text-[10px] font-mono text-muted-foreground/80">点击切换</span>
                   )}
                 </div>
 
                 <div className="min-w-0 w-full">
-                  <span className="text-xs font-bold text-foreground truncate block">
+                  <span className="text-xs sm:text-[13px] font-bold text-foreground truncate block">
                     {persona.name || "未命名"}
                   </span>
-                  <p className="text-[10px] text-muted-foreground/80 truncate mt-0.5 leading-tight">
+                  <p className="text-[11px] text-muted-foreground/80 truncate mt-0.5 leading-relaxed">
                     {persona.description?.trim() || "未填写人设描述"}
                   </p>
                 </div>

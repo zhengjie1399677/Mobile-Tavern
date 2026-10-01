@@ -576,6 +576,57 @@ Renderer、Theme Token 和稳定组件描述，使生成结果能够跨版本验
 离线本地态仍是默认权威来源。远程模式不能隐式把本地数据变成云端数据；同步、冲突解决、远端删除、
 设备丢失、会话可重放性和附件传输都必须作为独立数据方案设计，不能由通用 RPC 顺带承担。
 
+**当前落地状态（2026-09-14）**：已落地「宿主与互联」设置分区的 Stage 0，只包含监听绑定配置与连通性探测，
+不构成上表中的任何完整部署形态：
+
+- `src/utils/hostBindingPolicy.ts` 是监听策略的唯一来源，同时被设置界面与 `headless/config.ts` 启动闸门使用；
+  界面判定 `allowed === false` 与宿主进程拒绝启动严格等价，避免出现"界面说能启动、进程却拒绝"的错位。
+- 设置界面可以生成宿主机的 `.env` 启动块，并探测远端 `/health` 与 `/api/host/status`，把失败区分为
+  地址非法、凭据被拒、不可达、非本机宿主四类。
+- 数据同步、远程会话、TLS、配对与凭据轮换均未实现，界面已明示远程模式"还不能当作日常使用形态"。
+  这些属于 §11.6 立项范围，需先定义 `shared/` Host Protocol，不得在本阶段顺带引入。
+- 手机端仍然是嵌入模式：不是宿主进程，也不能作为宿主运行（后台 JS 运行时会被系统暂停）。
+
+**当前落地状态（2026-09-14，Stage 1 覆盖式快照同步）**：
+
+- 新增 `src/application/useCases/backupPayloadRestore.ts`：备份文本的不可信边界收口（解密、签名校验、结构校验、逐项清洗、默认设置回落）。
+  本地文件导入与宿主拉取共用同一入口，避免"一处收紧了、另一处还松着"。
+- 新增 `src/application/useCases/hostSnapshotSync.ts`：覆盖式同步编排。**同步不是合并，后写者生效**；
+  界面必须明示该语义，覆盖前二次确认并自动留存安全快照。
+- 设置不跨设备覆盖：拉取时接收端（手机）保留自己的 `settings`；推送时由宿主经
+  `POST /api/host/backup/import?preserveSettings=true` 保留自己的 `settings`。
+  这条约束必须由**接收端**执行 —— 备份导出整体脱敏（apiKey 为空），任何"由发送端携带接收端设置"的写法
+  都会清空接收端凭据；该缺陷由 `tests/vitest/hostSnapshotE2E.test.ts` 的真实宿主用例守住。
+- 这是 Host Protocol 的第一处向后兼容扩展：不带参数时行为与既有导入完全一致。
+- 手机端设置界面在「记忆与数据 → 备份」下新增宿主同步卡片；未配置远程宿主时引导前往「宿主与互联」。
+- 仍未实现：冲突合并、增量同步、TLS、配对与凭据轮换、远程会话。当前同步仅为"手工触发的整体覆盖"。
+
+**当前落地状态（2026-09-14，Stage 2 合并式同步）**：
+
+- 新增 `src/domain/sync/tombstones.ts` 与 `sync_tombstones` Store（DB v16 → v17）：三条删除路径
+  （会话级联、单条消息、重发分支替换）在同一个 IndexedDB 事务内写入墓碑，避免出现"记录已删、
+  墓碑未写"的不可传播窗口。备份信封 `UnifiedBackupPayload` 升级到 v7 承载墓碑；v6 及更早备份
+  读取为空集合，语义 = 未记录删除，与既有导入行为一致。
+- 新增 `src/application/useCases/backupMerge.ts` 合并纯函数，三条不变量：①收敛 —— 裁决规则不依赖
+  "谁是本地"，交换参数结果完全相同；②删除可传播 —— 墓碑命中的实体一律移除，被复活（记录时间晚于
+  删除时间）的实体同时剔除墓碑；③纯函数 —— 不读写存储、不发网络请求，界面可先预览再落库。
+  `settings` 永远取接收端一侧；会话被删除时其记忆分轨与 Agent Journal 一并移除（宿主校验孤儿会拒绝
+  整次导入）；消息按 id 求并集后按 (timestamp, id) 重排轮次。
+- 新增合并写入通道 `src/infrastructure/storage/repositories/mergeRepository.ts`：落库不再清空整个
+  数据库，只按差集删除"合并结果里已不存在"的实体；墓碑集合作为权威整体覆盖本地。
+  `DataMigrationService.mergeFromBackup` 与 `replaceFromBackup` 共用附件反向引用校验与失败回滚。
+- Host Protocol 第二处向后兼容扩展：`POST /api/host/backup/import?mode=merge`。合并必须在**宿主侧**
+  完成 —— 宿主快照导出是脱敏的，只有宿主读得到自己未脱敏的设置当 local；合并模式无条件保留宿主设置，
+  不再依赖 `?preserveSettings`。宿主在合并前于网络边界校验墓碑结构，异常直接拒绝。
+- 同步界面：`HostBindingSettings.syncMode`（**默认合并；"未设置"同样解释为合并，绝不回落成覆盖**）
+  与 `syncPreviewEnabled`（默认开启合并预览；关闭后直接执行但仍留存安全快照；覆盖模式不受该开关
+  影响，永远二次确认）。合并结果与现状一致时短路提示"无需同步"。推送预览用探测快照在客户端复刻
+  宿主的同一计算，预览信封只取统计、绝不回发（其 settings 是本机值）。
+- 真实宿主端到端用例（`tests/vitest/hostSnapshotE2E.test.ts`）钉住合并三性质：宿主独有内容不丢、
+  对端新增内容并入、对端墓碑在宿主生效，且宿主 API Key 全程未被同步改动。
+- 仍未实现：增量传输（每次同步仍传整个备份信封，附件 base64 内联）、自动/定时同步、加密快照同步、
+  TLS、配对与凭据轮换、协议版本化（`shared/` Host Protocol）、远程会话 → §11.6 立项。
+
 ### 11.5 稳定 Host Protocol 与 AI 生成 Adapter
 
 AI 可以根据外部软件的 HTTP、WebSocket、MCP 或专有协议即时生成 Connector Adapter，但不能为每次连接

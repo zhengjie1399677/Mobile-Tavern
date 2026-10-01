@@ -78,6 +78,62 @@ function ManagedFocusHarness() {
   );
 }
 
+/** 区块与提示词列表条目同源（按 originalIdentifier 对应），用于验证删除的连带效果与撤销还原。 */
+function LinkedPromptHarness() {
+  const [settings, setSettings] = useState<UserSettings>(() => {
+    const initial = structuredClone(DEFAULT_SETTINGS);
+    initial.promptConfig.usePromptComposition = true;
+    initial.promptConfig.composition = {
+      id: "linked-composition",
+      name: "同源编排",
+      version: 1,
+      blocks: [{
+        id: "st_pov",
+        name: "视角约束",
+        enabled: true,
+        role: "system",
+        source: { type: "template" },
+        template: "第三人称叙述",
+        order: 100,
+        placement: { type: "ordered" },
+        compatibility: { source: "sillytavern", originalIdentifier: "pov" },
+      }, {
+        id: "st_untouched",
+        name: "无关区块",
+        enabled: true,
+        role: "system",
+        source: { type: "template" },
+        template: "无关内容",
+        order: 200,
+        placement: { type: "ordered" },
+      }],
+    };
+    initial.promptConfig.customPrompts = [{
+      id: "pov",
+      identifier: "pov",
+      name: "视角约束",
+      role: "system",
+      content: "第三人称叙述",
+      enabled: true,
+    }, {
+      id: "other",
+      name: "无关条目",
+      role: "system",
+      content: "无关内容",
+      enabled: true,
+    }];
+    return initial;
+  });
+  return (
+    <>
+      <PromptCompositionEditor settings={settings} updateSettings={setSettings} />
+      <output data-testid="linked-state">
+        {JSON.stringify(settings.promptConfig.customPrompts?.map((item) => item.id))}
+      </output>
+    </>
+  );
+}
+
 describe("PromptCompositionEditor", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", {
@@ -299,6 +355,32 @@ function openAdvancedIfPresent() {
 
     fireEvent.click(screen.getByRole("button", { name: "重做" }));
     expect(screen.queryByText("唯一消息")).not.toBeInTheDocument();
+  });
+
+  it("删除区块会连带删除同源的提示词列表条目，撤销时两侧一起还原", async () => {
+    render(<LanguageProvider><LinkedPromptHarness /></LanguageProvider>);
+    openAdvancedIfPresent();
+    expect(screen.getByTestId("linked-state")).toHaveTextContent('["pov","other"]');
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑区块：视角约束" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除区块" }));
+
+    await waitFor(() => expect(screen.queryByText("视角约束")).not.toBeInTheDocument());
+    expect(screen.getByTestId("linked-state")).toHaveTextContent('["other"]');
+
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    expect(screen.getByText("视角约束")).toBeInTheDocument();
+    expect(screen.getByTestId("linked-state")).toHaveTextContent('["pov","other"]');
+  });
+
+  it("删除无同源列表条目的区块时不动列表", async () => {
+    render(<LanguageProvider><LinkedPromptHarness /></LanguageProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑区块：无关区块" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除区块" }));
+
+    await waitFor(() => expect(screen.queryByText("无关区块")).not.toBeInTheDocument());
+    expect(screen.getByTestId("linked-state")).toHaveTextContent('["pov","other"]');
   });
 
   it("触屏拖动离开手柄后仍可把区块移动到新位置", () => {

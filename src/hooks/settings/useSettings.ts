@@ -125,6 +125,8 @@ export const useSettings = () => {
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    handlePullFromHost,
+    handlePushToHost,
     handleSilentDailyBackup,
   } = useBackupRestore({
     settings,
@@ -192,6 +194,8 @@ export const useSettings = () => {
     handleExportLocalDataBackup,
     handleImportLocalDataBackup,
     handleImportSillyChatHistory,
+    handlePullFromHost,
+    handlePushToHost,
     handleSilentDailyBackup,
     customWorldbooks,
     updateCustomWorldbooks,
