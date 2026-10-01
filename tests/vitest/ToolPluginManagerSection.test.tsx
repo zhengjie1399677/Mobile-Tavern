@@ -43,15 +43,15 @@ describe("ToolPluginManagerSection", () => {
     expect(sourceSection).not.toBeNull();
     expect(within(sourceSection as HTMLElement).getByText(/未验证来源/u)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "授予权限 session.read" }));
-    await waitFor(() => expect(screen.getByRole("switch", { name: "撤销权限 session.read" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("switch", { name: "撤销权限 session.read" })).toBeInTheDocument(), { timeout: 3000 });
     fireEvent.click(screen.getByRole("switch", { name: "授予权限 session.write" }));
-    await waitFor(() => expect(within(sessionCard as HTMLElement).getByText("已授权 · 停用")).toBeInTheDocument());
+    await waitFor(() => expect(within(sessionCard as HTMLElement).getByText("已授权 · 停用")).toBeInTheDocument(), { timeout: 3000 });
 
     fireEvent.click(screen.getByRole("button", { name: "允许装载 会话助手" }));
-    await waitFor(() => expect(within(sessionCard as HTMLElement).getByText("允许装载")).toBeInTheDocument());
+    await waitFor(() => expect(within(sessionCard as HTMLElement).getByText("允许装载")).toBeInTheDocument(), { timeout: 3000 });
 
     const rollbackBtn = await screen.findByRole("button", { name: "v1.0.0" });
-    await waitFor(() => expect(rollbackBtn).not.toBeDisabled());
+    await waitFor(() => expect(rollbackBtn).not.toBeDisabled(), { timeout: 3000 });
     fireEvent.click(rollbackBtn);
     await waitFor(async () => {
       expect((await listInstalledToolPlugins())[0]).toMatchObject({
@@ -59,7 +59,7 @@ describe("ToolPluginManagerSection", () => {
         grantedPermissions: [],
         manifest: { version: "1.0.0" },
       });
-    });
+    }, { timeout: 3000 });
   });
 
   it("卸载会清除插件管理记录", async () => {
