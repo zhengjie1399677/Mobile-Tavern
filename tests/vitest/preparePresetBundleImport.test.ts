@@ -374,6 +374,54 @@ describe("preparePresetBundleImport", () => {
     expect(result.bundle.legacyPromptConfig?.mainPrompt).toBe("");
     expect(result.bundle.legacyPromptConfig?.useMainPrompt).toBeUndefined();
   });
+
+  it("严格保护多选一与默认关闭预设条目的 enabled: false 状态，支持分层与扁平 prompt_order", () => {
+    const result = preparePresetBundleImport({
+      input: {
+        name: "multi-choice-styles",
+        prompts: [
+          { identifier: "style_novel", name: "文风（选一）|轻小说", content: "轻小说文风", role: "system", enabled: true },
+          { identifier: "style_prose", name: "文风（选一）|文学叙事", content: "文学叙事文风", role: "system", enabled: false },
+          { identifier: "style_dark", name: "文风（选一）|黑森森日轻", content: "暗黑日轻", role: "system", enabled: false },
+          { identifier: "no_relay", name: "不要转述", content: "禁止转述", role: "system" },
+        ],
+        prompt_order: [
+          {
+            character_id: 100001,
+            order: [
+              { identifier: "style_novel", enabled: true },
+              { identifier: "style_prose", enabled: false },
+              { identifier: "style_dark", enabled: false },
+              { identifier: "no_relay" }, // order 中未声明 enabled，回落到 prompt 或默认
+            ],
+          },
+        ],
+      },
+      fallbackName: "multi-choice-styles",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      neutralPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+
+    const customs = result.bundle.legacyPromptConfig?.customPrompts || [];
+    const styleNovel = customs.find((p) => p.identifier === "style_novel");
+    const styleProse = customs.find((p) => p.identifier === "style_prose");
+    const styleDark = customs.find((p) => p.identifier === "style_dark");
+
+    expect(styleNovel?.enabled).toBe(true);
+    expect(styleProse?.enabled).toBe(false);
+    expect(styleDark?.enabled).toBe(false);
+
+    // 编排模式下的 blocks 开关同步保持一致
+    const blocks = result.composition?.blocks || [];
+    const blockNovel = blocks.find((b) => b.compatibility?.originalIdentifier === "style_novel");
+    const blockProse = blocks.find((b) => b.compatibility?.originalIdentifier === "style_prose");
+    const blockDark = blocks.find((b) => b.compatibility?.originalIdentifier === "style_dark");
+
+    expect(blockNovel?.enabled).toBe(true);
+    expect(blockProse?.enabled).toBe(false);
+    expect(blockDark?.enabled).toBe(false);
+  });
 });
 
 function prepareFixture(id: string) {

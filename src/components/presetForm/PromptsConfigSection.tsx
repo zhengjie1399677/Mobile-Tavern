@@ -43,15 +43,12 @@ interface UnifiedPromptItem {
   type: "main" | "jailbreak" | "custom";
 }
 
-type FilterTab = "active" | "inactive" | "all";
-
 /**
  * 预设提示词配置：
- * - 过滤纯系统插槽锚点（marker === true），不再无脑平铺空卡片；
- * - 区分「生效中」与「备选模组库」，避免 140+ 项大平铺造成视觉过载；
+ * - 过滤纯系统插槽锚点（marker === true），不在模组列表平铺占位空卡片；
+ * - 完整展示所有已启用与未启用提示词，关闭时原地保留，对齐 SillyTavern 交互规范；
  * - 支持关键字实时搜索过滤；
- * - 支持角色选择（System / User / Assistant）与紧凑卡片渲染；
- * - 彻底取消“工作流画布”等假入口，专注纯粹高效的预设管理。
+ * - 支持角色选择（System / User / Assistant）与紧凑卡片渲染。
  */
 export default function PromptsConfigSection({
   settings,
@@ -69,7 +66,6 @@ export default function PromptsConfigSection({
   handleBatchDeletePrompts,
 }: PromptsConfigSectionProps) {
   const { t } = useTranslation();
-  const [filterTab, setFilterTab] = useState<FilterTab>("active");
   const [searchKeyword, setSearchKeyword] = useState("");
 
   // 将内置提示词与自定义提示词收拢为统一列表（过滤纯系统插槽锚点）
@@ -129,29 +125,16 @@ export default function PromptsConfigSection({
   const activeCount = useMemo(() => unifiedPrompts.filter((p) => p.enabled).length, [unifiedPrompts]);
   const inactiveCount = unifiedPrompts.length - activeCount;
 
-  // 根据当前 FilterTab 与搜索关键字筛选显示列表
+  // 根据搜索关键字筛选显示列表（平铺展示所有模组，关闭条目就地展示不隐藏）
   const displayedPrompts = useMemo(() => {
-    let result = unifiedPrompts;
-
-    // 1. 状态筛选
-    if (filterTab === "active") {
-      result = result.filter((p) => p.enabled);
-    } else if (filterTab === "inactive") {
-      result = result.filter((p) => !p.enabled);
-    }
-
-    // 2. 关键字搜索（名称或内容）
     const trimmed = searchKeyword.trim().toLowerCase();
-    if (trimmed) {
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(trimmed) ||
-          p.content.toLowerCase().includes(trimmed)
-      );
-    }
-
-    return result;
-  }, [unifiedPrompts, filterTab, searchKeyword]);
+    if (!trimmed) return unifiedPrompts;
+    return unifiedPrompts.filter(
+      (p) =>
+        p.name.toLowerCase().includes(trimmed) ||
+        p.content.toLowerCase().includes(trimmed)
+    );
+  }, [unifiedPrompts, searchKeyword]);
 
   const handleToggle = (item: UnifiedPromptItem, enabled: boolean) => {
     if (item.type === "main") {
@@ -231,7 +214,7 @@ export default function PromptsConfigSection({
           <div className="flex items-center gap-2 shrink-0 overflow-hidden">
             {isPromptsFolded && (
               <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[160px] sm:max-w-none">
-                生效: {activeCount} / 备选: {inactiveCount} / 共 {unifiedPrompts.length} 项
+                开启: {activeCount} / 未开启: {inactiveCount} / 共 {unifiedPrompts.length} 项
               </span>
             )}
             {isPromptsFolded ? (
@@ -245,47 +228,22 @@ export default function PromptsConfigSection({
 
       {!isPromptsFolded && (
         <CardContent className="pt-3 space-y-3">
-          {/* 统一工具栏：分类分段胶囊 + 搜索栏 + 新建与批量操作 */}
+          {/* 统一工具栏：状态统计 + 新建与批量操作 + 搜索栏 */}
           <div className="space-y-2">
             <div className="flex justify-between items-center flex-wrap gap-2">
-              {/* 分段筛选胶囊 */}
-              <div className="flex rounded-lg bg-muted/50 p-0.5 border border-border/40 text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setFilterTab("active")}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md transition-all text-xs",
-                    filterTab === "active"
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  生效中 ({activeCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterTab("inactive")}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md transition-all text-xs",
-                    filterTab === "inactive"
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  备选库 ({inactiveCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterTab("all")}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md transition-all text-xs",
-                    filterTab === "all"
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  全部 ({unifiedPrompts.length})
-                </button>
+              {/* 统计状态指示 */}
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/50 border border-border/40 text-[11px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  已开启 {activeCount}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/30 border border-border/30 text-[11px] font-mono text-muted-foreground/75">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
+                  未开启 {inactiveCount}
+                </span>
+                <span className="text-[11px] text-muted-foreground/60 hidden sm:inline-block">
+                  （共 {unifiedPrompts.length} 项）
+                </span>
               </div>
 
               {/* 右侧操作按钮 */}
@@ -374,9 +332,7 @@ export default function PromptsConfigSection({
               <span className="text-xs font-semibold">
                 {searchKeyword.trim()
                   ? "未找到匹配的提示词模组"
-                  : filterTab === "inactive"
-                    ? "备选库暂无未启用的模组"
-                    : t("prompts.no_modules")}
+                  : t("prompts.no_modules")}
               </span>
             </div>
           ) : (

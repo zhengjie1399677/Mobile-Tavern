@@ -188,11 +188,18 @@ export function analyzeSillyTavernPreset(input: unknown): SillyTavernPresetAnaly
       ? "core"
       : "full";
 
+  const promptByIdentifier = new Map(prompts.map((p, i) => [getIdentifier(p, i), p]));
+  const effectiveEnabledCount = effectiveOrder.filter((entry) => {
+    if (typeof entry.enabled === "boolean") return entry.enabled;
+    const prompt = promptByIdentifier.get(entry.identifier);
+    return prompt ? prompt.enabled !== false : true;
+  }).length;
+
   return {
     level,
     promptCount: prompts.length,
     orderedPromptCount: effectiveOrder.length,
-    enabledPromptCount: effectiveOrder.filter((entry) => entry.enabled).length,
+    enabledPromptCount: effectiveEnabledCount,
     markerCount: markers.length,
     unknownMarkerCount: unknownMarkers.length,
     inChatPromptCount: prompts.filter((prompt) => prompt.injection_position === 1).length,
@@ -367,14 +374,18 @@ export function readSillyTavernPresetPrompts(input: unknown): CustomPromptBlock[
 
   return identifiers.map((identifier) => {
     const prompt = promptByIdentifier.get(identifier) ?? {};
+    const orderEntry = orderByIdentifier.get(identifier);
+    const resolvedEnabled = typeof orderEntry?.enabled === "boolean"
+      ? orderEntry.enabled
+      : (typeof prompt.enabled === "boolean" ? prompt.enabled : true);
+
     return {
       id: readStringOrUndefined(prompt.id) ?? identifier,
       identifier,
       name: readStringOrUndefined(prompt.name) ?? "导入提示词模组",
       role: resolvePromptRole(readStringOrUndefined(prompt.role)),
       content: readStringOrUndefined(prompt.content) ?? "",
-      enabled: orderByIdentifier.get(identifier)?.enabled
-        ?? (order.length > 0 ? false : prompt.enabled !== false),
+      enabled: resolvedEnabled,
       marker: prompt.marker === true || undefined,
       system_prompt: typeof prompt.system_prompt === "boolean" ? prompt.system_prompt : undefined,
       injection_position: readOptionalNumber(prompt.injection_position),
@@ -434,7 +445,9 @@ function convertPrompt(
   const template = source.type === "chat_history"
     ? ""
     : rawContent || KNOWN_SOURCE_MACROS[identifier] || "";
-  let enabled = orderEnabled ?? (prompt.enabled !== false);
+  let enabled = typeof orderEnabled === "boolean"
+    ? orderEnabled
+    : (typeof prompt.enabled === "boolean" ? prompt.enabled : true);
   if (!template && source.type !== "chat_history" && !KNOWN_SOURCE_MACROS[identifier]) {
     enabled = false;
     warnings.push(warning("UNMAPPED_EMPTY_PROMPT", `Prompt“${identifier}”没有内容且不是已知数据源，已作为停用区块保留。`));
@@ -490,14 +503,31 @@ function resolvePromptRole(rawRole: string | undefined): PromptMessageRole {
 
 function readPromptOrder(value: unknown): SillyTavernPromptOrderEntry[] {
   if (!Array.isArray(value)) return [];
+
   const containers = value.filter((item) => isRecord(item) && Array.isArray(item.order));
-  const container = containers.find((item) =>
-    isRecord(item) && (item.character_id === 100001 || item.character_id === "100001")
-  ) ?? containers[0];
-  if (!isRecord(container) || !Array.isArray(container.order)) return [];
-  return container.order
+  if (containers.length > 0) {
+    const container = containers.find((item) =>
+      isRecord(item) && (item.character_id === 100001 || item.character_id === "100001") && Array.isArray(item.order) && item.order.length > 0
+    ) ?? containers.find((item) =>
+      isRecord(item) && (item.character_id === 100001 || item.character_id === "100001")
+    ) ?? containers.find((item) =>
+      isRecord(item) && Array.isArray(item.order) && item.order.length > 0
+    ) ?? containers[0];
+
+    if (!isRecord(container) || !Array.isArray(container.order)) return [];
+    return normalizeOrderEntries(container.order);
+  }
+
+  return normalizeOrderEntries(value);
+}
+
+function normalizeOrderEntries(entries: unknown[]): SillyTavernPromptOrderEntry[] {
+  return entries
     .filter(isRecord)
-    .map((item) => ({ identifier: readOptionalString(item.identifier), enabled: item.enabled !== false }))
+    .map((item) => ({
+      identifier: readOptionalString(item.identifier),
+      enabled: typeof item.enabled === "boolean" ? item.enabled : undefined,
+    }))
     .filter((item) => item.identifier);
 }
 

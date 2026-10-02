@@ -134,7 +134,7 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
     expect(screen.queryByText("chatHistory")).not.toBeInTheDocument();
   });
 
-  it("支持关键字搜索与生效中/备选库胶囊筛选", () => {
+  it("对齐 SillyTavern 交互：同屏完整展示全部模组，未开启项就地保留且支持关键字搜索", () => {
     const settings = structuredClone(DEFAULT_SETTINGS);
     settings.promptConfig.customPrompts = [
       {
@@ -155,24 +155,19 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
 
     render(<Harness initial={settings} />);
 
-    // 默认展示「生效中」，应该看到激活的文风模组，看不到备用的视角模组
-    expect(screen.getByText("激活的文风模组")).toBeInTheDocument();
-    expect(screen.queryByText("备用的视角模组")).not.toBeInTheDocument();
-
-    // 切换到「备选库」胶囊
-    fireEvent.click(screen.getByRole("button", { name: /备选库/ }));
-    expect(screen.getByText("备用的视角模组")).toBeInTheDocument();
-    expect(screen.queryByText("激活的文风模组")).not.toBeInTheDocument();
-
-    // 切换到「全部」胶囊
-    fireEvent.click(screen.getByRole("button", { name: /全部/ }));
+    // 对齐 SillyTavern：默认同屏完整展示全部模组，未开启模组就地展示且不隐藏
     expect(screen.getByText("激活的文风模组")).toBeInTheDocument();
     expect(screen.getByText("备用的视角模组")).toBeInTheDocument();
 
-    // 搜索框过滤
+    // 搜索框实时过滤
     const searchInput = screen.getByPlaceholderText(/搜索提示词/);
     fireEvent.change(searchInput, { target: { value: "第二人称" } });
     expect(screen.getByText("备用的视角模组")).toBeInTheDocument();
     expect(screen.queryByText("激活的文风模组")).not.toBeInTheDocument();
+
+    // 清空搜索框后恢复全量平铺
+    fireEvent.change(searchInput, { target: { value: "" } });
+    expect(screen.getByText("激活的文风模组")).toBeInTheDocument();
+    expect(screen.getByText("备用的视角模组")).toBeInTheDocument();
   });
 });
