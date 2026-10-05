@@ -35,7 +35,11 @@ export function preparePresetBundleExport(
     : undefined;
   const traditionalPrompts = promptConfig.customPrompts ?? [];
   const promptData = compositionExport?.data ?? {
-    prompts: traditionalPrompts.map((prompt) => ({ ...prompt })),
+    prompts: traditionalPrompts.map((prompt) => ({
+      ...prompt,
+      // 展开之后再兜底，避免显式 `identifier: undefined/null` 覆盖回退值。
+      identifier: prompt.identifier || prompt.id,
+    })),
     prompt_order: [{
       character_id: 100001,
       order: traditionalPrompts.map((prompt) => ({

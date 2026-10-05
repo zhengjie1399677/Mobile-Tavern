@@ -277,7 +277,7 @@ someAsyncOp().then(() => {
 
 ### Prompt 预设与最终消息包
 
-- 预设实体的当前版本是 `PresetBundleV2`（`schemaVersion: 2`）：`prompt` 快照（`version`/`mode`/`source`/`composition`）是**唯一 Prompt 权威**，传统 Prompt 字段降级为只读兼容块 `legacyPromptConfig`，未识别字段进 `extensions` 保真保存。v2 记录必须通过实体 Zod 校验；运行期只能经唯一投影 `projectPresetActivation` 消费，自由编排改造成工作画布时它是唯一需要改写的适配点。
+- 预设实体的当前版本是 `PresetBundleV2`（`schemaVersion: 2`）：`prompt` 快照（`version`/`mode`/`source`/`composition`）是**唯一 Prompt 权威**，传统 Prompt 字段降级为只读兼容块 `legacyPromptConfig`，未识别字段进 `extensions` 保真保存。v2 记录必须通过实体 Zod 校验；运行期只能经唯一投影 `projectPresetActivation` 消费，编排运行模式后续演进时它是唯一需要改写的适配点。自由编排工作台已移除，导入预设固定以 `legacy` 模式运行。
 - v1 记录（`SavedPresetBundle`）只能经 `domain/presets/bundleMigration` 读取迁移：构造候选 → 实体 schema 校验 → 逐级降级修复 → 记录诊断。存储边界必须"能读就不能失效"，禁止用 `parse` 抛错让整份预设列表失效，也禁止静默丢字段；只有导入边界允许 fail-closed。
 - `SavedPresetBundle.promptPlan`（版本 `1`）是历史 v1 快照：`mode` 明确区分 `legacy` 与 `composition`，`source` 只记录来源，不参与通用编译；`composition` / `usePromptComposition` 仅作为读取降级字段，完全缺少快照的旧预设必须回到 `legacy`，不能继承当前预设模式。这些 v1 规则由领域层 `domain/presets/promptSnapshot` 承担，v1 读取与 v1→v2 迁移共用同一实现。
 - 启动期预设引导是无 IO 用例：内置预设列表始终以出厂内容重建并置于列表末尾，自定义预设保持原样；`settings.savedPresets` 只在 `saved_presets_bundle` 缺失时继承一次。出厂内容迁移只作用于内置预设。

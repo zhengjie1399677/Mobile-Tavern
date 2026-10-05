@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   CURRENT_PRESET_FACTORY_REVISION,
   LEGACY_FORMAT_PRESET_ID,
-  TABLE_MEMORY_PROMPT_MARKER,
   readExternalPresetDefaults,
   resolveBuiltinPreset,
   resolvePresetBootstrap,
@@ -93,7 +92,7 @@ function makeStoredSettings(overrides: Partial<PresetBootstrapInput["storedSetti
       storyString: "BUILTIN_STORY",
       postHistoryPrompt: "BUILTIN_PH",
       reasoningGuidancePrompt: "BUILTIN_RG",
-      tableMemoryPrompt: `${TABLE_MEMORY_PROMPT_MARKER}内容`,
+      tableMemoryPrompt: "【状态与结构化记忆引擎】内容",
       customPrompts: [{ id: "prompt_a", name: "区块 A", role: "system", content: "AAA", enabled: true }],
     }),
     ...overrides,
@@ -215,22 +214,21 @@ describe("resolvePresetBootstrap 预设列表", () => {
     expect(codes(result)).toContain("legacy-saved-presets-key-migrated");
   });
 
-  it("内置预设始终以出厂内容重建，自定义预设保持原样并排在前", () => {
-    const staleBuiltin = {
+  it("自带预设已降级为普通预设，存储中的修改得到保留，不被出厂模板强制覆盖", () => {
+    const modifiedBuiltin = {
       ...COMPILED_BUILTIN,
-      legacyPromptConfig: makePromptConfig({ mainPrompt: "STALE_MAIN" }),
+      legacyPromptConfig: makePromptConfig({ mainPrompt: "USER_MODIFIED_MAIN" }),
     };
     const customPreset = makeCustomPreset();
 
     const result = boot({
       storedSettings: makeStoredSettings(),
-      storedPresets: [customPreset, staleBuiltin],
+      storedPresets: [customPreset, modifiedBuiltin],
     });
 
     expect(result.savedPresets.map((preset) => preset.id)).toEqual([customPreset.id, COMPILED_BUILTIN.id]);
-    expect(result.savedPresets[1].legacyPromptConfig?.mainPrompt).toBe("BUILTIN_MAIN");
-    expect(result.presetsDirty).toBe(true);
-    expect(codes(result)).toContain("builtin-preset-rebuilt");
+    expect(result.savedPresets[1].legacyPromptConfig?.mainPrompt).toBe("USER_MODIFIED_MAIN");
+    expect(result.presetsDirty).toBe(false);
   });
 
   it("旧版本注入的遗留预设被清理", () => {
@@ -280,28 +278,22 @@ describe("resolvePresetBootstrap 预设列表", () => {
 });
 
 describe("resolvePresetBootstrap 出厂内容迁移边界", () => {
-  it("内置预设生效时，旧出厂主提示词整块升级并清掉旧运行期字段", () => {
+  it("默认预设降级为普通预设，生效时不强行升级覆盖用户已有主提示词", () => {
     const result = boot({
       storedSettings: {
         preset: { id: COMPILED_BUILTIN.sampler.id },
         promptConfig: makePromptConfig({
-          mainPrompt: "旧内容 [NARRATIVE ENGINE: 摘要",
+          mainPrompt: "用户已有内容",
           postHistoryPrompt: "OLD_PH",
-          usePostHistory: true,
-          enableReasoningGuidance: true,
-          reasoningGuidancePrompt: "OLD_RG",
           tableMemoryPrompt: "OLD_TABLE",
         }),
       },
     });
 
-    expect(result.promptConfig.mainPrompt).toBe("BUILTIN_MAIN");
-    expect(result.promptConfig.postHistoryPrompt).toBe("BUILTIN_PH");
-    expect(result.promptConfig.reasoningGuidancePrompt).toBe("BUILTIN_RG");
-    expect(result.promptConfig.tableMemoryPrompt).toBe("FACTORY_TABLE_MEMORY");
-    expect(result.promptConfig.usePostHistory).toBeUndefined();
-    expect(result.promptConfig.enableReasoningGuidance).toBeUndefined();
-    expect(codes(result)).toContain("legacy-default-prompt-upgraded");
+    expect(result.promptConfig.mainPrompt).toBe("用户已有内容");
+    expect(result.promptConfig.postHistoryPrompt).toBe("OLD_PH");
+    expect(result.promptConfig.tableMemoryPrompt).toBe("OLD_TABLE");
+    expect(codes(result)).not.toContain("legacy-default-prompt-upgraded");
   });
 
   it("已盖上当前出厂修订标记时不再按文本特征识别旧出厂提示词", () => {
@@ -319,16 +311,16 @@ describe("resolvePresetBootstrap 出厂内容迁移边界", () => {
     expect(result.presetFactoryRevision).toBe(CURRENT_PRESET_FACTORY_REVISION);
   });
 
-  it("缺少出厂修订标记时执行一次识别并盖上新标记", () => {
+  it("缺少出厂修订标记时盖上新标记，不改写提示词", () => {
     const result = boot({
       storedSettings: {
         preset: { id: COMPILED_BUILTIN.sampler.id },
-        promptConfig: makePromptConfig({ mainPrompt: "[系统核心任务：旧内容" }),
+        promptConfig: makePromptConfig({ mainPrompt: "我的提示词" }),
       },
     });
 
     expect(result.presetFactoryRevision).toBe(CURRENT_PRESET_FACTORY_REVISION);
-    expect(codes(result)).toContain("legacy-default-prompt-upgraded");
+    expect(result.promptConfig.mainPrompt).toBe("我的提示词");
     expect(result.settingsDirty).toBe(true);
   });
 
@@ -365,7 +357,7 @@ describe("resolvePresetBootstrap 出厂内容迁移边界", () => {
     expect(result.promptConfig.useMainPrompt).toBe(false);
   });
 
-  it("内置预设缺失出厂区块时补齐，并记录出厂迁移诊断", () => {
+  it("自带预设缺失出厂区块时不强行补齐注入，保持用户设定纯粹", () => {
     const result = boot({
       storedSettings: {
         preset: { id: COMPILED_BUILTIN.sampler.id },
@@ -373,8 +365,8 @@ describe("resolvePresetBootstrap 出厂内容迁移边界", () => {
       },
     });
 
-    expect(result.promptConfig.customPrompts?.map((prompt) => prompt.id)).toEqual(["prompt_a"]);
-    expect(codes(result)).toContain("factory-prompt-migration-applied");
+    expect(result.promptConfig.customPrompts).toEqual([]);
+    expect(codes(result)).not.toContain("factory-prompt-migration-applied");
   });
 
   it("外部静态文件一旦生效就要求归一化一次", () => {

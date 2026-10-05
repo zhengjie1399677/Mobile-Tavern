@@ -35,7 +35,7 @@ describe("PresetSelectorSection", () => {
     localStorage.removeItem("mobile_tavern_language");
   });
 
-  it("内置预设不可覆盖，但保存入口会说明改用另存副本，删除保持禁用", async () => {
+  it("出厂预设与普通预设一致：可覆盖保存，仅最后一份预设受删除保护", async () => {
     const user = userEvent.setup();
     const handlers = createHandlers();
     renderSection(
@@ -49,9 +49,10 @@ describe("PresetSelectorSection", () => {
 
     const saveButton = screen.getByRole("button", { name: SAVE_LABEL });
     expect(saveButton).toBeEnabled();
-    expect(saveButton).toHaveAttribute("title", expect.stringContaining("另存为"));
+    expect(saveButton).toHaveAttribute("title", expect.stringContaining("保存修改到当前预设"));
     await user.click(saveButton);
     expect(handlers.handleSaveCurrentPresetBundle).toHaveBeenCalledTimes(1);
+    // 出厂预设没有特权：删除入口只因"只剩最后一份预设"而被禁用。
     expect(screen.getByRole("button", { name: DELETE_LABEL })).toBeDisabled();
   });
 

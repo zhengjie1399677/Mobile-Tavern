@@ -117,6 +117,8 @@ export interface Message {
   reasoningContent?: string; // Reasoning content for thinking process
   swipes?: string[];
   swipe_id?: number;
+  swipeIndex?: number;
+  swipeReasonings?: string[];
   extra?: Record<string, any>;
   variables?: Record<string, any>;
   /** messages Store 中的绝对顺序；分页、分支与记忆边界统一使用该值。 */
@@ -252,6 +254,7 @@ export interface CustomPromptBlock {
   content: string;
   enabled: boolean;
   identifier?: string;
+  order?: number;
   marker?: boolean;
   system_prompt?: boolean;
   injection_position?: number;
@@ -434,12 +437,11 @@ export interface UserSettings {
   /**
    * 出厂内容修订标记（见 `useCases/presetBootstrap` 的 `CURRENT_PRESET_FACTORY_REVISION`）。
    *
-   * 缺少该字段表示旧数据，启动引导会做一次兜底识别并写回；已是当前值时引导不再按文本
-   * 特征扫描或改写用户可见提示词。
+   * 缺少该字段表示旧数据，启动引导会归一化并写回一次；已是当前值时不再重复写库。
+   * 启动引导不包含任何出厂提示词迁移或文本特征扫描，预设内容一律原样保留。
    */
   presetFactoryRevision?: number;
   enableHtmlRendering?: boolean; // Render exact HTML/CSS from AI output
-  enablePromptComposition?: boolean; // 是否启用实验性 Prompt 自由组装 (默认 false)
   expressionTriggers?: Record<string, string>;
   enableScriptExecution?: boolean; // Toggle to execute custom interactive iframe scripts
   /**

@@ -1,50 +1,32 @@
-import { useMemo } from "react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import { useKernel } from "../../contexts/KernelContext";
-import type { IPromptService } from "@/src/application/serviceContracts";
-import type { CharacterCard, ChatSession, UserSettings, LorebookEntry } from "../../types";
 import { usePresetFormState } from "./usePresetFormState";
 import PresetSelectorSection from "./PresetSelectorSection";
 import SamplersSection from "./SamplersSection";
 import PromptsConfigSection from "./PromptsConfigSection";
-import PromptCompositionEditor from "./PromptCompositionEditor";
 import RegexManagementSection from "./RegexManagementSection";
 
 /**
  * 预设表单组合根：
  * 从全局 Context 取出 settings/handlers，交给 usePresetFormState 集中管理局部状态，
- * 再向下分发给四个 Section 子组件，本身不持有任何业务逻辑。
- *
- * 路径兼容：外部 `import PresetForm from "../components/PresetForm"` 经原文件 barrel
- * re-export 后，最终解析到本文件的默认导出，导入路径零变更。
+ * 再向下分发给四个核心 Section 子组件（预设选择、采样参数、提示词配置、正则脚本）。
  */
-export type PresetFormSection = "preset" | "samplers" | "prompts" | "regex" | "composer";
+export type PresetFormSection = "preset" | "samplers" | "prompts" | "regex";
 
 interface PresetFormProps {
   sections?: PresetFormSection[];
-  /**
-   * 可选：跳转到「自由 Prompt 编排」分类（SettingsTab 提供）。
-   * 预设界面提示词配置区的区块高级编辑收敛到编排页后，用此入口引导用户前往。
-   */
-  onOpenComposer?: () => void;
 }
 
 export default function PresetForm({
   sections = ["preset", "samplers", "prompts", "regex"],
-  onOpenComposer,
 }: PresetFormProps) {
   const showPreset = sections.includes("preset");
   const showSamplers = sections.includes("samplers");
   const showPrompts = sections.includes("prompts");
   const showRegex = sections.includes("regex");
-  const showComposer = sections.includes("composer");
-  const kernel = useKernel();
-  const promptService = kernel.getService<IPromptService<CharacterCard, ChatSession, UserSettings, LorebookEntry>>("prompt");
+
   const {
     settings,
     updateSettings,
-    settingsSaveState,
-    settingsLastSavedAt,
     handleImportPresetJSON,
     handleExportPresetJSON,
     handleSaveNewPresetBundle,
@@ -59,17 +41,10 @@ export default function PresetForm({
     showCustomConfirm,
     showCustomAlert,
     activeCharacter,
-    activeSession,
-    characters,
-    globalLorebook,
-    customWorldbooks,
-    lastRecalledMemories,
     saveCharacter,
   } = useUnifiedApp((state) => ({
     settings: state.settings,
     updateSettings: state.updateSettings,
-    settingsSaveState: state.settingsSaveState,
-    settingsLastSavedAt: state.settingsLastSavedAt,
     handleImportPresetJSON: state.handleImportPresetJSON,
     handleExportPresetJSON: state.handleExportPresetJSON,
     handleSaveNewPresetBundle: state.handleSaveNewPresetBundle,
@@ -84,11 +59,6 @@ export default function PresetForm({
     showCustomConfirm: state.showCustomConfirm,
     showCustomAlert: state.showCustomAlert,
     activeCharacter: state.activeCharacter,
-    activeSession: state.activeSession,
-    characters: state.characters,
-    globalLorebook: state.globalLorebook,
-    customWorldbooks: state.customWorldbooks,
-    lastRecalledMemories: state.lastRecalledMemories,
     saveCharacter: state.saveCharacter,
   }));
 
@@ -136,47 +106,6 @@ export default function PresetForm({
     saveCharacter,
   });
 
-  const promptCompositionPreview = useMemo(() => {
-    if ((!showPrompts && !showComposer) || !activeCharacter || !activeSession || !settings.promptConfig.composition) return undefined;
-    const otherCharacterEntries = characters
-      .filter((character) => character.isWorldbookGlobal && character.id !== activeCharacter.id)
-      .flatMap((character) => character.lorebookEntries || []);
-    const customEntries = Object.values(customWorldbooks || {})
-      .filter((worldbook) => worldbook.enabled)
-      .flatMap((worldbook) => worldbook.entries || []);
-    const result = promptService.assemblePrompt({
-      character: activeCharacter,
-      chat: activeSession,
-      userInput: "",
-      settings: {
-        ...settings,
-        promptConfig: { ...settings.promptConfig, usePromptComposition: true },
-      },
-      globalLorebook: [...globalLorebook, ...otherCharacterEntries, ...customEntries],
-      recalledMemories: lastRecalledMemories,
-    });
-    const messages = result.messages || [];
-    return {
-      messages,
-      diagnostics: result.diagnostics || [],
-      traces: result.traces || [],
-      budget: result.budget,
-      estimatedTokens: messages.reduce((total, message) => total + promptService.estimateTokens(message.content), 0),
-      contextAvailable: true,
-    };
-  }, [
-    activeCharacter,
-    activeSession,
-    characters,
-    customWorldbooks,
-    globalLorebook,
-    lastRecalledMemories,
-    promptService,
-    settings,
-    showComposer,
-    showPrompts,
-  ]);
-
   return (
     <div className="space-y-2.5">
       {/* 1. 预设选择与管理 */}
@@ -204,7 +133,7 @@ export default function PresetForm({
         />
       )}
 
-      {/* 3. 提示词配置（核心 + 自定义模组） */}
+      {/* 3. 提示词配置（核心系统指令 + 模块化自定义库） */}
       {showPrompts && (
         <PromptsConfigSection
           settings={settings}
@@ -222,24 +151,6 @@ export default function PresetForm({
           isBatchDeletingPrompts={isBatchDeletingPrompts}
           setIsBatchDeletingPrompts={setIsBatchDeletingPrompts}
           handleBatchDeletePrompts={handleBatchDeletePrompts}
-          onOpenComposer={onOpenComposer}
-        />
-      )}
-
-      {/* 横屏专注模式只挂载编排器本体，不展示设置分类、正则或外层卡片。 */}
-      {showComposer && (
-        <PromptCompositionEditor
-          settings={settings}
-          updateSettings={updateSettings}
-          preview={promptCompositionPreview}
-          saveState={settingsSaveState}
-          lastSavedAt={settingsLastSavedAt}
-          savedPresets={settings.savedPresets}
-          activeBundleId={activeBundleId}
-          isActivePresetDirty={isActivePresetDirty}
-          onLoadPreset={handleLoadPresetBundle}
-          onSaveCurrentPreset={handleSaveCurrentPresetBundle}
-          onSaveNewPreset={handleSaveNewPresetBundle}
         />
       )}
 

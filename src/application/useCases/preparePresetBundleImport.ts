@@ -18,6 +18,7 @@ import type {
 } from "../../domain/prompt-composition";
 import { parsePromptComposition } from "../../domain/prompt-composition";
 import type { CompatibilityCodecDefinition } from "../compatibility/contracts";
+import { dedupeTopLevelPromptBlocks } from "../../domain/prompts/promptSourceBlocks";
 import { toPresetPromptConfig } from "./presetPromptConfig";
 import { parseMobileTavernPresetExtension } from "./presetRuntimeNamespace";
 
@@ -279,7 +280,12 @@ function preparePromptConfig(
   const jailbreakPrompt = readString(data.jailbreak_prompt) ?? readString(data.jailbreakPrompt) ?? "";
   const postHistoryPrompt = readString(data.post_history_instructions) ?? readString(data.postHistoryPrompt) ?? "";
   const storyString = readString(data.story_string) ?? readString(data.storyString) ?? "";
-  const customPrompts = readCodecPresetPrompts(codec, data);
+  // 导入边界就去掉与根字段同源的核心 Prompt 区块：ST 常把同一段正文同时放在
+  // `system_prompt` 与 `prompts[main].content`，传统路径只应注入一次。
+  const customPrompts = dedupeTopLevelPromptBlocks(
+    readCodecPresetPrompts(codec, data),
+    { mainPrompt, jailbreakPrompt },
+  );
   const hasPromptFields = customPrompts.length > 0
     || hasExternalPromptCandidates(data)
     || !!mainPrompt

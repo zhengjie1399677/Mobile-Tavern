@@ -67,6 +67,10 @@ function collectSwitchKeys(composition: PromptComposition, blockIds: readonly st
   return keys;
 }
 
+function matchesPromptKey(prompt: CustomPromptBlock, id: string): boolean {
+  return prompt.id === id || (Boolean(prompt.identifier) && prompt.identifier === id);
+}
+
 /**
  * 列表侧开关：改 `customPrompts`，并同步同源编排区块（无对应区块时为无操作）。
  * 同步不依赖"编排是否已启用"：这样先改列表再启用编排也能保持一致。
@@ -77,7 +81,7 @@ export function applyLegacyPromptSwitch(
   enabled: boolean,
 ): PromptConfig {
   const list = promptConfig.customPrompts ?? [];
-  const target = list.find((prompt) => prompt.id === promptId);
+  const target = list.find((prompt) => matchesPromptKey(prompt, promptId));
   if (!target) return promptConfig;
 
   const composition = promptConfig.composition;
@@ -85,7 +89,7 @@ export function applyLegacyPromptSwitch(
   if (!composition || !composition.blocks.some((block) => matchesKey(blockSwitchKey(block), key))) {
     return {
       ...promptConfig,
-      customPrompts: list.map((prompt) => (prompt.id === promptId ? { ...prompt, enabled } : prompt)),
+      customPrompts: list.map((prompt) => (matchesPromptKey(prompt, promptId) ? { ...prompt, id: prompt.id || promptId, enabled } : prompt)),
     };
   }
 
@@ -98,7 +102,7 @@ export function applyLegacyPromptSwitch(
 
   return {
     ...promptConfig,
-    customPrompts: list.map((prompt) => (prompt.id === promptId ? { ...prompt, enabled } : prompt)),
+    customPrompts: list.map((prompt) => (matchesPromptKey(prompt, promptId) ? { ...prompt, id: prompt.id || promptId, enabled } : prompt)),
     ...(blockChanged ? { composition: { ...composition, blocks } } : {}),
   };
 }
@@ -159,7 +163,10 @@ export function applyLegacyPromptRemoval(
 ): PromptConfig {
   const list = promptConfig.customPrompts ?? [];
   const targets = new Set(promptIds);
-  const removed = list.filter((prompt) => targets.has(prompt.id));
+  const isTarget = (prompt: CustomPromptBlock) =>
+    (Boolean(prompt.id) && targets.has(prompt.id))
+    || (Boolean(prompt.identifier) && targets.has(prompt.identifier!));
+  const removed = list.filter(isTarget);
   if (removed.length === 0) return promptConfig;
 
   const keys = new Set(removed.map(legacyPromptSwitchKey));
@@ -175,7 +182,7 @@ export function applyLegacyPromptRemoval(
 
   return {
     ...promptConfig,
-    customPrompts: list.filter((prompt) => !targets.has(prompt.id)),
+    customPrompts: list.filter((prompt) => !isTarget(prompt)),
     ...(composition && removableBlockIds.size > 0
       ? { composition: removePromptBlocks(composition, removableBlockIds) }
       : {}),

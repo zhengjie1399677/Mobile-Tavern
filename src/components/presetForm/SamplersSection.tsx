@@ -1,5 +1,5 @@
-import { Sliders, ChevronDown, ChevronUp } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
+import { Sliders, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { Card, CardHeader, CardContent } from "../../../components/ui/card";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { cn } from "../../../lib/utils";
 import type { UserSettings } from "../../types";
@@ -11,6 +11,31 @@ interface SamplersSectionProps {
   handleToggleSamplersFold: () => void;
 }
 
+const TEMP_PILLS = [
+  { label: "0.65 严谨", value: 0.65 },
+  { label: "0.85 推荐", value: 0.85 },
+  { label: "1.15 创意", value: 1.15 },
+] as const;
+
+const TOP_P_PILLS = [
+  { label: "0.90 稳健", value: 0.9 },
+  { label: "0.95 推荐", value: 0.95 },
+  { label: "1.00 全量", value: 1.0 },
+] as const;
+
+const REP_PENALTY_PILLS = [
+  { label: "1.00 无惩罚", value: 1.0 },
+  { label: "1.05 推荐", value: 1.05 },
+  { label: "1.12 强去重", value: 1.12 },
+] as const;
+
+const MAX_TOKENS_PILLS = [
+  { label: "2K", value: 2048 },
+  { label: "4K 推荐", value: 4096 },
+  { label: "8K", value: 8192 },
+  { label: "16K", value: 16384 },
+] as const;
+
 /** 2. 温度与采样参数 */
 export default function SamplersSection({
   settings,
@@ -19,6 +44,20 @@ export default function SamplersSection({
   handleToggleSamplersFold,
 }: SamplersSectionProps) {
   const { t } = useTranslation();
+
+  const handleResetDefaults = () => {
+    updateSettings((prev) => ({
+      ...prev,
+      preset: {
+        ...prev.preset,
+        temperature: 0.85,
+        topP: 0.95,
+        repetitionPenalty: 1.05,
+        maxTokens: 4096,
+      },
+    }));
+  };
+
   return (
     <Card className={cn("glass-panel shadow-sm transition-all duration-300 rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xs overflow-hidden", isSamplersFolded ? "gap-0" : "")}>
       <CardHeader
@@ -56,12 +95,26 @@ export default function SamplersSection({
         </div>
       </CardHeader>
       {!isSamplersFolded && (
-        <CardContent className="pt-3 px-3 pb-3 space-y-3.5 overflow-hidden w-full">
-          <div className="space-y-3 text-xs w-full overflow-hidden">
-            <div className="space-y-1.5 w-full">
+        <CardContent className="pt-3 px-3.5 pb-3.5 space-y-4 overflow-hidden w-full">
+          {/* 快捷恢复推荐参数 */}
+          <div className="flex justify-between items-center pb-1 border-b border-border/30 text-xs">
+            <span className="text-[11px] text-muted-foreground/80">采样核心控制</span>
+            <button
+              type="button"
+              onClick={handleResetDefaults}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted/50 border border-border/40 transition active:scale-95"
+            >
+              <RotateCcw className="w-3 h-3 text-amber-400" />
+              <span>恢复推荐采样</span>
+            </button>
+          </div>
+
+          <div className="space-y-4 text-xs w-full overflow-hidden">
+            {/* 1. Temperature */}
+            <div className="space-y-2 w-full">
               <div className="flex justify-between items-center text-muted-foreground w-full">
-                <span className="font-semibold text-[11px]">{t("samplers.temp")}</span>
-                <span className="font-mono w-12 text-right">
+                <span className="font-semibold text-[11px] text-foreground/90">{t("samplers.temp")}</span>
+                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-muted/50 border border-border/40 text-foreground">
                   {settings.preset.temperature}
                 </span>
               </div>
@@ -80,13 +133,40 @@ export default function SamplersSection({
                     },
                   }))
                 }
-                className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-primary h-1.5 bg-border rounded-lg appearance-none cursor-pointer"
               />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {TEMP_PILLS.map((pill) => {
+                  const isSelected = Math.abs(settings.preset.temperature - pill.value) < 0.03;
+                  return (
+                    <button
+                      key={pill.value}
+                      type="button"
+                      onClick={() =>
+                        updateSettings((prev) => ({
+                          ...prev,
+                          preset: { ...prev.preset, temperature: pill.value },
+                        }))
+                      }
+                      className={cn(
+                        "text-[10.5px] px-2 py-0.5 rounded-md border transition-all active:scale-95",
+                        isSelected
+                          ? "bg-amber-500/15 border-amber-500/40 text-amber-400 font-semibold"
+                          : "bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      {pill.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="space-y-1.5 w-full">
+
+            {/* 2. Top P */}
+            <div className="space-y-2 w-full">
               <div className="flex justify-between items-center text-muted-foreground w-full">
-                <span className="font-semibold text-[11px]">{t("samplers.top_p")}</span>
-                <span className="font-mono w-12 text-right">
+                <span className="font-semibold text-[11px] text-foreground/90">{t("samplers.top_p")}</span>
+                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-muted/50 border border-border/40 text-foreground">
                   {settings.preset.topP}
                 </span>
               </div>
@@ -105,15 +185,42 @@ export default function SamplersSection({
                     },
                   }))
                 }
-                className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-primary h-1.5 bg-border rounded-lg appearance-none cursor-pointer"
               />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {TOP_P_PILLS.map((pill) => {
+                  const isSelected = Math.abs(settings.preset.topP - pill.value) < 0.03;
+                  return (
+                    <button
+                      key={pill.value}
+                      type="button"
+                      onClick={() =>
+                        updateSettings((prev) => ({
+                          ...prev,
+                          preset: { ...prev.preset, topP: pill.value },
+                        }))
+                      }
+                      className={cn(
+                        "text-[10.5px] px-2 py-0.5 rounded-md border transition-all active:scale-95",
+                        isSelected
+                          ? "bg-sky-500/15 border-sky-500/40 text-sky-400 font-semibold"
+                          : "bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      {pill.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="space-y-1.5 w-full">
+
+            {/* 3. Repetition Penalty */}
+            <div className="space-y-2 w-full">
               <div className="flex justify-between items-center text-muted-foreground w-full">
-                <span className="font-semibold text-[11px]">
+                <span className="font-semibold text-[11px] text-foreground/90">
                   {t("samplers.rep_penalty")}
                 </span>
-                <span className="font-mono w-12 text-right">
+                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-muted/50 border border-border/40 text-foreground">
                   {settings.preset.repetitionPenalty}
                 </span>
               </div>
@@ -132,15 +239,42 @@ export default function SamplersSection({
                     },
                   }))
                 }
-                className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-primary h-1.5 bg-border rounded-lg appearance-none cursor-pointer"
               />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {REP_PENALTY_PILLS.map((pill) => {
+                  const isSelected = Math.abs(settings.preset.repetitionPenalty - pill.value) < 0.02;
+                  return (
+                    <button
+                      key={pill.value}
+                      type="button"
+                      onClick={() =>
+                        updateSettings((prev) => ({
+                          ...prev,
+                          preset: { ...prev.preset, repetitionPenalty: pill.value },
+                        }))
+                      }
+                      className={cn(
+                        "text-[10.5px] px-2 py-0.5 rounded-md border transition-all active:scale-95",
+                        isSelected
+                          ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 font-semibold"
+                          : "bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      {pill.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="space-y-1.5 w-full">
+
+            {/* 4. Max Tokens */}
+            <div className="space-y-2 w-full">
               <div className="flex justify-between items-center text-muted-foreground w-full">
-                <span className="font-semibold text-[11px]">
+                <span className="font-semibold text-[11px] text-foreground/90">
                   {t("samplers.max_tokens")}
                 </span>
-                <span className="font-mono w-16 text-right">
+                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-muted/50 border border-border/40 text-foreground">
                   {settings.preset.maxTokens}
                 </span>
               </div>
@@ -159,8 +293,33 @@ export default function SamplersSection({
                     },
                   }))
                 }
-                className="w-full accent-primary h-1 bg-border rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-primary h-1.5 bg-border rounded-lg appearance-none cursor-pointer"
               />
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {MAX_TOKENS_PILLS.map((pill) => {
+                  const isSelected = settings.preset.maxTokens === pill.value;
+                  return (
+                    <button
+                      key={pill.value}
+                      type="button"
+                      onClick={() =>
+                        updateSettings((prev) => ({
+                          ...prev,
+                          preset: { ...prev.preset, maxTokens: pill.value },
+                        }))
+                      }
+                      className={cn(
+                        "text-[10.5px] px-2 py-0.5 rounded-md border transition-all active:scale-95",
+                        isSelected
+                          ? "bg-violet-500/15 border-violet-500/40 text-violet-400 font-semibold"
+                          : "bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      {pill.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </CardContent>

@@ -4,7 +4,21 @@ import {
   listPromptCompositionScenePresets,
   validatePromptComposition,
 } from "../../src/domain/prompt-composition";
-import { PROMPT_DATA_SOURCE_KEYS } from "../../src/components/presetForm/promptDataSources";
+const PROMPT_DATA_SOURCE_KEYS = [
+  "prompt.main",
+  "prompt.postHistory",
+  "character.description",
+  "character.personality",
+  "character.scenario",
+  "character.systemPrompt",
+  "character.examples",
+  "worldbook.before",
+  "worldbook.after",
+  "worldbook.triggered",
+  "memory.summaries",
+  "memory.recalled",
+  "memory.tables",
+] as const;
 
 describe("PromptComposition 场景化预设", () => {
   it("提供五个可直接编辑的中立场景预设", () => {

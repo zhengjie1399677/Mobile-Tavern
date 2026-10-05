@@ -26,7 +26,6 @@ import DbWritingOverlay from "./DbWritingOverlay";
 import { FloatingCat } from "./FloatingCat";
 import { FloatingCharacter } from "./FloatingCharacter";
 import UpdatePrompt from "./UpdatePrompt";
-import { PromptWorkbenchFocusProvider } from "../contexts/PromptWorkbenchFocusContext";
 import { ThemeInteractionHost } from "./theme-interactions/ThemeInteractionHost";
 
 function TabLoadingFallback() {
@@ -89,16 +88,6 @@ export default function MainLayout() {
   }, [activeTab]);
 
   const appViewportRef = React.useRef<HTMLDivElement>(null);
-  const [promptFocusActive, setPromptFocusActive] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!promptFocusActive || activeTab === "settings") return;
-    const bridge = (window as Window & {
-      AndroidThemeBridge?: { setScreenOrientation?: (mode: "auto") => boolean };
-    }).AndroidThemeBridge;
-    bridge?.setScreenOrientation?.("auto");
-    setPromptFocusActive(false);
-  }, [activeTab, promptFocusActive]);
 
   React.useLayoutEffect(() => {
     const vvp = window.visualViewport;
@@ -164,14 +153,10 @@ export default function MainLayout() {
   }, [activeTab]);
 
   useMobileBackHandler(true, React.useCallback(() => {
-    if (promptFocusActive) {
-      setPromptFocusActive(false);
-      return true;
-    }
     if (activeTab === "characters") return false;
     setActiveTab("characters");
     return true;
-  }, [activeTab, promptFocusActive, setActiveTab]), 0);
+  }, [activeTab, setActiveTab]), 0);
 
   const tabs = kernel.getExtensions<React.ComponentType<Record<string, unknown>>>("main:tabs");
   const bottomBarTabs = getVisibleBottomBarTabs(tabs, settings.hiddenMainTabs);
@@ -214,16 +199,11 @@ export default function MainLayout() {
   };
 
   return (
-    <PromptWorkbenchFocusProvider value={{
-      active: promptFocusActive,
-      managed: true,
-      setActive: setPromptFocusActive,
-    }}>
-      <div
-        ref={appViewportRef}
-        data-ui-density={settings.uiDensity ?? "compact"}
-        style={{ height: "var(--app-viewport-height, 100dvh)" }}
-        className={`flex flex-col mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] ${
+    <div
+      ref={appViewportRef}
+      data-ui-density={settings.uiDensity ?? "compact"}
+      style={{ height: "var(--app-viewport-height, 100dvh)" }}
+      className={`flex flex-col mx-auto bg-background border-x border-border text-foreground shadow-xl relative overflow-hidden font-sans pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] ${
         activeTab === "settings" ? "max-w-lg landscape:max-w-none" : "max-w-lg"
       } ${
         activeTab === "chat" || activeTab === "playground" ? "pt-0" : "pt-[var(--safe-area-top)]"
@@ -245,7 +225,7 @@ export default function MainLayout() {
         )}
 
         {/* 1. Main Navigation System tabs (Only on bottom, fully accessible via one-hand thumb) */}
-        {activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive && (
+        {activeTab !== "chat" && activeTab !== "playground" && (
           <div
             role="tablist"
             aria-label="底栏导航页签"
@@ -299,7 +279,7 @@ export default function MainLayout() {
             if (!mountedTabIds.has(tab.id)) return null;
             const isCurrent = activeTab === tab.id;
             const Comp = tab.value;
-            const isFullScreenTab = tab.id === "chat" || tab.id === "playground" || promptFocusActive;
+            const isFullScreenTab = tab.id === "chat" || tab.id === "playground";
 
             return (
               <div
@@ -310,7 +290,7 @@ export default function MainLayout() {
                 aria-hidden={!isCurrent}
                 style={{
                   display: isCurrent ? undefined : "none",
-                  paddingBottom: !isFullScreenTab && activeTab !== "chat" && activeTab !== "playground" && !promptFocusActive
+                  paddingBottom: !isFullScreenTab && activeTab !== "chat" && activeTab !== "playground"
                     ? `${54 + (safeAreas?.bottom ?? 0)}px`
                     : undefined,
                 }}
@@ -362,6 +342,5 @@ export default function MainLayout() {
             <FloatingCharacter enabled={true} />
           )}
       </div>
-    </PromptWorkbenchFocusProvider>
   );
 }

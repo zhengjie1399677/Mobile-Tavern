@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Brain, ChevronDown, ChevronUp, HelpCircle, Plus, Search, Trash2, X } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
+import { Brain, ChevronDown, ChevronUp, HelpCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Card, CardHeader, CardContent } from "../../../components/ui/card";
 import { useTranslation } from "../../contexts/LanguageContext";
 import {
   Accordion,
@@ -14,6 +14,11 @@ import { Input } from "../../../components/ui/input";
 import { Textarea } from "../../../components/ui/textarea";
 import { cn } from "../../../lib/utils";
 import type { UserSettings } from "../../types";
+import {
+  RECOMMENDED_PROMPT_TEMPLATES,
+  type PromptTemplateItem,
+} from "../../domain/prompts/recommendedPromptTemplates";
+import { isSameSourcePromptBlock } from "../../domain/prompts/promptSourceBlocks";
 
 interface PromptsConfigSectionProps {
   settings: UserSettings;
@@ -31,11 +36,12 @@ interface PromptsConfigSectionProps {
   isBatchDeletingPrompts: boolean;
   setIsBatchDeletingPrompts: (value: boolean | ((prev: boolean) => boolean)) => void;
   handleBatchDeletePrompts: () => Promise<void>;
-  onOpenComposer?: () => void;
 }
 
 interface UnifiedPromptItem {
   id: string;
+  /** 真正用于回写提示词列表的 id（可能与 React key/展开态用的 id 不同）。 */
+  targetId: string;
   name: string;
   role: "system" | "user" | "assistant";
   content: string;
@@ -67,6 +73,31 @@ export default function PromptsConfigSection({
 }: PromptsConfigSectionProps) {
   const { t } = useTranslation();
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [showTemplatesPanel, setShowTemplatesPanel] = useState(false);
+
+  const handleAddTemplate = (tpl: PromptTemplateItem) => {
+    const newId = "comp_" + Math.random().toString(36).substring(2, 9);
+    updateSettings((prev) => {
+      const list = prev.promptConfig.customPrompts || [];
+      return {
+        ...prev,
+        promptConfig: {
+          ...prev.promptConfig,
+          customPrompts: [
+            ...list,
+            {
+              id: newId,
+              name: tpl.name,
+              role: tpl.role,
+              content: tpl.content,
+              enabled: true,
+            },
+          ],
+        },
+      };
+    });
+    setShowTemplatesPanel(false);
+  };
 
   // 将内置提示词与自定义提示词收拢为统一列表（过滤纯系统插槽锚点）
   const unifiedPrompts = useMemo<UnifiedPromptItem[]>(() => {
@@ -76,10 +107,13 @@ export default function PromptsConfigSection({
     const hasMainPromptContent = Boolean(settings.promptConfig.mainPrompt && settings.promptConfig.mainPrompt.trim().length > 0);
     const shouldShowMainPrompt = settings.promptConfig.useMainPrompt === true
       || (settings.promptConfig.useMainPrompt !== false && hasMainPromptContent);
+    const seenIds = new Set<string>();
     if (shouldShowMainPrompt) {
+      seenIds.add("built-in-main-prompt");
       list.push({
         id: "built-in-main-prompt",
-        name: t("prompts.system_prompt") || "底层扮演系统指令",
+        targetId: "built-in-main-prompt",
+        name: t("prompts.system_prompt") || "系统提示词",
         role: "system",
         content: settings.promptConfig.mainPrompt || "",
         enabled: settings.promptConfig.useMainPrompt ?? hasMainPromptContent,
@@ -92,8 +126,10 @@ export default function PromptsConfigSection({
     const shouldShowJailbreak = settings.promptConfig.useJailbreak === true
       || (settings.promptConfig.useJailbreak !== false && hasJailbreakContent);
     if (shouldShowJailbreak) {
+      seenIds.add("built-in-jailbreak-prompt");
       list.push({
         id: "built-in-jailbreak-prompt",
+        targetId: "built-in-jailbreak-prompt",
         name: t("prompts.jailbreak") || "规则提示词",
         role: "system",
         content: settings.promptConfig.jailbreakPrompt || "",
@@ -104,14 +140,30 @@ export default function PromptsConfigSection({
 
     // 3. 所有用户自定义提示词（过滤系统锚点占位符 marker === true）
     const customs = settings.promptConfig.customPrompts || [];
-    for (const c of customs) {
+    for (let i = 0; i < customs.length; i++) {
+      const c = customs[i];
       if (c.marker) {
         // 系统占位符锚点（如 chatHistory、charDescription、worldInfo 等），不在提示词输入列表中平铺
         continue;
       }
+      // 与顶层系统/规则指令同源（空占位或完全同文）的区块不在列表平铺：
+      // 运行期同样会去重，避免"界面看不到、实际却注入两次"。
+      if (isSameSourcePromptBlock(c, "main", settings.promptConfig.mainPrompt)
+        || isSameSourcePromptBlock(c, "jailbreak", settings.promptConfig.jailbreakPrompt)) {
+        continue;
+      }
+
+      const sourceId = c.id || c.identifier || `prompt_${i + 1}`;
+      let listKey = sourceId;
+      if (seenIds.has(listKey)) {
+        listKey = `${listKey}_${i + 1}`;
+      }
+      seenIds.add(listKey);
+
       list.push({
-        id: c.id,
-        name: c.name,
+        id: listKey,
+        targetId: sourceId,
+        name: c.name || sourceId,
         role: c.role || "system",
         content: c.content || "",
         enabled: c.enabled,
@@ -148,7 +200,7 @@ export default function PromptsConfigSection({
         promptConfig: { ...prev.promptConfig, useJailbreak: enabled },
       }));
     } else {
-      handleToggleCustomPrompt(item.id, enabled);
+      handleToggleCustomPrompt(item.targetId, enabled);
     }
   };
 
@@ -159,17 +211,67 @@ export default function PromptsConfigSection({
     content: string
   ) => {
     if (item.type === "main") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, mainPrompt: content },
-      }));
+      if (role !== "system" || (name && name !== (t("prompts.system_prompt") || "系统提示词"))) {
+        // 用户调整了主提示词的角色或重命名，将其平转为标准自定义模组以持久化属性
+        updateSettings((prev) => {
+          const list = prev.promptConfig.customPrompts || [];
+          return {
+            ...prev,
+            promptConfig: {
+              ...prev.promptConfig,
+              mainPrompt: "",
+              useMainPrompt: false,
+              customPrompts: [
+                ...list,
+                {
+                  id: "comp_main_" + Math.random().toString(36).substring(2, 7),
+                  name: name || "系统提示词",
+                  role,
+                  content,
+                  enabled: item.enabled,
+                },
+              ],
+            },
+          };
+        });
+      } else {
+        updateSettings((prev) => ({
+          ...prev,
+          promptConfig: { ...prev.promptConfig, mainPrompt: content },
+        }));
+      }
     } else if (item.type === "jailbreak") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, jailbreakPrompt: content },
-      }));
+      if (role !== "system" || (name && name !== (t("prompts.jailbreak") || "规则提示词"))) {
+        // 用户调整了规则提示词的角色或重命名，平转为标准自定义模组以持久化属性
+        updateSettings((prev) => {
+          const list = prev.promptConfig.customPrompts || [];
+          return {
+            ...prev,
+            promptConfig: {
+              ...prev.promptConfig,
+              jailbreakPrompt: "",
+              useJailbreak: false,
+              customPrompts: [
+                ...list,
+                {
+                  id: "comp_jailbreak_" + Math.random().toString(36).substring(2, 7),
+                  name: name || "规则提示词",
+                  role,
+                  content,
+                  enabled: item.enabled,
+                },
+              ],
+            },
+          };
+        });
+      } else {
+        updateSettings((prev) => ({
+          ...prev,
+          promptConfig: { ...prev.promptConfig, jailbreakPrompt: content },
+        }));
+      }
     } else {
-      handleUpdateCustomPrompt(item.id, name, role, content);
+      handleUpdateCustomPrompt(item.targetId, name, role, content);
     }
   };
 
@@ -185,7 +287,7 @@ export default function PromptsConfigSection({
         promptConfig: { ...prev.promptConfig, useJailbreak: false, jailbreakPrompt: "" },
       }));
     } else {
-      await handleDeleteCustomPrompt(item.id);
+      await handleDeleteCustomPrompt(item.targetId);
     }
   };
 
@@ -282,6 +384,19 @@ export default function PromptsConfigSection({
                     )}
                     <button
                       type="button"
+                      onClick={() => setShowTemplatesPanel((prev) => !prev)}
+                      className={cn(
+                        "text-xs font-bold px-2 py-1 rounded border flex items-center gap-1 transition tap-scale",
+                        showTemplatesPanel
+                          ? "text-amber-400 bg-amber-500/15 border-amber-500/30"
+                          : "text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/70 border-border/50"
+                      )}
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      <span>常用模板</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={handleAddNewCustomPrompt}
                       className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded border border-primary/20 flex items-center gap-1 transition tap-scale"
                     >
@@ -291,6 +406,50 @@ export default function PromptsConfigSection({
                 )}
               </div>
             </div>
+
+            {/* 常用模板折叠面板 */}
+            {showTemplatesPanel && (
+              <div className="p-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 backdrop-blur-xs space-y-2 animate-in fade-in-50 duration-200">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-foreground flex items-center gap-1 text-[11.5px]">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    常用提示词模版库（点击一键加入当前预设）
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplatesPanel(false)}
+                    className="text-[10px] text-muted-foreground hover:text-foreground p-0.5 rounded"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {RECOMMENDED_PROMPT_TEMPLATES.map((tpl) => (
+                    <div
+                      key={tpl.name}
+                      className="flex flex-col justify-between p-2 rounded-lg border border-border/60 bg-card/80 hover:border-amber-500/40 transition gap-1.5"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-semibold text-foreground truncate">{tpl.name}</span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full font-mono bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">
+                            {tpl.badge}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/80 line-clamp-1">{tpl.description}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddTemplate(tpl)}
+                        className="text-[10.5px] font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/20 flex items-center justify-center gap-1 transition active:scale-95 self-end"
+                      >
+                        <Plus className="w-3 h-3" /> 一键添加
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 实时搜索框 */}
             <div className="relative">
@@ -327,13 +486,39 @@ export default function PromptsConfigSection({
 
           {/* 列表渲染 */}
           {displayedPrompts.length === 0 ? (
-            <div className="border border-dashed border-border/80 rounded-xl p-8 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-              <HelpCircle className="w-6 h-6 opacity-50" />
-              <span className="text-xs font-semibold">
-                {searchKeyword.trim()
-                  ? "未找到匹配的提示词模组"
-                  : t("prompts.no_modules")}
-              </span>
+            <div className="border border-dashed border-border/80 rounded-xl p-6 text-center text-muted-foreground flex flex-col items-center justify-center gap-3">
+              <HelpCircle className="w-6 h-6 opacity-50 text-muted-foreground" />
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-foreground">
+                  {searchKeyword.trim()
+                    ? "未找到匹配的提示词模组"
+                    : t("prompts.no_modules")}
+                </span>
+                <p className="text-[11px] text-muted-foreground/75">
+                  {searchKeyword.trim() ? "请尝试更换关键词搜索" : "可以点击下方推荐模板快速开启高品质对话"}
+                </p>
+              </div>
+
+              {!searchKeyword.trim() && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full pt-1">
+                  {RECOMMENDED_PROMPT_TEMPLATES.slice(0, 2).map((tpl) => (
+                    <button
+                      key={tpl.name}
+                      type="button"
+                      onClick={() => handleAddTemplate(tpl)}
+                      className="text-left p-2.5 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/40 transition active:scale-95 space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-foreground">{tpl.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full font-mono bg-primary/10 text-primary border border-primary/20">
+                          {tpl.badge}
+                        </span>
+                      </div>
+                      <p className="text-[10.5px] text-muted-foreground/80 line-clamp-2">{tpl.description}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <Accordion multiple className="space-y-1.5">
@@ -349,12 +534,12 @@ export default function PromptsConfigSection({
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {isBatchDeletingPrompts && (
                           <Checkbox
-                            checked={selectedPromptIds.includes(p.id)}
+                            checked={selectedPromptIds.includes(p.targetId)}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                setSelectedPromptIds((prev) => [...prev, p.id]);
+                                setSelectedPromptIds((prev) => [...prev, p.targetId]);
                               } else {
-                                setSelectedPromptIds((prev) => prev.filter((id) => id !== p.id));
+                                setSelectedPromptIds((prev) => prev.filter((id) => id !== p.targetId));
                               }
                             }}
                             className="shrink-0"
@@ -429,25 +614,23 @@ export default function PromptsConfigSection({
                             placeholder="提示词名称"
                           />
 
-                          {p.type === "custom" && (
-                            <div className="flex rounded-md bg-muted/60 p-0.5 border border-border/50 text-[10px] font-bold shrink-0">
-                              {(["system", "user", "assistant"] as const).map((r) => (
-                                <button
-                                  key={r}
-                                  type="button"
-                                  onClick={() => handleUpdate(p, p.name, r, p.content)}
-                                  className={cn(
-                                    "px-2 py-0.5 rounded transition-all uppercase",
-                                    p.role === r
-                                      ? "bg-background text-foreground shadow-xs font-black"
-                                      : "text-muted-foreground hover:text-foreground"
-                                  )}
-                                >
-                                  {r}
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                          <div className="flex rounded-md bg-muted/60 p-0.5 border border-border/50 text-[10px] font-bold shrink-0">
+                            {(["system", "user", "assistant"] as const).map((r) => (
+                              <button
+                                key={r}
+                                type="button"
+                                onClick={() => handleUpdate(p, p.name, r, p.content)}
+                                className={cn(
+                                  "px-2 py-0.5 rounded transition-all uppercase",
+                                  p.role === r
+                                    ? "bg-background text-foreground shadow-xs font-black"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
                         </div>
 
                         {/* 中部：内容输入多行文本框 */}
@@ -462,10 +645,10 @@ export default function PromptsConfigSection({
                         <div className="flex items-center justify-between text-[10px] text-muted-foreground/60 px-0.5 font-mono">
                           <span>
                             {p.type === "main"
-                              ? "⚠️ 底层核心系统指令（全局基石）"
+                              ? "系统提示词"
                               : p.type === "jailbreak"
-                                ? "⚠️ 规则/越狱指令（优先覆盖）"
-                                : "自定义模组"}
+                                ? "规则提示词"
+                                : "提示词模组"}
                           </span>
                           <span>{contentLength} 字符</span>
                         </div>

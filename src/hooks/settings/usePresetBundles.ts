@@ -20,7 +20,6 @@ import {
   applyPresetBundleActivation,
   buildPresetBundleSnapshot,
   collectPresetBundleReferences,
-  isBuiltinBundle,
   isPresetBundleInSync,
   resolveActivePresetBundle,
   type PresetBundleActivation,
@@ -186,22 +185,15 @@ export const usePresetBundles = ({
         const importedComposition = prepared.composition;
         const importReportText = formatPresetOperationReport(prepared.report);
         if (prepared.report.errors.length > 0) throw new Error("PRESET_IMPORT_REPORT_HAS_ERRORS");
-        const enableImportedComposition = importedComposition
-          ? await showCustomConfirm(
-              `检测到 SillyTavern Prompt 编排。\n\n${prepared.compatibilityAnalysis
-                ? formatSillyTavernCompatibilityAnalysis(prepared.compatibilityAnalysis)
-                : ""}${importReportText ? `\n\n${importReportText}` : ""}\n\n是否立即启用自由编排以完整执行 Prompt 顺序、Marker 和注入位置？\n\n选择取消会以传统模式运行，但该预设仍独立保存其编排快照，之后可随时启用。`,
-            )
-          : false;
-        // 规划属于预设：导入的编排快照与开关随预设包一起保存，切换预设时整体切换。
-        // v2 的 `prompt` 是唯一 Prompt 权威：用户确认只切换运行模式，编排快照保持导入结果
-        // （legacy 模式下仍需保留快照，供用户之后随时启用）。
+
+        // 统一收口为纯净直观的预设模式，编排快照作为只读对象随预设包保存（保证后续导出兼容），
+        // 运行期始终由用户可见的提示词配置统一驱动。
         const importedBundle: PresetBundleV2 = {
           ...prepared.bundle,
           prompt: importedComposition
             ? {
                 ...prepared.bundle.prompt,
-                mode: enableImportedComposition ? "composition" : "legacy",
+                mode: "legacy",
                 source: "sillytavern",
                 composition: importedComposition,
               }
@@ -309,43 +301,21 @@ export const usePresetBundles = ({
       await showCustomAlert("当前没有可保存的预设包，请先使用「另存为新预设副本」创建。", "无法保存");
       return;
     }
-    // 内置预设会在启动时按出厂内容重建，无法直接覆盖：保存时另存为新的自定义预设并切换过去，
-    // 让"修改后内容不变"不再发生，同时保住出厂预设的升级路径。
-    const isBuiltinActive = isBuiltinBundle(activeBundle);
-    const snapshot = isBuiltinActive
-      ? buildPresetBundleSnapshot(
-          {
-            ...settings,
-            preset: {
-              ...settings.preset,
-              id: "preset_" + Math.random().toString(36).substring(2, 9),
-              name: `${settings.preset.name.slice(0, 35)}（我的修改）`,
-            },
-          },
-          {
-            id: "bundle_" + Math.random().toString(36).substring(2, 9),
-            planSource: "native",
-          },
-        )
-      : buildPresetBundleSnapshot(settings, {
-          id: activeBundle.id,
-          // 覆盖写入当前预设时保留它自己的 Prompt 来源标记（v2 里来源直接存在 `prompt.source`）。
-          planSource: activeBundle.prompt.source,
-        });
+    const snapshot = buildPresetBundleSnapshot(settings, {
+      id: activeBundle.id,
+      // 覆盖写入当前预设时保留它自己的 Prompt 来源标记（v2 里来源直接存在 `prompt.source`）。
+      planSource: activeBundle.prompt.source,
+    });
     try {
-      // 内置预设的副本带新 bundle id，覆盖出厂快照没有意义：只在非内置时按 id 覆盖；
-      // 非内置但 Store 里缺失目标（刚导入/刚另存尚未同步）时由用例追加，避免静默"保存成功"但什么都没写。
       const mutation = await catalog.mutate((current) => savePresetBundleAsNew(current, snapshot, {
-        replaceBundleId: isBuiltinActive ? undefined : activeBundle.id,
+        replaceBundleId: activeBundle.id,
       }));
       updateSettings((prev) => ({
         ...prev,
         ...projectPresetActivation(prev.promptConfig, snapshot, DEFAULT_SETTINGS.preset),
         savedPresets: mutation.presets,
       }));
-      await showCustomAlert(isBuiltinActive
-        ? `内置预设不可直接覆盖，已将当前修改另存为「${snapshot.sampler.name}」并切换过去。`
-        : `已将当前修改保存到预设「${snapshot.sampler.name}」。`);
+      await showCustomAlert(`已将当前修改保存到预设「${snapshot.sampler.name}」。`);
     } catch (error: unknown) {
       console.error("Failed to save current preset bundle:", error);
       await showCustomAlert("保存到当前预设失败，请稍后重试。", "保存失败");
@@ -373,10 +343,6 @@ export const usePresetBundles = ({
   const handleDeletePresetBundle = useCallback(async (bundleId: string) => {
     const bundle = (settings.savedPresets || []).find((candidate) => candidate.id === bundleId);
     if (!bundle) return;
-    if (isBuiltinBundle(bundle)) {
-      await showCustomAlert("内置预设不可删除。", "无法删除");
-      return;
-    }
     const confirmMessage = buildDeleteConfirmMessage([bundleId], "确定要删除这个本地保存的预设吗？");
     if (!await showCustomConfirm(confirmMessage)) return;
 
@@ -391,18 +357,13 @@ export const usePresetBundles = ({
       return;
     }
     updateSettings((prev) => buildSettingsAfterRemoval(prev, nextSaved, isActiveDeleted));
-  }, [settings, showCustomConfirm, showCustomAlert, updateSettings, catalog, buildDeleteConfirmMessage]);
+  }, [settings, showCustomConfirm, showCustomAlert, updateSettings, catalog, buildDeleteConfirmMessage, activeBundle]);
 
   const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
     if (bundleIds.length === 0) return;
     const targets = (settings.savedPresets || []).filter((bundle) => bundleIds.includes(bundle.id));
-    const deletableIds = targets
-      .filter((bundle) => !isBuiltinBundle(bundle))
-      .map((bundle) => bundle.id);
-    if (deletableIds.length === 0) {
-      await showCustomAlert("所选预设均为内置预设，不可删除。", "无法删除");
-      return;
-    }
+    const deletableIds = targets.map((bundle) => bundle.id);
+    if (deletableIds.length === 0) return;
     if (!await showCustomConfirm(buildDeleteConfirmMessage(
       deletableIds,
       `确定要批量删除这 ${deletableIds.length} 个本地预设包吗？`,
@@ -420,7 +381,7 @@ export const usePresetBundles = ({
     }
     updateSettings((prev) => buildSettingsAfterRemoval(prev, nextSaved, isCurrentDeleted));
     await showCustomAlert("🎉 批量删除成功！");
-  }, [settings, showCustomConfirm, updateSettings, showCustomAlert, catalog, buildDeleteConfirmMessage]);
+  }, [settings, showCustomConfirm, updateSettings, showCustomAlert, catalog, buildDeleteConfirmMessage, activeBundle]);
 
   return {
     handleImportPresetJSON,

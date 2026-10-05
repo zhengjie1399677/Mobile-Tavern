@@ -15,10 +15,6 @@ const interactiveOverlaySources = [
   "src/components/presetForm/RegexManagementSection.tsx",
   "src/components/plugins/PluginManagerSection.tsx",
   "src/components/plugins/ToolPluginManagerSection.tsx",
-  "src/components/presetForm/PromptBlockEditorDialog.tsx",
-  "src/components/presetForm/PromptCompositionEditor.tsx",
-  "src/components/presetForm/PromptCompositionPreviewDialog.tsx",
-  "src/components/presetForm/PromptCompositionWorkbench.tsx",
 ] as const;
 
 describe("移动端互动浮层规范", () => {

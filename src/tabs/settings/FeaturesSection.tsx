@@ -458,29 +458,6 @@ export default function FeaturesSection({
                   </Accordion>
                 </div>
               )}
-
-              {/* Prompt 自由组装 (实验性) */}
-              <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap pt-2 border-t border-border/30">
-                <div className="space-y-0.5 min-w-0 flex-1">
-                  <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5 flex-wrap">
-                    <span>Prompt 自由组装</span>
-                    <span className="text-[8.5px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-normal scale-90">
-                      实验性 (默认关闭)
-                    </span>
-                  </label>
-                  <p className="text-[9px] text-muted-foreground/80 leading-relaxed overflow-wrap break-word">
-                    开启后在设置主菜单显示提示词自由组装工作台。建议在完成真正的工作流画布前保持关闭。
-                  </p>
-                </div>
-                <Switch
-                  aria-label="Prompt 自由组装"
-                  checked={settings.enablePromptComposition || false}
-                  onCheckedChange={(val) =>
-                    updateSettings({ ...settings, enablePromptComposition: val })
-                  }
-                  className="data-[state=checked]:bg-primary h-4 w-8 [&_span]:h-3 [&_span]:w-3 shrink-0 self-center"
-                />
-              </div>
             </div>
           </div>
         </CardContent>

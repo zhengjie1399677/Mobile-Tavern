@@ -617,8 +617,8 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "设置页横屏时必须解除手机竖屏宽度上限，确保高级工作台获得真实可用宽度"
   );
   assert(
-    /!promptFocusActive/.test(mainLayout),
-    "Prompt 横屏专注模式必须隐藏全局底栏，避免设置导航继续挤占工作台"
+    !mainLayout.includes("promptFocusActive") && !mainLayout.includes("PromptWorkbenchFocus"),
+    "已移除的 Prompt 横屏专注模式不得回归主布局"
   );
 
   const settingsTab = read("src/tabs/settings/SettingsTab.tsx");
@@ -637,21 +637,18 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "预设导入、切换与管理入口必须挂载在用户可见的“预设”分类中"
   );
   assert(
-    /promptFocus\.active[\s\S]*sections=\{\[["']composer["']\]\}/.test(settingsTab),
-    "Prompt 横屏专注模式必须只挂载编排器本体"
+    !settingsTab.includes('id: "composer"') &&
+      !read("src/components/presetForm/PromptsConfigSection.tsx").includes("PromptCompositionEditor") &&
+      !read("src/components/presetForm/PresetForm.tsx").includes("PromptCompositionEditor") &&
+      !read("src/components/MainLayout.tsx").includes("PromptWorkbenchFocus") &&
+      !read("src/types.ts").includes("enablePromptComposition"),
+    "已彻底移除自由编排残留：预设表单、设置页、焦点上下文与实验开关都不得回归"
   );
   assert(
-    /id:\s*["']composer["'][\s\S]*settings_hub\.composer_title/.test(settingsTab) &&
-      /case\s+["']composer["']:[\s\S]*sections=\{\[["']composer["']\]\}/.test(settingsTab) &&
-      !read("src/components/presetForm/PromptsConfigSection.tsx").includes("PromptCompositionEditor"),
-    "Prompt 组装必须作为独立设置分类，不能继续嵌在预设提示词面板内"
-  );
-  assert(
-    settingsTab.indexOf('id: "composer"') < settingsTab.indexOf('id: "plugins"') &&
-      settingsTab.indexOf('id: "plugins"') < settingsTab.indexOf('id: "advanced"') &&
+    settingsTab.indexOf('id: "plugins"') < settingsTab.indexOf('id: "advanced"') &&
       /case\s+["']plugins["']:[\s\S]*<PluginManagerSection\s*\/>/.test(settingsTab) &&
       /id:\s*["']plugins["'][\s\S]*experimental:\s*true/.test(settingsTab),
-    "第三方插件必须作为编排后的独立实验性设置分类"
+    "第三方插件必须作为独立实验性设置分类"
   );
   assert(
     !read("src/tabs/settings/MemoryStorageSection.tsx").includes("SystemReportSection") &&
@@ -689,22 +686,6 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "mathjs 必须保持独立按需加载，普通脚本卡不得后台下载数学运行时"
   );
 
-  for (const file of [
-    "src/components/presetForm/PromptCompositionEditor.tsx",
-    "src/components/presetForm/PromptBlockEditorDialog.tsx",
-    "src/components/presetForm/PromptBlockQuickEditor.tsx",
-    "src/components/presetForm/PromptCompositionBudgetSettings.tsx",
-    "src/components/presetForm/PromptCompositionTemplateManager.tsx",
-    "src/components/presetForm/PromptCompositionTransferToolbar.tsx",
-    "src/components/presetForm/PromptCompositionWorkbench.tsx",
-    "src/components/presetForm/PromptCompositionGraph.tsx",
-  ]) {
-    const source = read(file);
-    assert(
-      !/<(?:button|select|textarea)\b/.test(source) && !/<input\b[^>]*type=["']checkbox["']/.test(source),
-      `${file} 的可见交互控件必须复用 PromptComposerControls，不能退回系统默认外观`
-    );
-  }
 
   for (const file of [
     "src/components/MvuVariablesTabContent.tsx",

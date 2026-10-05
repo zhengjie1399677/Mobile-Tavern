@@ -39,6 +39,56 @@ describe("preparePresetBundleImport", () => {
     })).toThrow("PRESET_INVALID_ROOT");
   });
 
+  it("根字段与 prompts[main] 同源时只保留根字段一份，避免同一段正文注入两次", () => {
+    const result = preparePresetBundleImport({
+      input: {
+        system_prompt: "ROOT_MAIN",
+        prompts: [
+          { identifier: "main", name: "Main", role: "system", content: "ROOT_MAIN" },
+          { identifier: "chatHistory", name: "History", role: "user", marker: true },
+        ],
+        prompt_order: [{ character_id: 100001, order: [
+          { identifier: "main", enabled: true },
+          { identifier: "chatHistory", enabled: true },
+        ] }],
+      },
+      fallbackName: "同源预设",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+
+    expect(result.bundle.legacyPromptConfig?.mainPrompt).toBe("ROOT_MAIN");
+    expect(result.bundle.legacyPromptConfig?.customPrompts?.map((prompt) => prompt.identifier))
+      .toEqual(["chatHistory"]);
+  });
+
+  it("经典 ST 的空占位 main 区块随根字段一起去重，内容不同的同槽位区块则保留", () => {
+    const emptyPlaceholder = preparePresetBundleImport({
+      input: {
+        system_prompt: "ROOT_MAIN",
+        prompts: [{ identifier: "main", name: "Main", role: "system", content: "" }],
+        prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }] }],
+      },
+      fallbackName: "占位预设",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+    expect(emptyPlaceholder.bundle.legacyPromptConfig?.customPrompts ?? []).toHaveLength(0);
+
+    const overriding = preparePresetBundleImport({
+      input: {
+        system_prompt: "ROOT_MAIN",
+        prompts: [{ identifier: "main", name: "Main", role: "system", content: "覆盖用正文" }],
+        prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }] }],
+      },
+      fallbackName: "覆盖预设",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      createId,
+    });
+    expect(overriding.bundle.legacyPromptConfig?.customPrompts?.map((prompt) => prompt.content))
+      .toEqual(["覆盖用正文"]);
+  });
+
   it("普通采样预设使用文件名兜底且不覆盖现有 Prompt", () => {
     const result = preparePresetBundleImport({
       input: { temp: 0.66, topP: 0.92, maxTokens: 4096 },

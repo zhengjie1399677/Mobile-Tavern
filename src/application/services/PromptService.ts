@@ -19,6 +19,7 @@ import {
   formatTableMemoryColumnConstraint,
   getTableMemoryColumnDefinitions,
 } from "../../domain/memory/tableMemorySchema";
+import { selectActivePromptBlocks } from "../../domain/prompts/promptSourceBlocks";
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
 import { assemblePromptComposition } from "./prompt/PromptCompositionAssembly";
 import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
@@ -432,8 +433,10 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     if (mainPromptEnabled && settings.promptConfig?.mainPrompt) {
       mainPromptReplaced = this.replaceMacros(settings.promptConfig.mainPrompt, macroParams);
     }
-    const hasCustomPrompts = settings.promptConfig?.customPrompts && settings.promptConfig.customPrompts.length > 0;
-    const activeCustomBlocks = hasCustomPrompts ? settings.promptConfig.customPrompts!.filter((p) => p.enabled) : [];
+    // 顶层 main/jailbreak 只在生效时参与去重；显式关闭时同源区块是该内容的唯一载体。
+    const activeCustomBlocks = settings.promptConfig?.customPrompts?.length
+      ? selectActivePromptBlocks(settings.promptConfig.customPrompts, settings.promptConfig)
+      : [];
     if (activeCustomBlocks.length > 0) {
       const compiledBlocks = activeCustomBlocks.map((block) => this.replaceMacros(block.content, macroParams)).join("\n\n");
       mainPromptReplaced = mainPromptReplaced ? `${mainPromptReplaced}\n\n${compiledBlocks}` : compiledBlocks;

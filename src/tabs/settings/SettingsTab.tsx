@@ -17,14 +17,12 @@ import {
   Sparkles,
   UserCheck,
   Wrench,
-  Workflow,
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { Card, CardContent } from "../../../components/ui/card";
 import { useKernel } from "../../contexts/KernelContext";
 import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { usePromptWorkbenchFocus } from "../../contexts/PromptWorkbenchFocusContext";
 import { getErrorMessage } from "../../utils/errorUtils";
 
 const PresetForm = React.lazy(() => import("../../components/PresetForm"));
@@ -51,7 +49,6 @@ type SettingsSectionId =
   | "persona"
   | "memory"
   | "host"
-  | "composer"
   | "plugins"
   | "advanced"
   | "about";
@@ -103,12 +100,6 @@ const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     experimental: true,
   },
   {
-    id: "composer",
-    titleKey: "settings_hub.composer_title",
-    descriptionKey: "settings_hub.composer_desc",
-    icon: Workflow,
-  },
-  {
     id: "plugins",
     titleKey: "settings_hub.plugins_title",
     descriptionKey: "settings_hub.plugins_desc",
@@ -137,7 +128,7 @@ export default function SettingsTab() {
   const viewportSize = useViewportSize();
   const freeCount = getFreeTrialCount();
   const isLandscape = viewportSize.w >= 600 && viewportSize.w > viewportSize.h;
-  const promptFocus = usePromptWorkbenchFocus();
+
 
   const {
     settings,
@@ -209,18 +200,8 @@ export default function SettingsTab() {
   const [isCheckingUpdate, setIsCheckingUpdate] = React.useState(false);
   const lastApiRef = React.useRef(JSON.stringify(settings.api));
 
-  const visibleSections = React.useMemo(() => {
-    return SETTINGS_SECTIONS.filter((section) => {
-      if (section.id === "composer" && !settings.enablePromptComposition) {
-        return false;
-      }
-      return true;
-    });
-  }, [settings.enablePromptComposition]);
-
-  const effectiveActiveSection = (activeSection === "composer" && !settings.enablePromptComposition)
-    ? "prompt"
-    : activeSection;
+  const visibleSections = SETTINGS_SECTIONS;
+  const effectiveActiveSection = activeSection;
   const selectedSection = effectiveActiveSection ?? (isLandscape ? "connection" : null);
   const selectedMeta = SETTINGS_SECTIONS.find((section) => section.id === selectedSection);
   const handleCheckUpdate = async () => {
@@ -293,12 +274,7 @@ export default function SettingsTab() {
           </div>
         );
       case "prompt":
-        return (
-          <PresetForm
-            sections={["preset", "prompts", "regex"]}
-            onOpenComposer={settings.enablePromptComposition ? () => setActiveSection("composer") : undefined}
-          />
-        );
+        return <PresetForm sections={["preset", "prompts", "regex"]} />;
       case "appearance":
         return (
           <ThemeConfigSection
@@ -350,8 +326,7 @@ export default function SettingsTab() {
             showCustomAlert={showCustomAlert}
           />
         );
-      case "composer":
-        return <PresetForm sections={["composer"]} />;
+
       case "plugins":
         return (
           <div className="space-y-3 pb-2">
@@ -469,18 +444,6 @@ export default function SettingsTab() {
     </React.Suspense>
   );
 
-  if (promptFocus.active && settings.enablePromptComposition) {
-    return (
-      <main
-        data-testid="prompt-workbench-focus"
-        className="h-full min-h-0 overflow-y-auto p-1.5 custom-scrollbar"
-      >
-        <React.Suspense fallback={<SettingsSectionFallback />}>
-          <PresetForm sections={["composer"]} />
-        </React.Suspense>
-      </main>
-    );
-  }
 
   const renderSectionList = (compact: boolean) => (
     <nav aria-label={t("settings_hub.categories")} className={`settings-category-list ${compact ? "settings-category-list-compact" : ""}`}>

@@ -367,6 +367,13 @@ export function readSillyTavernPresetPrompts(input: unknown): CustomPromptBlock[
     readLegacyPromptIdentifier(prompt, index),
     prompt,
   ]));
+
+  // 若根字段声明了核心 Prompt 且 prompts 列表中未定义，则补充收录避免遗漏
+  addRootPrompt(promptByIdentifier, "main", data.system_prompt ?? data.mainPrompt, "Main Prompt");
+  addRootPrompt(promptByIdentifier, "jailbreak", data.jailbreak_prompt ?? data.jailbreakPrompt, "Jailbreak");
+  addRootPrompt(promptByIdentifier, "postHistoryInstructions", data.post_history_instructions ?? data.postHistoryPrompt, "Post-History Instructions");
+  addRootPrompt(promptByIdentifier, "storyString", data.story_string ?? data.storyString, "Story String");
+
   const identifiers = selectOrderedPromptEntries(
     order,
     [...promptByIdentifier.keys()].map((identifier) => ({ identifier })),
@@ -382,9 +389,9 @@ export function readSillyTavernPresetPrompts(input: unknown): CustomPromptBlock[
     return {
       id: readStringOrUndefined(prompt.id) ?? identifier,
       identifier,
-      name: readStringOrUndefined(prompt.name) ?? "导入提示词模组",
+      name: readStringOrUndefined(prompt.name) || identifier || "自定义模组",
       role: resolvePromptRole(readStringOrUndefined(prompt.role)),
-      content: readStringOrUndefined(prompt.content) ?? "",
+      content: readStringOrUndefined(prompt.content ?? prompt.system_prompt) ?? "",
       enabled: resolvedEnabled,
       marker: prompt.marker === true || undefined,
       system_prompt: typeof prompt.system_prompt === "boolean" ? prompt.system_prompt : undefined,

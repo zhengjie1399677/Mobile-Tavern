@@ -60,12 +60,10 @@ export interface PresetBundleReferenceSummary {
 export const BUILTIN_PRESET_BUNDLE_ID = "bundle_mobile_tavern_basic";
 export const BUILTIN_SAMPLER_PRESET_ID = "preset_mobile_tavern_basic";
 
-/** 判定预设是否为出厂内置预设（只读保护、启动重建）。 */
+/** 判定预设是否具有内置标记（默认预设已降级为普通预设，无任何特权）。 */
 export function isBuiltinBundle(bundle: PresetBundleV2 | undefined): boolean {
   if (!bundle) return false;
-  return Boolean(bundle.isBuiltin)
-    || bundle.id === BUILTIN_PRESET_BUNDLE_ID
-    || bundle.sampler.id === BUILTIN_SAMPLER_PRESET_ID;
+  return Boolean(bundle.isBuiltin);
 }
 
 /**
@@ -73,20 +71,19 @@ export function isBuiltinBundle(bundle: PresetBundleV2 | undefined): boolean {
  * 1. 优先按 sampler.id 匹配（标准运行形态）
  * 2. 其次按 bundle.id 匹配（防 ID 错位）
  * 3. 再次按名称匹配（兼容采样参数被赋予 "custom" 或历史脏数据）
- * 4. 兜底回落至内置预设或首个预设
+ * 4. 兜底回落至首个预设
  */
 export function resolveActivePresetBundle(
   savedPresets: readonly PresetBundleV2[] | undefined,
   preset: Pick<SamplerPreset, "id" | "name"> | undefined,
 ): PresetBundleV2 | undefined {
   if (!savedPresets || savedPresets.length === 0) return undefined;
-  if (!preset) return savedPresets.find((b) => isBuiltinBundle(b)) ?? savedPresets[0];
+  if (!preset) return savedPresets[0];
 
   return (
     savedPresets.find((b) => b.sampler.id === preset.id) ??
     savedPresets.find((b) => b.id === preset.id) ??
     savedPresets.find((b) => b.sampler.name === preset.name) ??
-    savedPresets.find((b) => isBuiltinBundle(b)) ??
     savedPresets[0]
   );
 }

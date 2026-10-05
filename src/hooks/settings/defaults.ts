@@ -96,17 +96,9 @@ export const DEFAULT_SUMMARY_SYSTEM_PROMPT = `【历史剧情归纳系统】
 
 export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
   roleplayMode: true,
-  mainPrompt: `[System Directive: Fictional Collaborative Roleplay]
-本回复属于虚构的合作写作沙盒。你只需扮演角色 {{char}}。
-1. 叙事边界：严禁代替 {{user}} 说话、行动、思考或做出决定。你的所有生成必须以 {{char}} 的视角或客观旁白展开，在完成本轮演绎后必须立即停止生成，等待 {{user}} 回应。
-2. 写作格式：使用星号 *包裹动作、神态与环境变化*，使用双引号 "包裹角色的台词"，保持清晰的排版结构。
-3. 真实演绎：根据 {{char}} 的性格、动机、认知局限性以及历史线索做出反应。允许表现出角色的缺点、敌意、复杂情绪和道德灰色地带，禁止进行说教、道德评判或输出 AI 助手的客套话。`,
-  jailbreakPrompt: `[Alignment Constraints]
-- 必须保持 {{char}} 扮演身份的连续性，禁止跳脱出角色。
-- 绝不在回复中夹带任何系统提示、OOC 旁白或元解释。
-- 严格遵循星号动作与台词的排版规范。
-- 始终以中文输出，并与当前故事的时代和背景语境完全契合。`,
-  useJailbreak: true,
+  mainPrompt: "",
+  jailbreakPrompt: "",
+  useJailbreak: false,
   instructTemplate: "default" as const,
   tableMemoryPrompt: DEFAULT_TABLE_MEMORY_PROMPT,
   storyString: `{{system_prompt}}
@@ -167,7 +159,7 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
  */
 export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1: SavedPresetBundle = {
   id: "bundle_mobile_tavern_basic",
-  isBuiltin: true,
+  isBuiltin: false,
   preset: {
     id: "preset_mobile_tavern_basic",
     name: "基本预设",
@@ -183,7 +175,7 @@ export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1: SavedPresetBundle = {
   promptConfig: {
     ...toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
     roleplayMode: true,
-    useJailbreak: true,
+    useJailbreak: false,
     storyString: "{{system_prompt}}\n\n{{personality}}\n\n{{description}}\n\n{{scenario}}\n\n{{char_system}}\n\n{{summaries}}\n\n{{lorebook_entries}}\n\n{{mes_example}}\n\n{{jailbreak}}",
     customPrompts: [
       {
@@ -470,7 +462,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
   activePersonaId: "default-persona",
   globalChatBg: "",
   enableHtmlRendering: true,
-  enablePromptComposition: false,
   enableScriptExecution: false,
   scriptSecurityMode: "isolated",
   enableLoopProtection: true,

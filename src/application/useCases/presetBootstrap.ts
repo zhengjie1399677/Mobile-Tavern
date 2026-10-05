@@ -3,49 +3,33 @@ import type {
   PromptConfig,
 } from "../../types";
 import type { PresetBundleV2 } from "../../domain/presets/contracts";
-import { isBuiltinPresetActive, resolvePresetPromptMigration } from "./presetRuntimeMigration";
 import { stableSerializePresetSnapshot, toPresetPromptConfig } from "./presetPromptConfig";
 
 /**
  * 启动期预设引导用例。
  *
  * 原先这些职责散落在 `useSettingsLoader` 的 420 行 useEffect 里：外部静态文件的收口、
- * 内置预设重建、旧键迁移、旧出厂提示词升级、出厂区块迁移，以及活跃 Prompt 配置的最终
- * 形状。它们混在 Hook 中既无法测试，也让"错了就静默改用户提示词"成为可能。
+ * 自带预设初始化、旧键迁移，以及活跃 Prompt 配置的最终形状。它们混在 Hook 中既无法测试，
+ * 也让"错了就静默改用户提示词"成为可能。
  *
  * 边界：
  * - 只处理预设拥有的数据：`saved_presets_bundle` 列表与活跃 Prompt 配置。
  *   人设、API、记忆、主题、世界书等非预设字段仍由调用方合并。
  * - 无 IO、无 React、不读环境；外部文件的 `fetch` 由组合根负责，本用例只消费收口结果。
- * - 出厂内容迁移只作用于内置预设（`COMPAT-DATA`）；自定义与导入预设必须原样保留。
+ * - 不再有任何出厂内容迁移或字符串启发式：所有预设（含出厂自带预设）一律原样保留
+ *   （`COMPAT-DATA`），启动引导只做形状归一化。
  */
 
 /**
  * 出厂内容修订标记。
  *
- * 内置预设的提示词内容变化需要一次性覆盖到用户设置时，递增本标记；启动引导据此判断
- * 是否需要识别"旧出厂内容"。这取代了"每次启动都按文本特征扫描"的做法（`CHANGE-SAFE`）：
- * 标记已是当前值时，引导不再按字符串改写任何用户可见提示词。
+ * 历史上用于"内置预设出厂内容一次性覆盖"；该迁移已按要求移除（所有预设一律原样保留）。
+ * 现在只承担一件事：标记落后的旧数据在启动时归一化写回一次，之后不再重复写库。
  */
 export const CURRENT_PRESET_FACTORY_REVISION = 2;
 
 /** 旧版本注入的遗留预设 id，启动时必须清除。 */
 export const LEGACY_FORMAT_PRESET_ID = "bundle_format_preservation";
-
-/**
- * 判定"旧出厂主提示词"的特征串；命中即整块升级为当前内置内容。
- *
- * 这是对历史出厂文案的一次性识别，不是行为引导注入：只在内置预设生效时使用，
- * 第三方预设即便包含相同文本也不会被改写。
- */
-export const LEGACY_DEFAULT_PROMPT_PATTERNS: readonly string[] = [
-  "[NARRATIVE ENGINE:",
-  "[系统核心任务：",
-  "叙事共鸣沙盒",
-];
-
-/** 状态与结构化记忆引擎提示词的特征串；命中即视为已迁移内容。 */
-export const TABLE_MEMORY_PROMPT_MARKER = "【状态与结构化记忆引擎】";
 
 /**
  * `/default_presets.json` 的收口结果。
@@ -95,10 +79,7 @@ export type PresetBootstrapDiagnosticCode =
   | "external-defaults-applied"
   | "legacy-saved-presets-key-migrated"
   | "legacy-format-preset-removed"
-  | "builtin-preset-rebuilt"
-  | "legacy-default-prompt-upgraded"
-  | "factory-prompt-migration-applied"
-  | "table-memory-prompt-repaired";
+  | "builtin-preset-rebuilt";
 
 export interface PresetBootstrapDiagnostic {
   code: PresetBootstrapDiagnosticCode;
@@ -138,7 +119,7 @@ export function readExternalPresetDefaults(raw: unknown): ExternalPresetDefaults
   };
 }
 
-/** 内置预设重建：外部静态文件只允许覆盖内置预设的 Prompt 字段。 */
+/** 自带预设重建：外部静态文件只允许覆盖传统 Prompt 字段。 */
 export function resolveBuiltinPreset(
   compiledBuiltin: PresetBundleV2,
   externalDefaults: ExternalPresetDefaults | null,
@@ -148,7 +129,7 @@ export function resolveBuiltinPreset(
   return {
     bundle: {
       ...compiledBuiltin,
-      // 外部静态文件只修补内置预设的传统 Prompt 字段；`prompt` 快照是 v2 的唯一权威，
+      // 外部静态文件只修补自带预设的传统 Prompt 字段；`prompt` 快照是 v2 的唯一权威，
       // 不允许被外部文件间接改写（与 v1 时代 `toPresetPromptConfig` 会剥掉编排字段一致）。
       legacyPromptConfig: toPresetPromptConfig({
         ...(compiledBuiltin.legacyPromptConfig ?? {}),
@@ -212,7 +193,7 @@ function resolveFreshInstall(
   };
 }
 
-/** 已存在设置记录：旧键迁移、内置预设重建、出厂内容迁移与活跃 Prompt 的最终形状。 */
+/** 已存在设置记录：旧键迁移、自带预设初始化与活跃 Prompt 的最终形状。 */
 function resolveStoredSettings(
   input: PresetBootstrapInput,
   builtin: PresetBundleV2,
@@ -221,11 +202,7 @@ function resolveStoredSettings(
 ): PresetBootstrapResult {
   const stored = input.storedSettings as PresetBootstrapStoredSettings;
   const builtinEntry = builtin;
-  // 两个 id 不可混用：列表重建比对的是预设包 id，出厂迁移判定的是包内采样子预设 id。
   const builtinBundleId = builtinEntry.id;
-  const builtinPresetId = builtinEntry.sampler.id;
-  const activePresetId = stored.preset?.id;
-  const isBuiltinActive = isBuiltinPresetActive(activePresetId, builtinPresetId);
   const hasCurrentFactoryRevision = stored.presetFactoryRevision === CURRENT_PRESET_FACTORY_REVISION;
   const factoryRevisionStale = !hasCurrentFactoryRevision;
   if (input.externalDefaults) report("external-defaults-applied", "promptConfig");
@@ -249,9 +226,9 @@ function resolveStoredSettings(
     list = withoutLegacyEntry;
   }
 
-  // 内置预设始终以出厂内容重建：既不保留数据库里的旧副本，也不覆盖自定义预设。
-  const customPresets = list.filter((bundle) => bundle.id !== builtinBundleId);
-  const rebuiltPresets = [...customPresets, builtinEntry];
+  // 默认预设完全降级为普通预设：和导入预设唯一的区别只是出厂时"自带"（仅在列表为空时初始化塞入）。
+  // 绝不能在启动时强行覆盖用户的修改，也不能在用户删除后重新加回。
+  const rebuiltPresets = list.length === 0 ? [builtinEntry] : list;
   if (!isSamePresetList(rebuiltPresets, storedList)) {
     report("builtin-preset-rebuilt", builtinBundleId);
     presetsDirty = true;
@@ -261,65 +238,16 @@ function resolveStoredSettings(
   const storedPromptConfig = stored.promptConfig;
   const working: Partial<PromptConfig> = { ...(storedPromptConfig ?? {}) };
 
-  if (isBuiltinActive && !hasCurrentFactoryRevision) {
-    // 只有在缺少当前出厂修订标记时才做一次性识别：字符串匹配是历史数据的兜底手段，
-    // 一旦盖上标记就不再按文本判断，避免覆盖用户手写内容、也避免每次启动都扫描提示词。
-    const matchedPattern = LEGACY_DEFAULT_PROMPT_PATTERNS.find(
-      (pattern) => typeof working.mainPrompt === "string" && working.mainPrompt.includes(pattern),
-    );
-    if (matchedPattern) {
-      working.mainPrompt = builtinEntry.legacyPromptConfig?.mainPrompt;
-      working.jailbreakPrompt = builtinEntry.legacyPromptConfig?.jailbreakPrompt;
-      working.storyString = builtinEntry.legacyPromptConfig?.storyString;
-      working.customPrompts = builtinEntry.legacyPromptConfig?.customPrompts;
-      delete working.postHistoryPrompt;
-      delete working.usePostHistory;
-      delete working.enableReasoningGuidance;
-      delete working.reasoningGuidancePrompt;
-      report("legacy-default-prompt-upgraded", matchedPattern);
-    }
-  }
-
-  // 出厂内容迁移同样只对内置预设生效：非内置预设原样返回。
-  const promptMigration = resolvePresetPromptMigration({
-    prompts: working.customPrompts ?? [],
-    defaultPrompts: builtinEntry.legacyPromptConfig?.customPrompts ?? [],
-    activePresetId,
-    builtinPresetId,
-  });
-  if (promptMigration.updated) {
-    report("factory-prompt-migration-applied", `count=${promptMigration.prompts.length}`);
-  }
-
   const defaultPromptConfig: Partial<PromptConfig> = input.externalDefaults
     ? { ...input.factory.promptConfig, ...(input.externalDefaults.promptConfig ?? {}) }
     : (builtinEntry.legacyPromptConfig ?? {});
 
-  const builtinBackfill: Partial<PromptConfig> = {};
-  if (isBuiltinActive) {
-    builtinBackfill.mainPrompt = working.mainPrompt || defaultPromptConfig.mainPrompt;
-    builtinBackfill.postHistoryPrompt = working.postHistoryPrompt || defaultPromptConfig.postHistoryPrompt;
-    builtinBackfill.reasoningGuidancePrompt =
-      working.reasoningGuidancePrompt || defaultPromptConfig.reasoningGuidancePrompt;
-
-    const storedTableMemoryPrompt = working.tableMemoryPrompt;
-    if (!storedTableMemoryPrompt || !storedTableMemoryPrompt.includes(TABLE_MEMORY_PROMPT_MARKER)) {
-      builtinBackfill.tableMemoryPrompt = input.factory.tableMemoryPrompt;
-      report("table-memory-prompt-repaired");
-    } else {
-      builtinBackfill.tableMemoryPrompt = storedTableMemoryPrompt;
-    }
-  }
-
   const promptConfig = {
     ...defaultPromptConfig,
     ...working,
-    ...(!isBuiltinActive ? {
-      mainPrompt: working.mainPrompt ?? "",
-      useMainPrompt: working.useMainPrompt ?? Boolean(working.mainPrompt && working.mainPrompt.trim().length > 0),
-    } : {}),
-    ...(isBuiltinActive ? builtinBackfill : {}),
-    customPrompts: promptMigration.prompts,
+    mainPrompt: working.mainPrompt ?? "",
+    useMainPrompt: working.useMainPrompt ?? Boolean(working.mainPrompt && working.mainPrompt.trim().length > 0),
+    customPrompts: working.customPrompts ?? [],
     sectionHeaders: {
       ...defaultPromptConfig.sectionHeaders,
       ...(working.sectionHeaders ?? {}),

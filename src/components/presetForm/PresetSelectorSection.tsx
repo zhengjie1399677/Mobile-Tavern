@@ -1,5 +1,5 @@
 import type React from "react";
-import { Plus, Save, Trash2, Download, Upload, Package, FileText } from "lucide-react";
+import { Plus, Save, Trash2, Download, Upload, FileText } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { Card } from "../../../components/ui/card";
 import {
@@ -10,10 +10,7 @@ import {
   SelectValue,
 } from "../../../components/ui/select";
 import type { UserSettings } from "../../types";
-import {
-  isBuiltinBundle,
-  resolveActivePresetBundle,
-} from "../../application/useCases/presetBundleLifecycle";
+import { resolveActivePresetBundle } from "../../application/useCases/presetBundleLifecycle";
 
 interface PresetSelectorSectionProps {
   settings: UserSettings;
@@ -41,7 +38,6 @@ export default function PresetSelectorSection({
 }: PresetSelectorSectionProps) {
   const { t } = useTranslation();
   const activeBundle = resolveActivePresetBundle(settings.savedPresets, settings.preset);
-  const isActiveBuiltin = isBuiltinBundle(activeBundle);
   const currentBundleName = activeBundle?.sampler.name || settings.preset.name || "Default";
 
   return (
@@ -61,11 +57,7 @@ export default function PresetSelectorSection({
               >
                 <SelectValue placeholder={t("preset_selector.active_preset", { name: currentBundleName })}>
                   <span className="flex items-center gap-2 truncate">
-                    {isActiveBuiltin ? (
-                      <Package className="w-4 h-4 text-sky-400 shrink-0" />
-                    ) : (
-                      <FileText className="w-4 h-4 text-primary shrink-0" />
-                    )}
+                    <FileText className="w-4 h-4 text-primary shrink-0" />
                     <span className="truncate">{currentBundleName}</span>
                     {isActivePresetDirty && (
                       <span className="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-[9.5px] font-semibold text-amber-500">
@@ -79,20 +71,9 @@ export default function PresetSelectorSection({
                 {(settings.savedPresets || []).map((p) => (
                   <SelectItem key={p.id} value={p.id} className="text-xs py-2 font-medium cursor-pointer">
                     <span className="flex items-start gap-2 w-full min-w-0">
-                      {p.isBuiltin ? (
-                        <Package className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
-                      ) : (
-                        <FileText className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                      )}
+                      <FileText className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                       <span className="line-clamp-2 break-all font-semibold text-foreground flex-1 min-w-0 leading-snug">
                         {p.sampler.name}
-                      </span>
-                      <span className={`shrink-0 ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full font-mono self-start ${
-                        p.isBuiltin
-                          ? "bg-sky-500/10 text-sky-500 border border-sky-500/20"
-                          : "bg-primary/10 text-primary border border-primary/20"
-                      }`}>
-                        {p.isBuiltin ? t("preset_selector.builtin_badge") : t("preset_selector.custom_badge")}
                       </span>
                     </span>
                   </SelectItem>
@@ -106,11 +87,8 @@ export default function PresetSelectorSection({
               type="button"
               aria-label={t("preset_selector.save_current")}
               onClick={() => void handleSaveCurrentPresetBundle()}
-              // 内置预设不可覆盖，但仍允许点击以说明"请另存为副本"，避免禁用按钮吞掉原因。
               disabled={!activeBundleId || !isActivePresetDirty}
-              title={isActiveBuiltin
-                ? t("preset_selector.save_current_builtin_hint")
-                : t("preset_selector.save_current")}
+              title={t("preset_selector.save_current")}
               className={`h-9.5 w-9.5 rounded-xl border transition-all active:scale-90 flex items-center justify-center shadow-2xs ${
                 isActivePresetDirty
                   ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 hover:border-emerald-500/50 animate-pulse"
@@ -135,9 +113,8 @@ export default function PresetSelectorSection({
                 void handleDeletePresetBundle(activeBundleId)
               }
               disabled={
-                (settings.savedPresets || []).length === 0 ||
-                !activeBundleId ||
-                isActiveBuiltin
+                (settings.savedPresets || []).length <= 1 ||
+                !activeBundleId
               }
               title={t("preset_selector.delete_custom")}
               className="h-9.5 w-9.5 bg-muted/30 hover:bg-rose-500/15 border border-border/40 hover:border-rose-500/30 text-muted-foreground hover:text-rose-400 disabled:opacity-30 disabled:pointer-events-none rounded-xl transition-all active:scale-90 flex items-center justify-center shadow-2xs"

@@ -52,12 +52,14 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
   });
 
   it("统一呈现提示词列表，不设 CORE PROMPTS 或 PROMPT MODULES 分区", () => {
-    render(<Harness initial={structuredClone(DEFAULT_SETTINGS)} />);
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.mainPrompt = "系统核心设定";
+    settings.promptConfig.useMainPrompt = true;
+    render(<Harness initial={settings} />);
     expect(screen.queryByText("CORE PROMPTS")).not.toBeInTheDocument();
     expect(screen.queryByText("PROMPT MODULES")).not.toBeInTheDocument();
     expect(screen.getByText(/提示词列表/)).toBeInTheDocument();
-    expect(screen.getAllByText(/底层扮演/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/规则提示/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/系统提示词/).length).toBeGreaterThan(0);
   });
 
   it("支持新建提示词模组", () => {
@@ -169,5 +171,34 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
     fireEvent.change(searchInput, { target: { value: "" } });
     expect(screen.getByText("激活的文风模组")).toBeInTheDocument();
     expect(screen.getByText("备用的视角模组")).toBeInTheDocument();
+  });
+
+  it("当 customPrompts 中含有同源 main/jailbreak 时，不重复平铺双重卡片", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.mainPrompt = "系统核心设定";
+    settings.promptConfig.customPrompts = [
+      {
+        id: "st_main",
+        identifier: "main",
+        name: "Main Prompt",
+        role: "system",
+        content: "系统核心设定",
+        enabled: true,
+      },
+      {
+        id: "st_custom",
+        identifier: "writing_style",
+        name: "文风规范",
+        role: "system",
+        content: "言简意赅",
+        enabled: true,
+      },
+    ];
+
+    render(<Harness initial={settings} />);
+    // 应该只展示一个系统提示词卡片和一个自定义模组卡片，不出现重复的 Main Prompt
+    expect(screen.getAllByText(/系统提示词/).length).toBeGreaterThan(0);
+    expect(screen.getByText("文风规范")).toBeInTheDocument();
+    expect(screen.queryByText("Main Prompt")).not.toBeInTheDocument();
   });
 });

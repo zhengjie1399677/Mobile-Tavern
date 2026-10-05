@@ -72,7 +72,7 @@ export function projectPresetActivation(
 ): PresetBundleActivation {
   const legacy = toPresetPromptConfig((bundle.legacyPromptConfig ?? {}) as PromptConfig);
   return {
-    preset: { ...presetDefaults, ...bundle.sampler },
+    preset: projectSamplerPreset(bundle.sampler, presetDefaults),
     promptConfig: {
       ...legacy,
       composition: bundle.prompt.composition ?? current.composition,

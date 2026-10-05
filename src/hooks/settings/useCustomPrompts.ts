@@ -56,9 +56,10 @@ export const useCustomPrompts = ({
   ) => {
     updateSettings((prev) => {
       const list = prev.promptConfig.customPrompts || [];
-      const updated = list.map((item) =>
-        item.id === id ? { ...item, name, role: "system" as const, content } : item,
-      );
+      const updated = list.map((item) => {
+        const matches = item.id === id || (Boolean(item.identifier) && item.identifier === id);
+        return matches ? { ...item, id: item.id || id, name, role, content } : item;
+      });
       return {
         ...prev,
         promptConfig: { ...prev.promptConfig, customPrompts: updated },
@@ -74,7 +75,7 @@ export const useCustomPrompts = ({
       const list = prev.promptConfig.customPrompts || [];
       const newItem = {
         id: newId,
-        name: `新预设指令或文风约束_${list.length + 1}`,
+        name: `新提示词模组_${list.length + 1}`,
         role: "system" as const,
         content: "",
         enabled: true,
@@ -96,7 +97,7 @@ export const useCustomPrompts = ({
    * 编排侧若开着编辑器仍可从它的撤销栈整份还原，列表侧本身不提供撤销。
    */
   const handleDeleteCustomPrompt = useCallback(async (id: string) => {
-    const ok = await showCustomConfirm("确定删除这个自定义预设指令组件吗？编排中的同源区块会一并删除。");
+    const ok = await showCustomConfirm("确定删除这个自定义提示词模组吗？");
     if (!ok) return;
     updateSettings((prev) => ({
       ...prev,
