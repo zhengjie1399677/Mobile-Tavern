@@ -37,6 +37,13 @@
 
 ## 中期排期
 
+- [ ] **写入队列与聊天并发治理（P1）**：解决「2 个隐患 + 3 个结构性缺口」——合并语义、队列吞吐、新鲜度判断散落、状态权威未写死、性能无预算。
+  - ①【已完成】`enqueueWrite` 增加显式 `mode`：`coalesceable`（默认，保持 P1-11 以来的既有语义）与 `must-complete`（绝不合并、各自拿到自己的结果）分开，`idbWriteQueue.test.ts` 钉住两种语义。翻转 4 处提交类写入：`commitSessionTurn`（**红检实证：退回合并后 m1 永久丢失**）、`deleteSessionMessage`（key 只到会话级，删不同消息会互相顶掉）、`updateSessionMessage`（调用方消费返回的 ChatSession）、`upsertDictEntry`（返回 boolean 会被另一次调用顶掉）。`character:${id}` / `session:${id}:cascade` / `settings:user_settings` 有注释表明是故意合并，保持不动。
+  - ②【待做】写队列由全局单链改为按聚合分片（会话 / 记忆分区 / 凭据 / 附件），长写（20MB 备份导入）不得阻塞无关聚合；保留每分片的串行、超时熔断、深度遥测与 abort 传导。
+  - ③【待做】统一「命令三件套」：commandId + epoch + AbortSignal，用单一 `isStale(token)` 收掉散落的 `isStillActive`（仅 useRerollMessage 里就有 12 处）、`__streamingMsgIdGuard`、`agentHandleKeyRef`；加守卫禁止流式路径直接读 `activeSessionIdRef` 判新鲜度。
+  - ④【待做】把 authoritative（DB/owner）/ derived（React 视图）/ ephemeral（流式缓冲）三类状态与「视图永不回写权威」写成权威文档并加守卫测试。
+  - ⑤【待做】性能预算制：首字节延迟、切会话（500 条消息）、记忆召回 P95、20MB 导入耗时、冷启动纳入 CI 断言，不再手动跑 `tests/stress/*`。
+
 - [ ] **生态试运行（P2，方向③，路线阶段 E）**：仓库内 Tool Plugin SDK、确定性 `.mttool` 打包器和官方无权限文本工具箱示例已完成；继续评估 SDK 独立发布以及 Provider、Media Processor、Renderer、Context Source 扩展模板。公开目录与审核/撤回流程只保留为条件性事项。
 - [ ] **测试覆盖补强（P2）**：补充现有 Hook 测试尚未覆盖的边界，并新增跨组件数据流契约测试，优先检查 `useCharacters`、`useCatbot`、`useSendMessage` 与 Profile/聊天切换；数量以 `npm test` 和 `npm run test:unit` 当次结果为准。
 - [ ] **P3-B Store 拆分（P3，条件性）**：先解除 `useSettings` 对 `ChatContext.availableModels` 的反向依赖，再只拆出 Settings；更大范围拆分只有出现明确维护瓶颈时再评估。

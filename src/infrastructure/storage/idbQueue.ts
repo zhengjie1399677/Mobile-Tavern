@@ -59,6 +59,42 @@ export interface WriteContext {
   readonly aborted: boolean;
 }
 
+/**
+ * 写队列选项。
+ *
+ * `mode` 决定同 key 排队时的语义，必须显式区分：
+ *  - `coalesceable`（默认，保持 P1-11 以来的既有行为）：只保留最新一次写入。
+ *    适用于「整体保存最新状态」（角色卡、设置、会话级联删除等），省掉中间落盘。
+ *  - `must-complete`：**绝不合并**，每次调用各自执行、各自拿到自己的结果。
+ *    必须用于追加/提交类写入：这类操作按增量 upsert，一旦被合并，先到那批数据
+ *    会被直接丢弃（例如 `commitSessionTurn` 的 messages 永远不落盘）。
+ */
+export interface EnqueueWriteOptions {
+  readonly key?: string;
+  readonly mode?: "coalesceable" | "must-complete";
+  readonly signal?: AbortSignal;
+}
+
+interface NormalizedWriteOptions {
+  readonly key?: string;
+  readonly mode: "coalesceable" | "must-complete";
+  readonly signal?: AbortSignal;
+}
+
+function normalizeWriteOptions(
+  keyOrOptions?: string | EnqueueWriteOptions,
+  externalSignal?: AbortSignal,
+): NormalizedWriteOptions {
+  if (typeof keyOrOptions === "string" || keyOrOptions === undefined) {
+    return { key: keyOrOptions, mode: "coalesceable", signal: externalSignal };
+  }
+  return {
+    ...(keyOrOptions.key === undefined ? {} : { key: keyOrOptions.key }),
+    mode: keyOrOptions.mode ?? "coalesceable",
+    ...(keyOrOptions.signal === undefined ? {} : { signal: keyOrOptions.signal }),
+  };
+}
+
 /** 构造标准的 AbortError，兼容缺失 DOMException 的环境 */
 function createAbortError(message = "The operation was aborted"): DOMException {
   if (typeof DOMException !== "undefined") {
@@ -125,7 +161,20 @@ export function enqueueWrite<T>(
   operation: (ctx: WriteContext) => Promise<T>,
   key?: string,
   externalSignal?: AbortSignal
+): Promise<T>;
+export function enqueueWrite<T>(
+  operation: (ctx: WriteContext) => Promise<T>,
+  options?: EnqueueWriteOptions
+): Promise<T>;
+export function enqueueWrite<T>(
+  operation: (ctx: WriteContext) => Promise<T>,
+  keyOrOptions?: string | EnqueueWriteOptions,
+  signalArgument?: AbortSignal
 ): Promise<T> {
+  const normalized = normalizeWriteOptions(keyOrOptions, signalArgument);
+  // must-complete 一律不参与合并：等价于"没有 key 的排队语义"。
+  const key = normalized.mode === "coalesceable" ? normalized.key : undefined;
+  const externalSignal = normalized.signal;
   // key 合并：若同一 key 的写操作已在队列中等待，用最新 operation 替换旧的并返回共享 Promise
   if (key) {
     const existing = pendingKeyedWrites.get(key);

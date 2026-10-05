@@ -210,5 +210,6 @@ export function updateSessionMessage(
       transaction.onerror = () => reject(transaction.error);
       bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `session:${sessionId}:message:${message.id}:update`, signal);
+  // must-complete：调用方消费返回的 ChatSession，合并会让先到者拿到后到者的修订。
+  }, { key: `session:${sessionId}:message:${message.id}:update`, mode: "must-complete", signal });
 }

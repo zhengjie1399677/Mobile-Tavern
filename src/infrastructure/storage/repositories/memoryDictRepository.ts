@@ -98,7 +98,8 @@ export async function upsertDictEntry(entry: {
       transaction.oncomplete = () => resolve(isNew);
       bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `dict:${id}`, signal);
+  // must-complete：返回 boolean 表示本次是新建还是更新，合并会让返回值来自另一次调用。
+  }, { key: `dict:${id}`, mode: "must-complete", signal });
 }
 
 /**

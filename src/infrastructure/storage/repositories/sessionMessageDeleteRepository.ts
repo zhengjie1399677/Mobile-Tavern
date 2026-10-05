@@ -231,5 +231,6 @@ export function deleteSessionMessage(
       transaction.onerror = () => reject(transaction.error);
       bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `session:${sessionId}:delete-message`, signal);
+  // must-complete：key 只到会话级，合并会让「删不同消息」的其中一次被顶掉。
+  }, { key: `session:${sessionId}:delete-message`, mode: "must-complete", signal });
 }

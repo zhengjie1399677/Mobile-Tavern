@@ -182,5 +182,7 @@ export function commitSessionTurn(
       transaction.onerror = () => reject(transaction.error);
       bindTransactionAbort(ctx, transaction, reject);
     });
-  }, `session:${sessionId}:turn`, signal);
+  // must-complete：本操作按消息增量 upsert，两次提交同会话时若被合并，
+  // 先到那轮的 messages 会被直接丢弃（计数还会按幸存那次重算）。
+  }, { key: `session:${sessionId}:turn`, mode: "must-complete", signal });
 }
