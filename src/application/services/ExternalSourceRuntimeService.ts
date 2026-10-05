@@ -40,6 +40,9 @@ import {
 
 const MAX_RESULT_BYTES = 2 * 1024 * 1024;
 const MAX_PROMPT_TEXT_LENGTH = 200_000;
+/** 派生资源工具的本地名；与来源自带工具重名时跳过派生，避免第二条访问路径。 */
+export const RESOURCES_LIST_LOCAL_NAME = "resources.list";
+export const RESOURCES_READ_LOCAL_NAME = "resources.read";
 /** 启动期的单来源连接预算：宁可先标记失败，也不让应用启动被远端拖住。 */
 const BOOTSTRAP_CONNECT_TIMEOUT_MS = 4_000;
 
@@ -84,6 +87,10 @@ async function defaultResolveAuthHeaders(
   const module = await import("../../infrastructure/externalSources/externalSourceStorage");
   const secret = await module.resolveExternalSourceCredential(externalSourceCredentialKey(source));
   return buildExternalSourceAuthHeaders(source, secret);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** 把 MCP 内容块压平成模型可消费的文本；非文本块只保留类型占位。 */
@@ -213,11 +220,18 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
         );
         pending.push(disposer);
       }
+      const resourceTools = this.createResourceTools(source, handle);
+      for (const tool of resourceTools) {
+        pending.push(runtime.registerTool(tool));
+      }
       this.registrations.push(...pending);
       this.connections.set(source.id, {
         handle,
         version: handle.snapshot.serverVersion ?? "1.0.0",
-        toolNames: handle.snapshot.tools.map((tool) => tool.qualifiedName),
+        toolNames: [
+          ...handle.snapshot.tools.map((tool) => tool.qualifiedName),
+          ...resourceTools.map((tool) => tool.name),
+        ],
       });
     } catch (error) {
       for (const dispose of pending.reverse()) await dispose();
@@ -251,6 +265,115 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     };
   }
 
+  /**
+   * 资源访问只走工具这条路径（用户/模型决定取用），不额外注入上下文。
+   * 读取白名单 = 连接时 server 自己声明的资源列表，模型无法让宿主去抓任意 URI。
+   */
+  private createResourceTools(
+    source: ExternalCapabilitySource,
+    handle: OpenedExternalSource,
+  ): AgentToolDefinition[] {
+    if (handle.snapshot.resources.length === 0) return [];
+    const existing = new Set(handle.snapshot.tools.map((tool) => tool.localName));
+    if (existing.has(RESOURCES_LIST_LOCAL_NAME) || existing.has(RESOURCES_READ_LOCAL_NAME)) {
+      return [];
+    }
+    const sourceId = source.id;
+    const prefix = `${source.kind}.${sourceId}`;
+    const listTool: AgentToolDefinition = {
+      name: `${prefix}.${RESOURCES_LIST_LOCAL_NAME}`,
+      version: "1.0.0",
+      description: `列出外部能力源 ${source.displayName} 声明的资源（只读元数据，不读取内容）。`,
+      inputSchema: z.object({}).strict(),
+      inputJsonSchema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+      outputSchema: z.unknown(),
+      permissions: [`external.source.${sourceId}`],
+      riskLevel: "low",
+      sideEffect: "none",
+      executionScope: "external",
+      policy: "allow",
+      timeoutMs: DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS,
+      execute: async (_input, context) => {
+        await this.assertSourceActive(sourceId);
+        return {
+          resources: handle.snapshot.resources.map((resource) => ({
+            uri: resource.uri,
+            name: resource.name,
+            mimeType: resource.mimeType ?? null,
+            description: resource.description || null,
+          })),
+        };
+      },
+    };
+    const readTool: AgentToolDefinition = {
+      name: `${prefix}.${RESOURCES_READ_LOCAL_NAME}`,
+      version: "1.0.0",
+      description: `读取外部能力源 ${source.displayName} 已声明资源的内容；只允许读取 resources.list 返回过的 URI。`,
+      inputSchema: z.object({ uri: z.string().min(1).max(2048) }).strict(),
+      inputJsonSchema: {
+        type: "object",
+        properties: { uri: { type: "string", maxLength: 2048 } },
+        required: ["uri"],
+        additionalProperties: false,
+      },
+      outputSchema: z.unknown(),
+      permissions: [`external.source.${sourceId}`],
+      riskLevel: "medium",
+      sideEffect: "external",
+      executionScope: "external",
+      policy: "ask",
+      timeoutMs: DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS,
+      execute: (input, context) => this.readExternalResource(handle, sourceId, input, context),
+    };
+    return [listTool, readTool];
+  }
+
+  private async readExternalResource(
+    handle: OpenedExternalSource,
+    sourceId: string,
+    input: unknown,
+    context: AgentToolExecutionContext,
+  ): Promise<unknown> {
+    await this.assertSourceActive(sourceId);
+    const uri = isRecord(input) ? input.uri : undefined;
+    if (typeof uri !== "string") throw new Error("EXTERNAL_SOURCE_RESOURCE_URI_INVALID");
+    if (!handle.snapshot.resources.some((resource) => resource.uri === uri)) {
+      throw new Error("EXTERNAL_SOURCE_RESOURCE_NOT_ADVERTISED");
+    }
+    const controller = new AbortController();
+    const relayAbort = () => controller.abort(context.signal.reason);
+    if (context.signal.aborted) relayAbort();
+    else context.signal.addEventListener("abort", relayAbort, { once: true });
+    try {
+      const content = await handle.connected.readResource(uri, {
+        signal: controller.signal,
+        timeoutMs: DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS,
+      });
+      const text = content.text ?? "";
+      const projected = {
+        uri: content.uri,
+        mimeType: content.mimeType ?? null,
+        text: text.length > MAX_PROMPT_TEXT_LENGTH ? `${text.slice(0, MAX_PROMPT_TEXT_LENGTH)}…` : text,
+      };
+      if (new TextEncoder().encode(JSON.stringify(projected) ?? "null").byteLength > MAX_RESULT_BYTES) {
+        throw new Error("EXTERNAL_SOURCE_RESULT_TOO_LARGE");
+      }
+      return projected;
+    } finally {
+      context.signal.removeEventListener("abort", relayAbort);
+    }
+  }
+
+  private async assertSourceActive(sourceId: string): Promise<void> {
+    const store = this.deps.store ?? (await defaultStore());
+    const current = await store.get(sourceId);
+    if (!current?.enabled) throw new Error("EXTERNAL_SOURCE_REVOKED");
+  }
+
   private async executeExternalTool(
     handle: OpenedExternalSource,
     sourceId: string,
@@ -259,9 +382,7 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     context: AgentToolExecutionContext,
   ): Promise<unknown> {
     // 撤销即时生效：每次执行前重新确认来源仍然启用，不信任注册时的快照。
-    const store = this.deps.store ?? (await defaultStore());
-    const current = await store.get(sourceId);
-    if (!current?.enabled) throw new Error("EXTERNAL_SOURCE_REVOKED");
+    await this.assertSourceActive(sourceId);
 
     const controller = new AbortController();
     const relayAbort = () => controller.abort(context.signal.reason);

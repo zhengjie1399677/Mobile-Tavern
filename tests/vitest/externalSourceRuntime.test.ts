@@ -62,6 +62,12 @@ function createFixtureServer(): McpServer {
     { description: "求和", inputSchema: z.object({ a: z.number(), b: z.number() }) },
     async (args) => ({ content: [{ type: "text", text: String(args.a + args.b) }] }),
   );
+  mcp.registerResource(
+    "readme",
+    "file:///readme.txt",
+    { title: "README", mimeType: "text/plain" },
+    async (uri) => ({ contents: [{ uri: uri.href, text: "远端资料正文" }] }),
+  );
   return mcp;
 }
 
@@ -214,8 +220,13 @@ describe("外部能力源运行时（真实 Agent Runtime + 本地 MCP 夹具）
     const { agentRuntime, service } = await createRuntimeFixture([source()]);
     try {
       const tools = agentRuntime.listTools().filter((tool) => tool.name.startsWith("mcp.fixture."));
-      expect(tools.map((tool) => tool.name).sort()).toEqual(["mcp.fixture.add", "mcp.fixture.echo"]);
-      for (const tool of tools) {
+      expect(tools.map((tool) => tool.name).sort()).toEqual([
+        "mcp.fixture.add",
+        "mcp.fixture.echo",
+        "mcp.fixture.resources.list",
+        "mcp.fixture.resources.read",
+      ]);
+      for (const tool of tools.filter((item) => !item.name.includes(".resources."))) {
         expect(tool.policy).toBe("ask");
         expect(tool.sideEffect).toBe("external");
         expect(tool.permissions).toEqual(["external.source.fixture"]);
@@ -230,7 +241,7 @@ describe("外部能力源运行时（真实 Agent Runtime + 本地 MCP 夹具）
         capabilityDecisions: {},
       });
       expect(composed.pluginVersions).toEqual({ "external-source/fixture": "2.0.0" });
-      expect(composed.contributionOrder.tool).toHaveLength(2);
+      expect(composed.contributionOrder.tool).toHaveLength(4);
       expect(composed.contributionOrder.tool).toEqual(
         expect.arrayContaining(["mcp.fixture.add", "mcp.fixture.echo"]),
       );
@@ -278,7 +289,7 @@ describe("外部能力源运行时（真实 Agent Runtime + 本地 MCP 夹具）
       expect(Object.keys(service.getDiagnostics().failures)).toEqual(["broken"]);
       expect(
         agentRuntime.listTools().filter((tool) => tool.name.startsWith("mcp.fixture.")),
-      ).toHaveLength(2);
+      ).toHaveLength(4);
     } finally {
       await service.destroy();
       await agentRuntime.destroy();
@@ -294,5 +305,33 @@ describe("外部能力源运行时（真实 Agent Runtime + 本地 MCP 夹具）
       ]),
     ).toBe("第一段\n第二段\n[image]");
     expect(flattenExternalContent([null, 42, {}])).toBe("");
+  });
+
+  it("远端资源暴露为只读工具，且只允许读取已声明 URI", async () => {
+    const { agentRuntime, service } = await createRuntimeFixture([source()]);
+    try {
+      const list = agentRuntime.listTools().find((tool) => tool.name === "mcp.fixture.resources.list");
+      const read = agentRuntime.listTools().find((tool) => tool.name === "mcp.fixture.resources.read");
+      expect(list?.policy).toBe("allow");
+      expect(list?.sideEffect).toBe("none");
+      expect(read?.policy).toBe("ask");
+
+      const listed = (await list!.execute({}, toolContext())) as {
+        resources: Array<{ uri: string; name: string }>;
+      };
+      expect(listed.resources.map((item) => item.uri)).toContain("file:///readme.txt");
+
+      await expect(read!.execute({ uri: "file:///readme.txt" }, toolContext())).resolves.toMatchObject({
+        uri: "file:///readme.txt",
+        text: "远端资料正文",
+      });
+      // 白名单收口：模型不能借宿主去抓任意 URI。
+      await expect(read!.execute({ uri: "file:///etc/passwd" }, toolContext())).rejects.toThrow(
+        /EXTERNAL_SOURCE_RESOURCE_NOT_ADVERTISED/,
+      );
+    } finally {
+      await service.destroy();
+      await agentRuntime.destroy();
+    }
   });
 });

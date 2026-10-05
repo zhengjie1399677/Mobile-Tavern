@@ -342,6 +342,34 @@ driver，因此它会被 Vite tree-shake —— 这是 M0 的已知状态，接�
 5. **未决**：渐进发现的阈值、每个 source 的默认配额、以及是否在首期提供 `ext-apps` 渲染，待 M0/M3
    实测后再定。
 
+### 资源取用的路径收敛（防止同一目的出现两条路）
+
+外部内容进入模型只有两种合法理由，且各自只有一条路径：
+
+| 谁决定取用 | 唯一路径 | 状态 |
+|---|---|---|
+| 用户或模型主动取用 | 只读工具 `mcp.<source>.resources.list` / `mcp.<source>.resources.read` | 已落地（M3a） |
+| 系统自动注入 | 未来的通用 `context.source` 缝（当前代码中并不存在，只有 `compat.context-source`） | 需独立立项 |
+
+约束——任何新增的"把外部内容送进模型"的机制，必须先回答"我属于上表哪一行"，两者都不是即视为设计缺陷：
+
+- MCP 资源**永不迁入** `context.source`；将来建设通用缝时不得为 MCP 资源再开第二条读取路径。
+- `context.source` 不承载"用户点选某个远端资源"这类交互，那属于工具。
+- 资源读取自带审批与 Journal，因此工具路径本身就满足 `CHAT-REPLAY`，不需要额外的会话快照字段。
+- 往提示词模板里写外部内容、或绕过工具直接拉取远端内容，都属于违反本表的做法。
+
+### M3a 实施记录（2026-10-05，资源只读工具）
+
+- 来源声明了资源时，运行时额外派生两个工具：`resources.list`（只读元数据，`policy: "allow"`、
+  `sideEffect: "none"`）与 `resources.read`（`policy: "ask"`、`sideEffect: "external"`）。
+- **读取白名单收口**：`resources.read` 只接受连接期由 server 自己声明过的 URI，其它一律
+  `EXTERNAL_SOURCE_RESOURCE_NOT_ADVERTISED`——模型无法借宿主去抓任意 URI。
+- 派生工具与来源自带工具重名时**跳过派生**，不覆盖 server 自己的声明。
+- 读取内容同样受限长与结果体积上限，并复用逐来源撤销检查（来源停用后立即失败）。
+
+明确推迟（M3b，需要通用缝）：`prompts/*` 的用户侧取用与「一键插入输入框草稿」。当前 composer 命令缝
+由 Tool Plugin 服务私有，复制一份会制造第二条路径，因此不做临时实现。
+
 ## 十二、权威入口
 
 - 产品方向：[product_direction.md](product_direction.md)

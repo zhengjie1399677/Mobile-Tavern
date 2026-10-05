@@ -21,7 +21,9 @@
   - 2026-10-05：M1 已落地并通过验证——来源配置独立 IndexedDB + 用例门面、`ExternalSourceRuntimeService` 把外部工具投影为 `AgentToolDefinition`（默认 `ask`、副作用 `external`）并扩展组合快照、来源停用后执行立即失败、单来源失败不影响其它来源；设置页插件分区新增「外部能力」子页（新增/启停/删除/探测）。真实构建确认 driver 独立成 chunk（213 KB / gzip 58 KB），主包仅 +5 KB。
   - 2026-10-05：M2a 静态凭据已落地并通过验证——`authHeader`/`authScheme` 非秘密配置 + 独立加密凭据库（来源库 v2，AES-GCM，密钥独立于主库）；默认注入 `Authorization: Bearer`，可自定义头名与 raw；删除来源连带删凭据；设置页可按来源录入/清除凭据。实测夹具在 HTTP 层收到注入头，未配置时不发送认证头，落盘与状态接口均不含明文。
   - M2b 待做：OAuth 2.1（PRM 发现、CIMD 优先 / DCR 回退、Native Adapter 回调、按 issuer 隔离、可选 DPoP）。
-  - M3–M4 待做：resources/prompts 接入 `context.source`、MRTR 表单、`ext-tasks` 与变更订阅。
+  - 2026-10-05：M3a 已落地并通过验证——来源声明资源时派生只读工具 `resources.list`（allow / 无副作用）与 `resources.read`（ask / 外部副作用），读取白名单只接受连接期声明过的 URI（否则 `EXTERNAL_SOURCE_RESOURCE_NOT_ADVERTISED`），重名跳过派生，撤销立即生效。路径收敛规则已写入设计文档：主动取用走工具，系统自动注入才走未来的通用 `context.source`，MCP 资源永不迁入。
+  - M3b 待做（需通用缝，明确推迟）：`prompts/*` 用户侧取用与「一键插入草稿」——composer 缝当前为 Tool Plugin 私有，复制会制造第二条路径。
+  - M4 待做：MRTR 表单、`ext-tasks` 与 `subscriptions/listen` 变更订阅。
 
 - [ ] **自定义主题工作室后续（P1）**：全屏工作室、独立草稿、隔离预览、核心/高级颜色和保存/应用分离已完成；继续实现起点选择、多场景预览、对比度与 CSS 行列诊断、片段库，以及 Theme 1.1 媒体/状态/规则可视化编辑。
 
