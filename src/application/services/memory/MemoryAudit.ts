@@ -109,5 +109,14 @@ function buildContextSourceAudits(params: BuildMemoryAuditParams): MemoryPacketS
           ? matchingTraces.every((trace) => trace.dropped)
           : undefined,
       };
-    });
+    })
+    // 未纳入且无问题的来源不占审计版面（内建时钟来源每轮都有内容，否则会刷满记忆抽屉）；
+    // 失败与超时必须保留，它们是诊断信息。
+    .filter((entry) => entry.included || entry.dropped === true || isProblemStatus(params, entry.key));
+}
+
+function isProblemStatus(params: BuildMemoryAuditParams, macroName: string): boolean {
+  const contribution = (params.contextContributions ?? [])
+    .find((item: ContextContribution) => item.macroName === macroName);
+  return contribution?.status === "failed" || contribution?.status === "timeout";
 }

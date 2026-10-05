@@ -24,6 +24,7 @@
   - 2026-10-05：M3a 已落地并通过验证——来源声明资源时派生只读工具 `resources.list`（allow / 无副作用）与 `resources.read`（ask / 外部副作用），读取白名单只接受连接期声明过的 URI（否则 `EXTERNAL_SOURCE_RESOURCE_NOT_ADVERTISED`），重名跳过派生，撤销立即生效。路径收敛规则已写入设计文档：主动取用走工具，系统自动注入才走未来的通用 `context.source`，MCP 资源永不迁入。
   - M3b 待做（需通用缝，明确推迟）：`prompts/*` 用户侧取用与「一键插入草稿」——composer 缝当前为 Tool Plugin 私有，复制会制造第二条路径。
   - M4 待做：MRTR 表单、`ext-tasks` 与 `subscriptions/listen` 变更订阅。
+  - 2026-10-05：M3b 已落地——提示词模板经通用输入框命令缝（`ComposerCommandService`）注册为 `mcp.<source>.<prompt>` 命令，用户 `/` 选用、结果只回填草稿不自动发送，撤销立即失效。
 
 - [ ] **通用上下文来源缝（P1，架构工作）**：按[通用上下文来源缝设计](docs/agents/context_source_seam_design.md)分阶段实施。当前 `context.source` 只有兼容插件实现，记忆召回是硬编码单通道，每接一种推送式上下文都要再改一次 prompt 调用链。
   - 2026-10-05：设计已完成并接入路由。关键结论：提示词是每次发送时重算的（`MemoryAuditSnapshot` 明确不写入会话），因此本缝**不引入逐轮冻结**；未注册宏会留下字面量，因此注册表必须为已声明来源补齐空占位；预算继续由 `compilePromptComposition` 裁决，不建第二套。

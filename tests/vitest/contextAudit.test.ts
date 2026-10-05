@@ -92,17 +92,14 @@ describe("上下文审计泛化", () => {
     expect(snapshot.totalEstimatedTokens).toBe(5);
   });
 
-  it("空贡献与失败贡献被标记为未纳入", () => {
+  it("空贡献不占审计版面，失败贡献保留为未纳入", () => {
     const snapshot = audit([
       contribution({ macroName: "context.empty", sourceId: "e", status: "empty" }),
       contribution({ macroName: "context.failed", sourceId: "f", status: "failed", detail: "boom" }),
     ]);
 
-    expect(snapshot.sources.find((item) => item.key === "context.empty")).toMatchObject({
-      included: false,
-      count: 0,
-      estimatedTokens: 0,
-    });
+    // 内建时钟来源每轮都有内容，若把「未纳入且无问题」的来源也列出来会刷满记忆抽屉。
+    expect(snapshot.sources.find((item) => item.key === "context.empty")).toBeUndefined();
     expect(snapshot.sources.find((item) => item.key === "context.failed")).toMatchObject({
       included: false,
       estimatedTokens: 0,

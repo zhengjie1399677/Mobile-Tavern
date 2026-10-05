@@ -258,6 +258,24 @@ C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用
 **仍属 M3b 的后续**：多参数提示词的完整表单（当前只映射第一个参数）、以及是否把宿主内置命令也搬进注册表
 （当前它们仍在 `composerCommandUseCases` 中定义，属宿主 UI 命令、非能力提供命令，暂不合并）。
 
+**C4 第二个消费者：日期/时间宏（注册来源 pull 路径）**
+
+核对适配器全部内建数据源后确认：`memory.*` / `worldbook.*` / `prompt.*` 都依赖会话或本轮有效设置，
+属"调用方贡献"，**仓储内不存在可被注册来源承载的候选**。因此选择实现一个真实的缺口作为 pull 来源：
+
+- 上游 SillyTavern 在 `public/scripts/macros.js`（release 分支）定义了
+  `{{time}}`(LT) / `{{date}}`(LL) / `{{weekday}}`(dddd) / `{{isotime}}`(HH:mm) / `{{isodate}}`(YYYY-MM-DD)，
+  **本仓此前完全没有实现**——卡片或预设里出现这些宏时，会以字面量漏进提示词。
+- 实现为五个独立来源（`clock.time`/`clock.date`/`clock.weekday`/`clock.isotime`/`clock.isodate`，
+  遵守"一个来源一个宏"的契约），声明 `determinism: "volatile"`，`now` 与 `locale` 均可注入以便测试。
+- 本仓没有 moment，改用 `Intl.DateTimeFormat`（与 `official.device-time` 工具的既有做法一致）：
+  LT ≈ `{hour:"numeric",minute:"2-digit"}`、LL ≈ `dateStyle:"long"`、dddd = `{weekday:"long"}`，
+  两个 ISO 宏按本地时间手工补零。语言读取沿用 `LanguageContext` 写入的 localStorage 键。
+- 这五个既有宏按"显式登记"加入适配器白名单（与 `memory.recalled` 同一机制）：内建数据源仍受保护，
+  而迁移/兼容宏必须逐个登记，不能靠通配。
+- 由内建来源每轮都有内容，审计改为**只报告已纳入或有问题的贡献**（失败/超时保留为诊断），
+  否则五个时钟来源会刷满记忆抽屉。
+
 ## 六、风险与缓解
 
 | 风险 | 缓解 |

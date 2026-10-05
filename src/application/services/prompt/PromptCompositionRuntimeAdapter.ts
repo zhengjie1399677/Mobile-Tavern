@@ -103,7 +103,16 @@ export function buildPromptCompositionRuntimeData(
  * 白名单必须逐个登记：来源误用 `char`/`worldbook.*`/`prompt.*` 等内建宏一律无效，
  * 避免外部内容覆盖角色、世界书或提示词配置；`memory.recalled` 已由记忆召回迁移占用。
  */
-const CONTRIBUTION_MACRO_ALLOWLIST = new Set(["memory.recalled"]);
+const CONTRIBUTION_MACRO_ALLOWLIST = new Set([
+  // 记忆召回迁移入口。
+  "memory.recalled",
+  // SillyTavern 兼容的日期/时间宏，由 clock 来源提供（此前完全未实现）。
+  "time",
+  "date",
+  "weekday",
+  "isotime",
+  "isodate",
+]);
 
 function canContributionWriteMacro(macroName: string): boolean {
   return macroName.startsWith("context.") || CONTRIBUTION_MACRO_ALLOWLIST.has(macroName);

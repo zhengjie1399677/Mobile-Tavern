@@ -33,6 +33,8 @@
 - UI 性能回归已覆盖桌面 Chromium 与 Pixel 5 尺寸的冷启动、Tab 冷/热切换、viewport resize、CLS、Long Animation Frame、触控目标、底栏键盘导航、横竖屏草稿/焦点和 Safe Area 恢复；长会话验收同时记录 heap、DOM、延迟与虚拟列表滚动帧间隔。Dialog 焦点圈定、Escape、焦点恢复以及触屏去模糊、减少动态、图片解码/懒加载和 Tab 分包均有独立回归守卫。Android 真机采样脚本已纳入仓库，等待已授权设备执行。全局环境光晕已改为预烘焙径向渐变，消除 `filter: blur()` + 无限脉冲造成的常驻重绘（真机对照：静置 8 秒 0 帧、交互滑动 0% 掉帧，修复前为常驻 ~61fps 与 11.84% 掉帧）。
 - 外部能力通道 M1+M2a+M3a 已落地：除 M0 的协议中立契约、Connector 注册表、MCP driver（仅 Streamable HTTP，legacy/auto/modern 世代协商）与外部 Schema 收口外，来源配置使用独立 IndexedDB 存储，运行时服务把外部工具投影为既有 `AgentToolDefinition`（默认 `ask`、副作用 `external`、权限 `external.source.<id>`）并支持组合快照扩展与逐来源失败隔离；静态凭据（API Key / Bearer，可按来源自定义请求头）以 AES-GCM 加密分轨保存、连接期注入、状态查询不回传明文，删除来源连带删凭据；来源声明资源时派生只读工具 `resources.list`（allow、无副作用）与 `resources.read`（ask），读取白名单只接受连接期声明过的 URI；设置页插件分区新增「外部能力」子页（新增/启停/删除/探测能力/录入凭据）。**OAuth 2.1（M2b）、prompts 用户侧取用与草稿插入（M3b）、MRTR 与 ext-tasks（M4）尚未实现**；协议 driver 经动态 import 单独成 chunk（约 213 KB / gzip 58 KB），未配置来源的用户不会加载。外部来源配置与凭据不进入统一备份，与 Tool Plugin 等插件类数据口径一致。
 
+- 通用上下文来源缝 C0–C4 已落地（[设计](context_source_seam_design.md)）：协议中立的来源契约与注册表（并行读取、超时、空占位、稳定排序）、适配器经 `contextContributions` 接纳贡献、**记忆召回迁移为第一个来源**（`memory.recalled` 宏名保留，逐字节黄金对比守住输出）、审计泛化为上下文审计（记忆抽屉入口不变，未纳入且无问题的来源不占版面）、`compat.context-source` 死缝标注并加守卫（禁止长成第二条上下文路径，删除列为有条件清理）、通用输入框命令缝（`ComposerCommandService`）解除 M3b 阻塞并让 **MCP 提示词模板**可用（`/mcp.<source>.<prompt>` 只回填草稿）；顺带实现此前完全缺失的 SillyTavern 日期/时间宏（`{{time}}`/`{{date}}`/`{{weekday}}`/`{{isotime}}`/`{{isodate}}`，作为注册来源接入，格式对齐上游 `macros.js`）。改动提示词权威链的阶段均通过架构守卫与逐字节对比。
+
 ## 当前未完成事项
 
 1. **External Tool Plugin 生态发布**：仓库内 SDK 尚未独立发布，也未开放公开第三方目录。签名者登记/轮换、SDK 私钥签名命令、远程版本撤回、后台服务和生态审核暂不实现，仅在公开分发规模产生真实治理需求时重新评估。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。

@@ -12,6 +12,7 @@ import {
   type ContextSourceRegistry,
 } from "../contextSources/contextSourceRegistry";
 import { KernelServices, type IContextSourceService } from "../serviceContracts";
+import { createClockContextSources } from "../contextSources/clockContextSource";
 
 export class ContextSourceService implements IContextSourceService {
   readonly name = KernelServices.ContextSources;
@@ -21,7 +22,10 @@ export class ContextSourceService implements IContextSourceService {
   private readonly registry: ContextSourceRegistry = createContextSourceRegistry();
 
   init(_kernel: IKernel): void {
-    // 注册表随服务 Scope 存活；目前没有内建来源，来源由后续阶段接入。
+    // 内建来源：SillyTavern 兼容的日期/时间宏（此前完全未实现，卡片里会漏字面量）。
+    for (const definition of createClockContextSources()) {
+      this.registry.register(definition);
+    }
   }
 
   async destroy(): Promise<void> {
