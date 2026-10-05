@@ -38,6 +38,8 @@ import {
 
 const MAX_RESULT_BYTES = 2 * 1024 * 1024;
 const MAX_PROMPT_TEXT_LENGTH = 200_000;
+/** 启动期的单来源连接预算：宁可先标记失败，也不让应用启动被远端拖住。 */
+const BOOTSTRAP_CONNECT_TIMEOUT_MS = 4_000;
 
 /** 配置来源端口；测试可注入内存实现，生产默认走独立 IndexedDB。 */
 export interface ExternalSourceStorePort {
@@ -100,7 +102,7 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
 
   async init(kernel: IKernel): Promise<void> {
     this.kernel = kernel;
-    await this.reload();
+    await this.reload(BOOTSTRAP_CONNECT_TIMEOUT_MS);
   }
 
   async destroy(): Promise<void> {
@@ -108,19 +110,20 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     this.kernel = null;
   }
 
-  async reload(): Promise<void> {
+  /** 重新连接所有已启用来源；来源之间并行，单个失败只记录不抛出。 */
+  async reload(connectTimeoutMs = DEFAULT_CONNECTOR_TIMEOUT_MS): Promise<void> {
     await this.disposeAll();
     const store = this.deps.store ?? (await defaultStore());
-    const sources = await store.list();
-    for (const source of sources) {
-      if (!source.enabled) continue;
-      try {
-        await this.connectSource(source);
-      } catch (error) {
-        // 单个来源失败不影响其它来源，也不会让应用启动失败。
-        this.failures[source.id] = error instanceof Error ? error.message : String(error);
-      }
-    }
+    const enabled = (await store.list()).filter((source) => source.enabled);
+    const settled = await Promise.allSettled(
+      enabled.map((source) => this.connectSource(source, connectTimeoutMs)),
+    );
+    settled.forEach((result, index) => {
+      if (result.status === "fulfilled") return;
+      const source = enabled[index];
+      this.failures[source.id] =
+        result.reason instanceof Error ? result.reason.message : String(result.reason);
+    });
   }
 
   getEnabledToolNames(_profileId: string): string[] {
@@ -174,14 +177,17 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     }
   }
 
-  private async connectSource(source: ExternalCapabilitySource): Promise<void> {
+  private async connectSource(
+    source: ExternalCapabilitySource,
+    connectTimeoutMs: number,
+  ): Promise<void> {
     const runtime = this.getAgentRuntime();
     const driver = await this.loadDriver();
     const registry = createConnectorRegistry();
     registry.register(driver);
     const handle = await openExternalSource(source, {
       registry,
-      timeoutMs: DEFAULT_CONNECTOR_TIMEOUT_MS,
+      timeoutMs: connectTimeoutMs,
     });
     const pending: EffectDisposer[] = [];
     try {

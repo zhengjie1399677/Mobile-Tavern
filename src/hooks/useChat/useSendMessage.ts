@@ -4,7 +4,7 @@ import { ChatSession, ChatSessionMetadataPatch, UserSettings, CharacterCard, Lor
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService, IMultiMessageService,
-  StreamChunk, IKernel, IAttachmentService, IAgentRuntimeService, IToolPluginRuntimeService, KernelServices,
+  StreamChunk, IKernel, IAttachmentService, IAgentRuntimeService, IToolPluginRuntimeService, IExternalSourceRuntimeService, KernelServices,
 } from "@/src/application/serviceContracts";
 import type {
   AgentHandle,
@@ -301,9 +301,12 @@ export function useSendMessage(p: SendMessageParams) {
       const baseCompositionSnapshot = p.kernel
         .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
         .getCompositionSnapshot();
-      const compositionSnapshot = baseCompositionSnapshot && p.kernel.hasService(KernelServices.ToolConnectors)
+      const toolComposition = baseCompositionSnapshot && p.kernel.hasService(KernelServices.ToolConnectors)
         ? p.kernel.getService<IToolPluginRuntimeService>(KernelServices.ToolConnectors).extendComposition(baseCompositionSnapshot)
         : baseCompositionSnapshot;
+      const compositionSnapshot = toolComposition && p.kernel.hasService(KernelServices.ExternalSources)
+        ? p.kernel.getService<IExternalSourceRuntimeService>(KernelServices.ExternalSources).extendComposition(toolComposition)
+        : toolComposition;
       if (compositionSnapshot) {
         await p.databaseService.updateSessionMetadata(currentSession.id, { compositionSnapshot });
         const sessionWithComposition = { ...currentSession, compositionSnapshot };
@@ -884,11 +887,14 @@ export function useSendMessage(p: SendMessageParams) {
     const providerId = resolveBuiltinProviderId(current.settings.api.type);
     const runtime = current.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
     const baseComposition = current.activeSession?.compositionSnapshot ?? runtime.getCompositionSnapshot();
-    const composition = !current.activeSession?.compositionSnapshot
+    const toolComposition = !current.activeSession?.compositionSnapshot
       && baseComposition
       && current.kernel.hasService(KernelServices.ToolConnectors)
       ? current.kernel.getService<IToolPluginRuntimeService>(KernelServices.ToolConnectors).extendComposition(baseComposition)
       : baseComposition;
+    const composition = toolComposition && current.kernel.hasService(KernelServices.ExternalSources)
+      ? current.kernel.getService<IExternalSourceRuntimeService>(KernelServices.ExternalSources).extendComposition(toolComposition)
+      : toolComposition;
     const enabledToolNames = isDirectApiCharacter(current.activeCharacter!)
       ? []
       : composition?.contributionOrder.tool ?? [];
