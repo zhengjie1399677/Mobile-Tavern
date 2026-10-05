@@ -100,5 +100,6 @@ export async function replaceLocalDataFromBackup(
         reject(error);
       }
     });
-  }, "data-migration:replace-all", signal);
+  // 整库重写：必须与其它整库迁移（merge）共享分片串行，且不可被合并掉。
+  }, { key: "data-migration:replace-all", mode: "must-complete", scope: "data-migration", signal });
 }

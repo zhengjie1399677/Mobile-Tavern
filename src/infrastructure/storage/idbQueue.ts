@@ -5,7 +5,8 @@
  * 超时熔断与 AbortSignal 传导，不涉及具体 CRUD 逻辑与 schema 管理。
  *
  * 设计要点：
- *  - 全局 writeQueue 串行化所有写事务，防止 WebView 环境下并发写冲突
+ *  - 写队列按**聚合分片**（scope）串行化：同一聚合（如同一会话、同一角色）严格有序，
+ *    不同聚合互不阻塞——避免一次 20MB 备份导入把无关会话的保存拖在后面
  *  - 同 key 写操作合并（CoalescedSlot），仅保留最新 operation
  *  - AbortSignal 传导至底层 transaction.abort()，避免事务挂起死锁
  *  - 事务级 15s 超时熔断，防止单事务挂起阻塞整个队列
@@ -17,10 +18,21 @@ import { Logger } from "../../utils/logger";
 
 const logger = Logger.create("idbQueue");
 
-// 全局基于 Promise 的队列，顺序串行化所有 IndexedDB 写入操作。
-// 防止并发写入事务冲突或死锁，这在 WebView 原生环境中至关重要。
-let writeQueue: Promise<any> = Promise.resolve();
-let activeWriteQueueCount = 0;
+// 按 scope 分片的写队列：每个 scope 一条 Promise 链，保证同聚合内的写入严格有序。
+// 跨聚合不再互相阻塞；底层 IDB 对重叠 object store 的事务仍会自行排队，
+// 因此跨聚合并行不会破坏事务原子性。
+const scopeQueues = new Map<string, Promise<unknown>>();
+const activeScopeWriteCounts = new Map<string, number>();
+
+/** 未声明 scope 且无 key 的写（批量导入、整库替换等）落在默认分片，彼此仍串行。 */
+const DEFAULT_WRITE_SCOPE = "default";
+
+/** 从 key 推导聚合 scope：取前两段（`session:abc:turn` → `session:abc`）。 */
+function deriveWriteScope(key: string | undefined): string {
+  if (!key) return DEFAULT_WRITE_SCOPE;
+  const segments = key.split(":");
+  return segments.slice(0, 2).join(":");
+}
 
 // 写队列深度上限安全网：正常情况下由于 key 合并机制队列不会无限增长；阈值上报遥测告警用于诊断异常堆积。
 const MAX_WRITE_QUEUE_DEPTH = 100;
@@ -72,13 +84,29 @@ export interface WriteContext {
 export interface EnqueueWriteOptions {
   readonly key?: string;
   readonly mode?: "coalesceable" | "must-complete";
+  /**
+   * 写队列分片。缺省时由 key 的前两段推导（`session:abc:turn` → `session:abc`），
+   * 无 key 则落默认分片。显式声明用于让语义相关的多个 key 共享同一条链——
+   * 例如整库替换与整库合并必须互相串行。
+   */
+  readonly scope?: string;
   readonly signal?: AbortSignal;
 }
 
 interface NormalizedWriteOptions {
   readonly key?: string;
   readonly mode: "coalesceable" | "must-complete";
+  readonly scope?: string;
   readonly signal?: AbortSignal;
+}
+
+function readQueueDepth(scope: string): number {
+  return activeScopeWriteCounts.get(scope) ?? 0;
+}
+
+function setQueueDepth(scope: string, depth: number): void {
+  if (depth <= 0) activeScopeWriteCounts.delete(scope);
+  else activeScopeWriteCounts.set(scope, depth);
 }
 
 function normalizeWriteOptions(
@@ -91,6 +119,7 @@ function normalizeWriteOptions(
   return {
     ...(keyOrOptions.key === undefined ? {} : { key: keyOrOptions.key }),
     mode: keyOrOptions.mode ?? "coalesceable",
+    ...(keyOrOptions.scope === undefined ? {} : { scope: keyOrOptions.scope }),
     ...(keyOrOptions.signal === undefined ? {} : { signal: keyOrOptions.signal }),
   };
 }
@@ -220,17 +249,22 @@ export function enqueueWrite<T>(
   }
 
   const enqueueTime = Date.now();
-  activeWriteQueueCount++;
+  // 分片必须由**声明的 key**推导：must-complete 会把内部 key 置空以跳过合并，
+  // 但它的写入仍必须留在同一聚合分片里，否则同聚合的两次写会并行、顺序颠倒。
+  const scope = normalized.scope ?? deriveWriteScope(normalized.key);
+  const depth = readQueueDepth(scope) + 1;
+  setQueueDepth(scope, depth);
 
   // 深度上限安全网 —— 超过阈值时上报遥测，但仍然入队保证数据完整性
-  if (activeWriteQueueCount >= MAX_WRITE_QUEUE_DEPTH) {
+  if (depth >= MAX_WRITE_QUEUE_DEPTH) {
     logger.error("Write queue depth exceeded safety threshold", undefined, {
-      depth: activeWriteQueueCount,
+      depth,
+      scope,
       threshold: MAX_WRITE_QUEUE_DEPTH,
     });
     setTimeout(() => {
       try {
-        reportDbQueueTimeout(0, activeWriteQueueCount);
+        reportDbQueueTimeout(0, depth);
       } catch (e) {
         logger.error("Failed to report queue overflow telemetry", e);
       }
@@ -244,13 +278,14 @@ export function enqueueWrite<T>(
   }
 
   const queuedOperation = async () => {
-    activeWriteQueueCount--;
+    const currentDepth = readQueueDepth(scope) - 1;
+    setQueueDepth(scope, currentDepth);
     const queueDelay = Date.now() - enqueueTime;
     if (queueDelay > 3000) {
       logger.warn("Write queue delay exceeded threshold", { queueDelayMs: queueDelay });
       setTimeout(() => {
         try {
-          reportDbQueueTimeout(queueDelay, activeWriteQueueCount + 1);
+          reportDbQueueTimeout(queueDelay, currentDepth + 1);
         } catch (e) {
           logger.error("Failed to report queue timeout telemetry", e);
         }
@@ -319,11 +354,15 @@ export function enqueueWrite<T>(
     }
   };
 
-  const result = writeQueue.then(queuedOperation);
+  const previous = scopeQueues.get(scope) ?? Promise.resolve();
+  const result = previous.then(queuedOperation);
   // 链接下一个任务，捕获所有异常确保后续队列操作正常运行
-  writeQueue = result.then(
-    () => {},
-    () => {}
+  scopeQueues.set(
+    scope,
+    result.then(
+      () => {},
+      () => {}
+    )
   );
   slot.pendingPromise = result;
   return result;
@@ -334,7 +373,7 @@ export function enqueueWrite<T>(
  * 供 localDB.__resetDBInstanceForTesting 协调调用，严禁生产代码使用。
  */
 export function __resetWriteQueueForTesting(): void {
-  writeQueue = Promise.resolve();
-  activeWriteQueueCount = 0;
+  scopeQueues.clear();
+  activeScopeWriteCounts.clear();
   pendingKeyedWrites.clear();
 }

@@ -118,3 +118,85 @@ describe("写队列合并语义", () => {
     expect(executed).toEqual(["second"]);
   });
 });
+
+describe("写队列按聚合分片", () => {
+  beforeEach(() => {
+    __resetWriteQueueForTesting();
+  });
+
+  it("长写不阻塞无关聚合（②的核心诉求）", async () => {
+    const blocker = gate();
+    const order: string[] = [];
+
+    const migration = enqueueWrite(async () => {
+      order.push("migration:start");
+      await blocker.promise;
+      order.push("migration:end");
+    }, { key: "data-migration:replace-all", scope: "data-migration" });
+    const sessionWrite = enqueueWrite(async () => {
+      order.push("session");
+    }, "session:abc:turn");
+
+    // 会话写在迁移仍挂起时就应完成：不同聚合不该互相等待。
+    await sessionWrite;
+    expect(order).toContain("session");
+    expect(order).not.toContain("migration:end");
+
+    blocker.open();
+    await migration;
+    expect(order).toContain("migration:end");
+  });
+
+  it("同聚合（同 key 前两段）保持严格有序", async () => {
+    const order: string[] = [];
+    const first = enqueueWrite(async () => {
+      order.push("turn");
+    }, "session:abc:turn");
+    const second = enqueueWrite(async () => {
+      order.push("metadata");
+    }, "session:abc:metadata");
+
+    await Promise.all([first, second]);
+    expect(order).toEqual(["turn", "metadata"]);
+  });
+
+  it("不同聚合可并行（两个会话互不等待）", async () => {
+    const blocker = gate();
+    const started: string[] = [];
+
+    const a = enqueueWrite(async () => {
+      started.push("a:start");
+      await blocker.promise;
+    }, "session:a:turn");
+    const b = enqueueWrite(async () => {
+      started.push("b:start");
+    }, "session:b:turn");
+
+    await b;
+    expect(started).toEqual(["a:start", "b:start"]);
+
+    blocker.open();
+    await a;
+  });
+
+  it("整库迁移共享分片：replace-all 与 merge 互相串行", async () => {
+    const blocker = gate();
+    const order: string[] = [];
+
+    const replaceAll = enqueueWrite(async () => {
+      order.push("replace-all:start");
+      await blocker.promise;
+      order.push("replace-all:end");
+    }, { key: "data-migration:replace-all", scope: "data-migration" });
+    const merge = enqueueWrite(async () => {
+      order.push("merge:start");
+    }, { key: "data-migration:merge", scope: "data-migration" });
+
+    await Promise.resolve();
+    expect(order).toEqual(["replace-all:start"]);
+
+    blocker.open();
+    await Promise.all([replaceAll, merge]);
+    expect(order).toEqual(["replace-all:start", "replace-all:end", "merge:start"]);
+  });
+});

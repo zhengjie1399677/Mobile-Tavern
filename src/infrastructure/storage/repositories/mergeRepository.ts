@@ -154,5 +154,6 @@ export async function mergeLocalDataFromBackup(
       };
       messageKeysRequest.onerror = () => fail(messageKeysRequest.error);
     });
-  }, "data-migration:merge", signal);
+  // 整库重写：必须与其它整库迁移（replace-all）共享分片串行，且不可被合并掉。
+  }, { key: "data-migration:merge", mode: "must-complete", scope: "data-migration", signal });
 }
