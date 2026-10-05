@@ -107,6 +107,7 @@ import {
   testKernelSchemaValidation,
   testArchitectureBoundaries,
   testPromptComposition,
+  testPerformanceBudgets,
 } from "./suites/index";
 
 /**
@@ -311,6 +312,7 @@ async function run() {
     { name: "testKernelSchemaValidation", fn: testKernelSchemaValidation },
     { name: "testArchitectureBoundaries", fn: testArchitectureBoundaries },
     { name: "testPromptComposition", fn: testPromptComposition },
+    { name: "testPerformanceBudgets", fn: testPerformanceBudgets },
     // vitest 套件桥接（i18n 多语言 50 项 + 组件渲染 + 服务集成，共 327 项）
     { name: "testVitestSuite", fn: () => runVitestSuite(failFast, verbose) },
   ];

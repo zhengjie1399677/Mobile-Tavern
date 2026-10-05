@@ -143,3 +143,6 @@ export {
 export { testKernelSchemaValidation } from "./kernelSchemaValidation.test";
 export { testArchitectureBoundaries } from "./architectureBoundaries.test";
 export { testPromptComposition } from "./promptComposition.test";
+
+// 性能预算（P1-⑤）：切会话 / 20MB 导入 / 记忆召回 P95 / SSE 首字节，CI 回归警报
+export { testPerformanceBudgets, PERFORMANCE_BUDGETS } from "./performanceBudgets.test";

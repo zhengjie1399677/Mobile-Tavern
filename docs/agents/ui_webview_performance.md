@@ -60,6 +60,14 @@ Base UI Dialog 的真实键盘行为由 `tests/vitest/DialogAccessibility.test.t
 npm run test:e2e -- tests/e2e/stress-long-session.spec.ts
 ```
 
+### 数据路径性能预算（随 `npm test` 断言）
+
+存储与聊天数据路径的四项预算由 `tests/suites/performanceBudgets.test.ts` 随 `npm test` 执行，
+不再依赖手动跑 `tests/stress/*`：切会话（会话元数据 + 500 条消息）、≈20MB 批量导入、
+记忆召回 P95、SSE 首字节。阈值集中在 `PERFORMANCE_BUDGETS`，定位为**回归警报而非 SLA**，
+取实测基线的 3~5 倍（运行时环境差异大），每次执行都会打印实测值供人工比对历史基线；
+调整阈值必须附实测数据，禁止用放宽阈值掩盖回归。
+
 ### Android WebView 基线
 
 连接并授权一台设备后运行：
@@ -91,6 +99,7 @@ powershell -ExecutionPolicy Bypass -File scripts/measure-android-webview-ui.ps1 
 | 模糊、动画、图片解码或 Tab 分包 | 渲染规范守卫 + UI 性能 E2E |
 | 键盘、Safe Area、横竖屏或生命周期 | 视口纯函数测试 + UI 性能 E2E + Android 编译；有设备时补真机报告 |
 | 聊天虚拟列表或长会话 | 命中 Vitest + `stress-long-session.spec.ts` |
+| 写入队列、批量导入或会话读取路径 | 命中 Vitest + `performanceBudgets.test.ts`（随 `npm test`） |
 | 发布安装包 | `npm run lint` + `npm test` + `npm run build:mobile` + Android 构建 |
 
 ## 四、边界

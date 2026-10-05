@@ -35,6 +35,9 @@
 
 - 通用上下文来源缝 C0–C4 已落地（[设计](context_source_seam_design.md)）：协议中立的来源契约与注册表（并行读取、超时、空占位、稳定排序）、适配器经 `contextContributions` 接纳贡献、**记忆召回迁移为第一个来源**（`memory.recalled` 宏名保留，逐字节黄金对比守住输出）、审计泛化为上下文审计（记忆抽屉入口不变，未纳入且无问题的来源不占版面）、`compat.context-source` 死缝标注并加守卫（禁止长成第二条上下文路径，删除列为有条件清理）、通用输入框命令缝（`ComposerCommandService`）解除 M3b 阻塞并让 **MCP 提示词模板**可用（`/mcp.<source>.<prompt>` 只回填草稿）；顺带实现此前完全缺失的 SillyTavern 日期/时间宏（`{{time}}`/`{{date}}`/`{{weekday}}`/`{{isotime}}`/`{{isodate}}`，作为注册来源接入，格式对齐上游 `macros.js`）。改动提示词权威链的阶段均通过架构守卫与逐字节对比。
 
+
+- 写入队列与聊天并发治理（P1）已落地：写队列从全局单链改为**按聚合分片**，并把合并语义显式拆成 `coalesceable`（幂等覆盖可共享结果）与 `must-complete`（提交类写入各自独立完成），修掉"提交被合并顶掉"的数据丢失路径，整库迁移（`replace-all` / `merge`）显式独占 `data-migration` 分片；聊天侧新鲜度判断统一收敛为 `TurnToken.isStale`；状态权威三类（authoritative / derived / ephemeral）写死在 [状态权威规范](state_authority.md) 并由守卫禁止视图层直连存储；四项数据路径性能预算（切会话 / ≈20MB 导入 / 记忆召回 P95 / SSE 首字节）随 `npm test` 断言，见 [WebView 界面与性能验收规范](ui_webview_performance.md)。
+
 ## 当前未完成事项
 
 1. **External Tool Plugin 生态发布**：仓库内 SDK 尚未独立发布，也未开放公开第三方目录。签名者登记/轮换、SDK 私钥签名命令、远程版本撤回、后台服务和生态审核暂不实现，仅在公开分发规模产生真实治理需求时重新评估。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。
