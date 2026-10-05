@@ -149,4 +149,65 @@ describe("上下文来源注册表", () => {
     expect(registry.resolve("kb")).toBeUndefined();
     expect(await registry.readAll(request())).toEqual([]);
   });
+
+  it("来源可附带审计数据，且审计不进入内容", async () => {
+    const registry = createContextSourceRegistry();
+    registry.register(
+      source({
+        id: "kb",
+        macroName: "context.kb",
+        read: async () => ({
+          content: "命中的正文",
+          audit: { hitIds: ["a", "b"], dropped: 1 },
+        }),
+      }),
+    );
+
+    const [contribution] = await registry.readAll(request());
+    expect(contribution.content).toBe("命中的正文");
+    expect(contribution.audit).toEqual({ hitIds: ["a", "b"], dropped: 1 });
+  });
+
+  it("直接返回字符串的来源不产生审计数据（向后兼容）", async () => {
+    const registry = createContextSourceRegistry();
+    registry.register(source({ id: "kb", macroName: "context.kb", read: async () => "纯文本" }));
+
+    const [contribution] = await registry.readAll(request());
+    expect(contribution.content).toBe("纯文本");
+    expect(contribution.audit).toBeUndefined();
+  });
+
+  it("截断只作用于内容，审计数据保留", async () => {
+    const registry = createContextSourceRegistry();
+    registry.register(
+      source({
+        id: "kb",
+        macroName: "context.kb",
+        maxCharacters: 2,
+        read: async () => ({ content: "0123456789", audit: { total: 10 } }),
+      }),
+    );
+
+    const [contribution] = await registry.readAll(request());
+    expect(contribution).toMatchObject({ status: "truncated", content: "01" });
+    expect(contribution.audit).toEqual({ total: 10 });
+  });
+
+  it("轮次信息透传给来源", async () => {
+    const registry = createContextSourceRegistry();
+    let seenTurnIndex: number | undefined;
+    registry.register(
+      source({
+        id: "kb",
+        macroName: "context.kb",
+        read: async (readRequest) => {
+          seenTurnIndex = readRequest.turnIndex;
+          return "";
+        },
+      }),
+    );
+
+    await registry.readAll({ ...request(), turnIndex: 7 });
+    expect(seenTurnIndex).toBe(7);
+  });
 });

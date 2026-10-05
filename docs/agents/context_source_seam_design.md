@@ -52,6 +52,8 @@
 export interface ContextSourceRequest {
   readonly sessionId: string;
   readonly userInput: string;
+  /** 本轮对应的消息轮次（重发时指向被重发的消息）。 */
+  readonly turnIndex?: number;
   readonly signal: AbortSignal;
 }
 
@@ -73,7 +75,8 @@ export interface ContextSourceDefinition {
   readonly maxCharacters: number;
   /** 读取超时；超时按 failed 处理，不阻塞本轮。 */
   readonly timeoutMs: number;
-  read(request: ContextSourceRequest): Promise<string>;
+  /** 可直接返回字符串；需要审计时返回 { content, audit }。 */
+  read(request: ContextSourceRequest): Promise<string | ContextSourceReadResult>;
 }
 
 export interface ContextContribution {
@@ -83,10 +86,29 @@ export interface ContextContribution {
   readonly status: "ok" | "empty" | "failed" | "timeout" | "truncated";
   readonly characters: number;
   readonly detail?: string;
+  /** 审计专用结构化数据：供诊断/审计 UI 消费，永不进入提示词，体积由来源约束。 */
+  readonly audit?: unknown;
 }
 ```
 
 ### 3.2 注册表与读取（应用层）
+
+#### 贡献的两种来源（同一通道、同一类型，不是两条路径）
+
+`contextContributions` 是**缝的唯一入口**；贡献可以有两种来源：
+
+| 来源 | 谁产出内容 | 典型 |
+|---|---|---|
+| 注册来源（pull） | 来源自己 `read()`，只看得到 `ContextSourceRequest` | 知识库、日历、M3b 的提示词取用 |
+| 调用方贡献（caller-supplied） | 调用方用只有它掌握的**本轮有效上下文**产出后放进同一数组 | 记忆召回 |
+
+记忆召回属于第二种，原因具体：它的 topK / 超时 / 开关来自
+`resolveAgentSessionSettings(settings, compositionSnapshot)` 解析出的**本轮有效设置**，重发时还要带被重发消息的
+轮次。这些既不是全局设置也不是来源能观察到的东西；硬塞进 `ContextSourceRequest` 会把应用设置漏进领域契约。
+
+因此记忆以 `buildMemoryContextContribution(recalled)` 的形式进入同一数组：内容与适配器输出的
+`memory.recalled` **逐字节一致**（有黄金对比断言），结构化召回项放进 `audit` 供记忆抽屉继续做 pin/mute 与统计。
+这也解决了 C1b 的设计阻抗：审计必须结构化，纯文本贡献承载不了。
 
 - 注册必须归属 Scope 并返回 `Dispose`（`RUNTIME-SCOPE`）；重复 id 抛错，不做隐式覆盖。
 - `readAll(request)`：**并行**读取，按 id 稳定排序汇总；单来源失败/超时只产出对应 `status`
@@ -160,6 +182,14 @@ C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用
 `QUALITY-TYPES` 的 1000 行硬上限，而架构守卫的清单漏检了它。本次把本轮记忆召回抽成
 `src/hooks/useChat/helpers/recallForTurn.ts`（失败/超时降级为空结果并保留 trace 日志），该文件降到 996 行，
 并**把 useSendMessage 加入守卫的千行清单**，避免违规再次静默返回。
+
+**C1b 进度（2026-10-05）**：契约已补齐审计通道（`ContextContribution.audit`、`read()` 允许返回
+`{ content, audit }`）与轮次透传（`ContextSourceRequest.turnIndex`），注册表原样携带审计且截断只作用于内容；
+`buildMemoryContextContribution` 已落地并通过黄金对比（内容与适配器 `memory.recalled` 逐字节一致、审计携带结构化召回项）。
+
+**C1b 剩余**：把 `useSendMessage` / `useRerollMessage` 从「传 `recalledMemories`」切到「把它作为贡献放进
+`contextContributions`」，随后退休 `recalledMemories` 形参；注意旧路径的 `recalled_memories` 区块格式不同
+（`[第 N 轮 - 角色]: …`），必须改由贡献的 `audit` 渲染，否则旧路径会丢内容。
 
 ## 六、风险与缓解
 

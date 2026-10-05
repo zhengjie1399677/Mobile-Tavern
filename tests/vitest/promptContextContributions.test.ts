@@ -7,6 +7,11 @@ import { describe, expect, it } from "vitest";
 import type { CharacterCard, ChatSession, UserSettings } from "@/src/types";
 import type { ContextContribution } from "@/src/domain/contextSources/contracts";
 import { buildPromptCompositionRuntimeData } from "@/src/application/services/prompt/PromptCompositionRuntimeAdapter";
+import {
+  buildMemoryContextContribution,
+  MEMORY_RECALL_MACRO_NAME,
+} from "@/src/application/contextSources/memoryContextContribution";
+import type { RecalledMessage } from "@/src/application/services/memory/types";
 
 const character = {
   name: "角色",
@@ -84,5 +89,59 @@ describe("Prompt 运行时数据源与上下文贡献", () => {
     ]);
     expect(runtime.values.char).toBe("角色");
     expect(runtime.values["memory.recalled"]).toBe("");
+  });
+});
+
+describe("记忆召回的上下文贡献", () => {
+  const recalled = [
+    {
+      memoryId: "m1",
+      messageId: "msg1",
+      turnIndex: 2,
+      role: "user",
+      content: "第一段记忆",
+      hitCount: 1,
+      hitTags: ["tag"],
+      score: 0.9,
+    },
+    {
+      memoryId: "m2",
+      messageId: "msg2",
+      turnIndex: 4,
+      role: "assistant",
+      content: "第二段记忆",
+      hitCount: 1,
+      hitTags: ["tag"],
+      score: 0.8,
+    },
+  ] as unknown as RecalledMessage[];
+
+  it("内容与适配器输出的 memory.recalled 逐字节一致（黄金对比）", () => {
+    const contribution = buildMemoryContextContribution(recalled);
+    const runtime = buildPromptCompositionRuntimeData({
+      character,
+      chat,
+      userInput: "输入",
+      settings,
+      triggeredLorebook: [],
+      recalledMemories: recalled,
+    });
+
+    expect(contribution.macroName).toBe(MEMORY_RECALL_MACRO_NAME);
+    expect(contribution.content).toBe(runtime.values["memory.recalled"]);
+    expect(contribution.content).toBe("第一段记忆\n\n第二段记忆");
+    expect(contribution.status).toBe("ok");
+  });
+
+  it("审计保留结构化召回项，供记忆抽屉做 pin/mute 与统计", () => {
+    const contribution = buildMemoryContextContribution(recalled);
+    expect(contribution.audit).toEqual({ recalled });
+  });
+
+  it("空召回产出 empty 占位而不是 ok", () => {
+    const contribution = buildMemoryContextContribution([]);
+    expect(contribution.status).toBe("empty");
+    expect(contribution.content).toBe("");
+    expect(contribution.characters).toBe(0);
   });
 });

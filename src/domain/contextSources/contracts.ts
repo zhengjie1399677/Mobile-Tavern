@@ -15,7 +15,21 @@ const MAX_TIMEOUT_MS = 60_000;
 export interface ContextSourceRequest {
   readonly sessionId: string;
   readonly userInput: string;
+  /** 本轮对应的消息轮次（重发时指向被重发的消息）；与来源无关的通用定位信息。 */
+  readonly turnIndex?: number;
   readonly signal: AbortSignal;
+}
+
+/**
+ * 来源的读取结果。
+ *
+ * `content` 是唯一会进入提示词的部分；`audit` 是**仅供审计与诊断**的结构化数据
+ * （例如本轮命中了哪些记忆片段、为什么丢弃），永不进入提示词，也不得包含秘密。
+ * 体积由来源负责约束，只允许放小的标识与统计。
+ */
+export interface ContextSourceReadResult {
+  readonly content: string;
+  readonly audit?: unknown;
 }
 
 /**
@@ -33,7 +47,8 @@ export interface ContextSourceDefinition {
   /** 单来源内容上限；真正的取舍仍由 Prompt 编译器按 Token 预算裁决。 */
   readonly maxCharacters: number;
   readonly timeoutMs: number;
-  read(request: ContextSourceRequest): Promise<string>;
+  /** 允许直接返回字符串（无审计数据）；需要审计时返回 {@link ContextSourceReadResult}。 */
+  read(request: ContextSourceRequest): Promise<string | ContextSourceReadResult>;
 }
 
 export type ContextContributionStatus = "ok" | "empty" | "failed" | "timeout" | "truncated";
@@ -45,6 +60,8 @@ export interface ContextContribution {
   readonly status: ContextContributionStatus;
   readonly characters: number;
   readonly detail?: string;
+  /** 审计专用结构化数据；调用方（诊断/审计 UI）消费，绝不进入提示词。 */
+  readonly audit?: unknown;
 }
 
 export function contextSourceError(code: string, detail: string): Error {

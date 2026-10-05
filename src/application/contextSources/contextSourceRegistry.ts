@@ -18,6 +18,8 @@ import {
 export interface ContextReadRequest {
   readonly sessionId: string;
   readonly userInput: string;
+  /** 本轮对应的消息轮次；重发时指向被重发的消息。 */
+  readonly turnIndex?: number;
   /** 调用方（本轮发送）的取消信号；缺失时视为不可取消。 */
   readonly signal?: AbortSignal;
 }
@@ -38,6 +40,19 @@ interface ReadOutcome {
   readonly status: ContextContributionStatus;
   readonly content: string;
   readonly detail?: string;
+  readonly audit?: unknown;
+}
+
+/** 兼容两种返回形态：直接给字符串，或给 { content, audit }。 */
+function normalizeReadResult(value: string | { readonly content: string; readonly audit?: unknown }): {
+  content: string;
+  audit?: unknown;
+} {
+  if (typeof value === "string") return { content: value };
+  return {
+    content: typeof value.content === "string" ? value.content : "",
+    ...(value.audit === undefined ? {} : { audit: value.audit }),
+  };
 }
 
 async function readWithBudget(
@@ -55,10 +70,14 @@ async function readWithBudget(
   // 先挂 catch，避免超时判负后源自身 reject 变成未处理拒绝。
   const read = definition
     .read(request)
-    .then<ReadOutcome | typeof timeoutMarker>((value) => ({
-      status: "ok",
-      content: typeof value === "string" ? value : "",
-    }))
+    .then<ReadOutcome | typeof timeoutMarker>((value) => {
+      const normalized = normalizeReadResult(value);
+      return {
+        status: "ok",
+        content: normalized.content,
+        ...(normalized.audit === undefined ? {} : { audit: normalized.audit }),
+      };
+    })
     .catch<ReadOutcome | typeof timeoutMarker>((error: unknown) => ({
       status: "failed",
       content: "",
@@ -88,6 +107,7 @@ function applyLimit(definition: ContextSourceDefinition, outcome: ReadOutcome): 
       status: outcome.status,
       characters: 0,
       ...(outcome.detail ? { detail: outcome.detail } : {}),
+      ...(outcome.audit === undefined ? {} : { audit: outcome.audit }),
     });
   }
   const content = outcome.content;
@@ -109,6 +129,7 @@ function applyLimit(definition: ContextSourceDefinition, outcome: ReadOutcome): 
       status: "truncated",
       characters: truncated.length,
       detail: `truncated:${content.length}->${truncated.length}`,
+      ...(outcome.audit === undefined ? {} : { audit: outcome.audit }),
     });
   }
   return Object.freeze({
@@ -117,6 +138,7 @@ function applyLimit(definition: ContextSourceDefinition, outcome: ReadOutcome): 
     content,
     status: "ok",
     characters: content.length,
+    ...(outcome.audit === undefined ? {} : { audit: outcome.audit }),
   });
 }
 
@@ -148,6 +170,7 @@ export function createContextSourceRegistry(): ContextSourceRegistry {
       const sourceRequest: ContextSourceRequest = {
         sessionId: request.sessionId,
         userInput: request.userInput,
+        ...(request.turnIndex === undefined ? {} : { turnIndex: request.turnIndex }),
         signal,
       };
       const ordered = [...definitions.values()].sort((left, right) => left.id.localeCompare(right.id));
