@@ -139,3 +139,10 @@ export interface ConnectorDriver {
 
 export const DEFAULT_CONNECTOR_TIMEOUT_MS = 30_000;
 export const DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS = 60_000;
+
+/** 运行时诊断：只暴露标识与失败原因，不含配置或凭据。 */
+export interface ExternalSourceRuntimeDiagnostics {
+  readonly connectedSources: readonly string[];
+  readonly registeredTools: readonly string[];
+  readonly failures: Readonly<Record<string, string>>;
+}

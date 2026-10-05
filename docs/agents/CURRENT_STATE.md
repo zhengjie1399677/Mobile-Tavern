@@ -31,7 +31,7 @@
 - 会话管理器已收敛为“全部／收藏／已归档”三分类：会话必须先归档才能永久删除；收藏会立即生成包含完整消息、角色卡快照、会话记忆、附件和 Agent Journal 的独立校验备份，源会话后续变化只标记“未更新”，并支持手动更新与恢复为新会话。
 - 自定义主题编辑已迁入全屏主题工作室：编辑使用独立草稿和作用域预览，不再切换应用根主题；手机按分区编辑，宽屏并排展示固定演示预览，并区分“保存主题”与“保存并应用”。Theme 1.0/1.1、完整语义变量、自定义 CSS 和交互 JSON 继续兼容。
 - UI 性能回归已覆盖桌面 Chromium 与 Pixel 5 尺寸的冷启动、Tab 冷/热切换、viewport resize、CLS、Long Animation Frame、触控目标、底栏键盘导航、横竖屏草稿/焦点和 Safe Area 恢复；长会话验收同时记录 heap、DOM、延迟与虚拟列表滚动帧间隔。Dialog 焦点圈定、Escape、焦点恢复以及触屏去模糊、减少动态、图片解码/懒加载和 Tab 分包均有独立回归守卫。Android 真机采样脚本已纳入仓库，等待已授权设备执行。全局环境光晕已改为预烘焙径向渐变，消除 `filter: blur()` + 无限脉冲造成的常驻重绘（真机对照：静置 8 秒 0 帧、交互滑动 0% 掉帧，修复前为常驻 ~61fps 与 11.84% 掉帧）。
-- 外部能力通道 M0 已落地：协议中立的 source 契约与 Connector 注册表、MCP driver（仅 Streamable HTTP，支持 legacy/auto/modern 世代协商与 `server/discover`）、外部 JSON Schema 收口策略、本地夹具回归与四条架构守卫；实测现代夹具协商到 2026-07-28，真实远端 `mcp.deepwiki.com` 为 legacy 世代并成功回退投影能力。**尚未接入应用组合根与 UI，也未实现工具执行与认证（M1/M2）**；驱动必须动态 import，单独打包约 328 KB minified / 90 KB gzip。
+- 外部能力通道 M1 已落地：除 M0 的协议中立契约、Connector 注册表、MCP driver（仅 Streamable HTTP，legacy/auto/modern 世代协商）与外部 Schema 收口外，来源配置使用独立 IndexedDB 存储，运行时服务把外部工具投影为既有 `AgentToolDefinition`（默认 `ask`、副作用 `external`、权限 `external.source.<id>`）并支持组合快照扩展与逐来源失败隔离，设置页插件分区新增「外部能力」子页（新增/启停/删除/探测能力）。**凭据与 OAuth（M2）、resources/prompts 接入（M3）、MRTR 与 ext-tasks（M4）尚未实现**；协议 driver 经动态 import 单独成 chunk（约 213 KB / gzip 58 KB），未配置来源的用户不会加载。
 
 ## 当前未完成事项
 

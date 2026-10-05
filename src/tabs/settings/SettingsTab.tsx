@@ -8,6 +8,7 @@ import {
   KeySquare,
   Loader2,
   MessageSquareText,
+  Plug,
   Palette,
   Puzzle,
   RefreshCw,
@@ -35,6 +36,7 @@ import HostBindingSection from "./sections/HostBindingSection";
 import SystemReportSection from "./sections/SystemReportSection";
 import PluginManagerSection from "../../components/plugins/PluginManagerSection";
 import ToolPluginManagerSection from "../../components/plugins/ToolPluginManagerSection";
+import ExternalSourceManagerSection from "../../components/plugins/ExternalSourceManagerSection";
 import RuntimeProfileManagerSection from "../../components/plugins/RuntimeProfileManagerSection";
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、LLMService.ts 对齐）。 */
@@ -195,7 +197,7 @@ export default function SettingsTab() {
   }));
 
   const [activeSection, setActiveSection] = React.useState<SettingsSectionId | null>(null);
-  const [pluginsSubTab, setPluginsSubTab] = React.useState<"profiles" | "tools" | "apps">("profiles");
+  const [pluginsSubTab, setPluginsSubTab] = React.useState<"profiles" | "tools" | "external" | "apps">("profiles");
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved">("idle");
   const [isCheckingUpdate, setIsCheckingUpdate] = React.useState(false);
   const lastApiRef = React.useRef(JSON.stringify(settings.api));
@@ -368,11 +370,24 @@ export default function SettingsTab() {
                 <Puzzle className="w-3.5 h-3.5" />
                 <span>扩展应用</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setPluginsSubTab("external")}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                  pluginsSubTab === "external"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Plug className="w-3.5 h-3.5" />
+                <span>外部能力</span>
+              </button>
             </div>
 
             {/* 内容按 Tab 独立挂载，彻底告别三巨头堆叠 */}
             {pluginsSubTab === "profiles" && <RuntimeProfileManagerSection />}
             {pluginsSubTab === "tools" && <ToolPluginManagerSection />}
+            {pluginsSubTab === "external" && <ExternalSourceManagerSection />}
             {pluginsSubTab === "apps" && <PluginManagerSection />}
           </div>
         );

@@ -282,6 +282,32 @@ driver，因此它会被 Vite tree-shake —— 这是 M0 的已知状态，接�
 
 ## 十一、风险与未决
 
+### M1 实施记录（2026-10-05）
+
+已落地：
+
+- `src/infrastructure/externalSources/externalSourceStorage.ts`：来源配置的独立 IndexedDB（`MobileTavernExternalSourceDB`），
+  刻意不改主库版本；只保存配置与凭据引用。写入前经 Zod 收口，存储元数据（createdAt/updatedAt）不进严格 Schema。
+- `src/application/externalSources/externalSourceUseCases.ts`：设置页使用的用例门面。
+- `src/application/services/ExternalSourceRuntimeService.ts`：运行时服务（`KernelServices.ExternalSources`），
+  把外部工具投影为既有 `AgentToolDefinition`（`policy: "ask"`、`sideEffect: "external"`、`executionScope: "external"`、
+  权限 `external.source.<id>`），支持组合快照扩展、内容块压平、结果体积上限、逐来源失败隔离。
+- 组合根：`src/application/bootstrap/serviceCatalog.ts` 新增一条声明式懒加载项；协议 driver 再由运行时服务
+  动态 import，未配置来源的用户完全不会加载 MCP SDK。
+- 设置页：插件分区新增「外部能力」子页（`ExternalSourceManagerSection`），支持新增、启停、删除与「探测能力」，
+  组件只调用用例与运行时服务，不直连存储或协议 SDK；订阅 `UnifiedAppContext` 时使用选择器。
+
+实测结论：
+
+| 项目 | 结果 |
+|---|---|
+| 运行时集成（真实 AgentRuntimeService + 本地 MCP 夹具） | 工具以 `mcp.<source>.<tool>` 注册，`policy` 为 `ask`；执行经真实外部连接返回压平文本；来源停用后执行立即抛 `EXTERNAL_SOURCE_REVOKED` |
+| 失败隔离 | 一个来源不可用时只写入 `failures`，其它来源的工具有效 |
+| 存储 | fake-indexeddb 走真实 IDB 协议；非法配置（endpoint/id/kind）在落库前被拒 |
+| 真实构建 | `vite build` 产出独立 `mcpConnectorDriver` chunk（213 KB / gzip 58 KB），主包仅增加约 5 KB，且无 Node 内置引用 |
+
+仍未做：凭据与 OAuth（M2）、resources/prompts 接入上下文（M3）、MRTR 表单与 `ext-tasks`（M4）。
+
 1. **生态处于世代交替**：大量在册 server 仍是 legacy 时代。`era` 默认 `auto`（先探测再回退），并允许用户
    固定，避免探测静默 legacy server 时的挂起。
 2. **提示注入**：外部工具描述与资源文本会进入模型上下文，必须标注来源并限长；不接受把外部文本放进

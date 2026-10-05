@@ -30,6 +30,10 @@ import type {
   ToolPluginCredentialStatus,
   ToolPluginRuntimeDiagnostics,
 } from "../domain/toolPlugins";
+import type {
+  ExternalCapabilitySnapshot,
+  ExternalSourceRuntimeDiagnostics,
+} from "../domain/externalSources/contracts";
 export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
 export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
@@ -77,6 +81,7 @@ export const KernelServices = {
   CompatibilityRuntime: "compatibilityRuntime",
   RuntimeProfiles: "runtimeProfiles",
   ToolConnectors: "toolConnectors",
+  ExternalSources: "externalSources",
   SessionManagement: "sessionManagement",
 } as const;
 
@@ -143,6 +148,16 @@ export interface IAgentRuntimeService extends IKernelService {
   subscribeToolApprovals(listener: (request: AgentToolApprovalRequest) => void): EffectDisposer;
   resolveToolApproval(approvalId: string, decision: AgentToolApprovalDecision): boolean;
   subscribeJournal(listener: (sessionId: string) => void): EffectDisposer;
+}
+
+/** 外部能力源运行时服务：只在有启用来源时才懒加载协议 driver。 */
+export interface IExternalSourceRuntimeService extends IKernelService {
+  reload(): Promise<void>;
+  getEnabledToolNames(profileId: string): string[];
+  extendComposition(snapshot: AgentCompositionSnapshot): AgentCompositionSnapshot;
+  getDiagnostics(): ExternalSourceRuntimeDiagnostics;
+  /** 只读探测：连一次并返回能力快照，不注册任何工具。 */
+  probe(sourceId: string): Promise<ExternalCapabilitySnapshot>;
 }
 
 export interface IAttachmentService extends IKernelService {
