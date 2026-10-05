@@ -80,11 +80,12 @@ function RecallTab({ activeSession, updateSessionMetadata, lastRecalledMemories,
           <div className="grid grid-cols-3 gap-1.5">
             {lastMemoryAudit.sources.map((source) => (
               <div key={source.key} className={`rounded-lg border px-2 py-1.5 ${source.included ? "border-primary/20 bg-background/60" : "border-border/30 bg-muted/20 opacity-55"}`}>
-                <p className="text-[9px] font-bold text-foreground">{t({
-                  "memory.summaries": "memory_drawer.tab_timeline",
-                  "memory.recalled": "memory_drawer.tab_recall",
-                  "memory.tables": "memory_drawer.tab_table",
-                }[source.key])}</p>
+                {/* 内建记忆数据源用既有文案；通用上下文来源（如知识库）回落到审计自带的 label。 */}
+                <p className="text-[9px] font-bold text-foreground">{{
+                  "memory.summaries": t("memory_drawer.tab_timeline"),
+                  "memory.recalled": t("memory_drawer.tab_recall"),
+                  "memory.tables": t("memory_drawer.tab_table"),
+                }[source.key] ?? source.label}</p>
                 <p className="mt-0.5 text-[8px] text-muted-foreground">
                   {source.included ? t("recall_tab.packet_included") : source.dropped ? t("recall_tab.packet_dropped") : t("recall_tab.packet_not_included")}
                   · {source.count}

@@ -205,6 +205,16 @@ C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用
 **仍属 C2 的剩余**：审计目前仍由 Hook 直接持有 `recalled` 构建，尚未统一为「从贡献的 `audit` 读取」；
 待接入第二个带审计的来源时一并收敛，避免为单一来源提前抽象。
 
+**C2 完成（2026-10-05）**：审计已从"记忆专属形状"泛化为上下文审计：
+
+- `MemoryPacketSourceAudit.key` 由三条记忆键的封闭联合放宽为 `string`（内建记忆仍用 `memory.*`）。
+- `buildMemoryAuditSnapshot` 新增 `contextContributions`：记忆之外的贡献进入**同一份** `sources` 列表，
+  `label` 用宏名，`included` 由来源状态与编译轨迹共同判定，`characters` / `estimatedTokens` 一并计入总量；
+  `memory.recalled` 贡献不会重复计入（已由内建条目呈现）。
+- 既有 UI 入口不变：`RecallTab` 对非内建键回落到审计自带的 `label`（原实现用固定映射表，遇到新键会渲染 `undefined`）。
+- 新增 5 个用例：未接入来源时输出与泛化前一致、贡献计入 Token、空/失败标为未纳入、
+  记忆不重复计入、编译轨迹丢弃时标 `dropped` 且不计 Token。
+
 ### C3 判定记录（2026-10-05，`compat.context-source` 死缝）
 
 **容忍度核实**（这是决定能否删除的唯一依据）：

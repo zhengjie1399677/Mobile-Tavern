@@ -5,6 +5,7 @@ import type {
   MemoryPacketSourceAudit,
   RecalledMessage,
 } from "./types";
+import type { ContextContribution } from "../../../domain/contextSources/contracts";
 
 interface BuildMemoryAuditParams {
   session: ChatSession;
@@ -13,9 +14,11 @@ interface BuildMemoryAuditParams {
   settings: UserSettings;
   traces?: PromptCompositionTrace[];
   estimateTokens: (text: string) => number;
+  /** 通用上下文贡献（记忆之外的来源）；未接入时为空数组，行为与泛化前一致。 */
+  contextContributions?: readonly ContextContribution[];
 }
 
-const SOURCE_LABELS: Record<MemoryPacketSourceAudit["key"], string> = {
+const SOURCE_LABELS: Record<string, string> = {
   "memory.summaries": "剧情摘要",
   "memory.recalled": "唤醒记忆",
   "memory.tables": "状态数据",
@@ -69,7 +72,42 @@ export function buildMemoryAuditSnapshot(params: BuildMemoryAuditParams): Memory
     query: params.query,
     createdAt: Date.now(),
     recalled: params.recalled,
-    sources,
-    totalEstimatedTokens: sources.reduce((total, source) => total + source.estimatedTokens, 0),
+    sources: [...sources, ...buildContextSourceAudits(params)],
+    totalEstimatedTokens: [...sources, ...buildContextSourceAudits(params)]
+      .reduce((total, source) => total + source.estimatedTokens, 0),
   };
+}
+
+/** 记忆数据源已由内建条目呈现，此处只补记忆之外的上下文贡献。 */
+const BUILTIN_MEMORY_KEYS = new Set(["memory.summaries", "memory.recalled", "memory.tables"]);
+
+/**
+ * 上下文审计泛化：任何通过通用来源缝进入提示词的贡献都出现在同一列表里，
+ * 复用既有 UI 入口（记忆抽屉按 `sources` 渲染），无需为每个来源新建审计体系。
+ */
+function buildContextSourceAudits(params: BuildMemoryAuditParams): MemoryPacketSourceAudit[] {
+  const usingComposition = params.settings.promptConfig?.usePromptComposition === true;
+  return (params.contextContributions ?? [])
+    .filter((item: ContextContribution) => !BUILTIN_MEMORY_KEYS.has(item.macroName))
+    .map((item: ContextContribution): MemoryPacketSourceAudit => {
+      const matchingTraces = (params.traces ?? [])
+        .filter((trace) => trace.resolvedDataKeys.includes(item.macroName));
+      const contributed = item.status === "ok" || item.status === "truncated";
+      const included = contributed
+        ? usingComposition
+          ? matchingTraces.some((trace) => !trace.dropped)
+          : true
+        : false;
+      return {
+        key: item.macroName,
+        label: SOURCE_LABELS[item.macroName] ?? item.macroName,
+        included,
+        count: item.status === "empty" ? 0 : 1,
+        characters: item.characters,
+        estimatedTokens: included ? params.estimateTokens(item.content) : 0,
+        dropped: usingComposition && matchingTraces.length > 0
+          ? matchingTraces.every((trace) => trace.dropped)
+          : undefined,
+      };
+    });
 }

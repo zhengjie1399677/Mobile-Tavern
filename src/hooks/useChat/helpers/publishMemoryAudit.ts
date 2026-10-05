@@ -8,6 +8,7 @@ import type { ChatSession, UserSettings } from "../../../types";
 import type { PromptCompositionTrace } from "../../../domain/prompt-composition";
 import { buildMemoryAuditSnapshot } from "../../../application/services/memory/MemoryAudit";
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../../application/services/memory/types";
+import type { ContextContribution } from "../../../domain/contextSources/contracts";
 
 export interface PublishMemoryAuditPorts {
   readonly publishMemoryAudit?: (snapshot: MemoryAuditSnapshot) => void;
@@ -27,6 +28,7 @@ export function publishTurnMemoryAudit(
     readonly recalled: RecalledMessage[];
     readonly settings: UserSettings;
     readonly traces?: readonly PromptCompositionTrace[];
+    readonly contextContributions?: readonly ContextContribution[];
   },
 ): void {
   const snapshot = buildMemoryAuditSnapshot({
@@ -35,6 +37,7 @@ export function publishTurnMemoryAudit(
     recalled: input.recalled,
     settings: input.settings,
     traces: input.traces ? [...input.traces] : undefined,
+    ...(input.contextContributions ? { contextContributions: input.contextContributions } : {}),
     estimateTokens: ports.estimateTokens,
   });
   if (ports.publishMemoryAudit) ports.publishMemoryAudit(snapshot);

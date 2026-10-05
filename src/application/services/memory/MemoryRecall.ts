@@ -266,8 +266,8 @@ export class MemoryRecall {
         ? this.storage.getTemporalFactsByEntities(sessionId, tags, candidateLimit)
         : Promise.resolve([]),
     ]);
-    let candidates = messageCandidates.filter((message) => message.turnIndex < currentTurnIndex);
-    let fragments = fragmentCandidates.filter((fragment) =>
+    const candidates = messageCandidates.filter((message) => message.turnIndex < currentTurnIndex);
+    const fragments = fragmentCandidates.filter((fragment) =>
       fragment.status === 'active' && fragment.sourceTurnEnd < currentTurnIndex
     );
     const boundedFactCandidates = factCandidates.filter((fact) =>

@@ -254,7 +254,11 @@ export interface RecalledMessage {
 }
 
 export interface MemoryPacketSourceAudit {
-  key: 'memory.summaries' | 'memory.recalled' | 'memory.tables';
+  /**
+   * 数据源键。内建记忆数据源为 `memory.*`；接入通用上下文来源后，
+   * 也承载上下文贡献的宏名（见 context_source_seam_design.md 的审计泛化）。
+   */
+  key: string;
   label: string;
   included: boolean;
   count: number;

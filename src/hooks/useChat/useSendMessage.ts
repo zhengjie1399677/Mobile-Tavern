@@ -408,6 +408,11 @@ export function useSendMessage(p: SendMessageParams) {
         timeoutMs: effectiveSettings.memory?.recallTimeoutMs,
         log,
       });
+      // 记忆召回与注册来源走同一通道进入提示词：与注册来源同类型，只是取值来源不同。
+      const contextContributions = await resolveTurnContextContributions(
+        p.kernel, recalledMemories,
+        { sessionId: updatedSession.id, userInput: isBisonConsecutive ? "" : textToSend, signal: controller.signal },
+      );
 
       const latestUserIndex = findLastUserMessageIndex(updatedSession.messages);
       const latestUserMessage = latestUserIndex >= 0 ? updatedSession.messages[latestUserIndex] : undefined;
@@ -476,10 +481,7 @@ export function useSendMessage(p: SendMessageParams) {
         userInput: isBisonConsecutive ? "" : textToSend,
         settings: effectiveSettings,
         globalLorebook: combinedGlobals,
-        contextContributions: await resolveTurnContextContributions(
-          p.kernel, recalledMemories,
-          { sessionId: updatedSession.id, userInput: isBisonConsecutive ? "" : textToSend, signal: controller.signal },
-        ),
+        contextContributions,
         signal: controller.signal,
         traceId,
       });
@@ -523,7 +525,7 @@ export function useSendMessage(p: SendMessageParams) {
         { publishMemoryAudit: p.publishMemoryAudit, publishRecalledMemories: p.publishRecalledMemories,
           estimateTokens: (content) => p.promptService.estimateTokens(content) },
         { session: promptSession, query: isBisonConsecutive ? "" : textToSend, recalled: recalledMemories,
-          settings: effectiveSettings, traces: promptPayload.traces },
+          settings: effectiveSettings, traces: promptPayload.traces, contextContributions },
       );
 
       // 放置 AI 消息占位符
