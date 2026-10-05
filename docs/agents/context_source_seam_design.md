@@ -144,6 +144,13 @@ C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用
 与现状逐字节一致）；**C1b** 把记忆召回迁移为第一个来源（保留 `memory.recalled` 宏名）并以黄金对比守住输出不变。
 两步共同构成原 C1 的完成条件，缺一不可。
 
+**C1a 已落地（2026-10-05）**：`PromptCompositionRuntimeParams` → `PromptService.assemblePrompt` →
+`IPromptService` → `assemblePromptEnvelopeUseCase` 全链接纳 `contextContributions`，缺省与空数组都逐字段一致。
+两条硬化：**不覆盖既有内建数据源**（来源误用 `char`/`memory.recalled` 等宏名无效），以及空占位写入空串
+（避免未注册宏把字面量漏进提示词）。顺带把旧路径的召回记忆区块格式化抽成
+`src/application/services/prompt/PromptMemorySection.ts`——`PromptService.ts` 因本次接线达到 1001 行，
+触发 `QUALITY-TYPES` 的 1000 行硬上限，按职责拆分后为 985 行，也为 C1b/C4 留出余量。
+
 ## 六、风险与缓解
 
 | 风险 | 缓解 |

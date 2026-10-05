@@ -10,6 +10,7 @@ import type {
   PromptCompositionRuntimeData,
   PromptMessage,
 } from "../../../domain/prompt-composition";
+import type { ContextContribution } from "../../../domain/contextSources/contracts";
 import {
   formatTableMemoryColumnConstraint,
   getTableMemoryColumnDefinitions,
@@ -22,6 +23,11 @@ export interface PromptCompositionRuntimeParams {
   settings: UserSettings;
   triggeredLorebook: LorebookEntry[];
   recalledMemories: unknown[];
+  /**
+   * 通用上下文来源的贡献（C1a 起支持）。来源只提供内容与宏名；
+   * 已存在的内建数据源键不被覆盖，避免来源误伤 `char`/`memory.recalled` 等既有值。
+   */
+  contextContributions?: readonly ContextContribution[];
   cleanHistoryContent?: (message: Message, depth: number) => string;
 }
 
@@ -78,6 +84,11 @@ export function buildPromptCompositionRuntimeData(
     userPersona: settings.userInfo || "",
     mes_example: character.mes_example || "",
   };
+
+  for (const contribution of params.contextContributions ?? []) {
+    if (Object.prototype.hasOwnProperty.call(values, contribution.macroName)) continue;
+    values[contribution.macroName] = contribution.content;
+  }
 
   return {
     values,

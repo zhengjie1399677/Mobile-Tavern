@@ -10,6 +10,7 @@ import type {
   UserSettings,
 } from "../../types";
 import { buildAuthoritativePromptSession } from "./promptHistoryUseCases";
+import type { ContextContribution } from "../../domain/contextSources/contracts";
 
 type PromptDatabaseService = IDatabaseService<
   ChatSession,
@@ -28,6 +29,7 @@ export interface AssemblePromptEnvelopeParams {
   settings: UserSettings;
   globalLorebook: LorebookEntry[];
   recalledMemories?: unknown[];
+  contextContributions?: readonly ContextContribution[];
   beforeMessageId?: string;
   signal?: AbortSignal;
   traceId?: string;
@@ -55,6 +57,7 @@ export async function assembleAuthoritativePromptEnvelope(
     settings: params.settings,
     globalLorebook: params.globalLorebook,
     recalledMemories: params.recalledMemories,
+    ...(params.contextContributions ? { contextContributions: params.contextContributions } : {}),
     signal: params.signal,
     traceId: params.traceId,
   });

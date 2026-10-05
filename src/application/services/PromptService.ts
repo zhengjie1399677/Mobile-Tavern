@@ -23,6 +23,8 @@ import { selectActivePromptBlocks } from "../../domain/prompts/promptSourceBlock
 import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
 import { assemblePromptComposition } from "./prompt/PromptCompositionAssembly";
 import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
+import type { ContextContribution } from "../../domain/contextSources/contracts";
+import { formatRecalledMemoriesSection } from "./prompt/PromptMemorySection";
 import { applyInChatPromptNodes, buildPromptRequestMessages, shapePromptRequest } from "./prompt/PromptRequestShaper";
 import { checkPromptAssemblyAborted, createLorebookSessionContext } from "./prompt/PromptAssemblySupport";
 import { Logger } from "../../utils/logger";
@@ -133,6 +135,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     settings: UserSettings;
     globalLorebook?: LorebookEntry[];
     recalledMemories?: unknown[];
+    contextContributions?: readonly ContextContribution[];
     signal?: AbortSignal;
     traceId?: string;
   }): PromptAssemblyResult {
@@ -178,6 +181,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         settings,
         triggeredLorebook,
         recalledMemories,
+        ...(params.contextContributions ? { contextContributions: params.contextContributions } : {}),
         cleanHistoryContent: (message, depth) => {
           if (!hasConfiguredRegexScripts(character, settings)) return message.content;
           return this.getCompatibilityRuntime()?.transformText({
@@ -714,23 +718,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       });
     }
 
-    let recalledMemoriesSection = "";
-    if (recalledMemories && recalledMemories.length > 0) {
-      type RecalledMemoryEntry = {
-        kind?: "fact" | "event";
-        turnIndex?: number;
-        content?: string;
-        role?: "user" | "assistant" | string;
-      };
-      recalledMemoriesSection = recalledMemories
-        .map((m: unknown) => {
-          const entry = m as RecalledMemoryEntry;
-          return entry.kind === 'fact'
-            ? `[当前事实｜第 ${entry.turnIndex} 轮起]: ${entry.content}`
-            : `[第 ${entry.turnIndex} 轮 - ${entry.role === 'user' ? '用户' : '角色'}]: ${entry.content}`;
-        })
-        .join("\n");
-    }
+    const recalledMemoriesSection = formatRecalledMemoriesSection(recalledMemories ?? []);
     builder.registerSection({
       id: "recalled_memories",
       phase: "Context",

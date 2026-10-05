@@ -34,6 +34,7 @@ import type {
   ExternalCapabilitySnapshot,
   ExternalSourceRuntimeDiagnostics,
 } from "../domain/externalSources/contracts";
+import type { ContextContribution } from "../domain/contextSources/contracts";
 export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
 export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
@@ -442,6 +443,7 @@ export interface IPromptService<TCharacter = unknown, TSession = unknown, TSetti
     settings: TSettings;
     globalLorebook: TLorebook[];
     recalledMemories?: unknown[];
+    contextContributions?: readonly ContextContribution[];
     signal?: AbortSignal;
     /** traceId：用于关联一次用户操作的提示词编译日志与遥测事件 */
     traceId?: string;
