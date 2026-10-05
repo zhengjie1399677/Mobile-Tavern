@@ -135,6 +135,9 @@ Profile 不直接保存服务实例、React 组件、数据库对象、API Key �
 | `media.processor` | 多个 | 按输入输出能力组成处理图 | 压图、ASR、抽帧、OCR |
 | `settings.panel` | 多个 | UI Slot 聚合 | Provider、兼容层、媒体策略 |
 
+> 通用 `context.source` 缝的落点、约束与实施阶段见
+> [通用上下文来源缝设计](context_source_seam_design.md)；该文只做设计，不改变本节现有边界。
+
 “随意组合”的准确含义是：只要插件满足 Slot 契约、依赖、权限和版本要求，就能声明式组合；不是允许插件任意读取其他服务或修改聊天 Hook。
 
 ### 4.3 组合解析必须确定且可诊断

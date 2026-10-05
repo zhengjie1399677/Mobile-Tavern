@@ -105,6 +105,7 @@
 | TypeScript 类型或历史 `any` | `docs/agents/typescript_discipline.md` |
 | 新服务、中间件、插件或跨层重构 | `docs/agents/isolation_development.md` |
 | 外部能力通道、Connector、MCP 接入 | `docs/agents/external_capability_channel_design.md` |
+| 上下文来源缝、Prompt 数据源、推送式上下文 | `docs/agents/context_source_seam_design.md` |
 | 角色卡、Prompt、世界书、SillyTavern 兼容 | `docs/agents/sillytavern_compat.md` |
 | Android、iOS、Tauri、打包、文件保存 | `docs/agents/mobile_strategy.md` |
 | 云端服务或 `shared/` 契约 | `docs/agents/cloud_strategy.md` |
