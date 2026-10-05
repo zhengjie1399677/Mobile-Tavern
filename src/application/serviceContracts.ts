@@ -25,8 +25,6 @@ import type {
   AgentTurnExecutionContext,
 } from "../domain/agents/contracts";
 import type {
-  ToolPluginComposerCommand,
-  ToolPluginComposerCommandExecution,
   ToolPluginCredentialStatus,
   ToolPluginRuntimeDiagnostics,
 } from "../domain/toolPlugins";

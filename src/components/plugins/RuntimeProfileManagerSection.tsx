@@ -31,9 +31,7 @@ import { useUnifiedApp } from "../../UnifiedAppContext";
 import { destroyApplicationRuntime } from "../../application/runtime";
 import {
   KernelServices,
-  type IAgentRuntimeService,
   type IRuntimeProfileService,
-  type IToolPluginRuntimeService,
 } from "../../application/serviceContracts";
 import {
   BUILTIN_BASE_PROFILE_ID,
@@ -47,10 +45,6 @@ import { getSessionRuntimeProfileId } from "../../application/useCases/runtimePr
 import { prepareAgentProfileBundleExport } from "../../application/useCases/prepareAgentProfileBundleExport";
 import { prepareAgentProfileBundleImport } from "../../application/useCases/prepareAgentProfileBundleImport";
 import { prepareRuntimeProfileAgentLaunch } from "../../application/useCases/runtimeProfileAgentLaunch";
-import {
-  CHARACTER_READ_TOOL_NAME,
-  SESSION_BRANCH_TOOL_NAME,
-} from "../../application/tools/builtinAgentTools";
 import SettingsToggleRow from "../../tabs/settings/SettingsToggleRow";
 import AgentProfileEditor from "./AgentProfileEditor";
 import {

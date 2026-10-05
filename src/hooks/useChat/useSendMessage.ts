@@ -36,7 +36,6 @@ import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipel
 import type { MemoryAuditSnapshot } from "../../application/services/memory/types";
 import { Logger, generateTraceId } from "../../utils/logger";
 import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
-import { resolveContextContributions } from "../../application/contextSources/resolveContextContributions";
 import { recallMemoriesForTurn } from "./helpers/recallForTurn";
 import { resolveTurnContextContributions } from "../../application/contextSources/resolveTurnContextContributions";
 import { publishTurnMemoryAudit } from "./helpers/publishMemoryAudit";
@@ -62,7 +61,6 @@ import {
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useSendMessage");
-const log = logger;
 
 interface SendMessageParams {
   kernel: IKernel;
