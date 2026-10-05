@@ -53,12 +53,13 @@ import {
 } from "../../application/tools/builtinAgentTools";
 import SettingsToggleRow from "../../tabs/settings/SettingsToggleRow";
 import AgentProfileEditor from "./AgentProfileEditor";
+import {
+  BUILTIN_TOOLS,
+  listAllKnownTools,
+  listToolsForProfile,
+} from "../../application/useCases/profileToolCatalogUseCases";
 
 const MAX_AGENT_PROFILE_FILE_SIZE = 512 * 1024;
-const BUILTIN_TOOLS: readonly RuntimeProfileToolMount[] = [
-  { name: CHARACTER_READ_TOOL_NAME, version: "1.0.0" },
-  { name: SESSION_BRANCH_TOOL_NAME, version: "1.0.0" },
-];
 
 export default function RuntimeProfileManagerSection() {
   const kernel = useKernel();
@@ -566,35 +567,6 @@ function DiagnosticRow({ label, value }: { label: string; value: string }) {
 
 function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function listToolsForProfile(
-  kernel: ReturnType<typeof useKernel>,
-  profileId: string,
-): RuntimeProfileToolMount[] {
-  const all = listAllKnownTools(kernel);
-  if (!kernel.hasService(KernelServices.ToolConnectors)) return all.filter(isBuiltinTool);
-  const enabled = new Set(
-    kernel.getService<IToolPluginRuntimeService>(KernelServices.ToolConnectors)
-      .getEnabledToolNames(profileId),
-  );
-  return all.filter((tool) => isBuiltinTool(tool) || enabled.has(tool.name));
-}
-
-function listAllKnownTools(kernel: ReturnType<typeof useKernel>): RuntimeProfileToolMount[] {
-  const versions = new Map(BUILTIN_TOOLS.map((tool) => [tool.name, tool.version]));
-  if (kernel.hasService(KernelServices.AgentRuntime)) {
-    kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
-      .listTools()
-      .forEach((tool) => versions.set(tool.name, tool.version));
-  }
-  return [...versions.entries()]
-    .map(([name, version]) => ({ name, version }))
-    .sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function isBuiltinTool(tool: RuntimeProfileToolMount): boolean {
-  return tool.name === CHARACTER_READ_TOOL_NAME || tool.name === SESSION_BRANCH_TOOL_NAME;
 }
 
 function mergeToolMounts(

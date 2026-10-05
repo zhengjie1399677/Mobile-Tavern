@@ -25,6 +25,7 @@
   - M3b 待做（需通用缝，明确推迟）：`prompts/*` 用户侧取用与「一键插入草稿」——composer 缝当前为 Tool Plugin 私有，复制会制造第二条路径。
   - M4 待做：MRTR 表单、`ext-tasks` 与 `subscriptions/listen` 变更订阅。
   - 2026-10-05：M3b 已落地——提示词模板经通用输入框命令缝（`ComposerCommandService`）注册为 `mcp.<source>.<prompt>` 命令，用户 `/` 选用、结果只回填草稿不自动发送，撤销立即失效。
+  - 2026-10-05：补齐 Profile 工具挂载闭环——「运行模式」页的可挂载清单改为**同时**咨询 Tool Plugin 与外部能力源（此前只问前者，MCP 工具在该页不可见、用户无法挂载，模型因此永远拿不到）；目录逻辑抽为 `profileToolCatalogUseCases` 并加 6 个用例（含修复点断言）。
 
 - [ ] **通用上下文来源缝（P1，架构工作）**：按[通用上下文来源缝设计](docs/agents/context_source_seam_design.md)分阶段实施。当前 `context.source` 只有兼容插件实现，记忆召回是硬编码单通道，每接一种推送式上下文都要再改一次 prompt 调用链。
   - 2026-10-05：设计已完成并接入路由。关键结论：提示词是每次发送时重算的（`MemoryAuditSnapshot` 明确不写入会话），因此本缝**不引入逐轮冻结**；未注册宏会留下字面量，因此注册表必须为已声明来源补齐空占位；预算继续由 `compilePromptComposition` 裁决，不建第二套。
@@ -49,10 +50,7 @@
   - 分级选项：最小清 critical = `vitest@3.2.7`；彻底清 vitest 告警 = `vitest@4.1.11` 或 `5.0.3`；`happy-dom` 无论哪条都必须到 `20.x`。
   - 2026-10-05：按条件挂起。重新评估的触发条件 = 需要新特性、开发机/CI 暴露到不可信输入、或做专项清理时，在隔离分支试升级并统计真实失败数，再决定是否合入。
 
-- [ ] **全仓 ESLint 潜在错误（条件性）**：门禁只 lint **改动文件**，因此以下 18 条既有错误长期潜伏——任何人下次改动这些文件都会被 pre-commit 直接拦下。
-  - 11 条 `prefer-const`（自动可修）、3 条 `no-control-regex`（控制字符正则，可用 `\p{Cc}` 或字符码过滤重写）、1 条 `no-extra-boolean-cast`、1 条 `Function` 类型（需换成具体签名）。
-  - 涉及 `src/utils/tavernHelper/*` 等；`src/application/services/memory/MemoryRecall.ts` 的 2 条已顺带修复。
-  - 2026-10-05：记录为独立清理项，不与功能改动混合。修复后应把「全仓 ESLint」纳入 CI，否则债务会再次静默累积。
+- [x] **全仓 ESLint 潜在错误**：2026-10-05 已清零并固化门禁。门禁原先只 lint 改动文件，导致 18 条（`src`）与 35 条（`tests`/`scripts`/`server`）既有错误长期潜伏，任何人下次改到就会被 pre-commit 拦下。本轮清掉 43 条 `prefer-const`（含两份 zod mock 副本）、3 条 `no-control-regex`（改用 `\p{Cc}`）、2 条 `no-extra-boolean-cast`、1 条 `Function` 类型与 2 处 `@ts-ignore`/1 处故意不 yield 的流 mock；新增 `npm run lint:all` 并接入 CI 与 `quality:push`，防止债务再次静默累积。
 
 - [ ] **全双工免手触连续语音扮演模式（N）**：本地 Web Wasm VAD、自动发送、播报插话与中断。
 - [ ] **局域网 P2P 数据热同步与热迁移（G）**：基于 WebRTC 的本地数据增量备份和跨端迁移。
