@@ -136,6 +136,14 @@ for (const contribution of params.contextContributions) {
 
 每阶段都必须先测试后接线；C1 与 C3 属于动提示词权威链的改动，需逐字对比与守卫回归。
 
+**进度（2026-10-05）**：C0 已落地并通过验证——`src/domain/contextSources/contracts.ts`（含 id/宏名/上限/超时校验与
+`createContextSourceDefinition`）与 `src/application/contextSources/contextSourceRegistry.ts`（并行读取、按 id 稳定排序、
+空占位、单来源截断、超时/失败隔离、调用方取消不抛出），10 个单测覆盖；**未接线**，对现有提示词完全惰性。
+
+C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用链接纳 `contextContributions`（缺省为空 →
+与现状逐字节一致）；**C1b** 把记忆召回迁移为第一个来源（保留 `memory.recalled` 宏名）并以黄金对比守住输出不变。
+两步共同构成原 C1 的完成条件，缺一不可。
+
 ## 六、风险与缓解
 
 | 风险 | 缓解 |
