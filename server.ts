@@ -777,7 +777,9 @@ async function startServer() {
     console.log("[Local Server] Production mode: serving static files from dist/");
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    // Express 5 使用 path-to-regexp v8：裸 "*" 已不再合法，必须写成命名通配
+    // `/{*splat}`（`/*splat` 不会匹配根路径 "/"）。
+    app.get("/{*splat}", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

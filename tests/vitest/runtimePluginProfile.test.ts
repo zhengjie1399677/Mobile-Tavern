@@ -111,7 +111,9 @@ describe("Runtime Plugin Profile", () => {
     const configuredPlugin = defineRuntimePlugin({
       id: "feature.configured",
       version: "1.0.0",
-      configSchema: z.object({ enabled: z.boolean().default(true) }).default({}),
+      // Zod 4 的 `.default()` 不再解析默认值（Zod 3 会把 `.default({})` 深解析为
+      // `{ enabled: true }`），因此这里显式写出完整默认对象以保持用例语义不变。
+      configSchema: z.object({ enabled: z.boolean().default(true) }).default({ enabled: true }),
       setup(_context, config) {
         expect(config).toEqual({ enabled: true });
       },

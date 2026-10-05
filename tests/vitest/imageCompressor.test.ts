@@ -4,7 +4,7 @@
  * 覆盖 compressImage 的尺寸缩放、质量压缩、错误降级
  * 使用 Mock Canvas/Image 模拟浏览器环境
  */
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { compressImage } from "../../src/utils/imageCompressor";
 
 /**
@@ -29,8 +29,28 @@ interface MockFileReaderInstance {
   readAsDataURL: Mock<(file: File) => void>;
 }
 
+function mockImage(mockImg: MockImage): void {
+  global.Image = vi.fn(function () {
+    return mockImg;
+  }) as unknown as typeof Image;
+}
+
+function mockCanvasElement(mockCanvas: unknown) {
+  // 必须在 spy 之前捕获原始实现：spy 之后 `document.createElement` 已指向 mock，
+  // 兜底分支再调用它会重新进入 mock 形成无限递归。
+  const originalCreateElement = document.createElement;
+  return vi.spyOn(document, "createElement").mockImplementation((tag: string, options?: ElementCreationOptions) => {
+    if (tag === "canvas") return mockCanvas as HTMLCanvasElement;
+    return originalCreateElement.call(document, tag, options);
+  });
+}
+
 describe("compressImage", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 
@@ -42,7 +62,7 @@ describe("compressImage", () => {
       onload: null,
       onerror: null,
     };
-    global.Image = vi.fn(() => mockImg) as unknown as typeof Image;
+    mockImage(mockImg);
 
     const drawImageSpy = vi.fn();
     const toDataURLSpy = vi.fn(() => "data:image/jpeg;base64,compressed");
@@ -52,14 +72,13 @@ describe("compressImage", () => {
       getContext: vi.fn(() => ({ drawImage: drawImageSpy })),
       toDataURL: toDataURLSpy,
     };
-    global.document = { createElement: vi.fn(() => mockCanvas) } as unknown as Document;
+    mockCanvasElement(mockCanvas);
 
     const promise = compressImage("data:image/png;base64,raw", 400, 300, 0.8);
     setTimeout(() => mockImg.onload!(), 0);
 
     const result = await promise;
     expect(result).toBe("data:image/jpeg;base64,compressed");
-    // drawImage 被调用时传入的尺寸参数验证（compressImage 结束后会清理 canvas.width=0，所以通过 spy 验证）
     expect(drawImageSpy).toHaveBeenCalledWith(mockImg, 0, 0, 400, 300);
     expect(toDataURLSpy).toHaveBeenCalledWith("image/jpeg", 0.8);
   });
@@ -72,7 +91,7 @@ describe("compressImage", () => {
       onload: null,
       onerror: null,
     };
-    global.Image = vi.fn(() => mockImg) as unknown as typeof Image;
+    mockImage(mockImg);
 
     const drawImageSpy = vi.fn();
     const mockCanvas = {
@@ -81,13 +100,12 @@ describe("compressImage", () => {
       getContext: vi.fn(() => ({ drawImage: drawImageSpy })),
       toDataURL: vi.fn(() => "data:image/jpeg;base64,same"),
     };
-    global.document = { createElement: vi.fn(() => mockCanvas) } as unknown as Document;
+    mockCanvasElement(mockCanvas);
 
     const promise = compressImage("data:image/png;base64,raw", 400, 300);
     setTimeout(() => mockImg.onload!(), 0);
 
     await promise;
-    // 不缩放：drawImage 用原始尺寸 200x150
     expect(drawImageSpy).toHaveBeenCalledWith(mockImg, 0, 0, 200, 150);
   });
 
@@ -99,7 +117,7 @@ describe("compressImage", () => {
       onload: null,
       onerror: null,
     };
-    global.Image = vi.fn(() => mockImg) as unknown as typeof Image;
+    mockImage(mockImg);
 
     const drawImageSpy = vi.fn();
     const mockCanvas = {
@@ -108,13 +126,12 @@ describe("compressImage", () => {
       getContext: vi.fn(() => ({ drawImage: drawImageSpy })),
       toDataURL: vi.fn(() => "data:image/jpeg;base64,resized"),
     };
-    global.document = { createElement: vi.fn(() => mockCanvas) } as unknown as Document;
+    mockCanvasElement(mockCanvas);
 
     const promise = compressImage("data:image/png;base64,raw", 200, 200);
     setTimeout(() => mockImg.onload!(), 0);
 
     await promise;
-    // ratio = min(200/1000, 200/500) = 0.2 → 200x100
     expect(drawImageSpy).toHaveBeenCalledWith(mockImg, 0, 0, 200, 100);
   });
 
@@ -126,7 +143,7 @@ describe("compressImage", () => {
       onload: null,
       onerror: null,
     };
-    global.Image = vi.fn(() => mockImg) as unknown as typeof Image;
+    mockImage(mockImg);
 
     const mockCanvas = {
       width: 0,
@@ -134,7 +151,7 @@ describe("compressImage", () => {
       getContext: vi.fn(() => null),
       toDataURL: vi.fn(),
     };
-    global.document = { createElement: vi.fn(() => mockCanvas) } as unknown as Document;
+    mockCanvasElement(mockCanvas);
 
     const promise = compressImage("data:image/png;base64,fallback", 400, 300);
     setTimeout(() => mockImg.onload!(), 0);
@@ -151,7 +168,7 @@ describe("compressImage", () => {
       onload: null,
       onerror: null,
     };
-    global.Image = vi.fn(() => mockImg) as unknown as typeof Image;
+    mockImage(mockImg);
 
     const promise = compressImage("invalid-data-url", 400, 300);
     setTimeout(() => mockImg.onerror!(new Event("error")), 0);
@@ -167,7 +184,7 @@ describe("compressImage", () => {
       onload: null,
       onerror: null,
     };
-    global.Image = vi.fn(() => mockImg) as unknown as typeof Image;
+    mockImage(mockImg);
 
     const drawImageSpy = vi.fn();
     const mockCanvas = {
@@ -176,34 +193,34 @@ describe("compressImage", () => {
       getContext: vi.fn(() => ({ drawImage: drawImageSpy })),
       toDataURL: vi.fn(() => "data:image/jpeg;base64,from-file"),
     };
-    global.document = { createElement: vi.fn(() => mockCanvas) } as unknown as Document;
+    mockCanvasElement(mockCanvas);
 
-    // Mock FileReader — 使用闭包捕获实例引用
-    let fileReaderInstance: MockFileReaderInstance | undefined;
-    global.FileReader = vi.fn(function (this: MockFileReaderInstance) {
-      this.onload = null;
-      this.onerror = null;
-      this.readAsDataURL = vi.fn((file: File) => {
+    // 直接构造实例并由构造器返回，避免把 `this` 别名到外部变量（no-this-alias）。
+    const fileReaderInstance: MockFileReaderInstance = {
+      onload: null,
+      onerror: null,
+      readAsDataURL: vi.fn((_file: File) => {
         setTimeout(() => {
-          if (this.onload) {
-            this.onload({ target: { result: "data:image/png;base64,file-content" } });
+          if (fileReaderInstance.onload) {
+            fileReaderInstance.onload({ target: { result: "data:image/png;base64,file-content" } });
           }
         }, 0);
-      });
-      fileReaderInstance = this;
+      }),
+    };
+    global.FileReader = vi.fn(function () {
+      return fileReaderInstance;
     }) as unknown as typeof FileReader;
 
     const mockFile = new File(["dummy"], "test.png", { type: "image/png" });
     const promise = compressImage(mockFile, 400, 300, 0.8);
 
-    // 等 FileReader 读完后触发 img.onload
     setTimeout(() => {
       if (mockImg.onload) mockImg.onload();
     }, 10);
 
     const result = await promise;
     expect(result).toBe("data:image/jpeg;base64,from-file");
-    expect(fileReaderInstance!.readAsDataURL).toHaveBeenCalledWith(mockFile);
+    expect(fileReaderInstance.readAsDataURL).toHaveBeenCalledWith(mockFile);
   }, 10000);
 
   it("自定义输出类型", async () => {
@@ -214,7 +231,7 @@ describe("compressImage", () => {
       onload: null,
       onerror: null,
     };
-    global.Image = vi.fn(() => mockImg) as unknown as typeof Image;
+    mockImage(mockImg);
 
     const drawImageSpy = vi.fn();
     const toDataURLSpy = vi.fn((type: string, _quality: number) => `data:${type};base64,webp`);
@@ -224,7 +241,7 @@ describe("compressImage", () => {
       getContext: vi.fn(() => ({ drawImage: drawImageSpy })),
       toDataURL: toDataURLSpy,
     };
-    global.document = { createElement: vi.fn(() => mockCanvas) } as unknown as Document;
+    mockCanvasElement(mockCanvas);
 
     const promise = compressImage("data:image/png;base64,raw", 400, 300, 0.9, "image/webp");
     setTimeout(() => mockImg.onload!(), 0);

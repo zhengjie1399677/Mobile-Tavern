@@ -38,6 +38,24 @@ interface MockWindowWithSpeechRecognition extends Window {
   webkitSpeechRecognition?: MockSpeechRecognitionConstructor;
 }
 
+/** 以类型安全方式访问携带 SpeechRecognition 的 window（替代 `as any`）。 */
+function speechRecognitionWindow(): MockWindowWithSpeechRecognition {
+  return window as unknown as MockWindowWithSpeechRecognition;
+}
+
+/** 清除 window 上的语音识别全局，避免同文件用例相互污染。 */
+function clearSpeechRecognitionGlobals(): void {
+  const win = speechRecognitionWindow();
+  delete win.SpeechRecognition;
+  delete win.webkitSpeechRecognition;
+}
+
+/** 注入 Mock SpeechRecognition 构造器。 */
+function stubSpeechRecognition(mockRecognition: ReturnType<typeof vi.fn>): void {
+  speechRecognitionWindow().SpeechRecognition =
+    mockRecognition as unknown as MockSpeechRecognitionConstructor;
+}
+
 /**
  * 构造最小 IKernel mock。
  * AsrService.init/destroy 仅持有引用而不调用任何 kernel 方法，
@@ -65,17 +83,19 @@ function createMockAsrConfig(
 
 /** 构造并返回 Mock SpeechRecognition 实例工厂（vi.fn 包装的构造器）。 */
 function createMockSpeechRecognitionConstructor(): ReturnType<typeof vi.fn> {
-  return vi.fn(() => ({
-    lang: "",
-    interimResults: false,
-    continuous: false,
-    onresult: null,
-    onerror: null,
-    onend: null,
-    start: vi.fn(),
-    stop: vi.fn(),
-    abort: vi.fn(),
-  }));
+  return vi.fn(function () {
+    return {
+      lang: "",
+      interimResults: false,
+      continuous: false,
+      onresult: null,
+      onerror: null,
+      onend: null,
+      start: vi.fn(),
+      stop: vi.fn(),
+      abort: vi.fn(),
+    };
+  });
 }
 
 describe("AsrService tests", () => {
@@ -84,8 +104,7 @@ describe("AsrService tests", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     service = new AsrService();
-    // 确保 AsrService 中的 tauriFetch 检测不会出错
-    global.window = {} as unknown as typeof window;
+    clearSpeechRecognitionGlobals();
   });
 
   it("初始化成功", async () => {
@@ -141,9 +160,7 @@ describe("AsrService tests", () => {
   it("web-speech provider 支持时正确启动", async () => {
     const mockRecognition = createMockSpeechRecognitionConstructor();
 
-    global.window = {
-      SpeechRecognition: mockRecognition as unknown as MockSpeechRecognitionConstructor,
-    } as unknown as typeof window & MockWindowWithSpeechRecognition;
+    stubSpeechRecognition(mockRecognition);
 
     await service.init(createMockKernel());
     const onResult = vi.fn();
@@ -167,9 +184,7 @@ describe("AsrService tests", () => {
   it("web-speech 识别错误触发 onError", async () => {
     const mockRecognition = createMockSpeechRecognitionConstructor();
 
-    global.window = {
-      SpeechRecognition: mockRecognition as unknown as MockSpeechRecognitionConstructor,
-    } as unknown as typeof window & MockWindowWithSpeechRecognition;
+    stubSpeechRecognition(mockRecognition);
 
     await service.init(createMockKernel());
     const onError = vi.fn();
@@ -190,9 +205,7 @@ describe("AsrService tests", () => {
   it("startListening 时若已在监听则先取消", async () => {
     const mockRecognition = createMockSpeechRecognitionConstructor();
 
-    global.window = {
-      SpeechRecognition: mockRecognition as unknown as MockSpeechRecognitionConstructor,
-    } as unknown as typeof window & MockWindowWithSpeechRecognition;
+    stubSpeechRecognition(mockRecognition);
 
     await service.init(createMockKernel());
     await service.startListening(
@@ -214,21 +227,21 @@ describe("AsrService tests", () => {
 
   it("stopListening 停止活跃的识别", async () => {
     const mockStop = vi.fn();
-    const mockRecognition = vi.fn(() => ({
-      lang: "",
-      interimResults: false,
-      continuous: false,
-      onresult: null,
-      onerror: null,
-      onend: null,
-      start: vi.fn(),
-      stop: mockStop,
-      abort: vi.fn(),
-    }));
+    const mockRecognition = vi.fn(function () {
+      return {
+        lang: "",
+        interimResults: false,
+        continuous: false,
+        onresult: null,
+        onerror: null,
+        onend: null,
+        start: vi.fn(),
+        stop: mockStop,
+        abort: vi.fn(),
+      };
+    });
 
-    global.window = {
-      SpeechRecognition: mockRecognition as unknown as MockSpeechRecognitionConstructor,
-    } as unknown as typeof window & MockWindowWithSpeechRecognition;
+    stubSpeechRecognition(mockRecognition);
 
     await service.init(createMockKernel());
     await service.startListening(
@@ -243,7 +256,7 @@ describe("AsrService tests", () => {
 
   it("openai provider 在无 mediaDevices 时抛出错误", async () => {
     await service.init(createMockKernel());
-    global.navigator = {} as unknown as Navigator;
+    vi.stubGlobal("navigator", {});
     await expect(
       service.startListening(
         createMockAsrConfig("openai"),
@@ -252,5 +265,6 @@ describe("AsrService tests", () => {
         vi.fn()
       )
     ).rejects.toThrow("Microphone recording is not supported");
+    vi.unstubAllGlobals();
   });
 });

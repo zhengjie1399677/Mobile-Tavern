@@ -48,7 +48,7 @@ describe("VoiceCaptureService", () => {
       mediaDevices: { getUserMedia: vi.fn(async () => stream) },
     });
     vi.stubGlobal("window", {
-      AudioContext: vi.fn(() => context),
+      AudioContext: vi.fn(function () { return context; }),
     });
 
     const service = new VoiceCaptureService();

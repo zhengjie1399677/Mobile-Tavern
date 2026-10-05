@@ -99,7 +99,7 @@ const legacyPromptConfigSchema = z.custom<PresetPromptConfig>(
 );
 
 /** 未识别字段的保真袋；通用代码不得解释其内容（`COMPAT-DATA`）。 */
-export const presetExtensionsSchema = z.record(z.unknown());
+export const presetExtensionsSchema = z.record(z.string(), z.unknown());
 
 export const presetBundleV2Schema = z.object({
   schemaVersion: z.literal(PRESET_BUNDLE_SCHEMA_VERSION),

@@ -61,8 +61,14 @@ describe("BgmService tests", () => {
       load: vi.fn(),
     };
 
-    global.Audio = vi.fn(() => mockAudio) as unknown as typeof Audio;
-    global.window = { location: { href: "http://localhost:3000" } } as unknown as typeof window;
+    global.Audio = vi.fn(function () {
+      return mockAudio;
+    }) as unknown as typeof Audio;
+    Object.defineProperty(window, "location", {
+      value: { href: "http://localhost:3000" },
+      writable: true,
+      configurable: true,
+    });
 
     service = new BgmService();
   });
