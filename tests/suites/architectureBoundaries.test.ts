@@ -885,5 +885,38 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "FormattedText、SystemReportSection 与 MessageBubble 必须保持职责拆分，不能重新合并为接近千行的单体组件"
   );
 
+  // 外部能力通道边界：MCP 只是第一个 Connector 实现，协议适配必须留在基础设施层。
+  const externalSourceDirectory = path.join("src", "domain", "externalSources").split(path.sep).join("/");
+  const mcpImportAllowlist = path
+    .join("src", "infrastructure", "externalSources", "mcp")
+    .split(path.sep)
+    .join("/");
+  for (const file of listCodeFiles("src")) {
+    const normalized = file.split(path.sep).join("/");
+    const source = read(file);
+    assert(
+      !source.includes("@modelcontextprotocol/client/stdio"),
+      `禁止导入 MCP stdio 子路径（会引入 Node 专用依赖）：${normalized}`
+    );
+    if (!source.includes("@modelcontextprotocol/")) continue;
+    assert(
+      normalized.startsWith(mcpImportAllowlist),
+      `只有 ${mcpImportAllowlist} 可以导入 MCP SDK，违规文件：${normalized}`
+    );
+  }
+  for (const file of listCodeFiles(path.join("src", "kernel"))) {
+    const normalized = file.split(path.sep).join("/");
+    const source = read(file);
+    assert(!source.includes("@modelcontextprotocol/"), `Kernel 不得导入 MCP SDK：${normalized}`);
+    assert(
+      !source.includes("externalSources"),
+      `Kernel 不得依赖外部能力通道：${normalized}`
+    );
+  }
+  assert(
+    existsSync(path.join(workspace, externalSourceDirectory)),
+    "外部能力通道的中立契约目录缺失：src/domain/externalSources"
+  );
+
   console.log("✔ 内核架构边界守卫通过");
 }

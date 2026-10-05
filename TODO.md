@@ -16,6 +16,13 @@
   - 2026-09-02：已加入 `official.memory`，通过 Manifest 白名单 Host Capability 把 `memory.write` 接到 `MemoryService`；每次写入均需高风险单次审批，并绑定当前会话来源消息，来源缺失时 fail-closed。联网与记忆写入两项优先能力已完成，其余能力按需继续。
   - 2026-09-02：已加入 `official.utility` 本地实用工具包（按软件性质筛掉开发者向工具，只保留角色扮演/跑团/聊天场景）：`/dice` 掷骰（NdM±K）、`/coin` 掷硬币、`/pick` 随机抽取、`/count` 字数统计，四个均为无权限、低风险、无副作用的 turn composer 命令，走 Host Capability（random.dice / random.coin / random.pick / text.count），执行结果直接回填输入框草稿不自动发送。
 
+- [ ] **外部能力通道与 MCP 接入（P0，方向①/③扩展）**：按[外部能力通道与 MCP 接入设计](docs/agents/external_capability_channel_design.md)推进，MCP 只是第一个 Connector 实现，抽象层不得出现协议绑定。
+  - 2026-10-05：M0 已落地并通过验证——中立契约 + Connector 注册表 + MCP driver（Streamable HTTP、era 协商、`server/discover`）+ 外部 Schema 收口 + 本地夹具 8/8 + 四条架构守卫；真实远端实测对方是 legacy 世代（2025-11-25）并成功协商回退。驱动尚未接入组合根，接入时必须懒加载（≈328 KB minified / 90 KB gzip）。
+  - M0 已完成：source 契约与 Connector 注册表、MCP driver（Streamable HTTP + era 协商 + `server/discover`）、四条架构守卫与打包冒烟。
+  - M1 待做：source 配置存储与设置页入口、应用组合根懒加载接入、`tools/call` 投影为 `AgentToolDefinition`（默认 `ask`），含取消/超时/配额与 Journal 重放。
+  - M2 认证：CIMD 优先 + DCR 回退、Native Adapter 回调、凭据按 issuer 隔离。
+  - M3–M4 上下文与交互：resources/prompts 接入、MRTR 表单、`ext-tasks`、变更订阅。
+
 - [ ] **自定义主题工作室后续（P1）**：全屏工作室、独立草稿、隔离预览、核心/高级颜色和保存/应用分离已完成；继续实现起点选择、多场景预览、对比度与 CSS 行列诊断、片段库，以及 Theme 1.1 媒体/状态/规则可视化编辑。
 
 ## 中期排期

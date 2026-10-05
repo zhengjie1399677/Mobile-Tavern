@@ -39,6 +39,7 @@ Runtime Plugin 承载。移动端位于 `src/` 与 `src-tauri/`，云端服务�
 | 环境变量、功能开关、灰度策略 | 对应配置入口 | `docs/agents/configuration_strategy.md` |
 | TypeScript 类型或历史 `any` | 目标类型和调用方 | `docs/agents/typescript_discipline.md` |
 | 新服务、中间件、插件或跨层重构 | 目标边界与局部测试 | `docs/agents/isolation_development.md` |
+| 外部能力通道、Connector / MCP 接入 | `src/domain/externalSources/`、`src/application/externalSources/`、`src/infrastructure/externalSources/mcp/` | `docs/agents/external_capability_channel_design.md`、`docs/agents/isolation_development.md` |
 | Runtime Plugin、Agent、Chat Profile、多模态消息 | `docs/agents/agent_plugin_runtime_roadmap.md` | `docs/agents/runtime_boundaries.md`、`docs/agents/isolation_development.md` |
 | 浏览器或 E2E 自动化 | 已纳入仓库的测试脚本 | `docs/agents/browser_testing.md` |
 | WebView 界面、移动交互与 UI 性能 | `src/components/MainLayout.tsx`、目标页面与 UI 基元 | `docs/agents/ui_webview_performance.md`、`docs/agents/mobile_strategy.md` |

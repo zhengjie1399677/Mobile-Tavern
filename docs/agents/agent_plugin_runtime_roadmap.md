@@ -629,6 +629,9 @@ Renderer、Theme Token 和稳定组件描述，使生成结果能够跨版本验
 
 ### 11.5 稳定 Host Protocol 与 AI 生成 Adapter
 
+> MCP 作为可立即落地、无需等待 Host Protocol 的外部能力来源，其设计见
+> [外部能力通道与 MCP 接入设计](external_capability_channel_design.md)；本节其余远期能力不因此提前启动。
+
 AI 可以根据外部软件的 HTTP、WebSocket、MCP 或专有协议即时生成 Connector Adapter，但不能为每次连接
 重新发明宿主协议。Host Protocol 应只提供少量稳定原语：
 
