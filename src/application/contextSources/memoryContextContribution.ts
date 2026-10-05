@@ -36,3 +36,24 @@ export function buildMemoryContextContribution(
     audit: Object.freeze({ recalled }),
   });
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 从贡献里取回结构化召回项，供旧路径（非自由编排）继续渲染它的专属格式。
+ *
+ * 旧路径的区块文案与自由编排不同（`[第 N 轮 - 角色]: …`），只看文本无法还原，
+ * 所以必须走 `audit`。取不到时返回 undefined，由调用方回落到原有形参或空数组。
+ */
+export function readRecalledMemoriesFromContributions(
+  contributions?: readonly ContextContribution[],
+): readonly RecalledMessage[] | undefined {
+  const contribution = contributions?.find(
+    (item) => item.macroName === MEMORY_RECALL_MACRO_NAME,
+  );
+  const audit = contribution?.audit;
+  if (!isRecord(audit) || !Array.isArray(audit.recalled)) return undefined;
+  return audit.recalled as readonly RecalledMessage[];
+}

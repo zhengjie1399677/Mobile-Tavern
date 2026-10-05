@@ -82,13 +82,26 @@ describe("Prompt 运行时数据源与上下文贡献", () => {
     expect(runtime.values["context.absent"]).toBe("");
   });
 
-  it("不覆盖既有内建数据源（来源误伤 char/memory.recalled 无效）", () => {
+  it("贡献只能写 context.* 或显式迁移的宏，内建数据源受保护", () => {
     const runtime = adapt([
       contribution({ macroName: "char", sourceId: "evil", content: "被覆盖了", characters: 5 }),
-      contribution({ macroName: "memory.recalled", sourceId: "evil2", content: "注入", characters: 2 }),
+      contribution({
+        macroName: "worldbook.triggered",
+        sourceId: "evil2",
+        content: "注入世界书",
+        characters: 6,
+      }),
+      contribution({
+        macroName: "memory.recalled",
+        sourceId: "memory.recall",
+        content: "已迁移的记忆",
+        characters: 6,
+      }),
     ]);
     expect(runtime.values.char).toBe("角色");
-    expect(runtime.values["memory.recalled"]).toBe("");
+    expect(runtime.values["worldbook.triggered"]).toBe("");
+    // memory.recalled 属于显式迁移白名单，允许贡献写入（记忆召回的迁移入口）。
+    expect(runtime.values["memory.recalled"]).toBe("已迁移的记忆");
   });
 });
 

@@ -25,6 +25,7 @@ import { assemblePromptComposition } from "./prompt/PromptCompositionAssembly";
 import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
 import type { ContextContribution } from "../../domain/contextSources/contracts";
 import { formatRecalledMemoriesSection } from "./prompt/PromptMemorySection";
+import { readRecalledMemoriesFromContributions } from "../contextSources/memoryContextContribution";
 import { applyInChatPromptNodes, buildPromptRequestMessages, shapePromptRequest } from "./prompt/PromptRequestShaper";
 import { checkPromptAssemblyAborted, createLorebookSessionContext } from "./prompt/PromptAssemblySupport";
 import { Logger } from "../../utils/logger";
@@ -139,10 +140,14 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     signal?: AbortSignal;
     traceId?: string;
   }): PromptAssemblyResult {
-    const { character, chat, userInput, settings, globalLorebook = [], recalledMemories = [], signal, traceId } = params;
+    const { character, chat, userInput, settings, globalLorebook = [], recalledMemories, signal, traceId } = params;
     const log = traceId ? logger.withTrace(traceId) : logger;
     checkPromptAssemblyAborted(signal, this.abortController?.signal);
     const operationSignal = signal ?? this.abortController?.signal;
+    // 记忆召回已迁移到通用上下文来源缝：优先用显式形参，其次从贡献的审计数据还原。
+    const recalledForPrompt = recalledMemories
+      ?? readRecalledMemoriesFromContributions(params.contextContributions)
+      ?? [];
 
     const macroParams = {
       char: character.name,
@@ -180,7 +185,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         settings,
         triggeredLorebook,
-        recalledMemories,
+        recalledMemories: recalledForPrompt,
         ...(params.contextContributions ? { contextContributions: params.contextContributions } : {}),
         cleanHistoryContent: (message, depth) => {
           if (!hasConfiguredRegexScripts(character, settings)) return message.content;
@@ -420,7 +425,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       enabledFeatures: {
         tableMemory: !!settings.enableTableMemory,
         replySuggestions: !!settings.enableReplySuggestions,
-        memoryRecall: recalledMemories && recalledMemories.length > 0,
+        memoryRecall: recalledForPrompt.length > 0,
       },
       repetitionDetected,
     };
@@ -718,7 +723,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       });
     }
 
-    const recalledMemoriesSection = formatRecalledMemoriesSection(recalledMemories ?? []);
+    const recalledMemoriesSection = formatRecalledMemoriesSection(recalledForPrompt);
     builder.registerSection({
       id: "recalled_memories",
       phase: "Context",

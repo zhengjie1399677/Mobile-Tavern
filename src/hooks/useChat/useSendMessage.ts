@@ -34,11 +34,12 @@ import {
 import { extractThinkContent } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { MemoryAuditSnapshot } from "../../application/services/memory/types";
-import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
 import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
 import { resolveContextContributions } from "../../application/contextSources/resolveContextContributions";
 import { recallMemoriesForTurn } from "./helpers/recallForTurn";
+import { resolveTurnContextContributions } from "../../application/contextSources/resolveTurnContextContributions";
+import { publishTurnMemoryAudit } from "./helpers/publishMemoryAudit";
 import {
   projectMessagePartsForProvider,
   type OpenAiProviderMessage,
@@ -475,12 +476,10 @@ export function useSendMessage(p: SendMessageParams) {
         userInput: isBisonConsecutive ? "" : textToSend,
         settings: effectiveSettings,
         globalLorebook: combinedGlobals,
-        recalledMemories,
-        contextContributions: await resolveContextContributions(p.kernel, {
-          sessionId: updatedSession.id,
-          userInput: isBisonConsecutive ? "" : textToSend,
-          signal: controller.signal,
-        }),
+        contextContributions: await resolveTurnContextContributions(
+          p.kernel, recalledMemories,
+          { sessionId: updatedSession.id, userInput: isBisonConsecutive ? "" : textToSend, signal: controller.signal },
+        ),
         signal: controller.signal,
         traceId,
       });
@@ -520,16 +519,12 @@ export function useSendMessage(p: SendMessageParams) {
       await agentTurn?.recordDecision("media.projection", projection.decision);
 
       // 审计快照以最终 Prompt 编排轨迹为准，只保留在当前聊天运行时。
-      const memoryAudit = buildMemoryAuditSnapshot({
-        session: promptSession,
-        query: isBisonConsecutive ? "" : textToSend,
-        recalled: recalledMemories,
-        settings: effectiveSettings,
-        traces: promptPayload.traces,
-        estimateTokens: (content) => p.promptService.estimateTokens(content),
-      });
-      if (p.publishMemoryAudit) p.publishMemoryAudit(memoryAudit);
-      else p.publishRecalledMemories?.(updatedSession.id, recalledMemories);
+      publishTurnMemoryAudit(
+        { publishMemoryAudit: p.publishMemoryAudit, publishRecalledMemories: p.publishRecalledMemories,
+          estimateTokens: (content) => p.promptService.estimateTokens(content) },
+        { session: promptSession, query: isBisonConsecutive ? "" : textToSend, recalled: recalledMemories,
+          settings: effectiveSettings, traces: promptPayload.traces },
+      );
 
       // 放置 AI 消息占位符
       log.info("AI 发言流式开始");

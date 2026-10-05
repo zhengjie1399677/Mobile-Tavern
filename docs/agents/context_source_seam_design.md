@@ -191,6 +191,20 @@ C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用
 `contextContributions`」，随后退休 `recalledMemories` 形参；注意旧路径的 `recalled_memories` 区块格式不同
 （`[第 N 轮 - 角色]: …`），必须改由贡献的 `audit` 渲染，否则旧路径会丢内容。
 
+**C1b 完成（2026-10-05）**：
+
+- 适配器写入规则改为**白名单制**：贡献只能写 `context.*` 命名空间，或写入显式登记的既有宏
+  （当前仅 `memory.recalled`，即记忆迁移入口）。`char`/`worldbook.*`/`prompt.*` 等内建数据源无法被来源覆盖。
+- `PromptService` 的记忆来源改为「显式形参 → 贡献审计 → 空数组」三级回落：旧路径的
+  `recalled_memories` 区块格式与自由编排不同，只能从 `audit` 还原，否则旧路径会丢内容。
+- 两条 Hook 改为 `resolveTurnContextContributions(kernel, recalled, request)` 一次拿到
+  「记忆贡献 + 注册来源贡献」；`recalledMemories` 形参保留但不再由 Hook 传入（供其它调用方与测试过渡）。
+- 再次触发千行守卫后，把审计发布抽为 `hooks/useChat/helpers/publishMemoryAudit.ts`（同时推进 C2 的审计收口），
+  `useSendMessage.ts` 降到 991 行。
+
+**仍属 C2 的剩余**：审计目前仍由 Hook 直接持有 `recalled` 构建，尚未统一为「从贡献的 `audit` 读取」；
+待接入第二个带审计的来源时一并收敛，避免为单一来源提前抽象。
+
 ## 六、风险与缓解
 
 | 风险 | 缓解 |

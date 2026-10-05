@@ -24,7 +24,7 @@ import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/ser
 import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
 import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
-import { resolveContextContributions } from "../../application/contextSources/resolveContextContributions";
+import { resolveTurnContextContributions } from "../../application/contextSources/resolveTurnContextContributions";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
 import {
@@ -336,12 +336,10 @@ export function useRerollMessage(p: RerollMessageParams) {
         userInput: lastUserText,
         settings: effectiveSettings,
         globalLorebook: combinedGlobals,
-        recalledMemories,
-        contextContributions: await resolveContextContributions(p.kernel, {
-          sessionId: updatedSession.id,
-          userInput: lastUserText,
-          signal: controller.signal,
-        }),
+        contextContributions: await resolveTurnContextContributions(
+          p.kernel, recalledMemories,
+          { sessionId: updatedSession.id, userInput: lastUserText, signal: controller.signal },
+        ),
         beforeMessageId: targetMsg.id,
         signal: controller.signal,
         traceId,

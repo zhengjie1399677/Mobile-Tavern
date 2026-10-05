@@ -22,7 +22,8 @@ export interface PromptCompositionRuntimeParams {
   userInput: string;
   settings: UserSettings;
   triggeredLorebook: LorebookEntry[];
-  recalledMemories: unknown[];
+  /** 只读消费：迁移后可能来自上下文贡献的审计数据（readonly）。 */
+  recalledMemories: readonly unknown[];
   /**
    * 通用上下文来源的贡献（C1a 起支持）。来源只提供内容与宏名；
    * 已存在的内建数据源键不被覆盖，避免来源误伤 `char`/`memory.recalled` 等既有值。
@@ -86,7 +87,7 @@ export function buildPromptCompositionRuntimeData(
   };
 
   for (const contribution of params.contextContributions ?? []) {
-    if (Object.prototype.hasOwnProperty.call(values, contribution.macroName)) continue;
+    if (!canContributionWriteMacro(contribution.macroName)) continue;
     values[contribution.macroName] = contribution.content;
   }
 
@@ -94,6 +95,18 @@ export function buildPromptCompositionRuntimeData(
     values,
     history: mapHistory(chat.messages ?? [], settings, character, params.cleanHistoryContent),
   };
+}
+
+/**
+ * 贡献只能写 `context.*` 命名空间，或写入**显式迁移**的既有宏。
+ *
+ * 白名单必须逐个登记：来源误用 `char`/`worldbook.*`/`prompt.*` 等内建宏一律无效，
+ * 避免外部内容覆盖角色、世界书或提示词配置；`memory.recalled` 已由记忆召回迁移占用。
+ */
+const CONTRIBUTION_MACRO_ALLOWLIST = new Set(["memory.recalled"]);
+
+function canContributionWriteMacro(macroName: string): boolean {
+  return macroName.startsWith("context.") || CONTRIBUTION_MACRO_ALLOWLIST.has(macroName);
 }
 
 function mapHistory(
