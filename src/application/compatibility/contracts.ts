@@ -100,6 +100,16 @@ export interface CompatibilityWorldInfoResolverDefinition {
   resolve(request: CompatibilityWorldInfoResolverRequest): readonly LorebookEntry[];
 }
 
+/**
+ * 兼容插件的上下文来源扩展点。
+ *
+ * ⚠️ 死缝（2026-10-05 核实）：`readContextSources` 全仓**没有任何生产调用者**，只有接口、实现与测试。
+ * MVU 状态实际是通过 `compat.sillytavern.prompt.mvu-state` 这个 **prompt-section** 贡献进入提示词的。
+ *
+ * 因此：**禁止把它接成第二条上下文路径**。通用推送式上下文的唯一落点是
+ * [通用上下文来源缝设计](../../../docs/agents/context_source_seam_design.md)；本类型保留仅因
+ * 删除它需要同时改 Profile 贡献声明与架构守卫口径，属于有清理窗口时再做的整理工作。
+ */
 export interface CompatibilityContextSourceDefinition {
   readonly id: string;
   readonly version: string;

@@ -328,6 +328,8 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
       scope.add(runtime.registerCodec(sillyTavernPromptPresetCodec));
     }
     if (isContributionEnabled(profile, "compat.context-source", "compat.sillytavern.context.mvu-state")) {
+      // ⚠️ 死缝：该贡献目前没有任何生产消费方（MVU 走 compat.sillytavern.prompt.mvu-state 区块）。
+      // 保留注册只为维持既有 Profile 声明与守卫口径一致；禁止为它新增消费者（见设计文档的路径收敛）。
       scope.add(runtime.registerContextSource({
       id: "compat.sillytavern.context.mvu-state",
       version: CONTRIBUTION_VERSION,

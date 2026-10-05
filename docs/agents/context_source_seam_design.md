@@ -205,6 +205,27 @@ C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用
 **仍属 C2 的剩余**：审计目前仍由 Hook 直接持有 `recalled` 构建，尚未统一为「从贡献的 `audit` 读取」；
 待接入第二个带审计的来源时一并收敛，避免为单一来源提前抽象。
 
+### C3 判定记录（2026-10-05，`compat.context-source` 死缝）
+
+**容忍度核实**（这是决定能否删除的唯一依据）：
+
+| 场景 | 是否容忍已移除的 slot id | 证据 |
+|---|---|---|
+| 旧会话里的组合快照 | ✅ 容忍 | `AgentCompositionSnapshot.contributionOrder` 是自由 `Record<string, readonly string[]>`；消费方只做 `contributionOrder[slotId]?.includes(...)` 查表，未知键永不读取 |
+| 备份 / 恢复 | ✅ 容忍 | 迁移用例对快照只做 `parseStringArrayRecord` 结构校验，不校验 slot id 与贡献 id |
+| Profile **定义** | ❌ 不容忍 | `resolveCapabilityComposition` 对未知 slot 抛 `RUNTIME_CAPABILITY_SLOT_NOT_FOUND`、未知贡献抛 `RUNTIME_CAPABILITY_CONTRIBUTION_NOT_FOUND`——删除必须**同时**改插件贡献声明与 `legacyRuntimePlugin.ts` 的 contributions 条目，否则启动即抛 |
+
+**决定：只标注 + 加守卫，不删除。**
+
+1. 删除的收益只是概念整洁；代价是同时改兼容运行时、Profile 贡献声明与「七类可撤销贡献」的守卫口径，
+   动的是正在服务真实用户的兼容链。
+2. 真正要防的风险是「后人把它接成第二条上下文路径」。用守卫比用删除更直接：新增守卫禁止 compat 之外
+   任何 `src/` 文件出现 `readContextSources`，并要求本文持续记录二者的关系。
+3. 删除**可行**（容忍度已证明），因此列为有条件清理项：等兼容链有清理窗口时按上表协同改四处。
+
+已在代码处标注：`compatibility/contracts.ts` 的定义注释与兼容插件注册点均写明「死缝、MVU 走 prompt-section、
+禁止新增消费者」。
+
 ## 六、风险与缓解
 
 | 风险 | 缓解 |

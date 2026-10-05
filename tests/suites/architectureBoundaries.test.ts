@@ -339,6 +339,22 @@ export async function testArchitectureBoundaries(): Promise<void> {
       && !compatibilityHost.includes("from 'react'"),
     "Compatibility Host 必须在 Application 层提供七类可撤销贡献，且不得依赖 React"
   );
+  // compat.context-source 是死缝（MVU 走 prompt-section）；禁止它长成第二条上下文路径。
+  const compatibilityContextSourceOwners = new Set([
+    path.join("src", "application", "compatibility", "contracts.ts"),
+    path.join("src", "application", "services", "CompatibilityRuntimeService.ts"),
+  ]);
+  for (const file of listCodeFiles("src")) {
+    if (compatibilityContextSourceOwners.has(file)) continue;
+    assert(
+      !read(file).includes("readContextSources"),
+      `${file} 不得成为 compat.context-source 的消费者；通用推送式上下文只能走 context_source_seam_design.md 定义的缝`
+    );
+  }
+  assert(
+    read("docs/agents/context_source_seam_design.md").includes("compat.context-source"),
+    "上下文来源缝设计必须记录它与 compat.context-source 的关系，避免后人误以为存在第二条上下文档位"
+  );
   const genericRenderingRuntime = read("src/components/formatted-text/renderingRuntime.tsx");
   assert(
     !genericRenderingRuntime.includes("regex_scripts")
