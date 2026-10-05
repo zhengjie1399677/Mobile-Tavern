@@ -35,6 +35,7 @@ import { resolveBuiltinProviderId } from "../../application/runtimePlugins/agent
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 import { resolveAgentSessionSettings } from "../../application/useCases/resolveAgentSessionSettings";
+import { appendSwipeCandidate, readSwipeCandidates } from "../../domain/chat/messageSwipes";
 
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
@@ -172,6 +173,12 @@ export function useRerollMessage(p: RerollMessageParams) {
 
     const nextMsgsIdx = targetMsg.sender === "user" ? targetIdx + 1 : targetIdx;
     const nextMsgs = rawMessages.slice(0, nextMsgsIdx);
+
+    const isRerollingLastAssistantMsg = targetIdx === rawMessages.length - 1 && targetMsg.sender === "assistant";
+    // 只有重掷"末尾 AI 回复"才维护候选分支；其余重掷照旧替换原文。
+    const existingCandidates = isRerollingLastAssistantMsg
+      ? readSwipeCandidates(targetMsg)
+      : { swipes: [], reasonings: [] };
 
     // 寻找最近的一条用户消息作为驱动对白，但不删除夹在中间的系统或助手消息（如野牛模式的静默指令）
     let lastUserText = "";
@@ -495,6 +502,18 @@ export function useRerollMessage(p: RerollMessageParams) {
         aiMsgId, responseText: responseChunks.join(""), reasoningText: reasoningChunks.join(""),
         startTime, tokenUsage, enableReplySuggestions: p.settings.enableReplySuggestions ?? false, latestSession,
       });
+
+      if (isRerollingLastAssistantMsg) {
+        const { swipes, reasonings, index } = appendSwipeCandidate(
+          existingCandidates,
+          finalAiMsg.content,
+          finalAiMsg.reasoningContent || "",
+        );
+        finalAiMsg.swipes = swipes;
+        finalAiMsg.swipeIndex = index;
+        finalAiMsg.swipe_id = index;
+        finalAiMsg.swipeReasonings = reasonings;
+      }
 
       if (p.settings.enableReplySuggestions && replyChoices.length > 0) {
         p.setReplySuggestions(replyChoices);

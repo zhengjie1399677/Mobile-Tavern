@@ -30,6 +30,10 @@ interface StoredChatMessageRecordBase {
   reasoningContent?: string;
   swipes?: string[];
   swipe_id?: number;
+  /** 当前激活的候选下标；与 `swipe_id` 同步写入，供界面直接消费。 */
+  swipeIndex?: number;
+  /** 与 `swipes` 下标一一对应的推理内容，缺失项用空串占位。 */
+  swipeReasonings?: string[];
   variables?: Record<string, unknown>;
 }
 
@@ -79,6 +83,8 @@ export function toStoredMessageRecord(
     reasoningContent: message.reasoningContent,
     swipes: message.swipes,
     swipe_id: message.swipe_id,
+    swipeIndex: message.swipeIndex,
+    swipeReasonings: message.swipeReasonings,
     variables: message.variables,
   };
 
@@ -116,6 +122,8 @@ export function fromStoredMessageRecord(record: StoredChatMessageRecord): Messag
     reasoningContent: record.reasoningContent,
     swipes: record.swipes,
     swipe_id: record.swipe_id,
+    swipeIndex: record.swipeIndex,
+    swipeReasonings: record.swipeReasonings,
     variables: record.variables,
     turnIndex: record.turnIndex,
     tags: record.tags,

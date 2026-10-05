@@ -451,6 +451,57 @@ describe("长会话消息与时间线摘要完整性", () => {
     expect(derived).toEqual([0, ["fragment-before-edit"], 0]);
   }, 15_000);
 
+  it("内容未变化的重写（末尾候选固化）保留派生记忆与记忆字典", async () => {
+    const db = await getDB();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(
+        ["memory_dict", "memory_fragments", "memory_facts"],
+        "readwrite",
+      );
+      transaction.objectStore("memory_dict").put({
+        id: `${sessionId}:保留实体`, sessionId, entity: "保留实体", count: 1,
+      });
+      transaction.objectStore("memory_fragments").put({
+        id: "fragment-keep", sessionId, content: "最新一轮事件", participants: [], tags: [],
+        sourceMessageIds: ["message-40"], sourceRole: "assistant", sourceTurnStart: 39,
+        sourceTurnEnd: 39, status: "active", importance: 1, confidence: 1, createdAt: 1, updatedAt: 1,
+      });
+      transaction.objectStore("memory_facts").put({
+        id: "fact-keep", sessionId, subject: "甲", predicate: "认识", object: "乙",
+        tags: [], status: "active", validFromTurn: 39, sourceMessageId: "message-40",
+        confidence: 1, createdAt: 1, updatedAt: 1,
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+
+    // 与库中 message-40 完全相同的正文：仅重写字段（模拟剥离 swipes 的固化）。
+    await updateSessionMessage(sessionId, { ...makeMessage(40) }, {});
+
+    const derived = await new Promise<[number, string[], number]>((resolve, reject) => {
+      const transaction = db.transaction(
+        ["memory_dict", "memory_fragments", "memory_facts"],
+        "readonly",
+      );
+      const dict = transaction.objectStore("memory_dict").index("sessionId")
+        .count(IDBKeyRange.only(sessionId));
+      const fragments = transaction.objectStore("memory_fragments").index("sessionId")
+        .getAll(IDBKeyRange.only(sessionId));
+      const facts = transaction.objectStore("memory_facts").index("sessionId")
+        .count(IDBKeyRange.only(sessionId));
+      transaction.oncomplete = () => resolve([
+        dict.result,
+        (fragments.result as Array<{ id: string }>).map((fragment) => fragment.id),
+        facts.result,
+      ]);
+      transaction.onerror = () => reject(transaction.error);
+    });
+
+    // 正文未变 → 派生记忆与记忆字典必须原样保留。
+    expect(derived).toEqual([1, ["fragment-keep"], 1]);
+  }, 15_000);
+
   it("后台抽取来源消息已被删除时不能重新插入词典、事件或事实", async () => {
     await deleteSessionMessage(sessionId, "message-40");
     const now = Date.now();

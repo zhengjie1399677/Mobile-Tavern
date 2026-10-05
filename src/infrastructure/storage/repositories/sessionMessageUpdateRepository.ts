@@ -37,6 +37,9 @@ function withoutStateSnapshot(
 /**
  * 原子编辑一条历史消息，并失效该轮次之后无法再证明正确的摘要、状态快照和派生记忆。
  * 编辑是低频操作，允许在事务内读取该会话完整消息以统一重算统计与摘要边界。
+ *
+ * 正文未变化的重写（例如末尾候选分支的"固化"，只剥离 `swipes` 等临时候选字段）不得
+ * 触发派生数据失效：记忆片段/事实与记忆字典由正文派生，正文没变就依然有效。
  */
 export function updateSessionMessage(
   sessionId: string,
@@ -93,28 +96,33 @@ export function updateSessionMessage(
           return;
         }
 
+        const contentChanged = getStoredMessageText(existing) !== message.content;
         const invalidFragmentIds = new Set(
-          fragments
-            .filter((fragment) => fragment.sourceTurnEnd >= existing.turnIndex)
-            .map((fragment) => fragment.id),
+          contentChanged
+            ? fragments
+                .filter((fragment) => fragment.sourceTurnEnd >= existing.turnIndex)
+                .map((fragment) => fragment.id)
+            : [],
         );
-        for (const fragment of fragments) {
-          if (invalidFragmentIds.has(fragment.id)) fragmentsStore.delete(fragment.id);
-        }
-        for (const fact of facts) {
-          if (fact.validFromTurn >= existing.turnIndex || fact.sourceMessageId === message.id) {
-            factsStore.delete(fact.id);
+        if (contentChanged) {
+          for (const fragment of fragments) {
+            if (invalidFragmentIds.has(fragment.id)) fragmentsStore.delete(fragment.id);
           }
-        }
+          for (const fact of facts) {
+            if (fact.validFromTurn >= existing.turnIndex || fact.sourceMessageId === message.id) {
+              factsStore.delete(fact.id);
+            }
+          }
 
-        const dictCursor = dictStore.index("sessionId").openCursor(IDBKeyRange.only(sessionId));
-        dictCursor.onsuccess = () => {
-          const cursor = dictCursor.result;
-          if (!cursor) return;
-          cursor.delete();
-          cursor.continue();
-        };
-        dictCursor.onerror = () => fail(dictCursor.error);
+          const dictCursor = dictStore.index("sessionId").openCursor(IDBKeyRange.only(sessionId));
+          dictCursor.onsuccess = () => {
+            const cursor = dictCursor.result;
+            if (!cursor) return;
+            cursor.delete();
+            cursor.continue();
+          };
+          dictCursor.onerror = () => fail(dictCursor.error);
+        }
 
         const hydratedExisting = fromStoredMessageRecord(existing);
         const mergedMetadata = withoutStateSnapshot({
@@ -129,10 +137,8 @@ export function updateSessionMessage(
             ...message,
             extra: mergedMetadata,
             metadata: mergedMetadata,
-            tags: getStoredMessageText(existing) === message.content ? existing.tags : [],
-            extractSource: getStoredMessageText(existing) === message.content
-              ? existing.extractSource
-              : "none",
+            tags: contentChanged ? [] : existing.tags,
+            extractSource: contentChanged ? "none" : existing.extractSource,
           },
           existing.turnIndex,
         );

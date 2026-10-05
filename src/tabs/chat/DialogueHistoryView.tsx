@@ -107,7 +107,7 @@ const DialogueHistoryView = ({
   // 消息流不再折叠：历史消息完整性由"故事年表"子页维护（总结卡片与检索入口），
   // 正文渲染只由分页懒加载（内存规模）与虚拟列表（DOM 数量）控制。
 
-  // 预计算每条消息的轮次编号
+  // 预计算每条消息的轮次编号与最新一条 Assistant 消息 ID
   const roundNums: Record<string, number> = {};
   let roundCount = 0;
   (activeSession?.messages || []).forEach((message: Message) => {
@@ -116,6 +116,14 @@ const DialogueHistoryView = ({
     }
     roundNums[message.id] = roundCount;
   });
+
+  const lastAssistantMsgId = React.useMemo(() => {
+    const msgs = activeSession?.messages || [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].sender === "assistant") return msgs[i].id;
+    }
+    return null;
+  }, [activeSession?.messages]);
 
   // 虚拟列表：长会话下 messagesToRender 可达数百条，全量渲染会导致
   // React VDOM 协调遍历 1500+ 节点。useVirtualizer 只渲染视口内 + overscan 条目，
@@ -335,6 +343,8 @@ const DialogueHistoryView = ({
                     isStreamingThisMsg={isStreamingThisMsg}
                     swipedMsgId={swipedMsgId}
                     setSwipedMsgId={setSwipedMsgId}
+                    isLastAssistantMsg={lastAssistantMsgId === message.id}
+                    sessionId={activeSession?.id}
                   />
                 )}
               </div>

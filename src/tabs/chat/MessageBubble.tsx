@@ -27,6 +27,7 @@ import { ReasoningBlock } from "./message-bubble/ReasoningBlock";
 import { GeneratedImageBlock } from "./message-bubble/GeneratedImageBlock";
 import { MessageTimestamp } from "./message-bubble/MessageTimestamp";
 import { MessageAttachmentParts } from "./message-bubble/MessageAttachmentParts";
+import { MessageSwiper } from "./message-bubble/MessageSwiper";
 
 interface MessageBubbleProps {
   message: Message;
@@ -40,6 +41,8 @@ interface MessageBubbleProps {
   isStreamingThisMsg: boolean;
   swipedMsgId: string | null;
   setSwipedMsgId: (id: string | null) => void;
+  isLastAssistantMsg?: boolean;
+  sessionId?: string;
 }
 
 const MessageBubble = ({
@@ -54,6 +57,8 @@ const MessageBubble = ({
   isStreamingThisMsg,
   swipedMsgId,
   setSwipedMsgId,
+  isLastAssistantMsg = false,
+  sessionId,
 }: MessageBubbleProps): React.JSX.Element => {
   const {
     activeCharacter,
@@ -775,6 +780,14 @@ const MessageBubble = ({
                 showCustomConfirm={showCustomConfirm}
               />
             </div>
+
+            {isLastAssistantMsg && message.swipes && message.swipes.length > 1 && (
+              <MessageSwiper
+                message={message}
+                sessionId={sessionId || ""}
+                isSending={isSending}
+              />
+            )}
 
             <MessageTimestamp
               message={message}
