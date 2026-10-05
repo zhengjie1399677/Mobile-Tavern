@@ -198,6 +198,18 @@ export async function testArchitectureBoundaries(): Promise<void> {
     );
   }
 
+  // STATE-AUTHORITY:R1 —— 视图层（组件 / Tab / Hook）只能持有投影，禁止直连存储实现。
+  // 注：Native Adapter 不在此列（PLATFORM-MOBILE 要求平台能力经明确的原生入口），
+  // 更严格的"连 Compatibility Runtime 与 Native Adapter 也不许直连"只对 src/contexts 成立。
+  for (const dir of ["src/components", "src/tabs", "src/hooks"]) {
+    for (const file of listCodeFiles(dir)) {
+      assert(
+        !/(?:infrastructure\/storage|utils\/localDB)\b/.test(read(file)),
+        `${file} 不得直连存储实现；视图层的状态只能经应用服务/用例读写（STATE-AUTHORITY:R1）`
+      );
+    }
+  }
+
   for (const directory of ["src/components", "src/tabs", "src/hooks", "src/contexts"]) {
     for (const file of listCodeFiles(directory)) {
       assert(
@@ -354,6 +366,16 @@ export async function testArchitectureBoundaries(): Promise<void> {
   assert(
     read("docs/agents/context_source_seam_design.md").includes("compat.context-source"),
     "上下文来源缝设计必须记录它与 compat.context-source 的关系，避免后人误以为存在第二条上下文档位"
+  );
+  // STATE-AUTHORITY：状态权威规则必须存在且被路由，否则会成为失传的口头约定。
+  const stateAuthority = read("docs/agents/state_authority.md");
+  assert(
+    stateAuthority.includes("STATE-AUTHORITY")
+      && stateAuthority.includes("authoritative")
+      && stateAuthority.includes("derived")
+      && stateAuthority.includes("ephemeral")
+      && agentsGuide.includes("docs/agents/state_authority.md"),
+    "状态权威文档必须存在、记录三类状态并由 AGENTS.md 按需入口引用（STATE-AUTHORITY）"
   );
   const genericRenderingRuntime = read("src/components/formatted-text/renderingRuntime.tsx");
   assert(

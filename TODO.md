@@ -41,7 +41,7 @@
   - ①【已完成】`enqueueWrite` 增加显式 `mode`：`coalesceable`（默认，保持 P1-11 以来的既有语义）与 `must-complete`（绝不合并、各自拿到自己的结果）分开，`idbWriteQueue.test.ts` 钉住两种语义。翻转 4 处提交类写入：`commitSessionTurn`（**红检实证：退回合并后 m1 永久丢失**）、`deleteSessionMessage`（key 只到会话级，删不同消息会互相顶掉）、`updateSessionMessage`（调用方消费返回的 ChatSession）、`upsertDictEntry`（返回 boolean 会被另一次调用顶掉）。`character:${id}` / `session:${id}:cascade` / `settings:user_settings` 有注释表明是故意合并，保持不动。
   - ②【已完成】写队列由全局单链改为**按聚合分片**：分片由声明的 key 前两段推导（`session:abc:turn` → `session:abc`），无 key 落默认分片仍彼此串行；每分片独立保留串行、15s 熔断、深度遥测与 abort 传导。整库迁移（`replace-all` / `merge`）显式共享 `data-migration` 分片并 must-complete，避免两个整库重写并行。测试覆盖：长写不阻塞无关聚合、同聚合严格有序、不同会话可并行、两个迁移互相串行。**过程中测试立刻抓到一处自引入回归**：must-complete 置空内部 key 会让分片推导也丢失（落到默认分片、同聚合反并行），已改为按声明的 key 推导分片。
   - ③【待做】统一「命令三件套」：commandId + epoch + AbortSignal，用单一 `isStale(token)` 收掉散落的 `isStillActive`（仅 useRerollMessage 里就有 12 处）、`__streamingMsgIdGuard`、`agentHandleKeyRef`；加守卫禁止流式路径直接读 `activeSessionIdRef` 判新鲜度。
-  - ④【待做】把 authoritative（DB/owner）/ derived（React 视图）/ ephemeral（流式缓冲）三类状态与「视图永不回写权威」写成权威文档并加守卫测试。
+  - ④【已完成】新增 `docs/agents/state_authority.md`（`STATE-AUTHORITY`）：定义 authoritative（DB/应用服务写入）/ derived（`sessionViews` 与 refs 投影）/ ephemeral（流式占位符、streamingMessageId，永不落库）三类状态与 R1–R5 规则，并给权威所有者清单；证据：流式占位符只进 `setSessionViews`、权威提交在结束时才 `commitSessionTurn`。守卫补齐 **`STATE-AUTHORITY:R1`**：把"视图层不得直连存储实现"从只覆盖 `src/contexts` 扩展到 `src/components`、`src/tabs`、`src/hooks`（当前 0 违规；Native Adapter 不在禁令内，`hooks/ar/useArSync.ts` 属合法），并断言该文档存在且被 AGENTS.md 路由。
   - ⑤【待做】性能预算制：首字节延迟、切会话（500 条消息）、记忆召回 P95、20MB 导入耗时、冷启动纳入 CI 断言，不再手动跑 `tests/stress/*`。
 
 - [ ] **生态试运行（P2，方向③，路线阶段 E）**：仓库内 Tool Plugin SDK、确定性 `.mttool` 打包器和官方无权限文本工具箱示例已完成；继续评估 SDK 独立发布以及 Provider、Media Processor、Renderer、Context Source 扩展模板。公开目录与审核/撤回流程只保留为条件性事项。
