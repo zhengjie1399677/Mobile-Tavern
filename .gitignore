@@ -79,3 +79,10 @@ data/headless/
 
 # 本地构建产物（APK 等交付文件，不进入仓库）
 deliverables/
+
+# 生产遥测与外部日志（包含真实用户会话与调试数据，绝不提交至 GitHub）
+telemetry_logs/
+*.json.gz
+
+# 本地下载的安装包/旁载产物（体积大且可由构建复现，不入库）
+apk_download/
