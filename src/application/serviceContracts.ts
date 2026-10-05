@@ -35,6 +35,8 @@ import type {
   ExternalSourceRuntimeDiagnostics,
 } from "../domain/externalSources/contracts";
 import type { ContextContribution } from "../domain/contextSources/contracts";
+import type { ContextSourceDefinition } from "../domain/contextSources/contracts";
+import type { ContextReadRequest } from "./contextSources/contextSourceRegistry";
 export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
 export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
@@ -83,6 +85,7 @@ export const KernelServices = {
   RuntimeProfiles: "runtimeProfiles",
   ToolConnectors: "toolConnectors",
   ExternalSources: "externalSources",
+  ContextSources: "contextSources",
   SessionManagement: "sessionManagement",
 } as const;
 
@@ -159,6 +162,16 @@ export interface IExternalSourceRuntimeService extends IKernelService {
   getDiagnostics(): ExternalSourceRuntimeDiagnostics;
   /** 只读探测：连一次并返回能力快照，不注册任何工具。 */
   probe(sourceId: string): Promise<ExternalCapabilitySnapshot>;
+}
+
+/**
+ * 上下文来源服务：持有一个 Scope 内的来源注册表。
+ * 注册的贡献最终以命名数据源形式进入 Prompt；未注册任何来源时对发送链路完全惰性。
+ */
+export interface IContextSourceService extends IKernelService {
+  register(definition: ContextSourceDefinition): EffectDisposer;
+  list(): readonly ContextSourceDefinition[];
+  readAll(request: ContextReadRequest): Promise<readonly ContextContribution[]>;
 }
 
 export interface IAttachmentService extends IKernelService {

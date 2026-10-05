@@ -846,6 +846,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "src/kernel/types.ts",
     "src/utils/localDB.ts",
     "src/application/services/PromptService.ts",
+    "src/hooks/useChat/useSendMessage.ts",
     "src/components/FormattedText.tsx",
     "src/components/formatted-text/renderingRuntime.tsx",
     "src/tabs/settings/sections/system-report/SystemReportSectionView.tsx",

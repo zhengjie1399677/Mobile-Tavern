@@ -151,6 +151,16 @@ C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用
 `src/application/services/prompt/PromptMemorySection.ts`——`PromptService.ts` 因本次接线达到 1001 行，
 触发 `QUALITY-TYPES` 的 1000 行硬上限，按职责拆分后为 985 行，也为 C1b/C4 留出余量。
 
+**C1a 接线完成（2026-10-05）**：新增 `KernelServices.ContextSources` 与 `ContextSourceService`（Scope 内持有注册表，
+随服务装配失效），发送与重发生成两条链路都通过 `resolveContextContributions` 解析贡献并交给既有
+`contextContributions` 形参；**解析失败一律降级为空贡献**——上下文是可选输入，来源自身的问题在注册表内落成
+`status`，真正抛出的异常只可能来自装配问题，绝不能让本轮发送失败。
+
+顺带修复一处既有违规：`src/hooks/useChat/useSendMessage.ts` 在本次改动前已是 **1005 行**，超过
+`QUALITY-TYPES` 的 1000 行硬上限，而架构守卫的清单漏检了它。本次把本轮记忆召回抽成
+`src/hooks/useChat/helpers/recallForTurn.ts`（失败/超时降级为空结果并保留 trace 日志），该文件降到 996 行，
+并**把 useSendMessage 加入守卫的千行清单**，避免违规再次静默返回。
+
 ## 六、风险与缓解
 
 | 风险 | 缓解 |

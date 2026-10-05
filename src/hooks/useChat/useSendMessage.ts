@@ -27,16 +27,18 @@ import {
   type ResolvedApiCredentials,
 } from "../../utils/resolveApiCredentials";
 import {
-  generateUniqueId, buildThrottledUpdater, buildFinalAiMessage, recallWithTimeout,
+  generateUniqueId, buildThrottledUpdater, buildFinalAiMessage,
   replacePlaceholderMessage,
   incrementTrialCount,
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
-import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
+import type { MemoryAuditSnapshot } from "../../application/services/memory/types";
 import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
 import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
+import { resolveContextContributions } from "../../application/contextSources/resolveContextContributions";
+import { recallMemoriesForTurn } from "./helpers/recallForTurn";
 import {
   projectMessagePartsForProvider,
   type OpenAiProviderMessage,
@@ -396,31 +398,15 @@ export function useSendMessage(p: SendMessageParams) {
       const combinedGlobals = [...(p.globalLorebook || []), ...otherCharGlobals, ...customWorldbookGlobals];
 
       // 1. 异步执行记忆召回
-      let recalledMemories: RecalledMessage[] = [];
-      try {
-        const memoryService = p.memoryService;
-        if (memoryService && effectiveSettings.memory?.enableRecall !== false) {
-          const recallTopK = effectiveSettings.memory?.recallTopK ?? 3;
-          recalledMemories = await recallWithTimeout(
-            memoryService.getRecall().recall(
-              updatedSession.id,
-              isBisonConsecutive ? "" : textToSend,
-              { topK: recallTopK }
-            ),
-            effectiveSettings.memory?.recallTimeoutMs,
-            "useSendMessage"
-          );
-          if (publicEnvironment.isDevelopment) {
-            log.info("记忆召回完成", { count: recalledMemories.length, topK: recallTopK });
-          }
-        } else {
-          if (publicEnvironment.isDevelopment) {
-            log.warn("memoryService 未注入，跳过召回");
-          }
-        }
-      } catch (err) {
-        log.warn("Memory recall failed", err);
-      }
+      const recalledMemories = await recallMemoriesForTurn({
+        memoryService: p.memoryService,
+        enabled: effectiveSettings.memory?.enableRecall !== false,
+        sessionId: updatedSession.id,
+        query: isBisonConsecutive ? "" : textToSend,
+        topK: effectiveSettings.memory?.recallTopK ?? 3,
+        timeoutMs: effectiveSettings.memory?.recallTimeoutMs,
+        log,
+      });
 
       const latestUserIndex = findLastUserMessageIndex(updatedSession.messages);
       const latestUserMessage = latestUserIndex >= 0 ? updatedSession.messages[latestUserIndex] : undefined;
@@ -490,6 +476,11 @@ export function useSendMessage(p: SendMessageParams) {
         settings: effectiveSettings,
         globalLorebook: combinedGlobals,
         recalledMemories,
+        contextContributions: await resolveContextContributions(p.kernel, {
+          sessionId: updatedSession.id,
+          userInput: isBisonConsecutive ? "" : textToSend,
+          signal: controller.signal,
+        }),
         signal: controller.signal,
         traceId,
       });
