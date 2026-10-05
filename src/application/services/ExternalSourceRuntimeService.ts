@@ -22,6 +22,7 @@ import {
   type ConnectorDriver,
   type ExternalCapabilitySnapshot,
   type ExternalCapabilitySource,
+  type ExternalPromptDescriptor,
   type ExternalSourceRuntimeDiagnostics,
   type ExternalToolDescriptor,
 } from "../../domain/externalSources/contracts";
@@ -35,8 +36,10 @@ import { readAgentSettingsFromComposition } from "../runtimeProfiles/agentSettin
 import {
   KernelServices,
   type IAgentRuntimeService,
+  type IComposerCommandService,
   type IExternalSourceRuntimeService,
 } from "../serviceContracts";
+import type { ComposerCommandRequest } from "../../domain/composer/contracts";
 
 const MAX_RESULT_BYTES = 2 * 1024 * 1024;
 const MAX_PROMPT_TEXT_LENGTH = 200_000;
@@ -112,7 +115,7 @@ export function flattenExternalContent(content: readonly unknown[]): string {
 export class ExternalSourceRuntimeService implements IExternalSourceRuntimeService {
   readonly name = KernelServices.ExternalSources;
   readonly isCritical = false;
-  readonly dependencies = [KernelServices.AgentRuntime] as const;
+  readonly dependencies = [KernelServices.AgentRuntime, KernelServices.ComposerCommands] as const;
 
   private kernel: IKernel | null = null;
   private registrations: EffectDisposer[] = [];
@@ -224,6 +227,7 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
       for (const tool of resourceTools) {
         pending.push(runtime.registerTool(tool));
       }
+      pending.push(...this.registerPromptCommands(source, handle));
       this.registrations.push(...pending);
       this.connections.set(source.id, {
         handle,
@@ -330,6 +334,79 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
       execute: (input, context) => this.readExternalResource(handle, sourceId, input, context),
     };
     return [listTool, readTool];
+  }
+
+  /**
+   * 把来源声明的提示词模板注册成输入框命令（M3b）。
+   *
+   * 与工具/资源不同，提示词是**用户主动取用**的内容：结果只回填草稿、绝不自动发送，
+   * 因此不需要审批链。命令名带来源前缀，避免跨来源或与宿主内置命令重名。
+   */
+  private registerPromptCommands(
+    source: ExternalCapabilitySource,
+    handle: OpenedExternalSource,
+  ): EffectDisposer[] {
+    const composer = this.tryGetComposerService();
+    if (!composer) return [];
+    const disposers: EffectDisposer[] = [];
+    for (const prompt of handle.snapshot.prompts) {
+      const suffix = prompt.name.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
+      if (!suffix) continue;
+      try {
+        disposers.push(composer.register({
+          descriptor: {
+            name: `${source.kind}.${source.id}.${suffix}`,
+            label: prompt.name,
+            description: prompt.description || `外部能力源 ${source.displayName} 的提示词模板`,
+            owner: `external-source/${source.id}`,
+            // 输入框只支持一个斜杠参数，映射到提示词声明的第一个参数。
+            acceptsArgument: (prompt.arguments?.length ?? 0) > 0,
+          },
+          profileIds: ["*"],
+          run: (request) => this.runExternalPrompt(handle, source.id, prompt, request),
+        }));
+      } catch {
+        // 命令名冲突只影响该条命令可达性，不让整个来源连接失败。
+        continue;
+      }
+    }
+    return disposers;
+  }
+
+  private async runExternalPrompt(
+    handle: OpenedExternalSource,
+    sourceId: string,
+    prompt: ExternalPromptDescriptor,
+    request: ComposerCommandRequest,
+  ): Promise<string> {
+    await this.assertSourceActive(sourceId);
+    const firstArgument = prompt.arguments?.[0]?.name;
+    const args: Record<string, string> = {};
+    if (firstArgument && request.argument) args[firstArgument] = request.argument;
+
+    const controller = new AbortController();
+    const relayAbort = () => controller.abort(request.signal?.reason);
+    if (request.signal?.aborted) relayAbort();
+    else request.signal?.addEventListener("abort", relayAbort, { once: true });
+    const timeout = setTimeout(() => {
+      controller.abort(new Error("EXTERNAL_SOURCE_PROMPT_TIMEOUT"));
+    }, DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS);
+    try {
+      const content = await handle.connected.getPrompt(prompt.name, args, {
+        signal: controller.signal,
+        timeoutMs: DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS,
+      });
+      return content.text;
+    } finally {
+      clearTimeout(timeout);
+      request.signal?.removeEventListener("abort", relayAbort);
+    }
+  }
+
+  private tryGetComposerService(): IComposerCommandService | null {
+    if (!this.kernel?.hasService(KernelServices.ComposerCommands)) return null;
+    const service = this.kernel.getService<IComposerCommandService>(KernelServices.ComposerCommands);
+    return service && typeof service.register === "function" ? service : null;
   }
 
   private async readExternalResource(

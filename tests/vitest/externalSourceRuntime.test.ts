@@ -14,12 +14,14 @@ import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 import type { IKernel } from "@/src/kernel/types";
 import { AgentRuntimeService } from "@/src/application/services/AgentRuntimeService";
+import { ComposerCommandService } from "@/src/application/services/ComposerCommandService";
 import {
   ExternalSourceRuntimeService,
   flattenExternalContent,
   type ExternalSourceStorePort,
 } from "@/src/application/services/ExternalSourceRuntimeService";
 import type { ExternalCapabilitySource } from "@/src/domain/externalSources/contracts";
+import { KernelServices } from "@/src/application/serviceContracts";
 import {
   buildExternalSourceAuthHeaders,
   externalSourceCredentialKey,
@@ -67,6 +69,11 @@ function createFixtureServer(): McpServer {
     "file:///readme.txt",
     { title: "README", mimeType: "text/plain" },
     async (uri) => ({ contents: [{ uri: uri.href, text: "远端资料正文" }] }),
+  );
+  mcp.registerPrompt(
+    "greet",
+    { description: "打招呼模板", argsSchema: z.object({ name: z.string() }) },
+    (args) => ({ messages: [{ role: "user", content: { type: "text", text: `你好，${args.name}` } }] }),
   );
   return mcp;
 }
@@ -123,15 +130,21 @@ async function createRuntimeFixture(
 ) {
   const store = createMemoryStore(sources);
   const agentRuntime = new AgentRuntimeService(journal);
-  const kernel = { getService: () => agentRuntime, hasService: () => true } as unknown as IKernel;
+  const composer = new ComposerCommandService();
+  const kernel = {
+    getService: (name: string) =>
+      (name === KernelServices.ComposerCommands ? composer : agentRuntime),
+    hasService: () => true,
+  } as unknown as IKernel;
   await agentRuntime.init(kernel);
+  composer.init(kernel);
   const service = new ExternalSourceRuntimeService({
     store,
     loadDriver: async () => createMcpConnectorDriver(),
     ...(resolveAuthHeaders ? { resolveAuthHeaders } : {}),
   });
   await service.init(kernel);
-  return { store, agentRuntime, service };
+  return { store, agentRuntime, composer, service };
 }
 
 const toolContext = () => ({
@@ -328,6 +341,31 @@ describe("外部能力源运行时（真实 Agent Runtime + 本地 MCP 夹具）
       // 白名单收口：模型不能借宿主去抓任意 URI。
       await expect(read!.execute({ uri: "file:///etc/passwd" }, toolContext())).rejects.toThrow(
         /EXTERNAL_SOURCE_RESOURCE_NOT_ADVERTISED/,
+      );
+    } finally {
+      await service.destroy();
+      await agentRuntime.destroy();
+    }
+  });
+
+  it("来源提示词注册为输入框命令，执行只回填草稿且撤销即失效", async () => {
+    const { store, agentRuntime, composer, service } = await createRuntimeFixture([source()]);
+    try {
+      const greet = composer
+        .list("mobile-tavern.base")
+        .find((command) => command.owner === "external-source/fixture");
+      expect(greet).toMatchObject({
+        name: "mcp.fixture.greet",
+        label: "greet",
+        acceptsArgument: true,
+      });
+
+      const request = { profileId: "mobile-tavern.base", sessionId: "session", argument: "世界" };
+      await expect(composer.execute("mcp.fixture.greet", request)).resolves.toBe("你好，世界");
+
+      store.setEnabled("fixture", false);
+      await expect(composer.execute("mcp.fixture.greet", request)).rejects.toThrow(
+        /EXTERNAL_SOURCE_REVOKED/,
       );
     } finally {
       await service.destroy();

@@ -19,6 +19,7 @@ import type {
   ExternalCapabilitySnapshot,
   ExternalCapabilitySource,
   ExternalPromptDescriptor,
+  ExternalPromptContent,
   ExternalProtocolEra,
   ExternalResourceContent,
   ExternalResourceDescriptor,
@@ -166,6 +167,24 @@ function createMcpConnectedSource(
         uri,
         mimeType: typeof first.mimeType === "string" ? first.mimeType : undefined,
         text: typeof first.text === "string" ? first.text : undefined,
+      };
+      return projected;
+    },
+
+    async getPrompt(localName: string, args: Readonly<Record<string, string>>, context: ConnectorCallContext) {
+      const result = await client.getPrompt(
+        { name: localName, arguments: { ...args } },
+        { timeout: context.timeoutMs },
+      );
+      const texts: string[] = [];
+      for (const message of result.messages ?? []) {
+        const content: unknown = message.content;
+        if (!isRecord(content)) continue;
+        if (content.type === "text" && typeof content.text === "string") texts.push(content.text);
+      }
+      const projected: ExternalPromptContent = {
+        text: texts.join("\n"),
+        description: typeof result.description === "string" ? result.description : undefined,
       };
       return projected;
     },

@@ -109,6 +109,12 @@ export interface ExternalResourceContent {
   readonly text?: string;
 }
 
+/** 提示词模板取用结果：文本用于回填输入框草稿，description 供界面展示。 */
+export interface ExternalPromptContent {
+  readonly text: string;
+  readonly description?: string;
+}
+
 export interface ConnectorClientInfo {
   readonly name: string;
   readonly version: string;
@@ -147,6 +153,12 @@ export interface ConnectedSource {
     context: ConnectorCallContext,
   ): Promise<ExternalToolCallResult>;
   readResource(uri: string, context: ConnectorCallContext): Promise<ExternalResourceContent>;
+  /** 取用来源声明的提示词模板（用户主动触发，结果只回填草稿）。 */
+  getPrompt(
+    localName: string,
+    args: Readonly<Record<string, string>>,
+    context: ConnectorCallContext,
+  ): Promise<ExternalPromptContent>;
   dispose(): Promise<void>;
 }
 

@@ -236,6 +236,28 @@ C1 拆成两步实施，以避免一次改动过宽：**C1a** 适配器与调用
 已在代码处标注：`compatibility/contracts.ts` 的定义注释与兼容插件注册点均写明「死缝、MVU 走 prompt-section、
 禁止新增消费者」。
 
+### C4 实施记录（2026-10-05，通用草稿插入缝 + M3b）
+
+**先纠正 C4 的措辞**：核对适配器全部内建数据源（`memory.*` / `worldbook.*` / `prompt.*`）后确认，
+它们**全部依赖会话或本轮有效设置**，属于"调用方贡献"，仓储内不存在可被注册来源（pull）承载的候选；
+而外部候选（知识库/日历）不存在、MCP 资源被路径收敛规则禁止。因此 C4 的真实交付是它的后半句——
+**建立通用草稿插入缝并解除 M3b 阻塞**，而不是发明一个填空用的来源。
+
+落地内容：
+
+- 新增 `src/domain/composer/contracts.ts` 与 `ComposerCommandService`（`KernelServices.ComposerCommands`）：
+  命令注册表按 Profile 过滤、按名字执行，产出**只有一种去向**——回填输入框草稿。
+- `ToolPluginRuntimeService` 不再私有持有命令表，改为把插件命令注册进注册表，执行体移入定义 `run`；
+  `IToolPluginRuntimeService` 去掉 `listComposerCommands` / `executeComposerCommand`。
+- `ChatInputArea` 与建议列表改为面向中立描述符：宿主内置命令 `owner: "host.builtin"`，
+  能力命令 `owner: "tool-plugin/<id>"` 或 `external-source/<id>`。顺手把沿用至今的
+  `ToolPluginComposerCommand` / `pluginId` / `toolName` 命名债换成中立类型与 `owner`，避免通用概念继续挂插件专名。
+- MCP prompts 注册为 `mcp.<sourceId>.<prompt>` 命令：`acceptsArgument` 由提示词是否声明参数决定，
+  输入框只支持一个斜杠参数时映射到**第一个**声明参数（简化已记录）；执行前重新确认来源启用。
+
+**仍属 M3b 的后续**：多参数提示词的完整表单（当前只映射第一个参数）、以及是否把宿主内置命令也搬进注册表
+（当前它们仍在 `composerCommandUseCases` 中定义，属宿主 UI 命令、非能力提供命令，暂不合并）。
+
 ## 六、风险与缓解
 
 | 风险 | 缓解 |
