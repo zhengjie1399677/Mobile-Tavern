@@ -25,6 +25,7 @@ import { buildMemoryAuditSnapshot } from "../../application/services/memory/Memo
 import { Logger, generateTraceId } from "../../utils/logger";
 import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
 import { resolveTurnContextContributions } from "../../application/contextSources/resolveTurnContextContributions";
+import { createFreshnessPort, createTurnToken, isStale } from "../../application/useCases/turnToken";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
 import {
@@ -275,6 +276,11 @@ export function useRerollMessage(p: RerollMessageParams) {
     p.triggerScroll();
 
     const controller = new AbortController();
+    // 本轮新鲜度：唯一判断入口，替代散落的 activeSessionIdRef 比较（STATE-AUTHORITY:R3）。
+    const freshnessPort = createFreshnessPort(p.activeSessionIdRef, p.sessionsRef);
+    const turnToken = createTurnToken({
+      sessionId: updatedSession.id, signal: controller.signal, baseRevision: updatedSession.contentRevision,
+    });
     p.abortControllerRef.current = controller;
 
     const responseChunks: string[] = [];
@@ -492,7 +498,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       const rawReasoningText = reasoningChunks.join("");
       if (!rawResponseText.trim() && !rawReasoningText.trim()) {
         log.warn("流式正常结束但 AI 返回空内容，判定为重新生成失败");
-        const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
+        const isStillActive = !isStale(turnToken, freshnessPort);
         // 尚未提交分支事务，直接恢复原始会话即可。
         const restoreSession = currentSession;
         if (isStillActive) {
@@ -524,7 +530,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       }
 
       const trueFinalSession = replacePlaceholderMessage(latestSession, finalAiMsg);
-      const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
+      const isStillActive = !isStale(turnToken, freshnessPort);
 
       if (isStillActive) {
         await runOutputPipelineAndSave({
@@ -585,7 +591,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       // 异常/中断分支：清除 streamingMessageId
       setCompatibilityGenerationState(p.kernel, { streamingMessageId: null });
       const isManualAbort = getErrorName(e) === "AbortError" || getErrorMessage(e)?.includes("aborted") || controller.signal.aborted;
-      const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
+      const isStillActive = !isStale(turnToken, freshnessPort);
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
 
       // 试用 Key 拉取失败：提示用户配置自己的 API Key，不展示通用连接异常信息

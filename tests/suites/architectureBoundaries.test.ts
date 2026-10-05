@@ -377,6 +377,18 @@ export async function testArchitectureBoundaries(): Promise<void> {
       && agentsGuide.includes("docs/agents/state_authority.md"),
     "状态权威文档必须存在、记录三类状态并由 AGENTS.md 按需入口引用（STATE-AUTHORITY）"
   );
+  // STATE-AUTHORITY:R3 —— 聊天链路的新鲜度判断必须走 TurnToken，
+  // 不得恢复散落的 activeSessionIdRef 直接比较（漏一处就是一次陈旧写入）。
+  for (const file of [
+    "src/hooks/useChat/useSendMessage.ts",
+    "src/hooks/useChat/useRerollMessage.ts",
+  ]) {
+    assert(
+      !read(file).includes("activeSessionIdRef.current ===")
+        && read(file).includes("isStale(turnToken, freshnessPort)"),
+      `${file} 必须经 TurnToken 的 isStale 判断新鲜度，不得直接比较 activeSessionIdRef（STATE-AUTHORITY:R3）`
+    );
+  }
   const genericRenderingRuntime = read("src/components/formatted-text/renderingRuntime.tsx");
   assert(
     !genericRenderingRuntime.includes("regex_scripts")

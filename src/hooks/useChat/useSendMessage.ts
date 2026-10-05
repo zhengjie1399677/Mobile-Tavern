@@ -39,6 +39,7 @@ import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/
 import { recallMemoriesForTurn } from "./helpers/recallForTurn";
 import { resolveTurnContextContributions } from "../../application/contextSources/resolveTurnContextContributions";
 import { publishTurnMemoryAudit } from "./helpers/publishMemoryAudit";
+import { createFreshnessPort, createTurnToken, isStale } from "../../application/useCases/turnToken";
 import {
   projectMessagePartsForProvider,
   type OpenAiProviderMessage,
@@ -366,6 +367,11 @@ export function useSendMessage(p: SendMessageParams) {
     }
 
     const controller = new AbortController();
+    // 本轮新鲜度：唯一判断入口，替代散落的 activeSessionIdRef 比较（STATE-AUTHORITY:R3）。
+    const freshnessPort = createFreshnessPort(p.activeSessionIdRef, p.sessionsRef);
+    const turnToken = createTurnToken({
+      sessionId: updatedSession.id, signal: controller.signal, baseRevision: updatedSession.contentRevision,
+    });
     p.abortControllerRef.current = controller;
     const relayAgentAbort = () => {
       if (!controller.signal.aborted) controller.abort(agentTurn?.signal.reason);
@@ -663,7 +669,7 @@ export function useSendMessage(p: SendMessageParams) {
       const rawReasoningText = reasoningChunks.join("");
       if (!rawResponseText.trim() && !rawReasoningText.trim()) {
         log.warn("流式正常结束但 AI 返回空内容，判定为发送失败");
-        const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
+        const isStillActive = !isStale(turnToken, freshnessPort);
         // 删除占位符，避免 UI 残留空消息
         const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
         if (isStillActive) {
@@ -683,7 +689,7 @@ export function useSendMessage(p: SendMessageParams) {
       }
 
       const trueFinalSession = replacePlaceholderMessage(latestSession, finalAiMsg);
-      const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
+      const isStillActive = !isStale(turnToken, freshnessPort);
 
       if (isStillActive) {
         const outputCtx = await runOutputPipelineAndSave({
@@ -784,7 +790,7 @@ export function useSendMessage(p: SendMessageParams) {
       __streamingMsgIdGuard(null);
 
       const isManualAbort = getErrorName(err) === "AbortError" || getErrorMessage(err)?.includes("aborted") || controller.signal.aborted;
-      const isStillActive = p.activeSessionIdRef.current === updatedSession.id;
+      const isStillActive = !isStale(turnToken, freshnessPort);
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
 
       // 试用 Key 拉取失败：提示用户配置自己的 API Key，不展示通用连接异常信息
