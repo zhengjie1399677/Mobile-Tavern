@@ -300,7 +300,10 @@ export function createMcpConnectorDriver(): ConnectorDriver {
       context: ConnectorCallContext,
       deps: ConnectorDeps,
     ): Promise<ConnectedSource> {
-      const transport = new StreamableHTTPClientTransport(new URL(source.endpoint));
+      // 凭据只在这里注入到传输层；driver 不解析秘密来源，只消费已解析的请求头。
+      const transport = new StreamableHTTPClientTransport(new URL(source.endpoint), {
+        ...(deps.authHeaders ? { requestInit: { headers: { ...deps.authHeaders } } } : {}),
+      });
       const client = new Client(deps.clientInfo ?? DEFAULT_CLIENT_INFO, {
         versionNegotiation: versionNegotiationFor(source.era),
       });

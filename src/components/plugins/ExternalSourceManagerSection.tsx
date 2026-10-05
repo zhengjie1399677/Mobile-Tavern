@@ -49,6 +49,8 @@ export default function ExternalSourceManagerSection(): React.ReactElement {
   const [draft, setDraft] = React.useState<DraftState>(EMPTY_DRAFT);
   const [status, setStatus] = React.useState<string | null>(null);
   const [probeReport, setProbeReport] = React.useState<string | null>(null);
+  const [credentialConfigured, setCredentialConfigured] = React.useState<Record<string, boolean>>({});
+  const [credentialDraft, setCredentialDraft] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
 
   const runtime = React.useCallback(
@@ -57,7 +59,15 @@ export default function ExternalSourceManagerSection(): React.ReactElement {
   );
 
   const refresh = React.useCallback(async () => {
-    setSources(await externalSourceUseCases.list());
+    const loaded = await externalSourceUseCases.list();
+    setSources(loaded);
+    const statuses = await Promise.all(
+      loaded.map(async (item) => {
+        const status = await externalSourceUseCases.credentialStatus(item);
+        return [item.id, status.configured] as const;
+      }),
+    );
+    setCredentialConfigured(Object.fromEntries(statuses));
   }, []);
 
   React.useEffect(() => {
@@ -126,6 +136,23 @@ export default function ExternalSourceManagerSection(): React.ReactElement {
           .filter(Boolean)
           .join("\n"),
       );
+    });
+
+  const handleSaveCredential = (source: StoredExternalSource) =>
+    run(async () => {
+      const value = credentialDraft[source.id] ?? "";
+      await externalSourceUseCases.setCredential(source, value);
+      setCredentialDraft({ ...credentialDraft, [source.id]: "" });
+      await runtime().reload();
+      await refresh();
+      setStatus("凭据已加密保存（只在连接时注入，不落明文）");
+    });
+
+  const handleClearCredential = (source: StoredExternalSource) =>
+    run(async () => {
+      await externalSourceUseCases.deleteCredential(source);
+      await runtime().reload();
+      await refresh();
     });
 
   return (
@@ -209,6 +236,38 @@ export default function ExternalSourceManagerSection(): React.ReactElement {
                 >
                   删除
                 </Button>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  凭据：{credentialConfigured[source.id] ? "已配置" : "未配置"}
+                  {source.authHeader ? `（请求头 ${source.authHeader}）` : "（默认 Authorization: Bearer）"}
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    autoComplete="off"
+                    placeholder="粘贴 API Key / Token，留空无效"
+                    value={credentialDraft[source.id] ?? ""}
+                    onChange={(event) =>
+                      setCredentialDraft({ ...credentialDraft, [source.id]: event.target.value })
+                    }
+                  />
+                  <Button
+                    size="sm"
+                    disabled={busy || !(credentialDraft[source.id] ?? "").trim()}
+                    onClick={() => void handleSaveCredential(source)}
+                  >
+                    保存
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy || !credentialConfigured[source.id]}
+                    onClick={() => void handleClearCredential(source)}
+                  >
+                    清除
+                  </Button>
+                </div>
               </div>
               {probeReport && source.enabled ? (
                 <pre className="whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-xs">

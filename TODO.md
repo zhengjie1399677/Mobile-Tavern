@@ -19,7 +19,8 @@
 - [ ] **外部能力通道与 MCP 接入（P0，方向①/③扩展）**：按[外部能力通道与 MCP 接入设计](docs/agents/external_capability_channel_design.md)推进，MCP 只是第一个 Connector 实现，抽象层不得出现协议绑定。
   - 2026-10-05：M0 已落地并通过验证——中立契约 + Connector 注册表 + MCP driver（Streamable HTTP、era 协商、`server/discover`）+ 外部 Schema 收口 + 本地夹具 8/8 + 四条架构守卫；真实远端实测对方是 legacy 世代（2025-11-25）并成功协商回退。驱动尚未接入组合根，接入时必须懒加载（≈328 KB minified / 90 KB gzip）。
   - 2026-10-05：M1 已落地并通过验证——来源配置独立 IndexedDB + 用例门面、`ExternalSourceRuntimeService` 把外部工具投影为 `AgentToolDefinition`（默认 `ask`、副作用 `external`）并扩展组合快照、来源停用后执行立即失败、单来源失败不影响其它来源；设置页插件分区新增「外部能力」子页（新增/启停/删除/探测）。真实构建确认 driver 独立成 chunk（213 KB / gzip 58 KB），主包仅 +5 KB。
-  - M2 待做：凭据与 OAuth（CIMD 优先、DCR 回退、Native Adapter 回调、按 issuer 隔离）。
+  - 2026-10-05：M2a 静态凭据已落地并通过验证——`authHeader`/`authScheme` 非秘密配置 + 独立加密凭据库（来源库 v2，AES-GCM，密钥独立于主库）；默认注入 `Authorization: Bearer`，可自定义头名与 raw；删除来源连带删凭据；设置页可按来源录入/清除凭据。实测夹具在 HTTP 层收到注入头，未配置时不发送认证头，落盘与状态接口均不含明文。
+  - M2b 待做：OAuth 2.1（PRM 发现、CIMD 优先 / DCR 回退、Native Adapter 回调、按 issuer 隔离、可选 DPoP）。
   - M3–M4 待做：resources/prompts 接入 `context.source`、MRTR 表单、`ext-tasks` 与变更订阅。
 
 - [ ] **自定义主题工作室后续（P1）**：全屏工作室、独立草稿、隔离预览、核心/高级颜色和保存/应用分离已完成；继续实现起点选择、多场景预览、对比度与 CSS 行列诊断、片段库，以及 Theme 1.1 媒体/状态/规则可视化编辑。

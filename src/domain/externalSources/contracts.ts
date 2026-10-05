@@ -30,6 +30,10 @@ export const externalCapabilitySourceSchema = z
     transport: z.string().max(32).regex(KIND_PATTERN),
     era: z.enum(["auto", "legacy", "modern"]).default("auto"),
     authRef: z.string().min(1).max(128).optional(),
+    /** 凭据注入到哪个请求头；默认 Authorization。 */
+    authHeader: z.string().max(64).regex(/^[A-Za-z0-9-]+$/).optional(),
+    /** bearer 会拼成 `Bearer <secret>`，raw 直接原样写入请求头。 */
+    authScheme: z.enum(["bearer", "raw"]).optional(),
     enabled: z.boolean(),
   })
   .strict();
@@ -113,6 +117,26 @@ export interface ConnectorClientInfo {
 /** 连接期依赖。对象形式本身就是扩展点：认证、原生 fetch 等能力按阶段追加字段。 */
 export interface ConnectorDeps {
   readonly clientInfo?: ConnectorClientInfo;
+  /** 已解析好的请求头（含凭据明文）。只允许在内存中短暂存在，不得落盘或写日志。 */
+  readonly authHeaders?: Readonly<Record<string, string>>;
+}
+
+/** 凭据在存储中的键：优先 authRef，缺省用来源 id。 */
+export function externalSourceCredentialKey(
+  source: Pick<ExternalCapabilitySource, "id" | "authRef">,
+): string {
+  return source.authRef ?? source.id;
+}
+
+/** 把静态凭据转换成注入用的请求头；无凭据时返回 undefined。 */
+export function buildExternalSourceAuthHeaders(
+  source: Pick<ExternalCapabilitySource, "authHeader" | "authScheme">,
+  secret: string | null,
+): Readonly<Record<string, string>> | undefined {
+  if (!secret) return undefined;
+  const header = source.authHeader ?? "Authorization";
+  const value = (source.authScheme ?? "bearer") === "bearer" ? `Bearer ${secret}` : secret;
+  return Object.freeze({ [header]: value });
 }
 
 export interface ConnectedSource {

@@ -17,6 +17,8 @@ import type {
 import {
   DEFAULT_CONNECTOR_TIMEOUT_MS,
   DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS,
+  buildExternalSourceAuthHeaders,
+  externalSourceCredentialKey,
   type ConnectorDriver,
   type ExternalCapabilitySnapshot,
   type ExternalCapabilitySource,
@@ -51,6 +53,10 @@ export interface ExternalSourceRuntimeDeps {
   readonly store?: ExternalSourceStorePort;
   /** 默认实现动态 import MCP driver；测试可注入确定性 driver。 */
   readonly loadDriver?: () => Promise<ConnectorDriver>;
+  /** 解析来源静态凭据为请求头；默认走独立加密凭据库，测试可注入。 */
+  readonly resolveAuthHeaders?: (
+    source: ExternalCapabilitySource,
+  ) => Promise<Readonly<Record<string, string>> | undefined>;
 }
 
 interface ConnectedEntry {
@@ -70,6 +76,14 @@ async function defaultStore(): Promise<ExternalSourceStorePort> {
     list: () => module.listExternalSources(),
     get: (id) => module.getExternalSource(id),
   };
+}
+
+async function defaultResolveAuthHeaders(
+  source: ExternalCapabilitySource,
+): Promise<Readonly<Record<string, string>> | undefined> {
+  const module = await import("../../infrastructure/externalSources/externalSourceStorage");
+  const secret = await module.resolveExternalSourceCredential(externalSourceCredentialKey(source));
+  return buildExternalSourceAuthHeaders(source, secret);
 }
 
 /** 把 MCP 内容块压平成模型可消费的文本；非文本块只保留类型占位。 */
@@ -169,6 +183,7 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     const handle = await openExternalSource(source, {
       registry,
       timeoutMs: DEFAULT_CONNECTOR_TIMEOUT_MS,
+      deps: { authHeaders: await this.resolveAuthHeaders(source) },
     });
     try {
       return handle.snapshot;
@@ -188,6 +203,7 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     const handle = await openExternalSource(source, {
       registry,
       timeoutMs: connectTimeoutMs,
+      deps: { authHeaders: await this.resolveAuthHeaders(source) },
     });
     const pending: EffectDisposer[] = [];
     try {
@@ -276,6 +292,14 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
 
   private async loadDriver(): Promise<ConnectorDriver> {
     return this.deps.loadDriver ? this.deps.loadDriver() : defaultLoadDriver();
+  }
+
+  private async resolveAuthHeaders(
+    source: ExternalCapabilitySource,
+  ): Promise<Readonly<Record<string, string>> | undefined> {
+    return this.deps.resolveAuthHeaders
+      ? this.deps.resolveAuthHeaders(source)
+      : defaultResolveAuthHeaders(source);
   }
 
   private getAgentRuntime(): IAgentRuntimeService {

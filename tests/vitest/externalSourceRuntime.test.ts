@@ -21,11 +21,19 @@ import {
 } from "@/src/application/services/ExternalSourceRuntimeService";
 import type { ExternalCapabilitySource } from "@/src/domain/externalSources/contracts";
 import {
+  buildExternalSourceAuthHeaders,
+  externalSourceCredentialKey,
+} from "@/src/domain/externalSources/contracts";
+import {
   __externalSourceStorageTest,
+  deleteExternalSourceCredential,
   deleteExternalSource,
   getExternalSource,
+  getExternalSourceCredentialStatus,
   listExternalSources,
+  resolveExternalSourceCredential,
   setExternalSourceEnabled,
+  setExternalSourceCredential,
   upsertExternalSource,
 } from "@/src/infrastructure/externalSources/externalSourceStorage";
 import { createMcpConnectorDriver } from "@/src/infrastructure/externalSources/mcp/mcpConnectorDriver";
@@ -40,6 +48,7 @@ const journal = {
 
 let httpServer: Server;
 let endpoint = "";
+const receivedAuthorization: Array<string | undefined> = [];
 
 function createFixtureServer(): McpServer {
   const mcp = new McpServer({ name: "runtime-fixture", version: "2.0.0" });
@@ -57,7 +66,11 @@ function createFixtureServer(): McpServer {
 }
 
 beforeAll(async () => {
-  httpServer = createServer(toNodeHandler(createMcpHandler(() => createFixtureServer())));
+  const nodeHandler = toNodeHandler(createMcpHandler(() => createFixtureServer()));
+  httpServer = createServer((request, response) => {
+    receivedAuthorization.push(request.headers.authorization as string | undefined);
+    nodeHandler(request, response);
+  });
   await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
   endpoint = `http://127.0.0.1:${(httpServer.address() as AddressInfo).port}/mcp`;
 });
@@ -96,7 +109,12 @@ function createMemoryStore(sources: readonly ExternalCapabilitySource[]): Memory
   };
 }
 
-async function createRuntimeFixture(sources: readonly ExternalCapabilitySource[]) {
+async function createRuntimeFixture(
+  sources: readonly ExternalCapabilitySource[],
+  resolveAuthHeaders?: (
+    source: ExternalCapabilitySource,
+  ) => Promise<Readonly<Record<string, string>> | undefined>,
+) {
   const store = createMemoryStore(sources);
   const agentRuntime = new AgentRuntimeService(journal);
   const kernel = { getService: () => agentRuntime, hasService: () => true } as unknown as IKernel;
@@ -104,6 +122,7 @@ async function createRuntimeFixture(sources: readonly ExternalCapabilitySource[]
   const service = new ExternalSourceRuntimeService({
     store,
     loadDriver: async () => createMcpConnectorDriver(),
+    ...(resolveAuthHeaders ? { resolveAuthHeaders } : {}),
   });
   await service.init(kernel);
   return { store, agentRuntime, service };
@@ -138,9 +157,59 @@ describe("外部能力源配置存储", () => {
     await expect(upsertExternalSource({ ...source(), id: "Bad Id" })).rejects.toThrow();
     await expect(upsertExternalSource({ ...source(), kind: "MCP" })).rejects.toThrow();
   });
+
+  it("凭据加密落盘：状态可查、明文不可读、可删除", async () => {
+    await setExternalSourceCredential("fixture", "sk-plain-secret-value");
+    const status = await getExternalSourceCredentialStatus("fixture");
+    expect(status).toMatchObject({ key: "fixture", configured: true });
+    expect(JSON.stringify(status)).not.toContain("sk-plain-secret-value");
+
+    const raw = await __externalSourceStorageTest.dumpCredentials();
+    expect(JSON.stringify(raw)).not.toContain("sk-plain-secret-value");
+    expect(await resolveExternalSourceCredential("fixture")).toBe("sk-plain-secret-value");
+
+    await deleteExternalSourceCredential("fixture");
+    expect((await getExternalSourceCredentialStatus("fixture")).configured).toBe(false);
+    await expect(setExternalSourceCredential("fixture", "   ")).rejects.toThrow(
+      /EXTERNAL_SOURCE_CREDENTIAL_EMPTY/,
+    );
+  });
+});
+
+describe("静态凭据到请求头的映射", () => {
+  it("默认 bearer、可自定义头名、无秘密时不注入", () => {
+    expect(buildExternalSourceAuthHeaders({}, "sk-1")).toEqual({
+      Authorization: "Bearer sk-1",
+    });
+    expect(
+      buildExternalSourceAuthHeaders({ authHeader: "X-API-Key", authScheme: "raw" }, "sk-2"),
+    ).toEqual({ "X-API-Key": "sk-2" });
+    expect(buildExternalSourceAuthHeaders({}, null)).toBeUndefined();
+  });
+
+  it("凭据键优先 authRef，缺省用来源 id", () => {
+    expect(externalSourceCredentialKey({ id: "a" })).toBe("a");
+    expect(externalSourceCredentialKey({ id: "a", authRef: "team-token" })).toBe("team-token");
+  });
 });
 
 describe("外部能力源运行时（真实 Agent Runtime + 本地 MCP 夹具）", () => {
+  it("静态凭据注入到真实请求头，未配置时不发送", async () => {
+    receivedAuthorization.length = 0;
+    const withCredential = await createRuntimeFixture([source()], async () => ({
+      Authorization: "Bearer test-secret",
+    }));
+    await withCredential.service.destroy();
+    await withCredential.agentRuntime.destroy();
+    expect(receivedAuthorization).toContain("Bearer test-secret");
+
+    receivedAuthorization.length = 0;
+    const withoutCredential = await createRuntimeFixture([source()], async () => undefined);
+    await withoutCredential.service.destroy();
+    await withoutCredential.agentRuntime.destroy();
+    expect(receivedAuthorization.every((value) => value === undefined)).toBe(true);
+  });
+
   it("把 tools/call 投影为 AgentToolDefinition，默认 ask，并扩展组合快照", async () => {
     const { agentRuntime, service } = await createRuntimeFixture([source()]);
     try {

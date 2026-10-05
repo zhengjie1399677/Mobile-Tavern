@@ -308,6 +308,30 @@ driver，因此它会被 Vite tree-shake —— 这是 M0 的已知状态，接�
 
 仍未做：凭据与 OAuth（M2）、resources/prompts 接入上下文（M3）、MRTR 表单与 `ext-tasks`（M4）。
 
+### M2a 实施记录（2026-10-05，静态凭据）
+
+先做静态凭据而不是直接上 OAuth：注册表里绝大多数 server 要的是 API Key / Bearer，而不是完整授权码流程，
+静态注入能立刻让真实 server 可用，同时不引入回调与令牌刷新复杂度。
+
+- 来源配置新增非秘密字段 `authHeader`（默认 `Authorization`）与 `authScheme`（`bearer` 默认 / `raw`），
+  秘密本身存在独立凭据库：`MobileTavernExternalSourceDB` 升到 v2，新增 `credentials` 与 `meta` 两个 store，
+  密钥独立于主库 settings 密钥，落盘前用 AES-GCM 加密。
+- 凭据键优先取 `authRef`，缺省用来源 id；删除来源时连带删除凭据，避免孤儿秘密。
+- 注入点在 driver 的传输层（`requestInit.headers`）：driver 只消费**已解析**的请求头，不接触凭据来源；
+  解析留在应用层，默认实现在基础设施，测试可注入。
+- 凭据状态查询只返回「是否已配置 + 更新时间」，任何接口都不回传秘密明文；秘密不落日志、不进备份、不进组合快照。
+- 设置页「外部能力」子页新增按来源的凭据录入/清除与配置状态显示，保存后自动 reload 使凭据立即生效。
+
+实测结论：
+
+| 项目 | 结果 |
+|---|---|
+| 真实注入 | 本地夹具在 HTTP 层观察到 `Authorization: Bearer <secret>`；未配置凭据时不发送任何认证头 |
+| 落盘形态 | 凭据记录落盘为密文，状态接口与原始记录都不含明文 |
+| 映射规则 | 默认 `Authorization: Bearer`；自定义头名 + `raw` 直接原样写入；无秘密返回 `undefined` |
+
+仍未做（M2b）：OAuth 2.1（PRM 发现、CIMD 优先 / DCR 回退、Native Adapter 回调、按 issuer 隔离凭据、可选 DPoP）。
+
 1. **生态处于世代交替**：大量在册 server 仍是 legacy 时代。`era` 默认 `auto`（先探测再回退），并允许用户
    固定，避免探测静默 legacy server 时的挂起。
 2. **提示注入**：外部工具描述与资源文本会进入模型上下文，必须标注来源并限长；不接受把外部文本放进

@@ -1,11 +1,18 @@
 /**
  * 外部能力源的用户级用例：只做校验、存储编排与运行时刷新触发，不触碰协议细节。
  */
-import { externalCapabilitySourceSchema } from "../../domain/externalSources/contracts";
 import {
+  externalCapabilitySourceSchema,
+  externalSourceCredentialKey,
+  type ExternalCapabilitySource,
+} from "../../domain/externalSources/contracts";
+import {
+  deleteExternalSourceCredential,
   deleteExternalSource,
   getExternalSource,
+  getExternalSourceCredentialStatus,
   listExternalSources,
+  setExternalSourceCredential,
   setExternalSourceEnabled,
   upsertExternalSource,
 } from "../../infrastructure/externalSources/externalSourceStorage";
@@ -19,5 +26,23 @@ export const externalSourceUseCases = {
   },
 
   setEnabled: setExternalSourceEnabled,
-  remove: deleteExternalSource,
+
+  /** 删除来源连同它的凭据，避免留下孤儿秘密。 */
+  async remove(id: string) {
+    const current = await getExternalSource(id);
+    if (current) await deleteExternalSourceCredential(externalSourceCredentialKey(current));
+    await deleteExternalSource(id);
+  },
+
+  credentialStatus(source: Pick<ExternalCapabilitySource, "id" | "authRef">) {
+    return getExternalSourceCredentialStatus(externalSourceCredentialKey(source));
+  },
+
+  setCredential(source: Pick<ExternalCapabilitySource, "id" | "authRef">, value: string) {
+    return setExternalSourceCredential(externalSourceCredentialKey(source), value);
+  },
+
+  deleteCredential(source: Pick<ExternalCapabilitySource, "id" | "authRef">) {
+    return deleteExternalSourceCredential(externalSourceCredentialKey(source));
+  },
 };
