@@ -1,6 +1,7 @@
 import { ITelemetryService, IKernel } from "../serviceContracts";
 import { invoke } from '@tauri-apps/api/core';
 import { Logger } from "../../utils/logger";
+import { getErrorMessage } from "../../utils/errorUtils";
 
 const logger = Logger.create("TelemetryService");
 
@@ -99,6 +100,31 @@ export class TelemetryService implements ITelemetryService {
     const deviceInfo = this.getDeviceInfo();
     const eventDurMs = Math.max(0, Date.now() - sessionStartTime);
 
+    let detailStr = typeof extraData.detail === "string" ? extraData.detail.trim() : "";
+    if (!detailStr) {
+      const parts: string[] = [];
+      const primaryMsg = extraData.reason || extraData.message || (extraData.error ? getErrorMessage(extraData.error) : "");
+      if (primaryMsg) {
+        parts.push(String(primaryMsg));
+      }
+      if (extraData.filename) {
+        const fileLoc = `at ${extraData.filename}:${extraData.lineno ?? 0}:${extraData.colno ?? 0}`;
+        parts.push(fileLoc);
+      }
+      if (extraData.stack && typeof extraData.stack === "string") {
+        const stackStr = extraData.stack.trim();
+        if (stackStr && !parts.join("\n").includes(stackStr)) {
+          parts.push(`Stack: ${stackStr.slice(0, 3000)}`);
+        }
+      }
+      detailStr = parts.join("\n");
+    } else if (extraData.stack && typeof extraData.stack === "string") {
+      const stackStr = extraData.stack.trim();
+      if (stackStr && !detailStr.includes(stackStr)) {
+        detailStr = `${detailStr}\nStack: ${stackStr.slice(0, 3000)}`;
+      }
+    }
+
     return {
       action: action,
       device_id: deviceInfo.deviceId,
@@ -107,7 +133,7 @@ export class TelemetryService implements ITelemetryService {
       model: String(extraData.modelName || extraData.model || ""),
       tokens_used: String(extraData.totalTokens || extraData.tokens_used || "0"),
       generation_time_ms: String(Math.round(extraData.generationTime || extraData.generation_time_ms || 0)),
-      detail: String(extraData.detail || ""),
+      detail: detailStr,
       session_id: String(extraData.sessionId || "无"),
       session_start_time: new Date(sessionStartTime).toLocaleString(),
       session_duration_sec: String(Math.round(eventDurMs / 1000)),

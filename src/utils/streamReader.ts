@@ -13,6 +13,37 @@ import { Logger } from "./logger";
 
 const logger = Logger.create("streamReader");
 
+export const DEFAULT_FIRST_CHUNK_TIMEOUT_MS = 60_000;
+/**
+ * 数据块活跃心跳超时（毫秒）。
+ *
+ * 主流实现对照（2026-10 核对）：SillyTavern 无流式超时；Open WebUI 的块间空闲超时
+ * 默认关闭（`AIOHTTP_CLIENT_STREAM_IDLE_TIMEOUT` 缺省为 None）；NextChat 总超时 60s
+ * （思考模型 ×5 = 300s）；OpenAI / Anthropic SDK 总超时 600s 且无块间空闲限制。
+ * 本仓库改造前的空闲阈值同样是 60s，因此这里取 60s：与主流一致，也不会比旧行为更激进；
+ * 长思考模型可由调用方按请求传入更大的 `chunkTimeoutMs`。
+ */
+export const DEFAULT_CHUNK_HEARTBEAT_TIMEOUT_MS = 60_000;
+
+export type StreamTimeoutPhase = "first_chunk" | "chunk_inactivity";
+
+export class StreamTimeoutError extends Error {
+  readonly phase: StreamTimeoutPhase;
+  readonly timeoutMs: number;
+
+  constructor(phase: StreamTimeoutPhase, timeoutMs: number) {
+    const sec = Math.round(timeoutMs / 1000);
+    const message =
+      phase === "first_chunk"
+        ? `等待模型首字响应超时（${sec}秒）：服务商响应过慢或处于排队中，请稍后重试。`
+        : `模型响应中断（超过 ${timeoutMs}ms 无新数据传输）：网络连接中断或服务商异常。`;
+    super(message);
+    this.name = "StreamTimeoutError";
+    this.phase = phase;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
 export interface SSEChunkCallbacks {
   /** 每次解析出有效 JSON 数据串时的回调（[DONE] 之前） */
   onData: (jsonStr: string) => void;
@@ -22,7 +53,19 @@ export interface SSEChunkCallbacks {
 
 export interface SSEStreamOptions {
   /**
-   * 空闲超时时间（毫秒）。无数据时取消 reader 释放资源。
+   * 首字/首数据块等待超时时间（毫秒）。
+   * 在收到首个数据块前生效（大上下文预填充/排队）。
+   * 默认: 60000 (60s)。设置为 0 或 Infinity 禁用。
+   */
+  firstChunkTimeoutMs?: number;
+  /**
+   * 数据块活跃心跳超时时间（毫秒）。
+   * 收到首个数据块后激活。每次收到新数据即重置此定时器。
+   * 默认: 60000 (60s，与主流客户端一致)。设置为 0 或 Infinity 禁用。
+   */
+  chunkTimeoutMs?: number;
+  /**
+   * @deprecated 兼容旧配置。若未分别设置 firstChunkTimeoutMs/chunkTimeoutMs，以此为回退。
    * 设置为 0 或 Infinity 禁用。默认: 60000 (60s)。
    */
   idleTimeoutMs?: number;
@@ -43,7 +86,7 @@ export interface SSEStreamOptions {
  *
  * @param response  - 包含响应体的 fetch Response 对象
  * @param callbacks - SSE 数据处理回调集合
- * @param options   - 可选的流控制选项（空闲超时、取消信号等）
+ * @param options   - 可选的流控制选项（首字超时、心跳超时、取消信号等）
  */
 export async function readSSEStream(
   response: Response,
@@ -57,34 +100,39 @@ export async function readSSEStream(
   let pbuf = "";
   let streamDone = false;
 
-  // 空闲超时防护 - 若长时间未收到新数据则主动取消 reader，防止挂起。
-  const idleTimeoutMs = options?.idleTimeoutMs ?? 60_000;
-  let idleTimer: ReturnType<typeof setTimeout> | null = null;
-  let idleTimedOut = false;
+  // 两阶段超时控制：阶段一（首字等待）与阶段二（吐字心跳）
+  const firstChunkTimeoutMs =
+    options?.firstChunkTimeoutMs ?? options?.idleTimeoutMs ?? DEFAULT_FIRST_CHUNK_TIMEOUT_MS;
+  const chunkTimeoutMs =
+    options?.chunkTimeoutMs ?? options?.idleTimeoutMs ?? DEFAULT_CHUNK_HEARTBEAT_TIMEOUT_MS;
 
-  const clearIdleTimer = () => {
-    if (idleTimer !== null) {
-      clearTimeout(idleTimer);
-      idleTimer = null;
+  let hasReceivedFirstChunk = false;
+  let activeTimer: ReturnType<typeof setTimeout> | null = null;
+  let timedOutPhase: StreamTimeoutPhase | null = null;
+
+  const clearTimer = () => {
+    if (activeTimer !== null) {
+      clearTimeout(activeTimer);
+      activeTimer = null;
     }
   };
 
-  const resetIdleTimer = () => {
-    if (idleTimeoutMs <= 0 || !Number.isFinite(idleTimeoutMs)) return;
-    clearIdleTimer();
-    idleTimer = setTimeout(() => {
-      logger.warn("超过空闲超时限制，终止流", { idleTimeoutMs });
-      idleTimedOut = true;
+  const armTimer = (phase: StreamTimeoutPhase, ms: number) => {
+    if (ms <= 0 || !Number.isFinite(ms)) return;
+    clearTimer();
+    activeTimer = setTimeout(() => {
+      logger.warn(`流式读取超时 [${phase}]，主动终止流`, { phase, timeoutMs: ms });
+      timedOutPhase = phase;
       reader.cancel().catch((err) => {
-        logger.warn("空闲超时取消流时异常", { error: err });
+        logger.warn("超时取消流时异常", { error: err });
       });
-    }, idleTimeoutMs);
+    }, ms);
   };
 
   // 注册 AbortSignal 监听器，消费方提前退出时立即取消 reader
   const signal = options?.signal;
   const onSignalAbort = () => {
-    clearIdleTimer();
+    clearTimer();
     reader.cancel().catch((err) => {
       logger.warn("接收到取消信号时取消流异常", { error: err });
     });
@@ -97,7 +145,8 @@ export async function readSSEStream(
     }
   }
 
-  resetIdleTimer();
+  // 阶段一启动：等待首个数据块到达
+  armTimer("first_chunk", firstChunkTimeoutMs);
 
   /**
    * 处理当前 `pbuf` 中的所有完整 SSE 事件块。
@@ -176,8 +225,11 @@ export async function readSSEStream(
       const { value, done: readerDone } = await reader.read();
 
       if (value) {
-        // 收到任意数据即重置空闲定时器（包含 SSE 心跳注释）
-        resetIdleTimer();
+        if (!hasReceivedFirstChunk && value.byteLength > 0) {
+          hasReceivedFirstChunk = true;
+        }
+        // 收到任意数据即重置心跳定时器为阶段二心跳（包含 SSE 注释心跳）
+        armTimer("chunk_inactivity", chunkTimeoutMs);
         options?.onBytesReceived?.(value.byteLength);
         pbuf += decoder.decode(value, { stream: true });
       }
@@ -196,9 +248,9 @@ export async function readSSEStream(
           // 服务端可能不发 [DONE] 就直接关闭连接（部分中转站 / 本地推理服务 / 被截断的响应）。
           // 此时必须补发一次完成通知，否则消费方永远等不到 onDone：readSSEStream 是 resolve 而非
           // reject，消费方的 isFinished 会一直为 false，卡在等队列的 await 上永久挂起。
-          // 空闲超时与主动取消两种情况不补发——它们各自有独立的错误/中止通路，
+          // 超时与主动取消两种情况不补发——它们各自有独立的错误/中止通路，
           // 补发会先把消费方唤醒成"正常结束"，把真正的错误吞掉。
-          if (!idleTimedOut && !signal?.aborted) {
+          if (!timedOutPhase && !signal?.aborted) {
             streamDone = true;
             callbacks.onDone?.();
           }
@@ -207,7 +259,7 @@ export async function readSSEStream(
       }
     }
   } finally {
-    clearIdleTimer();
+    clearTimer();
     // 移除 signal 监听器，避免内存泄漏
     if (signal) {
       signal.removeEventListener("abort", onSignalAbort);
@@ -222,9 +274,10 @@ export async function readSSEStream(
     }
   }
 
-  // 若因空闲超时主动取消了流，向上层抛出明确错误以便处理
-  if (idleTimedOut) {
-    throw new Error(`SSE 流超过 ${idleTimeoutMs}ms 无新数据传输`);
+  // 若因阶段一或阶段二超时主动取消了流，向上层抛出明确错误以便处理
+  if (timedOutPhase !== null) {
+    const duration = timedOutPhase === "first_chunk" ? firstChunkTimeoutMs : chunkTimeoutMs;
+    throw new StreamTimeoutError(timedOutPhase, duration);
   }
 }
 

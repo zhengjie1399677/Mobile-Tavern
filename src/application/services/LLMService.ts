@@ -165,8 +165,9 @@ export class LLMService implements ILLMService {
     let signal: AbortSignal | undefined = customSignal;
     // AbortSignal.timeout/any 在 ES2022 lib 中部分缺失类型，使用局部扩展接口访问静态方法。
     const AbortSignalCtor = AbortSignal as unknown as AbortSignalStaticExtensions;
-    if (AbortSignalCtor.timeout) {
-      const timeoutSignal = AbortSignalCtor.timeout(300_000); // 放宽至 300 秒（5分钟），防止生成长文本时超时掐断
+    const requestTimeoutMs = proxyPayload.timeoutMs ?? 300_000;
+    if (requestTimeoutMs > 0 && AbortSignalCtor.timeout) {
+      const timeoutSignal = AbortSignalCtor.timeout(requestTimeoutMs);
       if (customSignal) {
         if (AbortSignalCtor.any) {
           signal = AbortSignalCtor.any([customSignal, timeoutSignal]);

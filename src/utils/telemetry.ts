@@ -1,6 +1,7 @@
 import type { IKernel } from "@/src/application/serviceContracts";
 import { getRuntimeKernel } from "../kernel/runtimeKernel";
 import { TelemetryService } from "../application/services/TelemetryService";
+import { getErrorMessage, getErrorDetail } from "./errorUtils";
 
 let fallbackTelemetry: TelemetryService | null = null;
 function getTelemetryService(kernel?: IKernel) {
@@ -98,12 +99,21 @@ export function installGlobalErrorHandlers(): void {
 
   window.addEventListener("error", (event) => {
     try {
+      const msg = event.message || (event.error ? getErrorMessage(event.error) : "unknown error");
+      const file = (event.filename ?? "").slice(0, 500);
+      const line = event.lineno ?? 0;
+      const col = event.colno ?? 0;
+      const stack = (event.error?.stack ?? "").slice(0, 4000);
+      const loc = file ? ` (${file}:${line}:${col})` : "";
+      const detail = `${msg}${loc}${stack ? `\nStack: ${stack}` : ""}`;
+
       reportImmediate("window_uncaught_error", {
-        message: event.message ?? "unknown",
-        filename: (event.filename ?? "").slice(0, 500),
-        lineno: event.lineno ?? 0,
-        colno: event.colno ?? 0,
-        stack: (event.error?.stack ?? "").slice(0, 4000),
+        detail,
+        message: msg,
+        filename: file,
+        lineno: line,
+        colno: col,
+        stack,
       }).catch(() => {
         // 静默：遥测不可用时不影响默认错误处理
       });
@@ -115,9 +125,14 @@ export function installGlobalErrorHandlers(): void {
   window.addEventListener("unhandledrejection", (event) => {
     try {
       const reason = event.reason;
+      const detail = getErrorDetail(reason).slice(0, 4000);
+      const msg = getErrorMessage(reason);
+      const stack = (reason instanceof Error ? reason.stack : (reason && typeof reason === "object" && "stack" in reason ? String((reason as Record<string, unknown>).stack) : ""))?.slice(0, 4000) || "";
+
       reportImmediate("window_unhandled_rejection", {
-        reason: reason instanceof Error ? reason.message : String(reason ?? "unknown"),
-        stack: reason instanceof Error ? (reason.stack ?? "").slice(0, 4000) : "",
+        detail,
+        reason: msg,
+        stack,
       }).catch(() => {
         // 静默
       });

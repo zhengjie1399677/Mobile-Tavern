@@ -59,6 +59,7 @@ import {
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useSendMessage");
+const log = logger;
 
 interface SendMessageParams {
   kernel: IKernel;
@@ -825,7 +826,18 @@ export function useSendMessage(p: SendMessageParams) {
           if (isStillActive) p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
         }
       } else {
-        if (isStillActive) p.showCustomAlert("发送失败，对话连接异常: " + getErrorMessage(err));
+        if (isStillActive) {
+          log.error("AI Generation failed", err);
+          p.telemetryService.reportUsage("api_error", {
+            detail: String(getErrorMessage(err) || "Unknown error"),
+            playerName: p.settings.userName,
+            characterName: p.activeCharacter?.name || "未知",
+            modelName: p.settings.api.modelName,
+            sessionId: updatedSession.id,
+            traceId,
+          });
+          p.showCustomAlert("发送失败，对话连接异常: " + getErrorMessage(err));
+        }
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
           const finishedAiMsg = { id: aiMsgId, sender: "assistant" as const, content: (parsed.content || "") + CONNECTION_INTERRUPTED_SUFFIX, timestamp: Date.now(), reasoningContent: parsed.reasoningContent };

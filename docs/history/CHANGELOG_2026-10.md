@@ -1,5 +1,13 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-05：**修复代码审查发现的候选分支、提示词去重与流式超时缺陷，并清理死代码。**
+  1. **末尾候选分支（swipes）数据链路修复**：`swipeIndex` / `swipeReasonings` 纳入 messages Store 记录并双向往返，重启后不再丢失候选推理；候选追加、5 条容量与先进先出淘汰、固化统一收口到 `src/domain/chat/messageSwipes.ts`（原先"重掷生成""候选翻页""下一轮固化"三条路径各写一份隐式约定）；`MessageSwiper` 不再条件调用 Hook（修掉 `lint:changed` 的 rules-of-hooks 错误）。
+  2. **固化不再清空派生记忆**：`updateSessionMessage` 在正文未变化（只剥离候选字段）时跳过记忆片段、事实与记忆字典的失效，避免发下一条消息或候选翻页时静默丢掉最新一轮抽取结果；新增 fake-indexeddb 回归用例锁定"未变更保留 / 变更失效"两种语义。
+  3. **同源核心提示词只注入一次**：SillyTavern 常把同一段正文同时放在根字段与 `prompts[main]`，此前传统路径会注入两遍、界面却已隐藏第二个入口。新增 `domain/prompts/promptSourceBlocks`，导入边界、运行期组装与设置界面共用同一判定（空占位或完全同文才算同源，内容不同必须保留），并补导入侧回归。
+  4. **流式超时改为自包含收口**：首字超时不再只依赖 abort 让 reader reject，而是在定时器内直接以 `StreamTimeoutError` 结束生成，避免底层流以 cancel→done 语义时生成器永久挂起（新增探针回归）；`DEFAULT_CHUNK_HEARTBEAT_TIMEOUT_MS` 由 25s 调整为 60s —— 调研结论：SillyTavern 无流式超时，Open WebUI 块间空闲超时默认关闭，NextChat 总超时 60s（思考模型 300s），OpenAI / Anthropic SDK 总超时 600s；本仓库改造前同样是 60s，长思考模型仍可按请求覆盖。
+  5. **死代码清理**：删除 `presetRuntimeMigration` 模块（恒返回原样）、`PromptWorkbenchFocusContext` 与主布局专注模式残留、`enablePromptComposition` 实验开关、`LEGACY_DEFAULT_PROMPT_PATTERNS` / `TABLE_MEMORY_PROMPT_MARKER` 与三个不再上报的启动诊断码；架构守卫改为断言这些入口不得回归。
+  6. **门禁与文档同步**：更新 `usePresetBundles`、`presetSelectorSection`、`presetBootstrap`、`twoPhaseTimeout` 等测试到"出厂预设无特权 / 导入不自动启用编排 / 心跳 60s"的新契约；`CURRENT_STATE.md` 预设段落改写为"工作台已移除、出厂预设与导入预设同权"；`.gitignore` 忽略 `apk_download/`。
+  验证：`npm run lint`、`npm run lint:changed`、`npm run check:i18n`、`npm test`、架构边界守卫与 `npm run build` 全部通过。
 - 2026-10-01：**发布 v1.9.1，彻底排查并根治预设修改不生效与脱钩缺陷。**
   1. **版本升级至 v1.9.1**：通过规范脚本 `npm run bump-version patch` 一致性同步 8 处版本入口（`package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`public/version`、`README.md`、`docs/index.html`），并通过 `npm run check:version` 校验。
   2. **采样调节预设脱钩根治**：定位到历史遗留缺陷 —— `SamplersSection.tsx` 滑块在 `onChange` 时硬编码了 `id: "custom"`，导致用户只要拖动任一滑块（温度、Top-P、重复惩罚、Max Tokens），当前预设的 ID 瞬间被冲掉为 `"custom"`。由于没有预设包的 `sampler.id` 为 `"custom"`，导致：活跃预设匹配立即返回 `undefined`、`activeBundleId` 置空、预设下拉选框丢失高亮、脏检查永久判定为 false、保存按钮被强制禁用、修改无法持久化；且已有会话在发送时因快照重新读取旧预设，导致修改在聊天中无法生效。修复：彻底移除 `id: "custom"`，保持活跃预设 ID 不变，并改用原子函数式更新器 `updateSettings((prev) => ...)`。

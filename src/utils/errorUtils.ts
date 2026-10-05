@@ -22,12 +22,75 @@
  */
 export function getErrorMessage(e: unknown): string {
   if (e instanceof Error) {
-    return e.message;
+    if (e.message && e.message.trim().length > 0) {
+      return e.message;
+    }
+    return e.name || "Error";
   }
   if (typeof e === "string") {
     return e;
   }
+  if (e === null) {
+    return "null";
+  }
+  if (e === undefined) {
+    return "undefined";
+  }
+  if (typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    if (typeof obj.message === "string" && obj.message.trim().length > 0) {
+      return obj.message;
+    }
+    if (typeof obj.error === "string" && obj.error.trim().length > 0) {
+      return obj.error;
+    }
+    if (
+      typeof obj.error === "object" &&
+      obj.error !== null &&
+      "message" in (obj.error as Record<string, unknown>) &&
+      typeof (obj.error as Record<string, unknown>).message === "string" &&
+      ((obj.error as Record<string, unknown>).message as string).trim().length > 0
+    ) {
+      return ((obj.error as Record<string, unknown>).message as string);
+    }
+    if (typeof obj.reason === "string" && obj.reason.trim().length > 0) {
+      return obj.reason;
+    }
+    if (typeof obj.status === "number") {
+      const statusText = typeof obj.statusText === "string" && obj.statusText.trim().length > 0 ? ` ${obj.statusText}` : "";
+      return `HTTP ${obj.status}${statusText}`;
+    }
+    try {
+      const serialized = JSON.stringify(e);
+      if (serialized && serialized !== "{}") {
+        return serialized.length > 500 ? `${serialized.slice(0, 500)}...` : serialized;
+      }
+    } catch {
+      // 循环引用等序列化失败兜底
+    }
+    const keys = Object.keys(obj);
+    if (keys.length > 0) {
+      return `[Object with keys: ${keys.slice(0, 10).join(", ")}]`;
+    }
+  }
   return String(e);
+}
+
+/**
+ * 安全提取错误的详细诊断信息（包含 message 与 stack 等调试线索）。
+ */
+export function getErrorDetail(e: unknown): string {
+  const msg = getErrorMessage(e);
+  let stack = "";
+  if (e instanceof Error && typeof e.stack === "string") {
+    stack = e.stack;
+  } else if (typeof e === "object" && e !== null && "stack" in e && typeof (e as Record<string, unknown>).stack === "string") {
+    stack = (e as Record<string, unknown>).stack as string;
+  }
+  if (!stack || stack.includes(msg)) {
+    return stack || msg;
+  }
+  return `${msg}\nStack: ${stack}`;
 }
 
 /**

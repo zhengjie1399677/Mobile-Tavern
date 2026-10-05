@@ -5,7 +5,13 @@ import type {
   StreamChunk,
   StreamParams,
 } from "../serviceContracts";
-import { readSSEStream, safeParseSSEData } from "../../utils/streamReader";
+import {
+  readSSEStream,
+  safeParseSSEData,
+  DEFAULT_FIRST_CHUNK_TIMEOUT_MS,
+  DEFAULT_CHUNK_HEARTBEAT_TIMEOUT_MS,
+  StreamTimeoutError,
+} from "../../utils/streamReader";
 import { API_ENDPOINT } from "../../utils/apiClient";
 import { Logger } from "../../utils/logger";
 import { getErrorMessage, getErrorName } from "../../utils/errorUtils";
@@ -139,24 +145,13 @@ export class ChatStreamService implements IChatStreamService {
       reqBody,
       signal,
       traceId,
+      firstChunkTimeoutMs: customFirstChunkTimeout,
+      chunkTimeoutMs: customChunkTimeout,
     } = params;
 
-    const llmService = this.kernel.getService<ILLMService>("llm");
-    const response = await llmService.universalFetch(API_ENDPOINT.ProxyOpenAI, {
-      baseUrl,
-      apiKey,
-      chatPath,
-      bypassProxy,
-      disableReasoning,
-      reasoningStrength,
-      forceBasicParams,
-      reqBody,
-    }, signal, traceId);
-
-    if (!response.ok) {
-      const errText = await response.text();
-      return { ok: false, error: new Error(errText) };
-    }
+    const log = traceId ? logger.withTrace(traceId) : logger;
+    const firstChunkTimeoutMs = customFirstChunkTimeout ?? DEFAULT_FIRST_CHUNK_TIMEOUT_MS;
+    const chunkTimeoutMs = customChunkTimeout ?? DEFAULT_CHUNK_HEARTBEAT_TIMEOUT_MS;
 
     const queue: StreamChunk[] = [];
     let resolveNext: (() => void) | null = null;
@@ -164,10 +159,53 @@ export class ChatStreamService implements IChatStreamService {
     let streamError: unknown = null;
     // 流中断时记录已接收原始字节数，供错误信息诊断（区分"首包即断"与"读了大半才断"）。
     let receivedBytes = 0;
-    // P1-7: 用于在 generator 提前退出时主动取消后台 readSSEStream
+
+    let hasReceivedFirstChunk = false;
+    let firstChunkTimer: ReturnType<typeof setTimeout> | null = null;
+    let firstChunkTimedOut = false;
+
+    const clearFirstChunkTimer = () => {
+      if (firstChunkTimer !== null) {
+        clearTimeout(firstChunkTimer);
+        firstChunkTimer = null;
+      }
+    };
+
+    const markFirstChunkReceived = () => {
+      if (!hasReceivedFirstChunk) {
+        hasReceivedFirstChunk = true;
+        clearFirstChunkTimer();
+      }
+    };
+
+    // P1-7: 用于在 generator 提前退出或超时时主动取消后台 readSSEStream
     const streamAbortController = new AbortController();
-    
+
+    if (firstChunkTimeoutMs > 0 && Number.isFinite(firstChunkTimeoutMs)) {
+      firstChunkTimer = setTimeout(() => {
+        if (!hasReceivedFirstChunk) {
+          firstChunkTimedOut = true;
+          log.warn("首字响应等待超时，主动终止请求", {
+            baseUrl: extractHost(baseUrl),
+            firstChunkTimeoutMs,
+          });
+          // 自包含收口：先把消费方唤醒并以超时错误结束生成，再取消底层请求。
+          // 不能只依赖 abort 后 reader 会 reject——若底层流的 cancel 让挂起的 read() 以
+          // done 结束，readSSEStream 会正常 resolve（既不 onDone 也不进 catch），
+          // 生成器就会永久等待，界面卡在"生成中"。
+          streamError = new StreamTimeoutError("first_chunk", firstChunkTimeoutMs);
+          isFinished = true;
+          if (resolveNext) {
+            resolveNext();
+            resolveNext = null;
+          }
+          streamAbortController.abort();
+        }
+      }, firstChunkTimeoutMs);
+    }
+
     const handleAbortAction = () => {
+      clearFirstChunkTimer();
       streamAbortController.abort();
       streamError = new DOMException("The user aborted a request.", "AbortError");
       isFinished = true;
@@ -187,8 +225,37 @@ export class ChatStreamService implements IChatStreamService {
       abortListenerRegistered = true;
     }
 
+    const llmService = this.kernel.getService<ILLMService>("llm");
+    let response: Response;
+    try {
+      response = await llmService.universalFetch(API_ENDPOINT.ProxyOpenAI, {
+        baseUrl,
+        apiKey,
+        chatPath,
+        bypassProxy,
+        disableReasoning,
+        reasoningStrength,
+        forceBasicParams,
+        reqBody,
+        timeoutMs: 0, // 声明禁用 universalFetch 内部固定超时，由两阶段心跳统一接管
+      }, streamAbortController.signal, traceId);
+    } catch (fetchErr) {
+      clearFirstChunkTimer();
+      if (firstChunkTimedOut) {
+        return { ok: false, error: new StreamTimeoutError("first_chunk", firstChunkTimeoutMs) };
+      }
+      return { ok: false, error: fetchErr };
+    }
+
+    if (!response.ok) {
+      clearFirstChunkTimer();
+      const errText = await response.text();
+      return { ok: false, error: new Error(errText) };
+    }
+
     readSSEStream(response, {
       onData: (dataStr) => {
+        markFirstChunkReceived();
         const parsed = safeParseSSEData(dataStr);
         const normalized = normalizeProviderStreamChunk(parsed);
         if (normalized) {
@@ -206,6 +273,7 @@ export class ChatStreamService implements IChatStreamService {
         }
       },
       onDone: () => {
+        markFirstChunkReceived();
         isFinished = true;
         if (resolveNext) {
           resolveNext();
@@ -213,13 +281,21 @@ export class ChatStreamService implements IChatStreamService {
         }
       }
     }, {
-      // P1-7: 传入 signal，消费方提前 break 时立即 reader.cancel() + clearIdleTimer()
+      // P1-7: 传入 signal，消费方提前 break 时立即 reader.cancel() + clearTimer()
       signal: streamAbortController.signal,
+      firstChunkTimeoutMs,
+      chunkTimeoutMs,
       onBytesReceived: (bytes) => {
+        markFirstChunkReceived();
         receivedBytes += bytes;
       },
     }).catch((err) => {
-      streamError = err;
+      clearFirstChunkTimer();
+      if (firstChunkTimedOut) {
+        streamError = new StreamTimeoutError("first_chunk", firstChunkTimeoutMs);
+      } else {
+        streamError = err;
+      }
       isFinished = true;
       if (resolveNext) {
         resolveNext();
@@ -244,6 +320,7 @@ export class ChatStreamService implements IChatStreamService {
       }
     } finally {
       // P1-7: generator 提前退出（break/return/throw）时，主动 abort 后台 readSSEStream
+      clearFirstChunkTimer();
       streamAbortController.abort();
       // 7.3.2: 移除外部 signal 上的 abort 监听器，避免复用同一 signal 时累积
       if (abortListenerRegistered && signal) {
@@ -252,12 +329,12 @@ export class ChatStreamService implements IChatStreamService {
     }
   }
 
-  /**
-   * 为可诊断的瞬态断流错误补充上下文：目标主机 + 已接收字节数。
-   * 用户手动中止（AbortError）与业务性错误（[API Error] 等）保持原样透传。
-   */
   private enrichStreamError(err: unknown, baseUrl: string, receivedBytes: number): unknown {
-    if (getErrorName(err) === "AbortError" || !isTransientStreamInterrupt(err)) {
+    if (
+      err instanceof StreamTimeoutError ||
+      getErrorName(err) === "AbortError" ||
+      !isTransientStreamInterrupt(err)
+    ) {
       return err;
     }
     const host = extractHost(baseUrl);

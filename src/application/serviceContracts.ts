@@ -221,6 +221,18 @@ export interface StreamParams {
   signal?: AbortSignal;
   /** traceId：透传给 LLMService.universalFetch，关联 API 调用链日志 */
   traceId?: string;
+  /**
+   * 首字/首包响应等待超时（毫秒）。
+   * 从请求发起至接收到首个有效数据块的超时时限。
+   * 默认: 60000 (60s)。
+   */
+  firstChunkTimeoutMs?: number;
+  /**
+   * 数据流活跃心跳超时（毫秒）。
+   * 收到首个数据块后激活，每次收到新数据即重置心跳。超过此时限未收到新数据则主动中断。
+   * 默认: 60000 (60s，与主流客户端一致)；长思考模型可显式调大。
+   */
+  chunkTimeoutMs?: number;
 }
 
 export interface IChatStreamService extends IKernelService {
@@ -372,6 +384,11 @@ export interface LLMProxyRequestConfig {
   forceBasicParams?: boolean;
   /** 模型列表、连接检测等非对话请求可以不携带请求体。 */
   reqBody?: Record<string, unknown>;
+  /**
+   * 请求整体超时（毫秒）。
+   * 缺省 300_000 (5分钟)。设置为 0 时禁用固定超时，完全由外部 customSignal 接管（用于流式动态心跳）。
+   */
+  timeoutMs?: number;
 }
 
 export interface ILLMService extends IKernelService {
