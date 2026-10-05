@@ -160,7 +160,6 @@ test.describe("长会话压力测试", () => {
         return unit.repeat(repeat).slice(0, chars);
       }
 
-      // @ts-ignore - 测试用 monkey-patch
       window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === "string" ? input : (input instanceof URL ? input.href : input.url);
         if (url.includes("/api/proxy/openai") && init?.method?.toUpperCase() === "POST") {

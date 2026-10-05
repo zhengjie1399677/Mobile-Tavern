@@ -184,7 +184,8 @@ function normalizeMimeType(mimeType: string, kind: LocalResourceKind): string {
 }
 
 function normalizeName(name: string): string {
-  const normalized = name.trim().replace(/[\u0000-\u001F\u007F]/g, "");
+  // 展示名清洗：移除控制字符（含 DEL 与 C1）。
+  const normalized = name.trim().replace(/[\p{Cc}]/gu, "");
   return (normalized || "未命名资源").slice(0, 160);
 }
 

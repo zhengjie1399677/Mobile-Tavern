@@ -81,7 +81,7 @@ export function parseSuggestions(suggestionsText: string): string[] {
         const matches = trimmed.match(/(?:"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*'|“[^”]*”|‘[^’]*’)/g);
         if (matches && matches.length > 0) {
           rawList = matches.map(m => {
-            let inner = m.slice(1, -1);
+            const inner = m.slice(1, -1);
             return inner.replace(/\\n/g, '\n').replace(/\\"/g, '"').trim();
           });
         }

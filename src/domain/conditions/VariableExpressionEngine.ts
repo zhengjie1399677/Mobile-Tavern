@@ -178,7 +178,7 @@ class Parser {
 function evaluate(node: Node, context: VariableConditionContext): ConditionValue {
   if (node.type === "literal") return node.value;
   if (node.type === "reference") return resolveReference(node.path, context);
-  if (node.type === "unary") return !Boolean(evaluate(node.operand, context));
+  if (node.type === "unary") return !evaluate(node.operand, context);
   if (node.operator === "&&") return Boolean(evaluate(node.left, context)) && Boolean(evaluate(node.right, context));
   if (node.operator === "||") return Boolean(evaluate(node.left, context)) || Boolean(evaluate(node.right, context));
   const left = evaluate(node.left, context);

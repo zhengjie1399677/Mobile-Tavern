@@ -653,7 +653,11 @@ export class Kernel implements IKernel {
     const list = [...(this.subscribers.get(message.topic) ?? [])];
     if (list.length === 0) return;
 
-    const withTimeout = ({ handler }: { handler: Function }): Promise<void> => {
+    const withTimeout = ({
+      handler,
+    }: {
+      handler: (message: IMessage, signal?: AbortSignal) => void | Promise<void>;
+    }): Promise<void> => {
       const controller = new AbortController();
       this.activeControllers.add(controller);
       const signal = controller.signal;

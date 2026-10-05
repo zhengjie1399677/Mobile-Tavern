@@ -8,7 +8,7 @@ const originalLookup = dns.lookup;
 const dnsLookup = promisify(originalLookup);
 
 // Hijack dns.lookup to serve cached verified IPs and lock out DNS Rebinding attacks
-// @ts-ignore
+// @ts-expect-error - Node 的 dns.lookup 重载签名无法表达缓存代理实现
 dns.lookup = function (hostname: string, options: any, callback: any) {
   if (typeof options === "function") {
     callback = options;

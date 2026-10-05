@@ -128,7 +128,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     activeCharId,
     activeSessionId,
     settings.enableScriptExecution,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   ]);
 
   // 轻量引用同步 effect：仅在 session/character 引用变化时同步给 bridge 状态，不执行重初始化，避免 60ms 高频开销

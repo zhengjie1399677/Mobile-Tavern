@@ -196,7 +196,7 @@ export class TtsService implements ITtsService {
         fetchFn = resolvedFetch || fetch;
       }
 
-      let baseUrl = config.openaiBaseUrl ? config.openaiBaseUrl.trim().replace(/\/+$/, "") : "https://api.openai.com/v1";
+      const baseUrl = config.openaiBaseUrl ? config.openaiBaseUrl.trim().replace(/\/+$/, "") : "https://api.openai.com/v1";
       const url = `${baseUrl}/audio/speech`;
 
       const headers: Record<string, string> = {

@@ -590,7 +590,7 @@ export function initTavernHelperMocks(): void {
         let newSessionVars = { ...activeS.variables };
         const updatedMessages = activeS.messages.map((m, idx) => {
           if (idx === targetMsgId) {
-            let updatedMsg: SillyTavernMessage = { ...m };
+            const updatedMsg: SillyTavernMessage = { ...m };
             let textChanged = false;
             let targetContent = updatedMsg.content;
             if (typeof messageObj === "string") { targetContent = messageObj; textChanged = true; }
@@ -651,7 +651,7 @@ export function initTavernHelperMocks(): void {
         const updatedMessages = activeS.messages.map((m, idx) => {
           const newMsg = messagesList[idx];
           if (newMsg) {
-            let updated: SillyTavernMessage = { ...m };
+            const updated: SillyTavernMessage = { ...m };
             let localChanged = false;
             const content = typeof newMsg === "string" ? newMsg : (newMsg.mes !== undefined ? newMsg.mes : (newMsg.content !== undefined ? newMsg.content : (newMsg.message !== undefined ? newMsg.message : undefined)));
             console.log(`[SillyTavern Compatibility Runtime] msg ${idx} content resolution: newMsgContent:`, content, "existingContent:", updated.content);

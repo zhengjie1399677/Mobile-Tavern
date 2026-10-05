@@ -398,8 +398,7 @@ export function createZodProxy(): any {
       schema.shape = shapeOrDef;
     }
 
-    let schemaProxy: any;
-    schemaProxy = new Proxy(schema, {
+    const schemaProxy: any = new Proxy(schema, {
       get(target, prop) {
         if (prop in target) {
           return target[prop];
@@ -507,8 +506,7 @@ export function createZodProxy(): any {
     },
   };
 
-  let proxyInstance: any;
-  proxyInstance = new Proxy(zodProxy, {
+  const proxyInstance: any = new Proxy(zodProxy, {
     get(target, prop) {
       if (prop === "z" || prop === "default") {
         return proxyInstance;

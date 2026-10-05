@@ -163,7 +163,7 @@ function mapSillyTavernLorebookEntry(entry: any): any {
           .map((k: string) => k.trim())
           .filter(Boolean);
 
-  let stPosition = entry.position !== undefined ? entry.position : entry.placement;
+  const stPosition = entry.position !== undefined ? entry.position : entry.placement;
   let position = "after_char_def";
   if (stPosition !== undefined) {
     const numPos = Number(stPosition);
@@ -191,9 +191,9 @@ function mapSillyTavernLorebookEntry(entry: any): any {
   }
 
   let depth = entry.depth !== undefined ? Number(entry.depth) : 4;
-  let order = entry.order !== undefined ? Number(entry.order) : 100;
-  let probability = entry.probability !== undefined ? Number(entry.probability) : 100;
-  let addMemo = !!entry.addMemo;
+  const order = entry.order !== undefined ? Number(entry.order) : 100;
+  const probability = entry.probability !== undefined ? Number(entry.probability) : 100;
+  const addMemo = !!entry.addMemo;
 
   const extensions = entry.extensions || {};
   if (extensions.position !== undefined) {

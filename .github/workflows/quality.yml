@@ -46,6 +46,9 @@ jobs:
       - name: 类型检查
         run: npm run lint
 
+      - name: 全仓 ESLint
+        run: npm run lint:all
+
       - name: 改动文件 ESLint
         run: npm run lint:changed -- "${{ github.event.pull_request.base.sha || 'HEAD^' }}"
 

@@ -5,8 +5,7 @@ const createZodProxy = () => {
       parse(val) { return val; },
       safeParse(val) { return { success: true, data: val }; }
     };
-    let schemaProxy;
-    schemaProxy = new Proxy(schema, {
+    const schemaProxy = new Proxy(schema, {
       get(target, prop) {
         if (prop in target) return target[prop];
         if (typeof prop === 'string') {
@@ -27,8 +26,7 @@ const createZodProxy = () => {
     string() { return createSchema('string'); }
   };
 
-  let proxyInstance;
-  proxyInstance = new Proxy(zodProxy, {
+  const proxyInstance = new Proxy(zodProxy, {
     get(target, prop) {
       if (prop === 'z' || prop === 'default') {
         return proxyInstance;

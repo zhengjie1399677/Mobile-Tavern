@@ -122,7 +122,7 @@ export async function runOutputPipelineAndSave(params: {
 
   // 提取并剥离 <memory> 与 <suggestions> 等所有元数据标签
   const cleanResult = cleanSuggestionsFromText(responseText);
-  let cleanAiText = cleanResult.content;
+  const cleanAiText = cleanResult.content;
   let memoryContent: string | undefined;
   
   const memoryMatch = /<(memory|memory_extraction)>([\s\S]*?)<\/\1>/i.exec(responseText);

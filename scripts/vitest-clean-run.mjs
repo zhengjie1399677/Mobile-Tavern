@@ -36,7 +36,8 @@ let output = "";
 let settled = false;
 let fallback = null;
 
-const stripAnsi = (text) => text.replace(/\x1b\[[0-9;]*m/g, "");
+// ANSI 转义序列：ESC 属 Cc 控制字符，用 Unicode 属性转义避免字面控制字符。
+const stripAnsi = (text) => text.replace(/[\p{Cc}]\[[0-9;]*m/gu, "");
 
 // 只识别 vitest 官方汇总行（"Test Files  X passed/failed"、"Tests  X passed/failed"），
 // 避免把测试内 console 日志中的 "N failed" 文本误判为测试失败。

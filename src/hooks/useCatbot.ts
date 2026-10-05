@@ -145,7 +145,7 @@ export function useCatbot() {
       }
 
       if (textPool.length > 0) {
-        let randomText = textPool[Math.floor(Math.random() * textPool.length)];
+        const randomText = textPool[Math.floor(Math.random() * textPool.length)];
         showTemporaryBubble(randomText, nextExpr, 4000, fallbackExpr);
       }
     },

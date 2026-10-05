@@ -64,7 +64,7 @@ export function testSuggestionsRobustness() {
   // 3. FormattedText.tsx 内置正则清洗测试
   const suggestionsRegex = /<suggestions\s*>[\s\S]*?<\/suggestions\s*>/gi;
   const stripSuggestions = (text: string) => {
-    let t = text.replace(suggestionsRegex, "");
+    const t = text.replace(suggestionsRegex, "");
     return t.replace(/<suggestions\s*>[\s\S]*$/gi, "").trim();
   };
 

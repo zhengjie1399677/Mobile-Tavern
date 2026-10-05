@@ -24,7 +24,7 @@
 - Profile 设置、复制、能力开关、跨 Profile 会话恢复和运行诊断已完成。“保存并开始”会先校验角色、行为预设和 Tool 精确版本，再通过一次性意图重载目标 Profile、创建新会话，并把角色与 Tool 可见性冻结到 Composition Snapshot；Agent 绑定的行为预设与采样只在这次启动时一次性套用，之后完全由用户自由切换，发送和重生成不再按快照改写提示词、编排或采样。快照畸形时仍 fail-closed。旧 `legacy.tavern.driver`、隐式全局 capability catalog 和默认注册路径已清理；任意 Runtime Plugin 安装仍关闭。
 - External Tool Plugin 已完成本地 L2 闭环：严格校验 v1 Manifest 与 v2 `.mttool`、SHA-256、包路径/体积和 JSON Schema；支持声明式 HTTPS Tool、一次性受限 Worker、宿主网络配额、加密凭据注入、Agent Runtime 注册、新会话快照、即时权限撤销、停用、回滚清权与完整卸载。可选 `provenance.json` 通过 ECDSA P-256/SHA-256 验证插件身份与内容哈希，管理界面区分未验证、未知有效签名、可信签名和官方内置来源；来源等级只作风险提示，无签名包仍可安装，确认页会说明作者身份、代码审核和后续授权风险。验签失败或身份错配的证明仍拒绝，运行时权限、隔离和高风险单次审批不因来源等级放宽。仓库内作者 SDK 已提供 v2 Manifest/Worker 类型、确定性打包器和可直接导入的无权限文本工具箱示例；SDK 尚未独立发布。它与受信 Runtime Plugin、内置 Worker Plugin 和 `.mtplugin` 沙箱保持独立。
 - 社区服务仓库代码已经包含 20 MB 上传限制、双哈希去重、评论限流、缩略图、管理员删除和时间戳记录；社区功能默认关闭，不在生产启用，也不纳入发布验收。
-- GitHub Quality Gate 已执行相对目标分支的改动文件 ESLint，`pre-commit` 已执行暂存 TS/TSX ESLint；Dependabot 和 PR 语义化标题校验已配置。`main` 分支保护的 required check 仍需仓库管理员在 GitHub 设置中启用。
+- GitHub Quality Gate 已执行**全仓 ESLint（`npm run lint:all`，仅错误）**与相对目标分支的改动文件 ESLint，`pre-commit` 已执行暂存 TS/TSX ESLint；`quality:push` 同步加入全仓 ESLint。全仓历史错误已清零，避免"只 lint 改动文件"导致债务潜伏（此前 `useSendMessage.ts` 超千行、`MemoryRecall.ts` 两条错误都是这样藏了很久）。Dependabot 和 PR 语义化标题校验已配置。`main` 分支保护的 required check 仍需仓库管理员在 GitHub 设置中启用。
 - 聊天入口已改为并行准备角色、会话和最近消息，长消息使用虚拟列表底部锚定；历史页已接通 cursor 分页。触屏端关闭大面积毛玻璃和背景循环平移，图片分批请求与异步解码，键盘 viewport 同步不再触发主布局 React 重渲染。
 - 全局确认/输入、角色编辑、会话管理、年表、角色详情、角色操作、本地扫描、记忆中心/片段编辑、主题编辑、Regex 编辑、社区上传/详情和运行诊断等交互遮罩已收敛到 Base UI Dialog/BottomSheet 语义；Android 返回键按遮罩、子页、主页分层处理，前台恢复会重新同步 Safe Area 与可视视口。
 - 冷启动只保留一个 Web Splash 挂载源；Android 系统层、WebView 空白首帧与 Web Splash 统一为固定品牌底色和透明品牌前景，用户主题在进入主界面后再接管，避免 Logo 二次闪烁与底色拼接。

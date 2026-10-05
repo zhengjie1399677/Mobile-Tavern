@@ -318,7 +318,8 @@ export class AsrService implements IAsrService {
     if (blob.size <= 0 || !blob.type.startsWith("audio/")) {
       throw new Error("ASR_FILE_INVALID");
     }
-    const normalizedName = fileName.trim().replace(/[\\/:*?"<>|\u0000-\u001F]/g, "_").slice(0, 120)
+    // 文件名清洗：控制字符（含 C1）与文件系统保留字符统一替换为下划线。
+    const normalizedName = fileName.trim().replace(/[\p{Cc}\\\/:*?"<>|]/gu, "_").slice(0, 120)
       || "audio.bin";
     const linked = linkAbortSignals([signal, this.abortController?.signal]);
     try {

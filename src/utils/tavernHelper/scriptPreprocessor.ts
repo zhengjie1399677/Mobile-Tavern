@@ -95,7 +95,7 @@ export function injectLoopProtection(code: string): string {
 
   // 掩码屏蔽注释与字符串字面量，防止误匹配
   const literals: string[] = [];
-  let masked = code
+  const masked = code
     // 屏蔽块注释
     .replace(/\/\*[\s\S]*?\*\//g, (m) => {
       literals.push(m);

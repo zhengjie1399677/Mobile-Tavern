@@ -25,8 +25,8 @@ function preprocessScriptContent(content) {
 }
 
 if (target && target.replaceString) {
-  let html = target.replaceString;
-  let processedHtml = html.replace(
+  const html = target.replaceString;
+  const processedHtml = html.replace(
     /<script([^>]*)>([\s\S]*?)<\/script>/gi,
     (match, attrs, scriptBody) => {
       if (/type\s*=\s*['"]module['"]/i.test(attrs) || /import\s+/.test(scriptBody)) {

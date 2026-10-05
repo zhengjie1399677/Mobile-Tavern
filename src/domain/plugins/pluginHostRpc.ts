@@ -73,7 +73,8 @@ function readText(params: unknown): string {
     : undefined;
   if (typeof text !== "string") throw new Error("PLUGIN_CHAT_INVALID_TEXT");
   const normalized = text.trim();
-  if (!normalized || normalized.length > MAX_PLUGIN_TEXT_LENGTH || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(normalized)) {
+  // 拒绝控制字符，但保留制表/换行/回车；\p{Cc} 同时覆盖 DEL 与 C1，属更严格的 fail-closed。
+  if (!normalized || normalized.length > MAX_PLUGIN_TEXT_LENGTH || /[^\P{Cc}\t\n\r]/u.test(normalized)) {
     throw new Error("PLUGIN_CHAT_INVALID_TEXT");
   }
   return normalized;

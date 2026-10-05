@@ -17,7 +17,7 @@ const OUTPUT_DIR = path.join(__dirname, '..', 'public', 'avatars', 'builtin');
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 console.log('📖 读取 builtInCharacters.ts...');
-let content = fs.readFileSync(SOURCE_FILE, 'utf8');
+const content = fs.readFileSync(SOURCE_FILE, 'utf8');
 const originalSize = Buffer.byteLength(content, 'utf8');
 console.log(`   原文件大小: ${(originalSize / 1024 / 1024).toFixed(2)} MB`);
 

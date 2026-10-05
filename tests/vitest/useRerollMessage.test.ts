@@ -1167,6 +1167,7 @@ describe("useRerollMessage 凭证解析错误处理", () => {
     const session = createMinimalSession();
     const harness = createControllableHarness({
       session,
+      // eslint-disable-next-line require-yield -- 故意模拟「首包之前就失败」的流，不会 yield 任何分片
       streamFactory: async function* () {
         throw new TrialKeyFetchError();
       },

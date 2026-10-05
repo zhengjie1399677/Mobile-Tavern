@@ -96,7 +96,7 @@
 |---|---|---|---|
 | 提交前 | `.githooks/pre-commit`、`pre-push` | 暂存 TS/TSX ESLint、类型检查；推送内容分类与门禁选择 | 每次 commit / push |
 | 推送前 | `npm run quality:push` / `quality:release` | 普通改动执行完整门禁；可证明的纯版本提交只检查版本一致性 | 每次准备推送 |
-| CI | `.github/workflows/quality.yml` | PR 标题、改动文件 ESLint、`lint`、`test`、`build` 与 Playwright E2E | 每次 PR 到 `main` |
+| CI | `.github/workflows/quality.yml` | PR 标题、**全仓 ESLint（`npm run lint:all`）**、改动文件 ESLint、`lint`、`test`、`build` 与 Playwright E2E | 每次 PR 到 `main` |
 | 按范围 | `check:i18n`、`verify:preset-samples`、`check:mobile-assets`、`cargo test`（云端） | 专项完整性 | 改动涉及对应领域时 |
 | 人工 | 本节清单 + 第四节专项清单 | 设计合理性、边界、可维护性、测试质量、自动化覆盖不到的 | 每次 PR 合入前 |
 
