@@ -1,12 +1,12 @@
 import React from "react";
 import { Loader2, Terminal } from "lucide-react";
-import type { ToolPluginComposerCommand } from "@/src/domain/toolPlugins";
+import type { ComposerCommandDescriptor } from "@/src/domain/composer/contracts";
 
 export interface ComposerCommandSuggestionsProps {
-  suggestions: readonly ToolPluginComposerCommand[];
+  suggestions: readonly ComposerCommandDescriptor[];
   selectedIndex: number;
   isExecuting: boolean;
-  onSelectCommand: (command: ToolPluginComposerCommand) => void;
+  onSelectCommand: (command: ComposerCommandDescriptor) => void;
   onHoverIndex: (index: number) => void;
 }
 
@@ -38,7 +38,7 @@ export const ComposerCommandSuggestions: React.FC<ComposerCommandSuggestionsProp
           const isSelected = idx === selectedIndex;
           return (
             <button
-              key={`${command.pluginId}:${command.name}`}
+              key={`${command.owner}:${command.name}`}
               type="button"
               disabled={isExecuting}
               onClick={() => onSelectCommand(command)}
@@ -58,7 +58,7 @@ export const ComposerCommandSuggestions: React.FC<ComposerCommandSuggestionsProp
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <span className="truncate text-xs font-semibold">{command.label}</span>
-                  {command.pluginId === "host.builtin" ? (
+                  {command.owner === "host.builtin" ? (
                     <span className="rounded bg-primary/10 px-1 py-0.2 text-[8px] font-medium text-primary">内置</span>
                   ) : (
                     <span className="rounded bg-muted px-1 py-0.2 text-[8px] font-medium text-muted-foreground font-mono">插件</span>

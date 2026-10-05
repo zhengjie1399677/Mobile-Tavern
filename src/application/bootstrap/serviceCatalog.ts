@@ -14,6 +14,7 @@ export const coreServiceCatalog: readonly ServiceModuleDescriptor[] = [
   { name: KernelServices.ToolConnectors, initTimeoutMs: 5000, load: async () => new (await import("../services/ToolPluginRuntimeService")).ToolPluginRuntimeService() },
   { name: KernelServices.ExternalSources, initTimeoutMs: 8000, load: async () => new (await import("../services/ExternalSourceRuntimeService")).ExternalSourceRuntimeService() },
   { name: KernelServices.ContextSources, initTimeoutMs: 3000, load: async () => new (await import("../services/ContextSourceService")).ContextSourceService() },
+  { name: KernelServices.ComposerCommands, initTimeoutMs: 3000, load: async () => new (await import("../services/ComposerCommandService")).ComposerCommandService() },
   { name: KernelServices.CompatibilityRuntime, initTimeoutMs: 3000, load: async () => new (await import("../services/CompatibilityRuntimeService")).CompatibilityRuntimeService() },
   { name: KernelServices.RuntimeProfiles, initTimeoutMs: 3000, load: async () => new (await import("../services/RuntimeProfileService")).RuntimeProfileService() },
   { name: KernelServices.Attachments, initTimeoutMs: 5000, load: async () => new (await import("../services/AttachmentService")).AttachmentService() },

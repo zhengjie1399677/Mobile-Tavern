@@ -37,6 +37,11 @@ import type {
 import type { ContextContribution } from "../domain/contextSources/contracts";
 import type { ContextSourceDefinition } from "../domain/contextSources/contracts";
 import type { ContextReadRequest } from "./contextSources/contextSourceRegistry";
+import type {
+  ComposerCommandDefinition,
+  ComposerCommandDescriptor,
+  ComposerCommandRequest,
+} from "../domain/composer/contracts";
 export type { ICompatibilityRuntimeService } from "./compatibility/contracts";
 export type { IRuntimeProfileService } from "./runtimeProfiles/contracts";
 import type { MessageContentPart } from "../domain/messages/messageContent";
@@ -86,6 +91,7 @@ export const KernelServices = {
   ToolConnectors: "toolConnectors",
   ExternalSources: "externalSources",
   ContextSources: "contextSources",
+  ComposerCommands: "composerCommands",
   SessionManagement: "sessionManagement",
 } as const;
 
@@ -105,11 +111,16 @@ export interface IToolPluginRuntimeService extends IKernelService {
   getEnabledToolNames(profileId: string): string[];
   extendComposition(snapshot: AgentCompositionSnapshot): AgentCompositionSnapshot;
   getDiagnostics(): ToolPluginRuntimeDiagnostics;
-  listComposerCommands(profileId: string): ToolPluginComposerCommand[];
-  executeComposerCommand(execution: ToolPluginComposerCommandExecution): Promise<string>;
   listCredentialStatus(pluginId: string): Promise<ToolPluginCredentialStatus[]>;
   setCredential(pluginId: string, credentialId: string, value: string): Promise<void>;
   deleteCredential(pluginId: string, credentialId: string): Promise<void>;
+}
+
+/** 输入框斜杠命令注册表：宿主内置、Tool Plugin 与外部能力源共用一条草稿插入路径。 */
+export interface IComposerCommandService extends IKernelService {
+  register(definition: ComposerCommandDefinition): EffectDisposer;
+  list(profileId: string): readonly ComposerCommandDescriptor[];
+  execute(name: string, request: ComposerCommandRequest): Promise<string>;
 }
 
 export interface IAgentRuntimeService extends IKernelService {

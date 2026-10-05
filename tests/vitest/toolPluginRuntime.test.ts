@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { IKernel } from "../../src/kernel/types";
 import { AgentRuntimeService } from "../../src/application/services/AgentRuntimeService";
+import { ComposerCommandService } from "../../src/application/services/ComposerCommandService";
 import { ToolPluginRuntimeService } from "../../src/application/services/ToolPluginRuntimeService";
 import type { ToolPluginHttpPort } from "../../src/application/toolPlugins/executionContracts";
 import { parseToolPluginManifest, parseToolPluginPackage } from "../../src/domain/toolPlugins";
@@ -39,11 +40,13 @@ describe("External Tool Plugin Runtime", () => {
     await setToolPluginEnabled(manifest.id, true);
 
     const agentRuntime = new AgentRuntimeService(journal);
+    const composer = new ComposerCommandService();
     const kernel = {
-      getService: () => agentRuntime,
+      getService: (name: string) => (name === KernelServices.ComposerCommands ? composer : agentRuntime),
       hasService: () => true,
     } as unknown as IKernel;
     agentRuntime.init(kernel);
+    composer.init(kernel);
     const http: ToolPluginHttpPort = {
       request: async () => ({ status: 200, contentType: "application/json", body: { temperature: 21 } }),
     };
@@ -86,11 +89,13 @@ describe("External Tool Plugin Runtime", () => {
     await setToolPluginEnabled(manifest.id, true);
 
     const agentRuntime = new AgentRuntimeService(journal);
+    const composer = new ComposerCommandService();
     const kernel = {
-      getService: () => agentRuntime,
+      getService: (name: string) => (name === KernelServices.ComposerCommands ? composer : agentRuntime),
       hasService: () => true,
     } as unknown as IKernel;
     agentRuntime.init(kernel);
+    composer.init(kernel);
     const service = new ToolPluginRuntimeService(
       { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
       { execute: async () => ({}), getActiveWorkerCount: () => 0, destroy: () => undefined },
@@ -154,11 +159,13 @@ describe("External Tool Plugin Runtime", () => {
     await setToolPluginEnabled(inspection.manifest.id, true);
 
     const agentRuntime = new AgentRuntimeService(journal);
+    const composer = new ComposerCommandService();
     const kernel = {
-      getService: () => agentRuntime,
+      getService: (name: string) => (name === KernelServices.ComposerCommands ? composer : agentRuntime),
       hasService: () => true,
     } as unknown as IKernel;
     agentRuntime.init(kernel);
+    composer.init(kernel);
     const execute = vi.fn(async ({ input }: { input: unknown }) => input);
     const service = new ToolPluginRuntimeService(
       { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
@@ -166,26 +173,24 @@ describe("External Tool Plugin Runtime", () => {
     );
     await service.init(kernel);
 
-    expect(service.listComposerCommands("mobile-tavern.base")).toEqual([
+    expect(composer.list("mobile-tavern.base")).toEqual([
       expect.objectContaining({ name: "echo", acceptsArgument: true }),
     ]);
-    expect(service.listComposerCommands("mobile-tavern.tavern")).toEqual([]);
-    await expect(service.executeComposerCommand({
+    expect(composer.list("mobile-tavern.tavern")).toEqual([]);
+    await expect(composer.execute("echo", {
       profileId: "mobile-tavern.base",
       sessionId: "session-composer",
-      name: "echo",
       argument: "现在几点",
     })).resolves.toBe("现在几点");
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({
       pluginId: "example.worker",
       input: { value: "现在几点" },
     }));
-    await expect(service.executeComposerCommand({
+    await expect(composer.execute("echo", {
       profileId: "mobile-tavern.tavern",
       sessionId: "session-composer",
-      name: "echo",
       argument: "拒绝",
-    })).rejects.toThrow("TOOL_PLUGIN_COMPOSER_COMMAND_PROFILE_UNAVAILABLE");
+    })).rejects.toThrow("COMPOSER_COMMAND_PROFILE_UNAVAILABLE");
 
     await service.destroy();
     await agentRuntime.destroy();
@@ -198,27 +203,28 @@ describe("External Tool Plugin Runtime", () => {
     await setToolPluginEnabled(manifest.id, true);
 
     const agentRuntime = new AgentRuntimeService(journal);
+    const composer = new ComposerCommandService();
     const kernel = {
-      getService: () => agentRuntime,
+      getService: (name: string) => (name === KernelServices.ComposerCommands ? composer : agentRuntime),
       hasService: () => true,
     } as unknown as IKernel;
     agentRuntime.init(kernel);
+    composer.init(kernel);
     const service = new ToolPluginRuntimeService(
       { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
       { execute: async () => ({}), getActiveWorkerCount: () => 0, destroy: () => undefined },
     );
     await service.init(kernel);
 
-    expect(service.listComposerCommands("mobile-tavern.base")).toEqual([
+    expect(composer.list("mobile-tavern.base")).toEqual([
       expect.objectContaining({ name: "time", acceptsArgument: false }),
     ]);
-    expect(service.listComposerCommands("mobile-tavern.tavern")).toEqual([
+    expect(composer.list("mobile-tavern.tavern")).toEqual([
       expect.objectContaining({ name: "time" }),
     ]);
-    await expect(service.executeComposerCommand({
+    await expect(composer.execute("time", {
       profileId: "mobile-tavern.base",
       sessionId: "session-time",
-      name: "time",
       argument: "",
     })).resolves.toMatch(/^📅 .+\n🕒 .+ · .+$/);
 
@@ -233,45 +239,43 @@ describe("External Tool Plugin Runtime", () => {
     await setToolPluginEnabled(manifest.id, true);
 
     const agentRuntime = new AgentRuntimeService(journal);
+    const composer = new ComposerCommandService();
     const kernel = {
-      getService: () => agentRuntime,
+      getService: (name: string) => (name === KernelServices.ComposerCommands ? composer : agentRuntime),
       hasService: () => true,
     } as unknown as IKernel;
     agentRuntime.init(kernel);
+    composer.init(kernel);
     const service = new ToolPluginRuntimeService(
       { request: async () => ({ status: 200, contentType: "application/json", body: {} }) },
       { execute: async () => ({}), getActiveWorkerCount: () => 0, destroy: () => undefined },
     );
     await service.init(kernel);
 
-    expect(service.listComposerCommands("mobile-tavern.base").map((command) => command.name))
+    expect(composer.list("mobile-tavern.base").map((command) => command.name))
       .toEqual(["coin", "count", "dice", "pick"]);
 
-    await expect(service.executeComposerCommand({
+    await expect(composer.execute("dice", {
       profileId: "mobile-tavern.base",
       sessionId: "session-utility",
-      name: "dice",
       argument: "2d6",
     })).resolves.toMatch(/^🎲 2d6 = \[\d, \d\] → \d+$/);
 
-    await expect(service.executeComposerCommand({
+    await expect(composer.execute("coin", {
       profileId: "mobile-tavern.base",
       sessionId: "session-utility",
-      name: "coin",
       argument: "",
     })).resolves.toMatch(/^(🪙 正面|🪙 反面)$/);
 
-    await expect(service.executeComposerCommand({
+    await expect(composer.execute("pick", {
       profileId: "mobile-tavern.base",
       sessionId: "session-utility",
-      name: "pick",
       argument: "苹果,香蕉",
     })).resolves.toMatch(/^🎯 从 2 个选项抽中：(苹果|香蕉)$/);
 
-    await expect(service.executeComposerCommand({
+    await expect(composer.execute("count", {
       profileId: "mobile-tavern.base",
       sessionId: "session-utility",
-      name: "count",
       argument: "hello",
     })).resolves.toBe("字符 5（含空白）· 非空白 5 · 汉字 0 · 行 1");
 

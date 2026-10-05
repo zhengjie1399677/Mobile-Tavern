@@ -22,7 +22,7 @@ import {
   KernelServices,
   type IAttachmentService,
   type ICompatibilityRuntimeService,
-  type IToolPluginRuntimeService,
+  type IComposerCommandService,
 } from "@/src/application/serviceContracts";
 import { getSessionRuntimeProfileId } from "@/src/application/useCases/runtimeProfileSession";
 import {
@@ -31,7 +31,7 @@ import {
   filterComposerCommandSuggestions,
   resolveComposerCommandInvocation,
 } from "@/src/application/useCases/composerCommandUseCases";
-import type { ToolPluginComposerCommand } from "@/src/domain/toolPlugins";
+import type { ComposerCommandDescriptor } from "@/src/domain/composer/contracts";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { AttachmentMetadata } from "../../domain/attachments/types";
 import type { MessageContentPart } from "../../domain/messages/messageContent";
@@ -313,18 +313,18 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     () => getSessionRuntimeProfileId(activeSession),
     [activeSession],
   );
-  const composerCommands = React.useMemo<ToolPluginComposerCommand[]>(() => {
-    let pluginCommands: ToolPluginComposerCommand[] = [];
+  const composerCommands = React.useMemo<ComposerCommandDescriptor[]>(() => {
+    let pluginCommands: ComposerCommandDescriptor[] = [];
     if (composerProfileId) {
       try {
-        pluginCommands = getKernelService<IToolPluginRuntimeService>(KernelServices.ToolConnectors)
-          .listComposerCommands(composerProfileId);
+        pluginCommands = [...getKernelService<IComposerCommandService>(KernelServices.ComposerCommands)
+          .list(composerProfileId)];
       } catch {
-        // Tool Plugin Runtime 是可降级服务；缺失时输入框维持普通文本行为。
+        // 命令注册表是可降级服务；缺失时输入框维持普通文本行为（仍保留宿主内置命令）。
         pluginCommands = [];
       }
     }
-    const map = new Map<string, ToolPluginComposerCommand>();
+    const map = new Map<string, ComposerCommandDescriptor>();
     for (const cmd of BUILTIN_COMPOSER_COMMANDS) {
       map.set(cmd.name, cmd);
     }
@@ -341,12 +341,12 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   }, [localInput]);
 
   const executeComposerCommand = React.useCallback(async (
-    command: ToolPluginComposerCommand,
+    command: ComposerCommandDescriptor,
     argument: string,
   ): Promise<void> => {
     if (!activeSession || isExecutingComposerCommand) return;
 
-    if (command.pluginId === "host.builtin") {
+    if (command.owner === "host.builtin") {
       await executeBuiltinComposerCommand({
         commandName: command.name,
         argument,
@@ -381,11 +381,10 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     }
     setIsExecutingComposerCommand(true);
     try {
-      const result = await getKernelService<IToolPluginRuntimeService>(KernelServices.ToolConnectors)
-        .executeComposerCommand({
+      const result = await getKernelService<IComposerCommandService>(KernelServices.ComposerCommands)
+        .execute(command.name, {
           profileId: composerProfileId,
           sessionId: activeSession.id,
-          name: command.name,
           argument,
         });
       setLocalInput(result);

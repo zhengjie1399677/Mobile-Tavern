@@ -6,23 +6,21 @@ import {
   normalizeSlashInput,
   resolveComposerCommandInvocation,
 } from "../../src/application/useCases/composerCommandUseCases";
-import type { ToolPluginComposerCommand } from "../../src/domain/toolPlugins";
+import type { ComposerCommandDescriptor } from "../../src/domain/composer/contracts";
 
-const commands: ToolPluginComposerCommand[] = [
+const commands: ComposerCommandDescriptor[] = [
   {
     name: "echo",
     label: "回显",
     description: "回显参数",
-    pluginId: "example.worker",
-    toolName: "ext.example.worker.echo",
+    owner: "tool-plugin/example.worker",
     acceptsArgument: true,
   },
   {
     name: "time",
     label: "当前时间",
     description: "读取设备时间",
-    pluginId: "official.device-time",
-    toolName: "ext.official.device-time.system.time",
+    owner: "tool-plugin/official.device-time",
     acceptsArgument: false,
   },
 ];
@@ -75,8 +73,7 @@ describe("Composer Command Use Cases", () => {
 
     // 默认内置命令全部属于 host.builtin 命名空间
     for (const cmd of BUILTIN_COMPOSER_COMMANDS) {
-      expect(cmd.pluginId).toBe("host.builtin");
-      expect(cmd.toolName).toMatch(/^host\.builtin\./);
+      expect(cmd.owner).toBe("host.builtin");
     }
   });
 

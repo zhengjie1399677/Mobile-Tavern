@@ -1,7 +1,7 @@
-import type { ToolPluginComposerCommand } from "../../domain/toolPlugins";
+import type { ComposerCommandDescriptor } from "../../domain/composer/contracts";
 
 export interface ComposerCommandInvocation {
-  readonly command: ToolPluginComposerCommand;
+  readonly command: ComposerCommandDescriptor;
   readonly argument: string;
 }
 
@@ -11,77 +11,68 @@ export function normalizeSlashInput(input: string): string {
 }
 
 /** 内置宿主快捷斜杠命令列表 */
-export const BUILTIN_COMPOSER_COMMANDS: readonly ToolPluginComposerCommand[] = [
+export const BUILTIN_COMPOSER_COMMANDS: readonly ComposerCommandDescriptor[] = [
   {
     name: "continue",
     label: "继续生成",
     description: "让当前角色接着上一轮对话继续剧情演绎",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.continue",
+    owner: "host.builtin",
     acceptsArgument: false,
   },
   {
     name: "reroll",
     label: "重新生成",
     description: "消除最后一条 AI 回复并重新生成本轮剧情",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.reroll",
+    owner: "host.builtin",
     acceptsArgument: false,
   },
   {
     name: "clear",
     label: "清空上下文",
     description: "清空当前会话消息记录（重置当前对话）",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.clear",
+    owner: "host.builtin",
     acceptsArgument: false,
   },
   {
     name: "branch",
     label: "分支剧情",
     description: "基于当前进度分叉创建一条新的故事线分支",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.branch",
+    owner: "host.builtin",
     acceptsArgument: false,
   },
   {
     name: "sys",
     label: "系统旁白 / 指令",
     description: "以系统视角发送剧情旁白或注入临时设定",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.sys",
+    owner: "host.builtin",
     acceptsArgument: true,
   },
   {
     name: "memo",
     label: "提炼记忆摘要",
     description: "立即对当前会话生成长期记忆与剧情摘要",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.memo",
+    owner: "host.builtin",
     acceptsArgument: false,
   },
   {
     name: "send",
     label: "直接发送",
     description: "以用户身份向当前会话直接发送指定文本消息",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.send",
+    owner: "host.builtin",
     acceptsArgument: true,
   },
   {
     name: "say",
     label: "用户发言",
     description: "以用户身份向当前角色发送对话内容",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.say",
+    owner: "host.builtin",
     acceptsArgument: true,
   },
   {
     name: "help",
     label: "命令帮助",
     description: "查看所有可用的内置与插件斜杠命令说明",
-    pluginId: "host.builtin",
-    toolName: "host.builtin.help",
+    owner: "host.builtin",
     acceptsArgument: false,
   },
 ] as const;
@@ -89,7 +80,7 @@ export const BUILTIN_COMPOSER_COMMANDS: readonly ToolPluginComposerCommand[] = [
 /** 只识别完整的单行斜杠命令；未知命令仍作为普通聊天文本发送。 */
 export function resolveComposerCommandInvocation(
   input: string,
-  commands: readonly ToolPluginComposerCommand[],
+  commands: readonly ComposerCommandDescriptor[],
 ): ComposerCommandInvocation | null {
   const normalized = normalizeSlashInput(input);
   if (!normalized.startsWith("/") || /\r|\n/.test(normalized)) return null;
@@ -101,8 +92,8 @@ export function resolveComposerCommandInvocation(
 
 export function filterComposerCommandSuggestions(
   input: string,
-  commands: readonly ToolPluginComposerCommand[],
-): ToolPluginComposerCommand[] {
+  commands: readonly ComposerCommandDescriptor[],
+): ComposerCommandDescriptor[] {
   const normalized = normalizeSlashInput(input);
   const match = /^\/([a-z0-9-]*)$/i.exec(normalized);
   if (!match) return [];
@@ -126,7 +117,7 @@ export interface ExecuteBuiltinComposerCommandContext {
   setUserInputMessage: (val: string) => void;
   setReplySuggestions: () => void;
   focusTextarea: () => void;
-  availableCommands: readonly ToolPluginComposerCommand[];
+  availableCommands: readonly ComposerCommandDescriptor[];
 }
 
 export async function executeBuiltinComposerCommand(

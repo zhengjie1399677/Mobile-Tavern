@@ -30,8 +30,10 @@ import type {
 import {
   KernelServices,
   type IAgentRuntimeService,
+  type IComposerCommandService,
   type IToolPluginRuntimeService,
 } from "../serviceContracts";
+import type { ComposerCommandRequest } from "../../domain/composer/contracts";
 import { readAgentSettingsFromComposition } from "../runtimeProfiles/agentSettings";
 import type { MemoryServiceTyped } from "./memory";
 import { executeToolPluginHostCapability } from "../toolPlugins/hostCapabilityExecutor";
@@ -55,12 +57,15 @@ interface RegisteredComposerCommand {
 export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
   readonly name = KernelServices.ToolConnectors;
   readonly isCritical = false;
-  readonly dependencies = [KernelServices.AgentRuntime, KernelServices.Memory] as const;
+  readonly dependencies = [
+    KernelServices.AgentRuntime,
+    KernelServices.Memory,
+    KernelServices.ComposerCommands,
+  ] as const;
 
   private kernel: IKernel | null = null;
   private registrations: EffectDisposer[] = [];
   private readonly tools = new Map<string, RegisteredTool>();
-  private readonly composerCommands = new Map<string, RegisteredComposerCommand>();
   private failures: Record<string, string> = {};
 
   constructor(
@@ -101,27 +106,11 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
       .sort();
   }
 
-  listComposerCommands(profileId: string): ToolPluginComposerCommand[] {
-    return [...this.composerCommands.entries()]
-      .filter(([, command]) => command.profileIds.includes("*") || command.profileIds.includes(profileId))
-      .map(([name, command]) => ({
-        name,
-        label: command.tool.name,
-        description: command.tool.description,
-        pluginId: command.plugin.id,
-        toolName: command.toolName,
-        acceptsArgument: command.tool.composerCommand?.inputProperty !== undefined,
-      }))
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }
-
-  async executeComposerCommand(execution: ToolPluginComposerCommandExecution): Promise<string> {
-    const name = execution.name.trim().toLowerCase();
-    const registered = this.composerCommands.get(name);
-    if (!registered) throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_NOT_FOUND");
-    if (!registered.profileIds.includes("*") && !registered.profileIds.includes(execution.profileId)) {
-      throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_PROFILE_UNAVAILABLE");
-    }
+  /** 执行一次插件命令；命令定义在 ComposerCommandService 中，这里只负责实际调用。 */
+  private async runComposerCommand(
+    registered: RegisteredComposerCommand,
+    execution: ComposerCommandRequest,
+  ): Promise<string> {
     const declaration = registered.tool.composerCommand;
     if (!declaration) throw new Error("TOOL_PLUGIN_COMPOSER_COMMAND_INVALID");
     const argument = execution.argument.trim();
@@ -245,25 +234,30 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
         this.tools.set(name, { pluginId: plugin.id, profileIds: plugin.manifest.targetProfiles, version: plugin.manifest.version });
         const command = tool.composerCommand;
         if (command) {
-          if (this.composerCommands.has(command.name)) {
-            throw new Error(`TOOL_PLUGIN_COMPOSER_COMMAND_DUPLICATE:${command.name}`);
-          }
-          this.composerCommands.set(command.name, {
-            plugin,
-            tool,
-            entryCode: artifact?.entryCode,
-            toolName: name,
-            profileIds: plugin.manifest.targetProfiles,
-          });
+        const registeredCommand: RegisteredComposerCommand = {
+          plugin,
+          tool,
+          entryCode: artifact?.entryCode,
+          toolName: name,
+          profileIds: plugin.manifest.targetProfiles,
+        };
+        pending.push(this.getComposerService().register({
+          descriptor: {
+            name: command.name,
+            label: tool.name,
+            description: tool.description,
+            owner: `tool-plugin/${plugin.id}`,
+            acceptsArgument: command.inputProperty !== undefined,
+          },
+          profileIds: plugin.manifest.targetProfiles,
+          run: (request) => this.runComposerCommand(registeredCommand, request),
+        }));
         }
       }
       this.registrations.push(...pending);
     } catch (error) {
       for (const dispose of pending.reverse()) await dispose();
       for (const [name, item] of this.tools) if (item.pluginId === plugin.id) this.tools.delete(name);
-      for (const [name, command] of this.composerCommands) {
-        if (command.plugin.id === plugin.id) this.composerCommands.delete(name);
-      }
       throw error;
     }
   }
@@ -334,10 +328,14 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
     return this.kernel.getService<MemoryServiceTyped>(KernelServices.Memory);
   }
 
+  private getComposerService(): IComposerCommandService {
+    if (!this.kernel) throw new Error("TOOL_PLUGIN_RUNTIME_NOT_ACTIVE");
+    return this.kernel.getService<IComposerCommandService>(KernelServices.ComposerCommands);
+  }
+
   private async disposeRegistrations(): Promise<void> {
     const disposers = this.registrations.splice(0).reverse();
     this.tools.clear();
-    this.composerCommands.clear();
     const results = await Promise.allSettled(disposers.map((dispose) => dispose()));
     const failure = results.find((item): item is PromiseRejectedResult => item.status === "rejected");
     if (failure) throw failure.reason;
