@@ -19,12 +19,32 @@ export const generateUniqueId = (prefix: string): string =>
   prefix + Math.random().toString(36).substring(2, 9);
 
 // ─── 节流更新器工厂 ────────────────────────────────────────────────────────────
+/**
+ * 缓冲型到达阈值（字符）。
+ *
+ * 单次到达增量达到该值，即判定上游是「整段缓冲后一次性下发」（大量第三方中转站）。
+ * 此时若照旧立即显示，屏幕会从空白直接跳到全文，并一次性完成整段 Markdown 解析，
+ * 表现为卡顿式喷出。达到阈值即进入分帧回放（纯显示层）。
+ * 真流式的增量远小于该阈值，走原有即时路径，零额外延迟。
+ */
+export const BUFFERED_ARRIVAL_THRESHOLD_CHARS = 240;
+/** 回放每拍间隔（与既有流式节流 60ms 一致，避免额外引入新的渲染节奏）。 */
+export const REVEAL_TICK_MS = 60;
+/** 每拍最少推进字符数，保证收尾阶段也能在少数几拍内结束。 */
+export const REVEAL_MIN_STEP_CHARS = 40;
+/** 每拍推进量 = max(下限, 积压 / 该值)：正文越长追得越快。 */
+export const REVEAL_CATCHUP_DIVISOR = 6;
+/** 单条回复回放总时长上限（毫秒）：超时直接补齐，避免长文播太久。 */
+export const REVEAL_MAX_MS = 1200;
+
 /** 返回一个节流 60ms 的内容更新函数，用于流式渲染中频控 setState。
  *
  * 性能优化要点（避免每次节流触发都做 O(sessions × messages) 双层 map 遍历）：
  *   1. 缓存 sessionIdx 和 msgIdx，下次校验 id 仍匹配则直接复用，命中为 O(1)
  *   2. 用 `arr.slice()` 浅拷贝 + 单点索引赋值替代 `arr.map(...)`，跳过闭包调用
  *   3. 仅在缓存失效时回退到 findIndex，避免每次都遍历整条 sessions/messages
+ *   4. 缓冲型到达（单次增量 ≥ 阈值）走分帧回放：到达仍按原样累计（权威数据不变），
+ *      只有"显示长度"按拍推进；取消、切换会话、最终提交都不受影响
  *
  * 缓存失效场景：sessions 被其他逻辑替换（如切换会话）、messages 被增删（如新消息插入）。
  * 此时缓存 id 校验不通过，自动回退到 findIndex 重新定位，安全无副作用。
@@ -82,8 +102,66 @@ export function buildThrottledUpdater(
     });
   };
 
+  // ─── 分帧回放状态（纯显示层）────────────────────────────────────────────────
+  // arrivedContentLength：上游已到达的权威正文长度（来自 responseChunks 累计）
+  // revealedContentLength：已经画到屏幕上的正文长度（永远 ≤ 到达长度，不回退）
+  // 说明：思考链不参与回放（可折叠块内、通常先于正文到达，整段显示不影响正文观感）
+  let arrivedContentLength = 0;
+  let revealedContentLength = 0;
+  let revealActive = false;
+  let revealStartedAt = 0;
+  let latestContent = "";
+  let latestReasoning: string | undefined;
+
+  /** 每拍把显示长度向到达长度推进；推进量随积压自适应，并有总时长上限。 */
+  const runRevealTick = () => {
+    pendingUpdateTimeoutRef.current = null;
+    if (!isStreamActiveRef.current) return;
+
+    const backlog = latestContent.length - revealedContentLength;
+    if (backlog <= 0) {
+      revealActive = false;
+      return;
+    }
+
+    const overBudget = performance.now() - revealStartedAt >= REVEAL_MAX_MS;
+    const step = overBudget
+      ? backlog
+      : Math.max(REVEAL_MIN_STEP_CHARS, Math.ceil(backlog / REVEAL_CATCHUP_DIVISOR));
+    revealedContentLength = Math.min(latestContent.length, revealedContentLength + step);
+    updateSessionsContent(latestContent.slice(0, revealedContentLength), latestReasoning);
+
+    if (revealedContentLength < latestContent.length) {
+      pendingUpdateTimeoutRef.current = setTimeout(runRevealTick, REVEAL_TICK_MS);
+    } else {
+      revealActive = false;
+    }
+  };
+
+  const scheduleRevealTick = (delayMs: number) => {
+    pendingUpdateTimeoutRef.current = setTimeout(runRevealTick, delayMs);
+  };
+
   const throttledUpdate = (content: string, reasoningContent?: string) => {
     if (!isStreamActiveRef.current) return;
+
+    const arrivalDelta = content.length - arrivedContentLength;
+    arrivedContentLength = content.length;
+    latestContent = content;
+    latestReasoning = reasoningContent;
+
+    // 缓冲型到达：进入（或保持）分帧回放，不再整段即时显示
+    if (arrivalDelta >= BUFFERED_ARRIVAL_THRESHOLD_CHARS && !revealActive) {
+      revealActive = true;
+      revealStartedAt = performance.now();
+    }
+    if (revealActive) {
+      if (pendingUpdateTimeoutRef.current === null) scheduleRevealTick(REVEAL_TICK_MS);
+      return;
+    }
+
+    // 即时路径（真流式）：显示长度与到达长度同步
+    revealedContentLength = content.length;
     const now = performance.now();
     if (isFirstToken) {
       isFirstToken = false;
@@ -101,7 +179,7 @@ export function buildThrottledUpdater(
     } else if (!pendingUpdateTimeoutRef.current) {
       pendingUpdateTimeoutRef.current = setTimeout(() => {
         pendingUpdateTimeoutRef.current = null;
-        if (!isStreamActiveRef.current) return;
+        if (!isStreamActiveRef.current || revealActive) return;
         lastUpdateTime = performance.now();
         updateSessionsContent(responseChunks.join(""), reasoningChunks.join(""));
       }, 60 - (now - lastUpdateTime));
