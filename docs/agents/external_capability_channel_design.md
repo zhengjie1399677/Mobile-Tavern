@@ -359,6 +359,21 @@ driver，因此它会被 Vite tree-shake —— 这是 M0 的已知状态，接�
 - 往提示词模板里写外部内容、或绕过工具直接拉取远端内容，都属于违反本表的做法。
 - 推送式上下文的通用落点见[通用上下文来源缝设计](context_source_seam_design.md)；MCP 资源不在该缝的范围内。
 
+### M3c 实施记录（2026-10-06，工作台接入与直连测试入口）
+
+- **接入界面**：`ThirdPartyMcpImportModal` 支持导入第三方 `mcpServers` 配置 / 单个 URL / 预置模板 / 手动添加，
+  解析在 `thirdPartyMcpParser` 中纯数据完成（不执行外部脚本），stdio 本地进程在移动端被拦截并给出原因。
+  鉴权头与鉴权方案经唯一转换入口 `presetToFormValues` → `formValuesToCandidate` 带出，秘密只进加密凭据库。
+- **能力视界**：`ToolCapabilitiesWidget` 提供巡检、测速、工具清单、诊断与删除；只读取运行时内存快照
+  （`IExternalSourceRuntimeService.getSnapshot`），不发网络请求；「重新探测」走既有 `probe`（连一次即释放）。
+- **用户直连测试入口（本表之外的显式例外）**：工作台的「测试调用」经
+  `IExternalSourceRuntimeService.testCallTool` **直接**调用已连接工具的 `callTool`，单次、**不进审批链、不写 Agent Journal**。
+  允许它存在的唯一理由：它是用户自己点出来的诊断动作，等价于「探测」，与被模型驱动的工具路径不同源。
+  因此它有三条硬约束——① 只允许工作台 UI 调用，任何 Agent / Prompt / 兼容层路径都不得引用；
+  ② 仍复用 `assertSourceActive`，来源停用/删除后立即 `EXTERNAL_SOURCE_REVOKED`；
+  ③ 它**不构成**"把外部内容送进模型"的第三条路径（结果只显示在工作台面板里，不进入 Prompt 或会话）。
+  若将来需要让模型试调，必须走既有 `policy: "ask"` 工具链，不得扩展此入口。
+
 ### M3a 实施记录（2026-10-05，资源只读工具）
 
 - 来源声明了资源时，运行时额外派生两个工具：`resources.list`（只读元数据，`policy: "allow"`、

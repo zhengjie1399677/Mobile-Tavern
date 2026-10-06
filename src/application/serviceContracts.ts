@@ -171,6 +171,17 @@ export interface IExternalSourceRuntimeService extends IKernelService {
   getDiagnostics(): ExternalSourceRuntimeDiagnostics;
   /** 只读探测：连一次并返回能力快照，不注册任何工具。 */
   probe(sourceId: string): Promise<ExternalCapabilitySnapshot>;
+  /** 获取当前活跃连接的能力快照（直接返回内存缓存，不发网络请求）。 */
+  getSnapshot(sourceId: string): ExternalCapabilitySnapshot | null;
+  /**
+   * 工作台的用户直连测试调用：单次、无审批链，仅用于人工诊断（不进入 Agent 工具链）。
+   * 仍然校验来源处于启用状态，撤销后立即失效。
+   */
+  testCallTool(
+    sourceId: string,
+    localName: string,
+    input: unknown,
+  ): Promise<{ result: unknown; durationMs: number }>;
 }
 
 /**

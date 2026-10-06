@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import WorkbenchTab from "../../src/tabs/WorkbenchTab";
 import { HostCalendarWidget } from "../../src/components/workbench/HostCalendarWidget";
@@ -49,9 +49,24 @@ vi.mock("../../src/application/useCases/toolPluginManagementUseCases", () => ({
   },
 }));
 
+// Mock 外部能力源用例：工作台小组件挂载即读取来源列表，测试不应依赖真实 IndexedDB
+vi.mock("../../src/application/externalSources/externalSourceUseCases", () => ({
+  externalSourceUseCases: {
+    list: vi.fn().mockResolvedValue([]),
+    setEnabled: vi.fn().mockResolvedValue(undefined),
+    save: vi.fn().mockResolvedValue(undefined),
+    remove: vi.fn().mockResolvedValue(undefined),
+    setCredential: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 describe("WorkbenchTab (宿主工作台)", () => {
-  it("应该正确挂载工作台与其核心纯可视化小组件", () => {
+  it("应该正确挂载工作台与其核心纯可视化小组件", async () => {
     render(<WorkbenchTab />);
+    // 小组件的异步加载必须在 act 窗口内收口，否则会在测试结束后刷 act 警告
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(screen.getByText("宿主工作台")).toBeInTheDocument();
     expect(screen.getByText("Host Engine Ready")).toBeInTheDocument();
     expect(screen.getByText("LOCAL TIME")).toBeInTheDocument();

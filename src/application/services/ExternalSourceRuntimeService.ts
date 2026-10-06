@@ -183,6 +183,10 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     };
   }
 
+  getSnapshot(sourceId: string): ExternalCapabilitySnapshot | null {
+    return this.connections.get(sourceId)?.handle.snapshot ?? null;
+  }
+
   async probe(sourceId: string): Promise<ExternalCapabilitySnapshot> {
     const store = this.deps.store ?? (await defaultStore());
     const source = await store.get(sourceId);
@@ -199,6 +203,39 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
       return handle.snapshot;
     } finally {
       await handle.dispose();
+    }
+  }
+
+  async testCallTool(
+    sourceId: string,
+    localName: string,
+    input: unknown,
+  ): Promise<{ result: unknown; durationMs: number }> {
+    // 与工具执行路径保持一致：来源被停用/删除后立即失效，不因为“只是测试”而放行。
+    await this.assertSourceActive(sourceId);
+    const entry = this.connections.get(sourceId);
+    if (!entry) throw new Error("EXTERNAL_SOURCE_NOT_CONNECTED");
+    const startTime = performance.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort(new Error("EXTERNAL_SOURCE_TOOL_TIMEOUT"));
+    }, DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS);
+    try {
+      const toolResult = await entry.handle.connected.callTool(localName, input, {
+        signal: controller.signal,
+        timeoutMs: DEFAULT_EXTERNAL_TOOL_TIMEOUT_MS,
+      });
+      const durationMs = Math.round(performance.now() - startTime);
+      return {
+        result: {
+          text: flattenExternalContent(toolResult.content),
+          raw: toolResult,
+          isError: toolResult.isError,
+        },
+        durationMs,
+      };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

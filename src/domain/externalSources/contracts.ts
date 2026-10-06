@@ -39,6 +39,7 @@ export const externalCapabilitySourceSchema = z
   .strict();
 
 export type ExternalCapabilitySource = z.infer<typeof externalCapabilitySourceSchema>;
+export type ExternalAuthScheme = "bearer" | "raw";
 
 /** 外部工具描述。description 属于外部不可信文本，消费前必须清洗与限长。 */
 export interface ExternalToolDescriptor {

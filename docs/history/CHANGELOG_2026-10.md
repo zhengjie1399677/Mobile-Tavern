@@ -1,5 +1,13 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-06：**工作台新增第三方 MCP 接入与单工具测试沙盒（外部能力 M3c）。**
+  1. **接入入口**：`ThirdPartyMcpImportModal` 提供三种来源——粘贴 Claude Desktop / Cursor 的 `mcpServers` 配置或单个 HTTP(S) URL（`thirdPartyMcpParser` 纯解析，不执行任何外部脚本）、选用预置模板（DeepWiki / Brave Search / GitHub 远端）、手动添加；stdio 本地进程在移动端不可运行，被显式拦截并在结果里给出原因，不做静默丢弃。
+  2. **鉴权字段收口**：预置模板声明了 `authHeader` / `authScheme` / `authPlaceholder`，此前只搬运 id/name/endpoint，导致 Brave 预置（`x-subscription-token` + `raw`）会以 `Authorization: Bearer` 发出而必然 401。现在 `presetToFormValues` → `formValuesToCandidate` 是唯一转换入口，鉴权头、方案与占位提示一路带出，秘密仍只经独立加密凭据库写入（来源记录里不出现明文）。
+  3. **能力视界**：`ToolCapabilitiesWidget` 改为「MCP / 宿主 Tool」双分签，支持一键巡检与逐来源测速、展开查看工具清单与连接诊断、删除来源；运行时契约补齐 `getSnapshot`（只读内存快照，不发网络请求）与 `testCallTool`（单次轻量测试调用），两者改为必选成员，避免调用方做无意义的存在性判断。
+  4. **测试入口的边界**：工作台「测试调用」是用户直连诊断入口，单次、不进审批链与 Agent Journal，但仍校验来源处于启用状态（`EXTERNAL_SOURCE_REVOKED` 语义与工具执行路径一致）；该例外已写入外部能力通道设计文档。
+  5. **顺带修复**：首次挂载加载加一次性守卫——`useUnifiedApp` 选择器返回的 `getKernelService` 引用一旦变化会连带重算 `loadPlugins` / `loadMcpSources`，无守卫时形成「effect → setState → 重渲染 → effect」的无限环。
+  6. **测试**：`thirdPartyMcpParser.test.ts` 增加预置 → 表单 → 候选的鉴权字段断言（含 Token 去空白、无鉴权模板不产生凭据字段）；`ToolCapabilitiesWidget.test.tsx` 增加「选用 Brave 预置并保存」端到端断言（保存的 source 必须带 `x-subscription-token` / `raw`，凭据按 id 写入），并让异步加载在 act 窗口内收口；`WorkbenchTab.test.tsx` 改为 mock 外部来源用例，不再依赖真实 IndexedDB。
+  验证：`npm run lint`、`npm run lint:all`、`npm run lint:changed`、`npm run check:i18n`、`npm test`、`npm run build` 全部通过。
 - 2026-10-06：**缓冲型到达改为分帧回放（修掉"空屏后一次性喷出"）。**
   1. **背景**：大量第三方中转站在整段生成期间不发字节、最后一次性下发全文，或直接忽略 `stream`。此时的到达是"一次一大段"，而显示侧此前是"到达即整段提交"，于是屏幕从空白直接跳到全文，并在同一帧完成整段 Markdown 解析，表现为卡顿式喷出。
   2. **策略**：`buildThrottledUpdater` 增加显示层回放——单次到达增量 ≥ `BUFFERED_ARRIVAL_THRESHOLD_CHARS`(240) 判定为缓冲型到达，进入回放；每 `REVEAL_TICK_MS`(60ms) 推进一拍，步长 = `max(40, 积压/6)`，总时长封顶 `REVEAL_MAX_MS`(1200ms) 后直接补齐，避免长文播很久。到达仍按原样累计（`responseChunks` 是唯一权威），只有"显示长度"被节流：**不改请求、不改提交时机、不改最终落库内容**。
