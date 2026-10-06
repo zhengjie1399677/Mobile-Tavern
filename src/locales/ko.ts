@@ -1379,4 +1379,5 @@ export default {
   "host_sync.preview_toggle": "동기화 전에 병합 미리보기와 확인 표시",
   "host_sync.preview_toggle_desc": "끄면 확인 창 없이 곧바로 실행됩니다. 안전 스냅샷은 그대로 저장됩니다.",
   "host_sync.preview_off_hint": "미리보기가 꺼져 있습니다. 버튼을 누르면 바로 동기화됩니다. 현재 설정이 무엇을 하는지 확인하세요.",
+  "chat.generating_elapsed": "{seconds}초",
 } as const;

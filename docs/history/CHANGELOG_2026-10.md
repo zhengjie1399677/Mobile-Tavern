@@ -1,5 +1,11 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-06：**首字预算放宽到 300s，并给生成等待期加屏幕计时。**
+  1. **首字等待 60s → 300s**：`DEFAULT_FIRST_CHUNK_TIMEOUT_MS` 放宽到 300_000。原因：大量第三方中转站在整段生成期间不发送任何字节（忽略 `stream` 或整段缓冲），60s 会把长回复与思考模型直接掐掉，而按「消耗 token 的请求不自动重试」的既定策略不会重发，等于丢一次回复。数据块心跳保持 60s（已开始收数据后的断流信号），超时仍自包含收口、仍不自动重试；挂死时用户可用输入区「停止生成」立即结束。
+  2. **等待计时（感官反馈）**：新增 `src/tabs/chat/message-bubble/GeneratingElapsed.tsx`，在首字到达前的「AI 正在构思…」行显示已等待秒数（`chat.generating_elapsed`，8 种语言）。起点取占位消息的 `timestamp`，因此切换会话/重新挂载后计时依旧正确；计时每秒只在自身组件内 `setState`，不带动 `MessageBubble` 与虚拟列表重渲染；本项纯显示层，不改变请求、超时与提交语义。
+  3. **顺带清理**：移除 `MessageBubble` 中从未渲染的 `TypingIndicator` 死导入（文件保留，可另行决定删除）。
+  4. **测试**：新增 `tests/vitest/GeneratingElapsed.test.tsx`（起点秒数、每秒推进、换新生成重置、缺起点不抛错，假定时器确定性断言）；`tests/vitest/twoPhaseTimeout.test.ts` 常量断言同步到 300s/60s。
+  验证：`npm run lint`、`npm run check:i18n`、`npx eslint --quiet`、上述 Vitest、`npm test` 全部通过。
 - 2026-10-06：**修复切换会话瞬间的整屏抖动（延迟渲染跨会话泄漏）。**
   1. **根因**：`DialogueHistoryView` 把整个消息数组交给 `useDeferredValue`（流式期间每 60ms 一次更新的低优先级提交）。会话切换后延迟值仍指向上一个会话的消息数组，React 会先把上一会话整屏消息渲染进新会话，随后整体替换；底部一次性定位与虚拟列表 `anchorTo:"end"` 又按错误列表计算，于是切换瞬间出现整屏抖动与错误滚动位置。最新回复带候选分支（swipes）时该行更高，最后一跳更明显。
   2. **修法**：把「会话 id + 消息列表」打包成同一载荷 `SessionMessageListPayload`，由纯函数 `resolveRenderedMessageList`（`src/tabs/chat/utils.ts`）判定归属：同会话才使用延迟值，跨会话立即使用原始列表。延迟渲染在同会话内的收益（滚动/输入即时响应）完整保留。

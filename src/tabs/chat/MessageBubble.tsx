@@ -17,7 +17,7 @@ import { useUnifiedApp, unifiedAppStore } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 import { handleGenerateImageForMessage } from "./imageGenerationHandler";
-import TypingIndicator from "./TypingIndicator";
+import GeneratingElapsed from "./message-bubble/GeneratingElapsed";
 import QuickDialogueOptions from "./QuickDialogueOptions";
 import CloudLoader from "../../components/CloudLoader";
 import type { Message } from "../../types";
@@ -760,6 +760,8 @@ const MessageBubble = ({
                     <div className="flex items-center gap-2.5 py-0.5 select-none animate-pulse">
                       <CloudLoader size={26} />
                       <span className="text-xs text-muted-foreground/80 font-light">{t("message_bubble.ai_composing")}</span>
+                      {/* 等待计时：没有任何输出时给用户一个"已在推进"的感官反馈 */}
+                      <GeneratingElapsed startedAt={message.timestamp} />
                     </div>
                   ) : !message.content?.trim() ? (
                     <span className="text-xs text-muted-foreground/60 italic select-none">{t("message_bubble.no_content")}</span>

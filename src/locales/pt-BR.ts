@@ -1346,4 +1346,5 @@ export default {
   "host_sync.preview_toggle": "Mostrar a prévia da mesclagem e pedir confirmação antes de sincronizar",
   "host_sync.preview_toggle_desc": "Se desativado, a sincronização roda imediatamente, sem diálogo de confirmação; o snapshot de segurança continua sendo salvo.",
   "host_sync.preview_off_hint": "Prévia desativada: ao pressionar um botão a sincronização começa na hora. Certifique-se de saber o que a configuração atual fará.",
+  "chat.generating_elapsed": "{seconds}s",
 } as const;

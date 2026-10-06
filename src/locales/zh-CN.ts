@@ -1417,4 +1417,5 @@ export default {
   "host_sync.preview_toggle": "同步前显示合并预览与确认",
   "host_sync.preview_toggle_desc": "关闭后同步直接执行，不再弹出确认框；仍会留存安全快照。",
   "host_sync.preview_off_hint": "已关闭预览：点下按钮即执行同步，请确认你清楚当前配置会做什么。",
+  "chat.generating_elapsed": "{seconds} 秒",
 } as const;

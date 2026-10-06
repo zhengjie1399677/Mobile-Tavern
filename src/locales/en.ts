@@ -1418,4 +1418,5 @@ export default {
   "host_sync.preview_toggle": "Show merge preview and confirmation before syncing",
   "host_sync.preview_toggle_desc": "When off, syncing runs immediately with no confirmation dialog; a safety snapshot is still saved.",
   "host_sync.preview_off_hint": "Preview is off: pressing a button syncs right away. Make sure you know what the current configuration will do.",
+  "chat.generating_elapsed": "{seconds}s",
 } as const;

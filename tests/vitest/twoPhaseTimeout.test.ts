@@ -62,8 +62,10 @@ function stallUntilCancelledResponse(): Response {
 }
 
 describe("两阶段动态心跳超时方案 (Two-Phase Dynamic Heartbeat Timeout)", () => {
-  it("默认配置常量满足设计规范：首字等待 60s，心跳 60s（与主流客户端一致）", () => {
-    expect(DEFAULT_FIRST_CHUNK_TIMEOUT_MS).toBe(60_000);
+  it("默认配置常量满足设计规范：首字等待 300s（缓冲型中转站），心跳 60s", () => {
+    // 2026-10-06：首字由 60s 放宽到 300s —— 中转站常在整段生成期间不发字节，
+    // 60s 会掐掉长回复且按策略不自动重试；心跳仍为 60s（已开始收数据后的断流信号）。
+    expect(DEFAULT_FIRST_CHUNK_TIMEOUT_MS).toBe(300_000);
     expect(DEFAULT_CHUNK_HEARTBEAT_TIMEOUT_MS).toBe(60_000);
   });
 

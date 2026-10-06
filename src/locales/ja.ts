@@ -1336,4 +1336,5 @@ export default {
   "host_sync.preview_toggle": "同期前にマージのプレビューと確認を表示する",
   "host_sync.preview_toggle_desc": "オフにすると確認ダイアログなしで即実行されます。安全スナップショットは保存されます。",
   "host_sync.preview_off_hint": "プレビューはオフです。ボタンを押すとすぐに同期されます。現在の設定で何が起きるか確認してください。",
+  "chat.generating_elapsed": "{seconds}秒",
 } as const;

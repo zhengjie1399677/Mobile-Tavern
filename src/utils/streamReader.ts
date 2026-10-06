@@ -13,7 +13,18 @@ import { Logger } from "./logger";
 
 const logger = Logger.create("streamReader");
 
-export const DEFAULT_FIRST_CHUNK_TIMEOUT_MS = 60_000;
+/**
+ * 首字（首包）等待超时（毫秒）。
+ *
+ * 2026-10-06 由 60s 放宽到 300s：大量第三方中转站在整段生成期间不发送任何字节
+ * （忽略 `stream` 或整段缓冲后一次性下发），60s 会把长回复与思考模型直接掐掉，
+ * 而按「消耗 token 的请求不自动重试」的既定策略不会重发，等于丢一次回复。
+ * 300s 与 OpenAI / Anthropic SDK 的总超时（600s）同量级；真的挂死时用户可以
+ * 立即用输入区的「停止生成」结束，不必依赖计时器兜底。
+ * 数据块心跳（`DEFAULT_CHUNK_HEARTBEAT_TIMEOUT_MS`）保持 60s：那是"已经开始
+ * 收到数据后断流"的信号，与等待首包不是同一类问题。
+ */
+export const DEFAULT_FIRST_CHUNK_TIMEOUT_MS = 300_000;
 /**
  * 数据块活跃心跳超时（毫秒）。
  *

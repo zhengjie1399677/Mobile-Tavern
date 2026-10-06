@@ -1336,4 +1336,5 @@ export default {
   "host_sync.preview_toggle": "Mostrar la vista previa de la fusión y pedir confirmación antes de sincronizar",
   "host_sync.preview_toggle_desc": "Si se desactiva, la sincronización se ejecuta al instante sin diálogo de confirmación; la instantánea de seguridad se guarda igualmente.",
   "host_sync.preview_off_hint": "Vista previa desactivada: al pulsar un botón se sincroniza de inmediato. Asegúrate de saber qué hará la configuración actual.",
+  "chat.generating_elapsed": "{seconds} s",
 } as const;
