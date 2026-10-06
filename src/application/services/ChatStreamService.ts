@@ -19,20 +19,20 @@ import { normalizeProviderStreamChunk } from "./llmCompatibility";
 
 const logger = Logger.create("ChatStreamService");
 
-/** 瞬态断流自动重试次数上限（仅在未向消费方输出任何内容时生效）。 */
-const STREAM_INTERRUPT_RETRY_LIMIT = 1;
-
 /** 单次流式请求的最终结果：ok=true 正常结束；ok=false 携带失败原因。 */
 type AttemptOutcome = { ok: true } | { ok: false; error: unknown };
 
 /**
- * 判断是否为可自动重试的瞬态断流。
+ * 判断是否为响应体读取中途的断流。
  *
  * 真机上 LLM 请求经 tauri-plugin-http → Rust reqwest 发出；响应体读取中途的任何
  * 连接中断（连接重置 / 截断 / 超时）都会被 reqwest 统一归类为 Decode 错误，
- * 对外表现为 "error decoding response body"。此类错误与请求内容无关，重试一次安全。
+ * 对外表现为 "error decoding response body"。
+ *
+ * 仅用于给错误补上目标主机与已接收字节数，**不用于自动重发**：重发会让上游
+ * 重新生成一次回复（消耗 token），是否重发只能由用户显式点“重发”决定。
  */
-function isTransientStreamInterrupt(err: unknown): boolean {
+function isResponseBodyInterrupt(err: unknown): boolean {
   return /error decoding response body/i.test(getErrorMessage(err));
 }
 
@@ -84,52 +84,23 @@ export class ChatStreamService implements IChatStreamService {
   }
 
   async *streamLlmResponse(params: StreamParams): AsyncGenerator<StreamChunk, void, unknown> {
-    const log = params.traceId ? logger.withTrace(params.traceId) : logger;
-    // 只有从未向消费方输出任何 chunk 时，瞬态断流才可安全重试；
-    // 已输出部分内容后重试会造成重复文本，此时直接抛错交给上层保存"部分内容"。
-    let yieldedAny = false;
-
-    for (let attempt = 1; attempt <= STREAM_INTERRUPT_RETRY_LIMIT + 1; attempt++) {
-      const attemptGen = this.attemptStream(params);
-      let outcome: AttemptOutcome | null = null;
-      try {
-        while (true) {
-          const next = await attemptGen.next();
-          if (next.done) {
-            outcome = next.value;
-            break;
-          }
-          yieldedAny = true;
-          yield next.value;
+    // 单次请求，绝不自动重发：断流后重发会让上游重新生成一次回复（消耗 token），
+    // 与「一切消耗 token 的请求都不自动重试」的既定策略冲突。已收到的内容照常
+    // 交付给上层，剩余部分由用户在界面上显式“重发”。
+    const attemptGen = this.attemptStream(params);
+    try {
+      while (true) {
+        const next = await attemptGen.next();
+        if (next.done) {
+          if (!next.value.ok) throw next.value.error;
+          return;
         }
-      } catch (err) {
-        outcome = { ok: false, error: err };
-      } finally {
-        // 消费方提前退出（break/return/throw）时关闭当前 attempt 的 generator，
-        // 触发其 finally 清理后台 readSSEStream；返回值为空载体，无人消费。
-        await attemptGen.return({ ok: true }).catch(() => {});
+        yield next.value;
       }
-
-      if (!outcome) {
-        // 仅在消费方提前退出时可达；防御性兜底。
-        return;
-      }
-      if (outcome.ok) return;
-
-      const lastError = outcome.error;
-      if (
-        attempt <= STREAM_INTERRUPT_RETRY_LIMIT &&
-        !yieldedAny &&
-        isTransientStreamInterrupt(lastError)
-      ) {
-        log.warn("检测到流式响应体读取中断（error decoding response body），自动重试一次", {
-          attempt,
-          baseUrl: extractHost(params.baseUrl),
-          error: getErrorMessage(lastError),
-        });
-        continue;
-      }
-      throw lastError;
+    } finally {
+      // 消费方提前退出（break/return/throw）时关闭当前 attempt 的 generator，
+      // 触发其 finally 清理后台 readSSEStream；返回值为空载体，无人消费。
+      await attemptGen.return({ ok: true }).catch(() => {});
     }
   }
 
@@ -333,7 +304,7 @@ export class ChatStreamService implements IChatStreamService {
     if (
       err instanceof StreamTimeoutError ||
       getErrorName(err) === "AbortError" ||
-      !isTransientStreamInterrupt(err)
+      !isResponseBodyInterrupt(err)
     ) {
       return err;
     }

@@ -7,6 +7,7 @@
 | 关闭重开后消息顺序错乱 | `ChatContext.tsx`、`chatMessageHydration.ts`、`indexedDbSessionQueries.ts` | `tests/suites/paginationAndArchival.test.ts` |
 | 重发未覆盖旧回复或出现双回复 | `useRerollMessage.ts`、`replaceSessionBranch` | `tests/vitest/useRerollMessage.test.ts`、`tests/suites/turnIndexConsistency.test.ts` |
 | 流式输出卡顿、跳字、丢字 | `useChat.tsx`、`useSendMessage.ts`、`streamHelpers.ts`、`ChatStreamService.ts` | 流式输出相关 Vitest 与系统测试 |
+| LLM 请求发不出去（`error sending request for url`） | `ChatStreamService.ts`、`LLMService.ts`、`@tauri-apps/plugin-http`（原生端由 Rust reqwest 发请求） | 设置 → 系统报告（`/api/test-connection` 走同一通道）；复现时抓 logcat/JS 日志；此类错误不自动重试 |
 | 会话、角色或记忆数据异常 | `DatabaseService.ts`、`src/infrastructure/storage/` | 命中存储测试后运行 `npm test` |
 | Prompt 组装或世界书触发异常 | `PromptService.ts`、`src/application/services/prompt/`、`promptBuilder.ts` | Prompt 与世界书相关测试 |
 | 应用服务未注册或降级异常 | `Kernel.ts`、`src/application/serviceSchemas/`、`registerCoreServices.ts` | Kernel Schema 与架构边界测试 |

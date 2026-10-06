@@ -1,5 +1,10 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-06：**统一聊天请求重试策略：一切消耗 token 的请求都不自动重试。**
+  1. **移除流式断流自动重发**：`ChatStreamService` 原先在"未向消费方输出任何内容"时对 `error decoding response body`（reqwest 读取响应体中途断流的统一报错）自动重发一次。该重发会让上游重新生成一次回复、重复计费，与既定策略冲突，现已删除；断流只保留诊断增强（目标主机 + 已接收字节数），错误原样交给上层。重试判断函数更名为 `isResponseBodyInterrupt`，仅用于补诊断，不再触发任何重发。
+  2. **行为口径**：首包未交付即失败 → 保留用户消息并提示失败；已交付部分内容 → 保留「内容 + 连接中断」标记；两者都不重发，是否重发由用户在聊天界面显式触发（`useRerollMessage`）。与既有 `tests/vitest/twoPhaseTimeout.test.ts`、`tests/vitest/useSendMessage.test.ts` 的"不自动重试"断言口径一致。
+  3. **测试同步**：`tests/suites/chatStreamRetry.test.ts` 更名为 `tests/suites/chatStreamInterrupt.test.ts`，原"瞬态断流自动重试一次"用例反转为"只发 1 次请求 + 错误带诊断"，另两条（部分内容后断流、非瞬态错误）保持"不重发"语义；`tests/suites/index.ts`、`tests/run_all_tests.ts` 同步更新。
+  验证：`npm run lint`、`npx eslint --quiet`、`tests/suites/chatStreamInterrupt.test.ts`、`tests/vitest/twoPhaseTimeout.test.ts` + `tests/vitest/useSendMessage.test.ts`、`npm test` 全部通过。
 - 2026-10-05：**修复代码审查发现的候选分支、提示词去重与流式超时缺陷，并清理死代码。**
   1. **末尾候选分支（swipes）数据链路修复**：`swipeIndex` / `swipeReasonings` 纳入 messages Store 记录并双向往返，重启后不再丢失候选推理；候选追加、5 条容量与先进先出淘汰、固化统一收口到 `src/domain/chat/messageSwipes.ts`（原先"重掷生成""候选翻页""下一轮固化"三条路径各写一份隐式约定）；`MessageSwiper` 不再条件调用 Hook（修掉 `lint:changed` 的 rules-of-hooks 错误）。
   2. **固化不再清空派生记忆**：`updateSessionMessage` 在正文未变化（只剥离候选字段）时跳过记忆片段、事实与记忆字典的失效，避免发下一条消息或候选翻页时静默丢掉最新一轮抽取结果；新增 fake-indexeddb 回归用例锁定"未变更保留 / 变更失效"两种语义。

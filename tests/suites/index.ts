@@ -69,10 +69,10 @@ export {
 } from "./services.test";
 
 export {
-  testChatStreamRetryOnDecodeError,
+  testChatStreamNoRetryOnInterruptBeforeContent,
   testChatStreamNoRetryAfterPartialContent,
   testChatStreamNoRetryOnNonTransientError,
-} from "./chatStreamRetry.test";
+} from "./chatStreamInterrupt.test";
 
 export {
   testCssSanitization,

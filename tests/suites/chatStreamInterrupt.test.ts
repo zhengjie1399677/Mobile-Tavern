@@ -1,17 +1,14 @@
 /**
- * ChatStreamService 流式中断加固测试
+ * ChatStreamService 流式中断行为测试
  *
- * 背景：真机 LLM 流式请求偶发 "error decoding response body"（reqwest 在读取
- * 响应体中途断流时的统一报错）。加固策略：
- *  - 未输出任何内容时对该类瞬态断流自动重试一次；
- *  - 已输出部分内容时不得重试（避免重复文本），直接抛错；
- *  - 错误信息补充目标主机与已接收字节数，便于定位；
- *  - 非瞬态错误（超时提示、[API Error] 等）保持原样透传。
+ * 背景：真机 LLM 流式请求偶发 "error decoding response body"（reqwest 在读取响应体
+ * 中途断流时的统一报错）。既定策略：**一切消耗 token 的请求都不自动重试**，因此断流
+ * 只做诊断增强，绝不重发；重发只能由用户在界面上显式触发。
  *
  * 覆盖：
- *  - testChatStreamRetryOnDecodeError：首个请求瞬态断流时自动重试一次
- *  - testChatStreamNoRetryAfterPartialContent：已输出内容后断流不重试且错误带诊断信息
- *  - testChatStreamNoRetryOnNonTransientError：非瞬态错误不重试且不加诊断包装
+ *  - testChatStreamNoRetryOnInterruptBeforeContent：首包交付前断流不重发（只发 1 次请求）
+ *  - testChatStreamNoRetryAfterPartialContent：已输出内容后断流不重发且错误带诊断信息
+ *  - testChatStreamNoRetryOnNonTransientError：非瞬态错误不重发且不加诊断包装
  */
 
 import { Kernel } from "../../src/kernel/Kernel";
@@ -20,18 +17,6 @@ import type { ILLMService, IKernelService, StreamChunk } from "@/src/application
 import { assert } from "./testUtils";
 
 type MockFetchImpl = ILLMService["universalFetch"];
-
-/** 构造一个完整可正常结束的 SSE 响应。 */
-function createSseResponse(content: string): Response {
-  return new Response(
-    new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(content));
-        controller.close();
-      },
-    })
-  );
-}
 
 /**
  * 构造"先输出若干段字节，随后以指定错误中断"的响应，模拟响应体读取中途失败。
@@ -64,45 +49,48 @@ async function createChatStream(fetchImpl: MockFetchImpl): Promise<{ service: Ch
   return { service, kernel };
 }
 
-export async function testChatStreamRetryOnDecodeError() {
-  console.log("\n--- ChatStreamService 瞬态断流自动重试 ---");
-  const okSse =
-    `data: {"choices":[{"delta":{"content":"重试成功"}}]}\n\n` +
-    `data: [DONE]\n\n`;
+export async function testChatStreamNoRetryOnInterruptBeforeContent() {
+  console.log("\n--- ChatStreamService 首包交付前断流不重发 ---");
 
   let calls = 0;
   const fetchImpl: MockFetchImpl = async () => {
     calls += 1;
-    if (calls === 1) {
-      // 首包未完整收到即断流，属于可安全重试的瞬态失败。
-      return createInterruptedResponse(
-        [`data: {"choices":[{"delta":{"content":"partial`],
-        new Error("error decoding response body: connection closed before message completed")
-      );
-    }
-    return createSseResponse(okSse);
+    // 首包未完整收到即断流：过去会被当作"可安全重试"，现在必须直接失败。
+    return createInterruptedResponse(
+      [`data: {"choices":[{"delta":{"content":"partial`],
+      new Error("error decoding response body: connection closed before message completed")
+    );
   };
 
   const { service, kernel } = await createChatStream(fetchImpl);
   const chunks: StreamChunk[] = [];
-  for await (const chunk of service.streamLlmResponse({
-    baseUrl: "https://api.deepseek.com/v1",
-    apiKey: "mock",
-    reqBody: {},
-  })) {
-    chunks.push(chunk);
+  let thrown: unknown = null;
+  try {
+    for await (const chunk of service.streamLlmResponse({
+      baseUrl: "https://api.deepseek.com/v1",
+      apiKey: "mock",
+      reqBody: {},
+    })) {
+      chunks.push(chunk);
+    }
+  } catch (err) {
+    thrown = err;
   }
 
-  assert(calls === 2, "瞬态断流应自动重试一次（共 2 次请求）");
-  assert(chunks.length === 1, "第二次请求应正常输出内容");
-  assert(chunks[0].choices?.[0]?.delta?.content === "重试成功", "重试后内容正确");
+  assert(calls === 1, `消耗 token 的请求不得自动重发，实际请求 ${calls} 次`);
+  assert(chunks.length === 0, "未完整收到首包时不应交付任何 chunk");
+  assert(thrown instanceof Error, "应抛出错误交给上层提示");
+  const msg = (thrown as Error).message;
+  assert(msg.includes("error decoding response body"), "保留原始错误信息");
+  assert(msg.includes("api.deepseek.com"), "错误信息包含目标主机");
+  assert(msg.includes("已接收"), "错误信息包含已接收字节数");
 
   await kernel.destroy();
-  console.log("✔ 瞬态断流自动重试 verified successfully!");
+  console.log("✔ 首包交付前断流不重发 verified successfully!");
 }
 
 export async function testChatStreamNoRetryAfterPartialContent() {
-  console.log("\n--- ChatStreamService 已输出内容后断流不重试 ---");
+  console.log("\n--- ChatStreamService 已输出内容后断流不重发 ---");
 
   let calls = 0;
   const fetchImpl: MockFetchImpl = async () => {
@@ -128,7 +116,7 @@ export async function testChatStreamNoRetryAfterPartialContent() {
     thrown = err;
   }
 
-  assert(calls === 1, "已输出内容后断流不得重试");
+  assert(calls === 1, "已输出内容后断流不得重发");
   assert(chunks.length === 1, "首个请求的部分内容已交付");
   assert(thrown instanceof Error, "应抛出错误");
   const msg = (thrown as Error).message;
@@ -137,11 +125,11 @@ export async function testChatStreamNoRetryAfterPartialContent() {
   assert(msg.includes("已接收"), "错误信息包含已接收字节数");
 
   await kernel.destroy();
-  console.log("✔ 已输出内容后断流不重试 verified successfully!");
+  console.log("✔ 已输出内容后断流不重发 verified successfully!");
 }
 
 export async function testChatStreamNoRetryOnNonTransientError() {
-  console.log("\n--- ChatStreamService 非瞬态错误不重试 ---");
+  console.log("\n--- ChatStreamService 非瞬态错误不重发 ---");
 
   let calls = 0;
   const fetchImpl: MockFetchImpl = async () => {
@@ -164,12 +152,12 @@ export async function testChatStreamNoRetryOnNonTransientError() {
     thrown = err;
   }
 
-  assert(calls === 1, "非瞬态错误不重试");
+  assert(calls === 1, "非瞬态错误不重发");
   assert(thrown instanceof Error, "应抛出错误");
   const msg = (thrown as Error).message;
   assert(msg.includes("60000ms"), "保留原始错误信息");
   assert(!msg.includes("已接收"), "非瞬态错误不追加诊断包装");
 
   await kernel.destroy();
-  console.log("✔ 非瞬态错误不重试 verified successfully!");
+  console.log("✔ 非瞬态错误不重发 verified successfully!");
 }
