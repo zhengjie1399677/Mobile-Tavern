@@ -1,5 +1,10 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-06：**修复切换会话瞬间的整屏抖动（延迟渲染跨会话泄漏）。**
+  1. **根因**：`DialogueHistoryView` 把整个消息数组交给 `useDeferredValue`（流式期间每 60ms 一次更新的低优先级提交）。会话切换后延迟值仍指向上一个会话的消息数组，React 会先把上一会话整屏消息渲染进新会话，随后整体替换；底部一次性定位与虚拟列表 `anchorTo:"end"` 又按错误列表计算，于是切换瞬间出现整屏抖动与错误滚动位置。最新回复带候选分支（swipes）时该行更高，最后一跳更明显。
+  2. **修法**：把「会话 id + 消息列表」打包成同一载荷 `SessionMessageListPayload`，由纯函数 `resolveRenderedMessageList`（`src/tabs/chat/utils.ts`）判定归属：同会话才使用延迟值，跨会话立即使用原始列表。延迟渲染在同会话内的收益（滚动/输入即时响应）完整保留。
+  3. **测试**：新增 `tests/vitest/chatMessageList.test.ts`，钉住「同会话用延迟列表 / 跨会话绝不用 / 追上后引用一致」三条语义。
+  验证：`npm run lint`、`npx eslint --quiet`、`tests/vitest/chatMessageList.test.ts`、`npm test` 全部通过。
 - 2026-10-06：**修复 API 通道档案「看起来被合并」的编辑语义缺陷。**
   1. **根因**：档案只有「另存」而没有写回路径，且编辑 Base URL / API Key 会立刻把 `currentApiProfileId` 清空退回「临时调试配置」。用户在选中档案后改字段，改的其实是临时表单，档案本体没动；之后再点「另存」，新档案就是当前表单的副本，于是两条档案内容一模一样 —— 看起来像被合并（存储层始终是数组、逐条独立加密，无数据合并）。
   2. **投影/脏检查单点化**：新增 `src/domain/api/apiProfiles.ts`，把「档案承载字段清单」「选择通道的投影」「未保存判据」「另存构造」收口到同一处；`savedUrls` / `contextLimit` / `sendNames` 等表单专属字段在切换通道时保持不动（与历史语义一致，档案未声明字段仍按 `undefined` 覆盖）。

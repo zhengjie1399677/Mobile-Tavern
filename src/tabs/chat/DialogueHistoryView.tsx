@@ -19,6 +19,10 @@ import ChatInputArea from "./ChatInputArea";
 import MessageBubble from "./MessageBubble";
 import AgentToolActivity from "./message-bubble/AgentToolActivity";
 import type { Message } from "../../types";
+import {
+  resolveRenderedMessageList,
+  type SessionMessageListPayload,
+} from "./utils";
 
 interface DialogueHistoryViewProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -85,19 +89,29 @@ const DialogueHistoryView = ({
 
   const [swipedMsgId, setSwipedMsgId] = React.useState<string | null>(null);
 
-  // 过滤隐藏的野牛静默消息
-  const rawMessages = (activeSession?.messages || []).filter((message: Message) =>
-    !message.extra?.isBisonSilent
+  // 过滤隐藏的野牛静默消息；与会话 id 打包，供延迟渲染判定列表归属
+  const rawList = React.useMemo<SessionMessageListPayload>(
+    () => ({
+      sessionId: activeSession?.id ?? null,
+      messages: (activeSession?.messages || []).filter((message: Message) =>
+        !message.extra?.isBisonSilent
+      ),
+    }),
+    [activeSession?.id, activeSession?.messages],
   );
   const isMessageHydrated = !activeSession?.id || messageHydrationStatus === "ready";
 
   // 性能优化：流式期间 activeSession.messages 每 60ms 触发一次 setSessionViews，
-  // 若直接驱动 visibleMessages.map 渲染会阻塞用户滚动等高优先级交互。
-  // useDeferredValue 让 React 把"消息列表变化"降级为低优先级更新，
-  // 高优先级更新（滚动、点击、输入）能立即响应，流式文本延迟到下次空闲帧合并提交。
-  // 注意：isStreamingThisMsg 判断走可选 Compatibility Host 的同步生成状态，
+  // 若直接驱动渲染会阻塞用户滚动等高优先级交互。useDeferredValue 让 React 把
+  // "消息列表变化"降级为低优先级更新，高优先级更新（滚动、点击、输入）立即响应。
+  // 注意：延迟值只允许在同一会话内生效——切换会话后 deferred 仍指向上一个会话的
+  // 消息，直接渲染会把上一会话整屏画进新会话，并让底部锚定按错误列表定位，
+  // 表现为切换瞬间的整屏抖动（带候选分支的最新回复行更高，最后一跳更明显）。
+  // 归属判定见 resolveRenderedMessageList。
+  // 另注：isStreamingThisMsg 判断走可选 Compatibility Host 的同步生成状态，
   // 不依赖此处的 deferred 值，流式渲染判断逻辑不受影响。
-  const messagesToRender = React.useDeferredValue(rawMessages);
+  const deferredList = React.useDeferredValue(rawList);
+  const messagesToRender = resolveRenderedMessageList(rawList, deferredList);
 
   // 仅当当前渲染列表中确实存在正在被编辑的消息时才解除底部锚定，杜绝跨会话残留 ID 导致虚拟列表永久失锚
   const isEditingAnyMessage = Boolean(
