@@ -8,6 +8,7 @@ import {
   KeySquare,
   Plus,
   RefreshCw,
+  Save,
   Sliders,
   Sparkles,
   Trash2,
@@ -31,6 +32,12 @@ import { Input } from "../../../../components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import SettingsToggleRow from "../SettingsToggleRow";
 import ReasoningStrengthRow from "../ReasoningStrengthRow";
+import {
+  applyApiProfileToApi,
+  createApiProfileFromApi,
+  isApiProfileDirty,
+  pickApiProfileFields,
+} from "../../../domain/api/apiProfiles";
 
 export type SaveState = "idle" | "saving" | "saved";
 
@@ -79,6 +86,18 @@ export default function ApiConfigSection({
   const activeProfile = (settings.savedApiProfiles || []).find(
     (p) => p.id === settings.currentApiProfileId
   );
+  // 表单与档案不一致时给出“未保存”提示，并让切换动作先确认。
+  // 判据见 domain/api/apiProfiles：只比较档案承载的字段。
+  const isProfileDirty = activeProfile ? isApiProfileDirty(settings.api, activeProfile) : false;
+  const saveChangesToActiveProfile = () => {
+    if (!settings.currentApiProfileId || !activeProfile) return;
+    updateSettings((prev) => ({
+      ...prev,
+      savedApiProfiles: (prev.savedApiProfiles || []).map((p) =>
+        p.id === settings.currentApiProfileId ? { ...p, ...pickApiProfileFields(prev.api) } : p
+      ),
+    }));
+  };
 
   const isTesting = Boolean(connectionStatus?.testing);
 
@@ -142,9 +161,13 @@ export default function ApiConfigSection({
         <div className="flex items-center gap-1.5 p-1 bg-muted/40 rounded-xl border border-border/60">
           <div className="flex-1 min-w-0">
             <Select
-              aria-label={t("api.select_profile")}
               value={settings.currentApiProfileId || "temp"}
-              onValueChange={(val) => {
+              onValueChange={async (val) => {
+                // 切换前先确认，避免“改了没保存就切走”的静默丢失（需要保留可先“另存”）。
+                if (isProfileDirty && activeProfile) {
+                  const ok = await showCustomConfirm(t("api.profile_discard_confirm"));
+                  if (!ok) return;
+                }
                 if (val === "temp") {
                   updateSettings((prev) => ({
                     ...prev,
@@ -156,27 +179,16 @@ export default function ApiConfigSection({
                     updateSettings((prev) => ({
                       ...prev,
                       currentApiProfileId: val ?? "",
-                      api: {
-                        ...prev.api,
-                        type: target.type,
-                        baseUrl: target.baseUrl,
-                        apiKey: target.apiKey,
-                        modelName: target.modelName,
-                        chatPath: target.chatPath,
-                        modelsPath: target.modelsPath,
-                        bypassProxy: target.bypassProxy,
-                        disableReasoning: target.disableReasoning,
-                        reasoningStrength: target.reasoningStrength,
-                        forceBasicParams: target.forceBasicParams,
-                        supportsVision: target.supportsVision,
-                        supportsAudioInput: target.supportsAudioInput,
-                      },
+                      api: applyApiProfileToApi(prev.api, target),
                     }));
                   }
                 }
               }}
             >
-              <SelectTrigger className="h-7.5 rounded-lg bg-background/90 border-none text-xs w-full truncate shadow-none font-medium">
+              <SelectTrigger
+                aria-label={t("api.select_profile")}
+                className="h-7.5 rounded-lg bg-background/90 border-none text-xs w-full truncate shadow-none font-medium"
+              >
                 <SelectValue placeholder={t("api.select_profile")}>
                   {(() => {
                     if (!settings.currentApiProfileId) return t("api.temp_profile");
@@ -197,6 +209,15 @@ export default function ApiConfigSection({
             </Select>
           </div>
 
+          {isProfileDirty && (
+            <span
+              className="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600"
+              title={t("api.profile_unsaved")}
+            >
+              {t("api.profile_unsaved")}
+            </span>
+          )}
+
           <button
             type="button"
             onClick={async () => {
@@ -206,22 +227,7 @@ export default function ApiConfigSection({
               );
               if (name && name.trim()) {
                 const newId = "profile_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-                const newProfile = {
-                  id: newId,
-                  name: name.trim(),
-                  type: settings.api.type,
-                  baseUrl: settings.api.baseUrl,
-                  apiKey: settings.api.apiKey,
-                  modelName: settings.api.modelName,
-                  chatPath: settings.api.chatPath,
-                  modelsPath: settings.api.modelsPath,
-                  bypassProxy: settings.api.bypassProxy,
-                  disableReasoning: settings.api.disableReasoning,
-                  reasoningStrength: settings.api.reasoningStrength,
-                  forceBasicParams: settings.api.forceBasicParams,
-                  supportsVision: settings.api.supportsVision,
-                  supportsAudioInput: settings.api.supportsAudioInput,
-                };
+                const newProfile = createApiProfileFromApi(settings.api, newId, name.trim());
                 updateSettings((prev) => ({
                   ...prev,
                   savedApiProfiles: [...(prev.savedApiProfiles || []), newProfile],
@@ -238,6 +244,18 @@ export default function ApiConfigSection({
 
           {settings.currentApiProfileId && activeProfile && (
             <>
+              {isProfileDirty && (
+                <button
+                  type="button"
+                  onClick={saveChangesToActiveProfile}
+                  className="h-7.5 px-2.5 flex items-center gap-1 rounded-lg border border-primary/25 bg-primary/15 text-xs font-semibold text-primary transition hover:bg-primary/25 active:scale-95 shrink-0"
+                  title={t("api.profile_save_tip")}
+                  aria-label={t("api.profile_save_tip")}
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{t("api.profile_save")}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={async () => {
@@ -296,7 +314,6 @@ export default function ApiConfigSection({
                 onClick={() => {
                   updateSettings((prev) => ({
                     ...prev,
-                    currentApiProfileId: "",
                     api: {
                       ...prev.api,
                       baseUrl: preset.u,
@@ -367,7 +384,6 @@ export default function ApiConfigSection({
                 const val = e.target.value;
                 updateSettings((prev) => ({
                   ...prev,
-                  currentApiProfileId: "",
                   api: { ...prev.api, baseUrl: val },
                 }));
               }}
@@ -398,7 +414,6 @@ export default function ApiConfigSection({
                   const val = e.target.value;
                   updateSettings((prev) => ({
                     ...prev,
-                    currentApiProfileId: "",
                     api: { ...prev.api, apiKey: val },
                   }));
                 }}

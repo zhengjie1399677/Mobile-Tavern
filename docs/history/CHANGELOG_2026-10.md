@@ -1,5 +1,11 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-06：**修复 API 通道档案「看起来被合并」的编辑语义缺陷。**
+  1. **根因**：档案只有「另存」而没有写回路径，且编辑 Base URL / API Key 会立刻把 `currentApiProfileId` 清空退回「临时调试配置」。用户在选中档案后改字段，改的其实是临时表单，档案本体没动；之后再点「另存」，新档案就是当前表单的副本，于是两条档案内容一模一样 —— 看起来像被合并（存储层始终是数组、逐条独立加密，无数据合并）。
+  2. **投影/脏检查单点化**：新增 `src/domain/api/apiProfiles.ts`，把「档案承载字段清单」「选择通道的投影」「未保存判据」「另存构造」收口到同一处；`savedUrls` / `contextLimit` / `sendNames` 等表单专属字段在切换通道时保持不动（与历史语义一致，档案未声明字段仍按 `undefined` 覆盖）。
+  3. **界面语义**：编辑字段不再取消档案选择；档案与表单不一致时显示「未保存」标记与「保存到当前通道」按钮；切换档案或切到「临时调试配置」前先确认（需要保留可先「另存」）；「另存」改为复用领域构造。顺带把档案选择器的 `aria-label` 从 Select 根移到触发器，屏幕阅读器与测试都能拿到通道名。
+  4. **测试**：新增 `tests/vitest/apiProfiles.test.ts`（字段清单字面量同步守卫、投影不改表单专属字段、脏检查只比较档案字段）与 `tests/vitest/ApiConfigSection.test.tsx`（编辑不丢选择、保存写回、切换前确认取消与确认两条路径）；i18n 新增 4 个键并补齐 8 种语言（`npm run check:i18n` 与词典一致性用例强制）。
+  验证：`npm run lint`、`npx eslint --quiet`（改动文件）、`tests/vitest/apiProfiles.test.ts`、`tests/vitest/ApiConfigSection.test.tsx`、`tests/vitest/i18n.test.tsx`、架构边界守卫、`npm test` 全部通过。
 - 2026-10-06：**统一聊天请求重试策略：一切消耗 token 的请求都不自动重试。**
   1. **移除流式断流自动重发**：`ChatStreamService` 原先在"未向消费方输出任何内容"时对 `error decoding response body`（reqwest 读取响应体中途断流的统一报错）自动重发一次。该重发会让上游重新生成一次回复、重复计费，与既定策略冲突，现已删除；断流只保留诊断增强（目标主机 + 已接收字节数），错误原样交给上层。重试判断函数更名为 `isResponseBodyInterrupt`，仅用于补诊断，不再触发任何重发。
   2. **行为口径**：首包未交付即失败 → 保留用户消息并提示失败；已交付部分内容 → 保留「内容 + 连接中断」标记；两者都不重发，是否重发由用户在聊天界面显式触发（`useRerollMessage`）。与既有 `tests/vitest/twoPhaseTimeout.test.ts`、`tests/vitest/useSendMessage.test.ts` 的"不自动重试"断言口径一致。
