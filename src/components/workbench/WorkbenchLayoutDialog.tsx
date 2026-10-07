@@ -45,16 +45,11 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
   const [draftOrder, setDraftOrder] = React.useState<string[]>(() => [...order]);
   const [draftHidden, setDraftHidden] = React.useState<string[]>(() => [...hidden]);
   const [draggingId, setDraggingId] = React.useState<string | null>(null);
-  /**
-   * 长按判定期间就把该行的 touch-action 设为 none。
-   * Android WebView 会在长按窗口内先启动滚动并发出 pointercancel，
-   * 导致"完全拖不动"；先接管触摸，未长按成功再恢复滚动。
-   */
-  const [armedId, setArmedId] = React.useState<string | null>(null);
 
   const draftOrderRef = React.useRef<string[]>(draftOrder);
   const draftHiddenRef = React.useRef<string[]>(draftHidden);
   const dragRef = React.useRef<{ id: string; startY: number; startIndex: number } | null>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
   const longPressRef = React.useRef<number | null>(null);
   const longPressStartRef = React.useRef<{ id: string; y: number } | null>(null);
   const onChangeRef = React.useRef(onChange);
@@ -79,7 +74,6 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
 
   const clearLongPress = React.useCallback(() => {
     longPressStartRef.current = null;
-    setArmedId(null);
     if (longPressRef.current !== null) {
       window.clearTimeout(longPressRef.current);
       longPressRef.current = null;
@@ -111,7 +105,15 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
     const handleMove = (event: PointerEvent) => {
       const drag = dragRef.current;
       if (!drag) return;
-      event.preventDefault();
+      if (event.cancelable) event.preventDefault();
+      // 手指靠近列表上下边缘时自动滚动，长列表也能把卡片拖到两端。
+      const container = scrollContainerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        const edge = 56;
+        if (event.clientY < rect.top + edge) container.scrollTop -= 12;
+        else if (event.clientY > rect.bottom - edge) container.scrollTop += 12;
+      }
       const steps = Math.round((event.clientY - drag.startY) / LAYOUT_DRAG_ROW_STEP_PX);
       const clamped = Math.max(
         0,
@@ -123,15 +125,29 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
       draftOrderRef.current = next;
       setDraftOrder(next);
     };
+    /**
+     * Android WebView 会在手指移动时把触摸接管成容器滚动并发出 pointercancel，
+     * 仅靠 pointer 事件拿不到后续位移；拖动一旦激活就必须用非被动 touchmove
+     * 阻断默认滚动（React 的 onTouchMove 在根节点是 passive，拦不住）。
+     */
+    const handleTouchMove = (event: TouchEvent) => {
+      if (dragRef.current && event.cancelable) event.preventDefault();
+    };
     const handleUp = () => endDrag(true);
     const handleCancel = () => endDrag(false);
     window.addEventListener("pointermove", handleMove, { passive: false });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("pointercancel", handleCancel);
+    window.addEventListener("touchend", handleUp);
+    window.addEventListener("touchcancel", handleCancel);
     return () => {
       window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleCancel);
+      window.removeEventListener("touchend", handleUp);
+      window.removeEventListener("touchcancel", handleCancel);
     };
   }, [draggingId, endDrag]);
 
@@ -154,9 +170,13 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
 
   const handleRowPointerDown = (id: string, event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 某些 WebView 在元素尚未布局完成时会拒绝捕获；window 监听仍兜底。
+    }
     const startY = event.clientY;
     clearLongPress();
-    setArmedId(id);
     longPressStartRef.current = { id, y: startY };
     longPressRef.current = window.setTimeout(() => {
       longPressRef.current = null;
@@ -194,7 +214,7 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
           </button>
         </div>
 
-        <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+        <div ref={scrollContainerRef} className="flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-3">
           {draftOrder.map((id, index) => {
             const visible = !hiddenSet.has(id);
             const dragging = draggingId === id;
@@ -208,7 +228,9 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
                 onPointerUp={clearLongPress}
                 onPointerCancel={clearLongPress}
                 onPointerLeave={clearLongPress}
-                style={dragging || armedId === id ? { touchAction: "none" } : undefined}
+                // pan-y：既保留未长按时的列表滚动，又保证拖动激活后 touchmove
+                // 仍是可取消事件，能被非被动监听阻断（touch-action 改在长按后不生效）。
+                style={dragging ? { touchAction: "none" } : { touchAction: "pan-y" }}
                 className={`flex items-center gap-2 rounded-xl border p-2.5 transition-all ${
                   dragging
                     ? "border-cyan-400/40 bg-cyan-500/10 shadow-lg scale-[1.02]"

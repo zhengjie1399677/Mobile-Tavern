@@ -769,7 +769,10 @@ const MessageBubble = ({
                     renderDialogueBubble(
                       message.content,
                       idx,
-                      isStreamingThisMsg
+                      isStreamingThisMsg,
+                      // 消息来源必须显式传入：渲染列表会过滤野牛静默消息，
+                      // 用渲染下标反查 activeSession.messages 会错位并把 AI 消息判成用户消息。
+                      message.sender === "assistant",
                     )
                   )}
                 </div>

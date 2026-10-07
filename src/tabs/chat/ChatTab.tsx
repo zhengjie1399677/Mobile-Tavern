@@ -36,6 +36,7 @@ export default function ChatTab() {
     sessions,
     setSessionViews,
     settings,
+    activeTab,
     activeSessionId,
     isSending,
     chatSubTab,
@@ -57,6 +58,7 @@ export default function ChatTab() {
     sessions: state.sessions,
     setSessionViews: state.setSessionViews,
     settings: state.settings,
+    activeTab: state.activeTab,
     activeSessionId: state.activeSessionId,
     isSending: state.isSending,
     chatSubTab: state.chatSubTab,
@@ -232,6 +234,7 @@ export default function ChatTab() {
         activeCharacter={activeCharacter}
         activeSessionId={activeSessionId}
         announcement={announcement}
+        isVisible={activeTab === "chat"}
       />
 
       <CharacterDetailDrawer

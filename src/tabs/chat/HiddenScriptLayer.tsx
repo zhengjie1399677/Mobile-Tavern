@@ -25,6 +25,14 @@ interface HiddenScriptLayerProps {
   activeCharacter: CharacterCard | null;
   activeSessionId: string | null;
   announcement: string;
+  /**
+   * 聊天页是否可见。
+   *
+   * 主 Tab 是 Keep-Alive（切走只是 display:none），只看 activeCharacter/activeSession
+   * 的话"从聊天退回首页"不会触发清理，卡片脚本挂在父页面的悬浮 HUD
+   * （白星星等）会继续留在别的页面；同时 keep-alive 的隐藏 iframe 还会继续跑脚本。
+   */
+  isVisible: boolean;
 }
 
 interface ScriptIframeItemProps {
@@ -100,6 +108,7 @@ const HiddenScriptLayer = ({
   activeCharacter,
   activeSessionId,
   announcement,
+  isVisible,
 }: HiddenScriptLayerProps) => {
   const kernel = useKernel();
   const compatibilityRuntime = kernel.getService<ICompatibilityRuntimeService>(
@@ -190,6 +199,7 @@ const HiddenScriptLayer = ({
    * 再统一收尾（同样覆盖"聊天页签没有被卸载、只是切换了角色/会话"的情况）。
    */
   React.useEffect(() => {
+    if (!isVisible) return;
     const disposeDomResidueGuard = compatibilityRuntime.getRenderer()?.startDomResidueGuard?.();
     return () => {
       window.setTimeout(() => {
@@ -207,10 +217,12 @@ const HiddenScriptLayer = ({
         }
       }, 0);
     };
-  }, [activeCharacter?.id, activeSessionId, compatibilityRuntime]);
+  }, [activeCharacter?.id, activeSessionId, compatibilityRuntime, isVisible]);
 
   const canRenderScripts = Boolean(
-    renderer && libsReady && settings.enableScriptExecution && !scriptDestroyed,
+    // 聊天页不可见时卸载后台脚本 iframe：隐藏 iframe 继续运行会不断把 HUD 写回父页面，
+    // 刚清掉的残留会被重新注入。回到聊天再按同一套作用域重建。
+    renderer && libsReady && settings.enableScriptExecution && !scriptDestroyed && isVisible,
   );
 
   return (

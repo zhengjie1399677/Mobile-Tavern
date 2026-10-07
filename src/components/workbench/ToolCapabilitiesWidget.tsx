@@ -177,7 +177,7 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
           if (result.reason === "updated") {
             showCustomAlert(
               nextEnabled
-                ? "已启用并自动挂载到当前 Profile；新建会话即可使用。"
+                ? "已启用。当前会话与新建会话都可直接调用：输入区点击「调用能力」或输入 /tool。"
                 : "已停用并从当前 Profile 卸载。",
               "外部能力",
             );

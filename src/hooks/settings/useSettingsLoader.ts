@@ -173,6 +173,18 @@ export const useSettingsLoader = ({
             needSave = true;
           }
 
+          // CHANGE-SAFE：预设正则字段在旧版本设置里根本不存在（老预设导入早于该字段）。
+          // 只在字段缺失时从活跃预设包回填，用户主动清空的空数组不会被复活。
+          const storedPresetRegexScripts = storedSet.presetRegexScripts;
+          const resolvedPresetRegexScripts = Array.isArray(storedPresetRegexScripts)
+            ? storedPresetRegexScripts
+            : activeBundleCandidate?.regexScripts?.length
+              ? [...activeBundleCandidate.regexScripts]
+              : DEFAULT_SETTINGS.presetRegexScripts || [];
+          if (!Array.isArray(storedPresetRegexScripts) && activeBundleCandidate?.regexScripts?.length) {
+            needSave = true;
+          }
+
           const mergedSet: UserSettings = {
             api: {
               ...DEFAULT_SETTINGS.api,
@@ -239,7 +251,7 @@ export const useSettingsLoader = ({
             ),
             currentApiProfileId: storedSet.currentApiProfileId || DEFAULT_SETTINGS.currentApiProfileId,
             globalRegexScripts: storedSet.globalRegexScripts || DEFAULT_SETTINGS.globalRegexScripts || [],
-            presetRegexScripts: storedSet.presetRegexScripts || DEFAULT_SETTINGS.presetRegexScripts || [],
+            presetRegexScripts: resolvedPresetRegexScripts,
             enableEmotionAmbientGlow: storedSet.enableEmotionAmbientGlow ?? DEFAULT_SETTINGS.enableEmotionAmbientGlow,
             enableReplySuggestions: storedSet.enableReplySuggestions ?? DEFAULT_SETTINGS.enableReplySuggestions,
             replySuggestionsClickMode: storedSet.replySuggestionsClickMode ?? DEFAULT_SETTINGS.replySuggestionsClickMode,

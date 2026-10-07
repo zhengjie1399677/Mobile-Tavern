@@ -20,6 +20,15 @@ interface FormattedTextProps {
   userName?: string;
   className?: string;
   messageIndex?: number;
+  /**
+   * 显式声明本条消息是否来自 AI。
+   *
+   * 历史缺陷：渲染层用 `activeSession.messages[messageIndex].sender` 反查来源，
+   * 而 messageIndex 是「渲染列表」下标；野牛静默消息被过滤后两者错位，
+   * AI 消息会被误判成用户消息，placement=2 的预设/角色卡正则整条被跳过
+   * （思维链美化、状态栏等显示不出来）。消息来源必须由调用方显式传入。
+   */
+  isAiMessage?: boolean;
   character?: CharacterCard;
   isStreaming?: boolean;
 }
@@ -30,6 +39,7 @@ const FormattedText = memo(function FormattedText({
   userName = "user",
   className = "",
   messageIndex,
+  isAiMessage,
   character,
   isStreaming,
 }: FormattedTextProps) {
@@ -101,11 +111,12 @@ const FormattedText = memo(function FormattedText({
     }
   }
 
-  const isAiMessage = (() => {
+  const derivedIsAiMessage = (() => {
     if (character && messageIndex === undefined) return true;
     if (messageIndex === undefined || !activeSession?.messages) return false;
     return activeSession.messages[messageIndex]?.sender === "assistant";
   })();
+  const resolvedIsAiMessage = isAiMessage ?? derivedIsAiMessage;
 
   const processed = preprocessFormattedText(
     displayText,
@@ -115,7 +126,7 @@ const FormattedText = memo(function FormattedText({
     enableScriptExecution,
     messageIndex,
     enableLoopProtection,
-    isAiMessage,
+    resolvedIsAiMessage,
     isStreamingLastMessage,
     compatibilityRenderer,
     scriptSecurityMode,
@@ -129,7 +140,7 @@ const FormattedText = memo(function FormattedText({
           text: value,
           character: activeCharacter ?? null,
           mode: "display",
-          isAiMessage,
+          isAiMessage: resolvedIsAiMessage,
           charName,
           userName,
           depth,

@@ -95,6 +95,11 @@ export default function BranchUniverseDiagram({
     if (endY > svgHeight) svgHeight = endY;
   });
 
+  // 5. 每条消息的绝对轮次（messages Store 的 turnIndex）与界面轮次标签。
+  // 记忆碎片的 sourceTurnEnd 使用绝对 turnIndex，界面「第 N 轮」按用户消息累计，
+  // 两者不能再混用同一个下标（历史缺陷：用渲染下标 +1 匹配碎片，晶体挂错节点）。
+  const messageTurnIndex = (message: ChatSession["messages"][number], fallback: number): number =>
+    Number.isInteger(message.turnIndex) ? (message.turnIndex as number) : fallback;
   // 4. 拖拽与手势控制处理器
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
@@ -325,15 +330,16 @@ export default function BranchUniverseDiagram({
                   {Array.isArray(s.messages) &&
                     s.messages.map((m, idx) => {
                       const nodeY = startY + idx * turnHeight;
+                      const absoluteTurn = messageTurnIndex(m, idx);
                       // 获取属于该轮次的长期记忆碎片
                       const nodeFragments = fragments.filter(
-                        (f) => f.sessionId === s.id && f.sourceTurnEnd === idx + 1
+                        (f) => f.sessionId === s.id && f.sourceTurnEnd === absoluteTurn
                       );
                       const activeFragments = nodeFragments.filter((fragment) => fragment.status === "active");
                       const hasMemory = activeFragments.length > 0;
 
                       return (
-                        <g key={`node-${s.id}-${idx}`}>
+                        <g key={`node-${s.id}-${m.id || idx}`}>
                           {/* 微节点圆圈 */}
                           <circle
                             cx={x}
@@ -345,15 +351,15 @@ export default function BranchUniverseDiagram({
                             className="cursor-pointer"
                             role="button"
                             tabIndex={0}
-                            aria-label={t("memory.inspect_turn", { turn: String(idx + 1) })}
+                            aria-label={t("memory.inspect_turn", { turn: String(absoluteTurn + 1) })}
                             onClick={(event) => {
                               event.stopPropagation();
-                              onInspectNode(s.id, idx + 1, nodeFragments);
+                              onInspectNode(s.id, absoluteTurn, nodeFragments);
                             }}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
-                                onInspectNode(s.id, idx + 1, nodeFragments);
+                                onInspectNode(s.id, absoluteTurn, nodeFragments);
                               }
                             }}
                           />
@@ -364,7 +370,7 @@ export default function BranchUniverseDiagram({
                               transform={`translate(${x + 14}, ${nodeY})`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onInspectNode(s.id, idx + 1, nodeFragments);
+                                onInspectNode(s.id, absoluteTurn, nodeFragments);
                               }}
                               className="cursor-pointer animate-pulse-glow"
                             >

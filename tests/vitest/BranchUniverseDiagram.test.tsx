@@ -18,7 +18,8 @@ const session: ChatSession = {
   title: "主线",
   createdAt: 1,
   messages: [
-    { id: "message-1", sender: "assistant", content: "开场", timestamp: 1 },
+    // turnIndex 是 messages Store 的绝对轮次（0 基）；记忆碎片的 sourceTurnEnd 使用同一口径。
+    { id: "message-1", sender: "assistant", content: "开场", timestamp: 1, turnIndex: 1 },
   ],
   summaries: [],
 };
@@ -53,7 +54,7 @@ describe("BranchUniverseDiagram", () => {
       />,
     );
 
-    const node = screen.getByLabelText("memory.inspect_turn:1");
+    const node = screen.getByLabelText("memory.inspect_turn:2");
     fireEvent.click(node);
     expect(onInspectNode).toHaveBeenLastCalledWith(session.id, 1, [fragment]);
 

@@ -55,6 +55,13 @@ export const BUILTIN_COMPOSER_COMMANDS: readonly ComposerCommandDescriptor[] = [
     acceptsArgument: false,
   },
   {
+    name: "tool",
+    label: "调用外部能力",
+    description: "显式调用已启用的 MCP / 外部工具，并把结果作为上下文送入对话",
+    owner: "host.builtin",
+    acceptsArgument: true,
+  },
+  {
     name: "send",
     label: "直接发送",
     description: "以用户身份向当前会话直接发送指定文本消息",

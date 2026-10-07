@@ -9,10 +9,11 @@ import {
 } from "../../components/ui/dialog";
 import {
   KernelServices,
+  type IDatabaseService,
   type IKernelService,
   type ISessionManagementService,
 } from "@/src/application/serviceContracts";
-import { loadActiveSessionsForCharacter } from "../application/useCases/sessionDirectoryUseCases";
+import { loadUniverseSessionsForCharacter } from "../application/useCases/sessionDirectoryUseCases";
 import {
   MEMORY_PERSISTENCE_SERVICE,
   type MemoryFragment,
@@ -21,7 +22,7 @@ import {
 import { useTranslation } from "../contexts/LanguageContext";
 import { useKernel } from "../contexts/KernelContext";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
-import type { ChatSession } from "../types";
+import type { CharacterCard, ChatSession, Message, SummaryCard } from "../types";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import BranchUniverseDiagram from "./BranchUniverseDiagram";
 import MemoryFragmentEditor from "./MemoryFragmentEditor";
@@ -98,6 +99,12 @@ export default function SessionManagerModal() {
     () => kernel.getService<MemoryPersistencePort & IKernelService>(MEMORY_PERSISTENCE_SERVICE),
     [kernel],
   );
+  const database = useMemo(
+    () => kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>(
+      KernelServices.Database,
+    ),
+    [kernel],
+  );
   const loadFragments = useCallback(async () => {
     try {
       const groups = await Promise.all(
@@ -126,7 +133,9 @@ export default function SessionManagerModal() {
     if (!showSessionManager || view !== "universe" || !universeCharacterId) return;
     let cancelled = false;
     setUniverseSessions(seededUniverseSessions);
-    void loadActiveSessionsForCharacter(sessionManagement, universeCharacterId)
+    // 会话目录只带元数据（messages 物理分轨在 messages Store），平行宇宙图必须补消息窗口，
+    // 否则每条分支都是空柱、没有任何轮次节点与记忆晶体。
+    void loadUniverseSessionsForCharacter(sessionManagement, database, universeCharacterId)
       .then((loaded) => {
         if (!cancelled) setUniverseSessions(loaded);
       })
@@ -134,7 +143,7 @@ export default function SessionManagerModal() {
         console.warn("[SessionManagerModal] Failed to load complete universe", error);
       });
     return () => { cancelled = true; };
-  }, [seededUniverseSessions, sessionManagement, showSessionManager, universeCharacterId, view]);
+  }, [database, seededUniverseSessions, sessionManagement, showSessionManager, universeCharacterId, view]);
 
   useMobileBackHandler(showSessionManager, () => {
     setShowSessionManager(false);

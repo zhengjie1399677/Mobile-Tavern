@@ -44,7 +44,6 @@ import {
   projectMessagePartsForProvider,
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
-import { isDirectApiCharacter } from "../../domain/agents/directApiMode";
 import {
   executeOpenAiToolLoop,
   OpenAiToolCallAccumulator,
@@ -53,6 +52,7 @@ import {
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 import { resolveAgentSessionSettings } from "../../application/useCases/resolveAgentSessionSettings";
+import { resolveSessionEnabledToolNames } from "../../application/useCases/sessionToolComposition";
 import {
   MOBILE_TAVERN_CHAT_DRIVER_ID,
   AUDIO_ASR_PROCESSOR_ID,
@@ -631,11 +631,12 @@ export function useSendMessage(p: SendMessageParams) {
 
       if (agentTurn) {
         const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
-        const enabledToolNames = new Set(isDirectApiCharacter(p.activeCharacter!)
-          ? []
-          : updatedSession.compositionSnapshot?.contributionOrder.tool
-            ?? runtime.getCompositionSnapshot()?.contributionOrder.tool
-            ?? []);
+        // 统一入口：冻结快照仍会叠加"当前已启用的外部能力源"，启用 MCP 后无需新建会话。
+        const enabledToolNames = new Set(resolveSessionEnabledToolNames({
+          kernel: p.kernel,
+          character: p.activeCharacter,
+          sessionComposition: updatedSession.compositionSnapshot,
+        }));
         await executeOpenAiToolLoop({
           context: agentTurn,
           tools: provider.capabilities.supportsTools && typeof runtime.listTools === "function"
@@ -878,18 +879,12 @@ export function useSendMessage(p: SendMessageParams) {
     if (!sessionId) return null;
     const providerId = resolveBuiltinProviderId(current.settings.api.type);
     const runtime = current.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
-    const baseComposition = current.activeSession?.compositionSnapshot ?? runtime.getCompositionSnapshot();
-    const toolComposition = !current.activeSession?.compositionSnapshot
-      && baseComposition
-      && current.kernel.hasService(KernelServices.ToolConnectors)
-      ? current.kernel.getService<IToolPluginRuntimeService>(KernelServices.ToolConnectors).extendComposition(baseComposition)
-      : baseComposition;
-    const composition = toolComposition && current.kernel.hasService(KernelServices.ExternalSources)
-      ? current.kernel.getService<IExternalSourceRuntimeService>(KernelServices.ExternalSources).extendComposition(toolComposition)
-      : toolComposition;
-    const enabledToolNames = isDirectApiCharacter(current.activeCharacter!)
-      ? []
-      : composition?.contributionOrder.tool ?? [];
+    // 与发送链路共用同一套工具解析：外部能力源是实时开关，冻结快照也会叠加当前已启用来源。
+    const enabledToolNames = resolveSessionEnabledToolNames({
+      kernel: current.kernel,
+      character: current.activeCharacter,
+      sessionComposition: current.activeSession?.compositionSnapshot,
+    });
     const enabledToolNameSet = new Set(enabledToolNames);
     const registeredTools = typeof runtime.listTools === "function" ? runtime.listTools() : [];
     const enabledTools = registeredTools.filter((tool) => enabledToolNameSet.has(tool.name));

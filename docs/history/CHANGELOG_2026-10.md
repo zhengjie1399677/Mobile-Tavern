@@ -1,5 +1,15 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**审查并修复角色卡聊天"平行宇宙"分支；修复预设正则被来源判定跳过、工作台拖动、卡片 HUD 残留与聊天内 MCP 显性调用。**
+  1. **平行宇宙只剩空柱（分支审查主问题）**：sessions Store 拆分后 `queryDirectory` 返回的 `session.messages` 恒为空数组，宇宙图给每条分支画出的时间柱长度都是 0，轮次节点与记忆晶体全部不可见。新增 `loadUniverseSessionsForCharacter()`（`sessionDirectoryUseCases`）按会话补最近 160 条消息窗口后，`SessionManagerModal` 用它渲染；每个会话最多水合 40 条分支。
+  2. **记忆晶体挂错节点（轮次错位）**：图里用"渲染下标 + 1"去匹配 `fragment.sourceTurnEnd`，而碎片写的是 messages Store 的绝对 `turnIndex`（0 基，`commitTurn` 分配）。现在统一用 `message.turnIndex` 做节点身份与碎片匹配，审计回调也传绝对轮次；`MemoryFragmentEditor` 只把展示文案改为 1 基。
+  3. **预设正则的 AI 输出脚本整条被跳过**：`FormattedText` 用 `activeSession.messages[messageIndex].sender` 反查消息来源，而 `messageIndex` 是渲染列表下标——野牛静默消息被过滤后两者错位，AI 消息被判成用户消息，`placement=[2]`（AI 输出）的预设/角色卡正则不执行（双星纪的思维链美化即此类）。现在来源由 `MessageBubble` 显式传入 `isAiMessage`，虚拟列表也改传会话绝对下标；`/tool` 之外的 depth、iframe id 同步修正。
+  4. **预设正则字段自愈**：老版本的设置记录里没有 `presetRegexScripts` 字段（预设正则早于该字段），启动时从活跃预设包回填一次（仅在字段缺失时，用户主动清空不会复活）；`verify-preset-samples` 脚本字段名 `presetRegexScripts` 修正为 v2 实体的 `regexScripts`（此前恒显示 0，掩盖问题）。
+  5. **工作台拖动仍未生效**：长按后才设 `touch-action:none` 在 Android 上是无效的（手势开始时就已决定是否滚动），浏览器随后发 `pointercancel` 把拖动掐断。现在行体固定 `touch-action: pan-y` 保留滚动，拖动激活后由 window 上**非被动 `touchmove`** 阻断默认滚动，并在列表上下边缘自动滚动；抓手仍可立即拖动。
+  6. **卡片 HUD 残留（白星星）**：主 Tab 是 Keep-Alive，退回首页不会卸载聊天页，原清理 effect 只在切换角色/会话时运行；隐藏 iframe 还在继续把 HUD 写回父页面。`HiddenScriptLayer` 新增 `isVisible`：聊天页不可见即卸载后台脚本 iframe 并执行残留回收；`startCompatibilityDomResidueGuard` 的观察范围从"顶层节点"扩到子树，覆盖挂在 `#root` 内部的悬浮节点（仍以 `__react*` 标记保护 React 节点）。
+  7. **MCP 在正文聊天里调用不了**：生成链路只读会话冻结快照的 `contributionOrder.tool`，工作台里新启用的来源对已有会话永远不可见。新增唯一解析入口 `resolveSessionEnabledToolNames()`（冻结快照也叠加当前已启用外部来源；直连 API 角色仍不暴露工具），发送链路与 Agent Handle 共用。另加**显性调用**：输入区快捷栏「调用能力」按钮与 `/tool` 命令打开 `ExternalToolInvocationSheet`，用草稿文本自动匹配工具、预填主参数（query/prompt 等），调用结果格式化后作为上下文送入对话。
+  8. **测试**：`sessionDirectoryUseCases.test.ts`（空会话补消息窗口/已水合不重复读）、`BranchUniverseDiagram.test.tsx`（绝对轮次匹配）、`formattedTextRegexGating.test.tsx`（显式来源门控正反两例）、`sessionToolComposition.test.ts`（冻结快照叠加外部来源、直连 API 不暴露工具）、`externalToolInvocation.test.ts`（主参数推导与结果截断）、`parentDomResidue.test.ts`（子树回收 + React 标记保护）；全量 `test:unit` 1430 通过。
+
 - 2026-10-07：**修复卡片 iframe 白屏（多个角色卡受影响）、工作台拖动失效、HUD 残留，并让 MCP 启用即挂载。**
   1. **白屏根因（关键）**：`SafeIframe` 的清理 effect 依赖 `srcDocStoreKey`，而该 key 每次渲染都会变（带 `Date.now()`）。于是每次重渲染都会执行"清空 srcdoc + 跳 `about:blank`"，把同一 DOM 节点上刚写好的卡片内容擦掉——表现为卡片 iframe 变成一整块白屏（多个卡片、首次进入尤其明显，重新进入因不再重渲染才正常）。现在 store key 变化只回收旧 key 内存，**绝不再碰 iframe 本体**；只有真正卸载时才清空。桌面探针实测：修复前 `srcdocLength=0`，修复后 `srcdocLength=57078`、iframe 内部 DOM 16944 字符。
   2. **工作台拖动**：长按判定期间即把该行 `touch-action` 设为 `none`（此前 Android WebView 会在长按窗口内先启动滚动并发出 `pointercancel`，表现"完全拖不动"）；抓手按下额外 `setPointerCapture`。

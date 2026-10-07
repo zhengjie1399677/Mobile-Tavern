@@ -75,6 +75,11 @@ export interface CompatibilityDomResidueGuard {
  * （例如角色卡 HUD 的悬浮星形 div）。这里用 MutationObserver 记录新增节点，
  * 清理时跳过 React 管理的节点（带 `__react*` 自有属性）与应用 portal 容器，
  * 既不会误删应用 UI，也不需要依赖节点命名。
+ *
+ * 子树也要观察：不少卡片脚本不是 `body.appendChild`，而是追加到应用已有的容器里
+ * （`document.getElementById('root')`、聊天舞台等），只盯顶层会漏掉这些悬浮 HUD。
+ * React 渲染出的宿主节点一定带 `__react*` 自有属性，脚本 `createElement` 的节点没有，
+ * 因此按"节点自身标记"判断是安全的。
  */
 export function startCompatibilityDomResidueGuard(doc: Document = document): CompatibilityDomResidueGuard {
   const recorded = new Set<Element>();
@@ -86,7 +91,7 @@ export function startCompatibilityDomResidueGuard(doc: Document = document): Com
     }
   });
   const targets = [doc.body, doc.documentElement].filter((target): target is HTMLElement => Boolean(target));
-  for (const target of targets) observer.observe(target, { childList: true, subtree: false });
+  for (const target of targets) observer.observe(target, { childList: true, subtree: true });
 
   return {
     dispose(): number {
@@ -97,7 +102,6 @@ export function startCompatibilityDomResidueGuard(doc: Document = document): Com
         if (hasReactMarker(element)) continue;
         try {
           if (element.matches(PROTECTED_SELECTOR)) continue;
-          if (element.closest("#root")) continue;
         } catch {
           continue;
         }

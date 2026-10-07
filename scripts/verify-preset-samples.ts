@@ -66,7 +66,9 @@ async function verifyPresetSample(filePath: string): Promise<SampleVerificationR
       prompts: prepared.compatibilityAnalysis?.promptCount ?? parsed.prompts.length,
       enabledPrompts: prepared.compatibilityAnalysis?.enabledPromptCount,
       importedBlocks: prepared.composition?.blocks.length,
-      regex: prepared.bundle.presetRegexScripts?.length ?? 0,
+      // v2 预设实体的正则字段是 `regexScripts`；此处历史上写成 `presetRegexScripts`
+      // 导致验收表恒显示 0，掩盖了"预设正则没有随之导入"的问题。
+      regex: prepared.bundle.regexScripts?.length ?? 0,
       warnings: prepared.report.warnings.length,
       warningCodes: summarizeCodes(prepared.report.warnings),
       errors: prepared.report.errors.length,

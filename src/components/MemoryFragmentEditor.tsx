@@ -140,7 +140,8 @@ export default function MemoryFragmentEditor({
               {t("memory.audit_title")}
             </DialogTitle>
             <p className="mt-1 text-xs text-zinc-500">
-              {t("memory.turn_label", { turn: String(sourceTurnEnd) })}
+              {/* sourceTurnEnd 是 messages Store 的绝对 turnIndex（0 基），界面展示统一 1 基。 */}
+              {t("memory.turn_label", { turn: String(sourceTurnEnd + 1) })}
             </p>
           </div>
           <button type="button" aria-label={t("common.close")} onClick={onClose} className="flex size-11 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white">

@@ -11,6 +11,7 @@ import {
   Mic,
   Loader2,
   Play,
+  Sparkles,
   AudioWaveform,
   Terminal,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import {
   type IAttachmentService,
   type ICompatibilityRuntimeService,
   type IComposerCommandService,
+  type IExternalSourceRuntimeService,
 } from "@/src/application/serviceContracts";
 import { getSessionRuntimeProfileId } from "@/src/application/useCases/runtimeProfileSession";
 import {
@@ -42,6 +44,11 @@ import {
 } from "./attachment-composer/PendingAttachmentStrip";
 import { ComposerCommandSuggestions } from "./ComposerCommandSuggestions";
 import { useChatVoiceInput } from "./useChatVoiceInput";
+import {
+  ExternalToolInvocationSheet,
+  formatExternalToolResultForConversation,
+  type ExternalToolInvocationPayload,
+} from "../../components/externalTools/ExternalToolInvocationSheet";
 
 /**
  * 用于在事件 currentTarget 上标记 _touched 状态，
@@ -65,6 +72,8 @@ function toMessageAttachmentPart(item: PendingAttachment): MessageContentPart {
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
+  const [toolSheetOpen, setToolSheetOpen] = React.useState(false);
+  const [toolSeedText, setToolSeedText] = React.useState("");
   const { t } = useTranslation();
   const {
     isSending,
@@ -340,6 +349,41 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     setSelectedCommandIndex(0);
   }, [localInput]);
 
+  const getExternalSourceRuntime = React.useCallback((): IExternalSourceRuntimeService | null => {
+    try {
+      return getKernelService<IExternalSourceRuntimeService>(KernelServices.ExternalSources);
+    } catch {
+      return null;
+    }
+  }, [getKernelService]);
+
+  const openToolSheet = React.useCallback((seed: string) => {
+    setToolSeedText(seed);
+    setToolSheetOpen(true);
+  }, []);
+
+  const handleExternalToolResult = React.useCallback(async (
+    payload: ExternalToolInvocationPayload,
+  ): Promise<void> => {
+    if (!activeSession) {
+      await showCustomAlert("请先进入一个会话，再调用外部能力。", "无法调用");
+      return;
+    }
+    const text = formatExternalToolResultForConversation(payload);
+    setLocalInput("");
+    setUserInputMessage("");
+    setReplySuggestions([]);
+    // 结果作为一条用户侧上下文消息进入历史，模型在下一轮就能基于真实结果续写。
+    await handleSendMessage(text, { skipAI: false });
+  }, [
+    activeSession,
+    handleSendMessage,
+    setLocalInput,
+    setReplySuggestions,
+    setUserInputMessage,
+    showCustomAlert,
+  ]);
+
   const executeComposerCommand = React.useCallback(async (
     command: ComposerCommandDescriptor,
     argument: string,
@@ -347,6 +391,14 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     if (!activeSession || isExecutingComposerCommand) return;
 
     if (command.owner === "host.builtin") {
+      // `/tool [查询]` 走显性调用面板：列出已启用工具并自动匹配 / 预填查询。
+      if (command.name === "tool") {
+        setLocalInput("");
+        setUserInputMessage("");
+        setReplySuggestions([]);
+        openToolSheet(argument.trim());
+        return;
+      }
       await executeBuiltinComposerCommand({
         commandName: command.name,
         argument,
@@ -414,6 +466,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     showCustomAlert,
     showCustomConfirm,
     t,
+    openToolSheet,
   ]);
 
   const executeComposerCommandIfPresent = React.useCallback(async (): Promise<boolean> => {
@@ -596,6 +649,19 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             >
               <Play className="w-3.5 h-3.5" />
               <span className="text-xs font-medium">{t("chat_input.continue")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowQuickActions(false);
+                openToolSheet((localInput || "").trim());
+              }}
+              disabled={isSending || !activeSession}
+              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-cyan-300 transition-colors hover:bg-cyan-500/10 hover:text-cyan-200 disabled:opacity-40"
+              title="显式调用已启用的 MCP / 外部工具，把真实结果送入对话"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium">调用能力</span>
             </button>
           </div>
 
@@ -879,6 +945,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
           </button>
         )}
       </div>
+
+      <ExternalToolInvocationSheet
+        open={toolSheetOpen}
+        onClose={() => setToolSheetOpen(false)}
+        seedText={toolSeedText}
+        getRuntime={getExternalSourceRuntime}
+        onConfirm={handleExternalToolResult}
+        showAlert={showCustomAlert}
+      />
     </div>
   );
 };

@@ -13,13 +13,19 @@ export function useDialogueBubble(params: {
 }) {
   const { activeCharacter, settings } = params;
 
-  const renderDialogueBubble = useCallback((text: string, messageIndex?: number, isStreaming?: boolean) => {
+  const renderDialogueBubble = useCallback((
+    text: string,
+    messageIndex?: number,
+    isStreaming?: boolean,
+    isAiMessage?: boolean,
+  ) => {
     return (
       <FormattedText
         text={text}
         charName={activeCharacter?.name || ""}
         userName={settings.userName}
         messageIndex={messageIndex}
+        isAiMessage={isAiMessage}
         isStreaming={isStreaming}
       />
     );

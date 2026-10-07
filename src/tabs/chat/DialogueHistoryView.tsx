@@ -139,6 +139,14 @@ const DialogueHistoryView = ({
     return null;
   }, [activeSession?.messages]);
 
+  // 渲染列表会过滤野牛静默消息，虚拟列表下标 ≠ 会话绝对下标。
+  // 消息索引（iframe id、depth、来源兜底）必须使用会话绝对下标，否则会错位。
+  const absoluteIndexById = React.useMemo(() => {
+    const map = new Map<string, number>();
+    (activeSession?.messages || []).forEach((message, index) => map.set(message.id, index));
+    return map;
+  }, [activeSession?.messages]);
+
   // 虚拟列表：长会话下 messagesToRender 可达数百条，全量渲染会导致
   // React VDOM 协调遍历 1500+ 节点。useVirtualizer 只渲染视口内 + overscan 条目，
   // 协调节点数从 ~1500 降到 ~100，是 50 轮长会话延迟优化的关键。
@@ -347,7 +355,7 @@ const DialogueHistoryView = ({
                 ) : (
                   <MessageBubble
                     message={message}
-                    idx={vi.index}
+                    idx={absoluteIndexById.get(message.id) ?? vi.index}
                     roundNum={roundNums[message.id] || 0}
                     activePortraitUrl={activePortraitUrl}
                     expandedReasoningIds={expandedReasoningIds}

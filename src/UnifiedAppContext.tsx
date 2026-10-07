@@ -209,7 +209,12 @@ export interface UnifiedAppContextProps {
   createBacktrackBranch: (msg: Message) => Promise<void>;
   createBacktrackFromTimeline: (summary: SummaryCard) => Promise<void>;
   handleAddTimelineSummary: () => Promise<void>;
-  renderDialogueBubble: (text: string, messageIndex?: number, isStreaming?: boolean) => React.ReactNode;
+  renderDialogueBubble: (
+    text: string,
+    messageIndex?: number,
+    isStreaming?: boolean,
+    isAiMessage?: boolean,
+  ) => React.ReactNode;
   saveSessionWithMvu: (session: ChatSession, message: Message) => Promise<ChatSession>;
   isBisonLocking: boolean;
   /** 当前会话最近一次记忆召回的瞬态快照，不进入 ChatSession 持久化。 */
