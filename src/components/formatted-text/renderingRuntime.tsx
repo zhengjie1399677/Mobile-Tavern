@@ -153,6 +153,10 @@ const ALLOWED_TAGS = new Set([
   "ul",
   "ol",
   "li",
+  // 预设（如双星纪"CoT-简约美化"）用 <details>/<summary> 产出可折叠思维块；
+  // 不在白名单时会被拆掉包壳，思维内容仍然裸露在正文里，用户看到的就是"正则没生效"。
+  "details",
+  "summary",
   "code",
   "pre",
   "iframe",
@@ -166,6 +170,7 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   td: new Set(["colspan", "rowspan"]),
   th: new Set(["colspan", "rowspan"]),
   table: new Set(["border", "cellpadding", "cellspacing"]),
+  details: new Set(["open"]),
   iframe: new Set(["src", "srcdoc", "width", "height", "style", "class", "classname", "sandbox", "id", "name", "allowtransparency", "frameborder", "marginwidth", "marginheight"]),
 };
 
@@ -341,6 +346,9 @@ function domToReact(
         props.style = parseStyleString(val);
       } else if (name === "class") {
         props.className = val;
+      } else if (name === "open" && tagName === "details") {
+        // 布尔属性：HTML 里出现 open 即展开，React 需要真正的 boolean，避免空字符串告警。
+        props.open = val !== "false";
       } else if (name === "href") {
         if (/^(https?:\/\/|mailto:|#|\/)/i.test(val)) {
           props.href = val;
