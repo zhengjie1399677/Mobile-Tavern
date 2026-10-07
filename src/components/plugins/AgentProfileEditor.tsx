@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Play, Save, SlidersHorizontal, Wrench } from "lucide-react";
 import type { CharacterCard, SamplerPreset } from "../../types";
 import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import { MAX_OUTPUT_TOKENS } from "../../domain/api/outputTokenLimits";
 import { projectSamplerPreset } from "../../application/useCases/presetProjection";
 import type {
   RuntimeProfileAgentSettings,
@@ -208,7 +209,7 @@ export default function AgentProfileEditor({
             <NumberField label="Temperature" value={sampling.temperature} min={0} max={5} step={0.05} disabled={!editable || busy} onChange={(temperature) => setSampling((value) => ({ ...value, temperature }))} />
             <NumberField label="Top P" value={sampling.topP} min={0} max={1} step={0.05} disabled={!editable || busy} onChange={(topP) => setSampling((value) => ({ ...value, topP }))} />
             <NumberField label="Top K" value={sampling.topK} min={0} max={1000} step={1} disabled={!editable || busy} onChange={(topK) => setSampling((value) => ({ ...value, topK }))} />
-            <NumberField label="Max Tokens" value={sampling.maxTokens} min={1} max={1_000_000} step={1} disabled={!editable || busy} onChange={(maxTokens) => setSampling((value) => ({ ...value, maxTokens }))} />
+            <NumberField label="Max Tokens" value={sampling.maxTokens} min={1} max={MAX_OUTPUT_TOKENS} step={1} disabled={!editable || busy} onChange={(maxTokens) => setSampling((value) => ({ ...value, maxTokens }))} />
             <NumberField label="Repetition" value={sampling.repetitionPenalty} min={0} max={5} step={0.05} disabled={!editable || busy} onChange={(repetitionPenalty) => setSampling((value) => ({ ...value, repetitionPenalty }))} />
             <NumberField label="Frequency" value={sampling.frequencyPenalty ?? 0} min={-2} max={2} step={0.05} disabled={!editable || busy} onChange={(frequencyPenalty) => setSampling((value) => ({ ...value, frequencyPenalty }))} />
             <NumberField label="Presence" value={sampling.presencePenalty ?? 0} min={-2} max={2} step={0.05} disabled={!editable || busy} onChange={(presencePenalty) => setSampling((value) => ({ ...value, presencePenalty }))} />

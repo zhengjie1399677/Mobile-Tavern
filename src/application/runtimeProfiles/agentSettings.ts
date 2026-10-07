@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AgentCompositionSnapshot } from "../../domain/agents/contracts";
+import { MAX_OUTPUT_TOKENS } from "../../domain/api/outputTokenLimits";
 import type { RuntimeProfileAgentSettings } from "./contracts";
 
 export const AGENT_PROFILE_SETTINGS_DECISION_ID = "agent.profile.settings";
@@ -19,7 +20,7 @@ export const runtimeProfileSamplingSchema = z.object({
   frequencyPenalty: z.number().finite().min(-2).max(2).optional(),
   presencePenalty: z.number().finite().min(-2).max(2).optional(),
   minP: z.number().finite().min(0).max(1).optional(),
-  maxTokens: z.number().int().positive().max(1_000_000),
+  maxTokens: z.number().int().positive().max(MAX_OUTPUT_TOKENS),
 }).strict();
 
 export const runtimeProfileAgentSettingsSchema = z.object({

@@ -2,6 +2,10 @@ import { Sliders, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 import { Card, CardHeader, CardContent } from "../../../components/ui/card";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { cn } from "../../../lib/utils";
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  MAX_OUTPUT_TOKENS,
+} from "../../domain/api/outputTokenLimits";
 import type { UserSettings } from "../../types";
 
 interface SamplersSectionProps {
@@ -31,9 +35,11 @@ const REP_PENALTY_PILLS = [
 
 const MAX_TOKENS_PILLS = [
   { label: "2K", value: 2048 },
-  { label: "4K 推荐", value: 4096 },
   { label: "8K", value: 8192 },
-  { label: "16K", value: 16384 },
+  { label: "32K", value: 32768 },
+  { label: "100K 默认", value: DEFAULT_MAX_OUTPUT_TOKENS },
+  { label: "256K", value: 262144 },
+  { label: "1M", value: MAX_OUTPUT_TOKENS },
 ] as const;
 
 /** 2. 温度与采样参数 */
@@ -53,7 +59,7 @@ export default function SamplersSection({
         temperature: 0.85,
         topP: 0.95,
         repetitionPenalty: 1.05,
-        maxTokens: 4096,
+        maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       },
     }));
   };
@@ -281,7 +287,7 @@ export default function SamplersSection({
               <input
                 type="range"
                 min="100"
-                max="150000"
+                max={MAX_OUTPUT_TOKENS}
                 step="1000"
                 value={settings.preset.maxTokens}
                 onChange={(e) =>

@@ -481,6 +481,14 @@ export interface UserSettings {
   lastBackupTime?: number; // 上次成功执行每日自动备份的时间戳
   customThemes?: CustomThemePackage[]; // 已导入的自定义主题包列表（.tavern-theme.json）
   hiddenMainTabs?: string[]; // 仅隐藏底栏入口；角色与设置为恢复入口，不能隐藏
+  /**
+   * 工作台卡片布局：顺序（未列出的卡片追加在末尾）与隐藏清单。
+   * 缺省即出厂顺序与全部显示；未知 id 由解析层忽略（见 domain/ui/workbenchLayout）。
+   */
+  workbenchCardLayout?: {
+    order?: string[];
+    hidden?: string[];
+  };
   themeMediaEnabled?: boolean; // 用户明确允许主题播放本地音视频；默认关闭
   enableFloatingCharacter?: boolean; // 启用应用内悬浮角色助手（显示当前角色立绘 + 情绪 + 聊天气泡）
   ambientGlowIntensity?: number; // 背景流光与毛玻璃强度 (0~1，0 为完全纯色模式)

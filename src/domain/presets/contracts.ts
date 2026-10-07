@@ -2,6 +2,7 @@ import { z } from "zod";
 import { parsePromptComposition } from "../prompt-composition";
 import type { PromptComposition } from "../prompt-composition";
 import type { PresetPromptConfig, RegexScript } from "../../types";
+import { MAX_OUTPUT_TOKENS } from "../api/outputTokenLimits";
 
 /**
  * 预设实体 v2 契约。
@@ -37,7 +38,7 @@ export const presetSamplerSchema = z.object({
   frequencyPenalty: z.number().finite().min(-2).max(2).optional(),
   presencePenalty: z.number().finite().min(-2).max(2).optional(),
   minP: z.number().finite().min(0).max(1).optional(),
-  maxTokens: z.number().int().positive().max(1_000_000).optional(),
+  maxTokens: z.number().int().positive().max(MAX_OUTPUT_TOKENS).optional(),
 }).strict();
 
 export const presetRegexScriptSchema = z.object({

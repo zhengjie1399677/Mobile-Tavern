@@ -1,5 +1,34 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**修复导入/探测 MCP 来源后报 `Unrecognized keys: "createdAt", "updatedAt"`（与 API Key 无关）。**
+  1. **根因**：`ExternalSourceRuntimeService.defaultStore()` 把 IndexedDB 存储记录（`StoredExternalSource`，带 `createdAt` / `updatedAt` 元数据）直接透传给 `openExternalSource()`，而 `externalCapabilitySourceSchema` 是 `.strict()` 契约，于是**每次重连 / 探测能力 / 单工具测试都会以 `unrecognized_keys` 失败**。用户表现为：选用 DeepWiki 等模板保存后弹出这段 Zod JSON，误以为是缺少 Key。
+  2. **修法**：存储层把私有的 `toSourceInput` 提升为唯一投影 `toExternalCapabilitySource()`，`defaultStore()` 的 `list` / `get` 在端口边界剥掉存储元数据后再交给运行时契约；启停路径复用同一投影。
+  3. **回归**：`tests/vitest/externalSourceRuntime.test.ts` 新增用例——用真实 IndexedDB（fake-indexeddb）写入一条带元数据的来源，再用**生产同款 defaultStore** 初始化运行时，断言 `failures` 为空且来源已连接。去掉边界投影后该用例会红，并原样复现用户贴出的 `unrecognized_keys` 报错（已实测）。
+
+- 2026-10-07：**工作台支持自定义卡片布局、新增两张图表卡片，并补充免鉴权 MCP 预置。**
+  1. **卡片布局编辑**：新增 `src/domain/ui/workbenchLayout.ts`（顺序/隐藏清单解析：未知 id 忽略、新卡片自动补到末尾、越界移动无副作用）与 `WorkbenchLayoutDialog`（上移/下移 + 显示开关 + 恢复默认，改动即时保存到 `settings.workbenchCardLayout`）；`WorkbenchTab` 改为按用户布局渲染，全部隐藏时给出空态入口；设置加载器对布局做形状收口，非法值回落出厂顺序。
+  2. **两张新图表**：`SessionRankWidget`（会话活跃排行 Top 5，可在轮次/字数之间切换，数据取自会话目录元数据，不依赖消息分页）与 `TokenPerformanceWidget`（累计输出 Token、平均 tok/s、累计生成耗时 + 最近 40 条回复的柱状分布，数据只读消息自身持久化的 `tokenCount` / `generationTime`）。
+  3. **免鉴权 MCP 预置**：实测公网无鉴权 Streamable HTTP 端点后加入推荐模板——`grep.app 代码搜索`（https://mcp.grep.app）与 `GitMCP 仓库文档`（https://gitmcp.io/docs，端点可替换为 `https://gitmcp.io/<owner>/<repo>`）；DeepWiki（https://mcp.deepwiki.com/mcp）原已在列。三者 `initialize` 均返回 200 且响应头不含 `WWW-Authenticate`，无需申请 Key 即可试用。
+  4. **测试**：新增 `tests/vitest/workbenchLayout.test.ts`（顺序/隐藏/越界移动解析）；`tests/vitest/WorkbenchTab.test.tsx` 增加布局编辑器用例（隐藏卡片写入 hidden、下移改变 order）。
+
+- 2026-10-07：**修复「角色卡/预设正则被灾难正则守卫误杀，状态栏、插图与 MVU 卡片静默消失」。**
+  1. **根因**：`isPotentiallyCatastrophicRegex()`（`src/compatibility/sillytavern/mvuParser.ts`）的第二个分支只要求"字符类之后再出现任意量词"，于是 `[\s\S]*?` 这种跨行匹配的标准写法被判成灾难正则，整条 `findRegex` 被替换为 `(?!)`（永不匹配）。表现为卡片状态栏、插图与 MVU 卡片在渲染层凭空消失且零报错，切换脚本执行/受信模式也毫无作用。缺陷由 2026-09-01 `3467131` 引入。
+  2. **修法**：守卫只拦截"量词直接包裹量词组/字符类"的嵌套量词形态（`(a+)+`、`(a*)*`、`([a-z]+)*`、`[a+]*`），`([\s\S]*?)`、`(abc+).*def*` 等常见写法不再误伤；判定抽到 `regexEngine.ts` 成为单一来源，世界书正则键解析（`worldInfoResolver.ts`）里的同一份误判副本一并修正（此前会把这类正则键静默降级为子串匹配）；被停用的正则改为 `console.warn` 留痕，不再静默失效。
+  3. **验证**：桌面 dev + Playwright 真实复现（导入 `test-cards/人妻.json` 并进入会话）。修复前：引擎收到 `(?!)`，消息里 `<SceneInfo>` 原样以纯文本呈现；修复后：`插图` 正则命中，正文 1158 → 20079 字符，`<SceneInfo>` 替换为 19KB 卡片 HTML（含 `<img>`），`<type>non</type>` 同步被 `nsfw` 正则删除。
+  4. **回归**：`tests/vitest/sillyTavernRegexCompatibility.test.ts` 新增两条用例——跨行匹配 `[\s\S]*?` 的卡片正则必须能替换文本；`(x+)+` 这类真正的嵌套量词仍然 fail-closed。
+
+- 2026-10-07：**修复「从会话/历史进入对话后角色卡正则与 MVU 全静默失效」。**
+  1. **根因**：首屏只加载轻量角色目录（`getCharacterCatalog()`，标记 `extensions.__catalogOnly`，不含 `regex_scripts`、`tavern_helper.scripts`、世界书与开场白）。会话管理器弹窗与聊天历史页的 `openSession` 只调用 `setActiveCharId()` 就切到聊天，渲染层因此拿到的是一张"没有脚本的正则空卡"：卡片正则（状态栏、插图）不执行、MVU 脚本不加载、变量不注入，而且全程零报错。此时 `受信完整兼容模式`开关不可能生效——它只影响兼容 iframe 的沙箱策略，插件链路根本没被使用。诊断证据：同一张卡的「插图」正则 `/<SceneInfo>([\s\S]*?)<\/SceneInfo>/gm` 在离线引擎上可正常产出 19KB 卡片 HTML，而设备上消息原文（含 `<SceneInfo>` / `<type>`）原样显示。
+  2. **修法**：`CharacterContext` 增加统一兜底——活跃角色仍是目录投影时自动 `loadCharacterById()` 补载完整卡并回写目录项。修复覆盖所有入口（会话管理器、聊天历史、收藏/归档恢复等），不再依赖每个入口各自记得先加载完整卡。
+  3. **回归**：`tests/vitest/characterContextFlow.test.tsx` 新增用例，钉住"目录返回 `__catalogOnly` 投影时，选择该角色必须触发 `getCharacterById` 并让消费组件拿到完整卡字段"。
+
+- 2026-10-07：**输出长度上限放开：出厂默认十万、可选上限一百万。**
+  1. **单一来源**：新增 `src/domain/api/outputTokenLimits.ts` 统一持有 `DEFAULT_MAX_OUTPUT_TOKENS`(100000)、`MAX_OUTPUT_TOKENS`(1000000) 与 `MIN_PROMPT_TOKEN_BUDGET`(4096)；出厂预设、采样界面滑杆、预设实体校验（`presetSamplerSchema`）与 Agent Profile 采样校验（`runtimeProfileSamplingSchema`）全部改为引用同一常量。历史缺陷是滑杆上限 150000 与实体校验 1000000 长期不一致。
+  2. **厂默认值**：内置「基本预设」的 `maxTokens` 由 1500 改为 100000；采样面板的「恢复默认采样」与滑杆上限同步为 100000 / 1000000，快捷档位改为 2K / 8K / 32K / 100K(默认) / 256K / 1M。
+  3. **预算保底**：提示词预算此前固定为 `上下文 − maxTokens`，输出上限放开后会被压到 1 token（历史、世界书、记忆被整段丢光）。现在经 `splitContextBudget()` 切分，输出预留最多为 `上下文 − MIN_PROMPT_TOKEN_BUDGET`，常规取值下与原公式逐字一致，只在极端取值时保留提示词下限。
+  4. **既有数据不迁移**：启动引导明令不改写预设内容，因此已存在的预设保留各自保存的 `maxTokens`，需要一次性点选「100K 默认」档位或「恢复默认采样」；预设实体缺少 `maxTokens` 时由运行期投影补出厂默认（现为 100000）。注意导入路径在文件未声明 `max_tokens` / `openai_max_tokens` 时仍写入 600 的保守兜底，与「预设作者显式声明优先」的口径一致，未随本次改动调整。
+  5. **测试**：新增 `tests/vitest/outputTokenLimits.test.ts`（常量、出厂默认、实体/Profile 上界、预算切分四种情形）。
+
 - 2026-10-06：**工作台新增第三方 MCP 接入与单工具测试沙盒（外部能力 M3c）。**
   1. **接入入口**：`ThirdPartyMcpImportModal` 提供三种来源——粘贴 Claude Desktop / Cursor 的 `mcpServers` 配置或单个 HTTP(S) URL（`thirdPartyMcpParser` 纯解析，不执行任何外部脚本）、选用预置模板（DeepWiki / Brave Search / GitHub 远端）、手动添加；stdio 本地进程在移动端不可运行，被显式拦截并在结果里给出原因，不做静默丢弃。
   2. **鉴权字段收口**：预置模板声明了 `authHeader` / `authScheme` / `authPlaceholder`，此前只搬运 id/name/endpoint，导致 Brave 预置（`x-subscription-token` + `raw`）会以 `Authorization: Bearer` 发出而必然 401。现在 `presetToFormValues` → `formValuesToCandidate` 是唯一转换入口，鉴权头、方案与占位提示一路带出，秘密仍只经独立加密凭据库写入（来源记录里不出现明文）。

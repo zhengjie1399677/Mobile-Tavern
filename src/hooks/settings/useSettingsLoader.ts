@@ -267,6 +267,21 @@ export const useSettingsLoader = ({
             uiDensity: storedSet.uiDensity === "accessible" ? "accessible" : "compact",
             customThemes: Array.isArray(storedSet.customThemes) ? storedSet.customThemes : DEFAULT_SETTINGS.customThemes,
             hiddenMainTabs: Array.isArray(storedSet.hiddenMainTabs) ? storedSet.hiddenMainTabs : DEFAULT_SETTINGS.hiddenMainTabs,
+            // 工作台布局：形状宽松校验，非法值回落出厂顺序（解析层还会忽略未知卡片 id）。
+            workbenchCardLayout: (() => {
+              const layout = storedSet.workbenchCardLayout;
+              if (!layout || typeof layout !== "object") {
+                return DEFAULT_SETTINGS.workbenchCardLayout;
+              }
+              return {
+                order: Array.isArray(layout.order)
+                  ? layout.order.filter((id): id is string => typeof id === "string")
+                  : undefined,
+                hidden: Array.isArray(layout.hidden)
+                  ? layout.hidden.filter((id): id is string => typeof id === "string")
+                  : undefined,
+              };
+            })(),
             themeMediaEnabled: storedSet.themeMediaEnabled ?? DEFAULT_SETTINGS.themeMediaEnabled,
             imageGenApi: {
               ...DEFAULT_SETTINGS.imageGenApi,

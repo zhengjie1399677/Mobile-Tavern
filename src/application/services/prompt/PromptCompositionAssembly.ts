@@ -7,6 +7,7 @@ import {
   compilePromptComposition,
 } from "../../../domain/prompt-composition";
 import type { UserSettings } from "../../../types";
+import { splitContextBudget } from "../../../domain/api/outputTokenLimits";
 import { ModelCapabilityRegistry } from "../llmCompatibility";
 import type { PromptAssemblyResult } from "./PromptAssemblyResult";
 import { shapePromptRequest } from "./PromptRequestShaper";
@@ -109,7 +110,9 @@ function resolvePromptTokenBudget(composition: PromptComposition, settings: User
     settings.api?.baseUrl,
   );
   const contextLimit = settings.api?.contextLimit || modelCapabilities.contextWindow || 200000;
-  return Math.max(1, contextLimit - Math.max(0, settings.preset?.maxTokens || 0));
+  // 输出上限与提示词预算共用同一个上下文窗口。输出预留必须给提示词留下保底预算，
+  // 否则把输出上限调到 100 万会把历史/世界书/记忆整段挤掉（见 outputTokenLimits）。
+  return splitContextBudget(contextLimit, settings.preset?.maxTokens ?? 0).promptBudget;
 }
 
 function sumMessageTokens(

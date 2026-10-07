@@ -10,6 +10,7 @@ import {
   type PresetSamplerV2,
 } from "../../domain/presets/contracts";
 import { requirePresetBundleV2 } from "../../domain/presets/bundleMigration";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "../../domain/api/outputTokenLimits";
 import { CURRENT_PRESET_FACTORY_REVISION } from "../../application/useCases/presetBootstrap";
 import { createPromptPresetPlan, toPresetPromptConfig } from "../../application/useCases/presetPromptConfig";
 import { DEFAULT_HEADLESS_PORT } from "../../utils/hostBindingPolicy";
@@ -170,7 +171,7 @@ export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1: SavedPresetBundle = {
     frequencyPenalty: 0.0,
     presencePenalty: 0.0,
     minP: 0.0,
-    maxTokens: 1500,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   },
   promptConfig: {
     ...toPresetPromptConfig(DEFAULT_PROMPT_CONFIG),
@@ -501,6 +502,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   uiDensity: "compact",
   customThemes: [],
   hiddenMainTabs: [],
+  workbenchCardLayout: {},
   themeMediaEnabled: false,
   imageGenApi: {
     enabled: false,

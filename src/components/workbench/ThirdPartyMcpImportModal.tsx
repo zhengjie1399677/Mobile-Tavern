@@ -200,7 +200,7 @@ export const ThirdPartyMcpImportModal: React.FC<ThirdPartyMcpImportModalProps> =
           {modalTab === "presets" && (
             <div className="space-y-2">
               <p className="text-[11px] text-muted-foreground">
-                经过实测的公网 MCP 模版，点击选用可快速填入并启用：
+                经过实测的公网 MCP 模版；带「免鉴权」标签的无需申请 Key，选用后直接保存即可试用：
               </p>
               <div className="space-y-1.5">
                 {THIRD_PARTY_MCP_PRESETS.map((preset) => (

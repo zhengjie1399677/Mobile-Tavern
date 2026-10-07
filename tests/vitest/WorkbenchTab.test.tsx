@@ -8,27 +8,33 @@ import { ActivityRingsOrbitWidget } from "../../src/components/workbench/Activit
 import { TrendSparklineWaveWidget } from "../../src/components/workbench/TrendSparklineWaveWidget";
 import { HostStorageMetricsWidget } from "../../src/components/workbench/HostStorageMetricsWidget";
 
-// Mock useUnifiedApp
-vi.mock("../../src/UnifiedAppContext", () => ({
-  useUnifiedApp: (selector: (state: any) => any) =>
-    selector({
-      sessions: [
-        {
-          id: "session-1",
-          name: "Test Session",
-          messages: [
-            { id: "m1", sender: "user", content: "Hello", timestamp: Date.now() },
-            { id: "m2", sender: "assistant", content: "Hi there!", timestamp: Date.now() },
-          ],
-        },
-      ],
-      characters: [{ id: "char-1", name: "Test Char" }],
-      showCustomAlert: vi.fn(),
-      showCustomConfirm: vi.fn(),
-      showCustomPrompt: vi.fn(),
-      getKernelService: vi.fn(),
-    }),
-}));
+// Mock useUnifiedApp（布局编辑器需要断言 updateSettings 收到的布局补丁）
+vi.mock("../../src/UnifiedAppContext", () => {
+  const updateSettings = vi.fn();
+  return {
+    __mockUpdateSettings: updateSettings,
+    useUnifiedApp: (selector: (state: any) => any) =>
+      selector({
+        sessions: [
+          {
+            id: "session-1",
+            name: "Test Session",
+            messages: [
+              { id: "m1", sender: "user", content: "Hello", timestamp: Date.now() },
+              { id: "m2", sender: "assistant", content: "Hi there!", timestamp: Date.now() },
+            ],
+          },
+        ],
+        characters: [{ id: "char-1", name: "Test Char" }],
+        settings: { ambientGlowIntensity: 0 },
+        updateSettings,
+        showCustomAlert: vi.fn(),
+        showCustomConfirm: vi.fn(),
+        showCustomPrompt: vi.fn(),
+        getKernelService: vi.fn(),
+      }),
+  };
+});
 
 // Mock toolPluginManagementUseCases
 vi.mock("../../src/application/useCases/toolPluginManagementUseCases", () => ({
@@ -70,6 +76,41 @@ describe("WorkbenchTab (宿主工作台)", () => {
     expect(screen.getByText("宿主工作台")).toBeInTheDocument();
     expect(screen.getByText("Host Engine Ready")).toBeInTheDocument();
     expect(screen.getByText("LOCAL TIME")).toBeInTheDocument();
+  });
+
+  it("布局编辑器可以隐藏卡片并调整卡片顺序", async () => {
+    const mockedModule = await import("../../src/UnifiedAppContext") as unknown as {
+      __mockUpdateSettings: ReturnType<typeof vi.fn>;
+    };
+
+    render(<WorkbenchTab />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    fireEvent.click(screen.getByLabelText("编辑工作台布局"));
+    expect(screen.getByText("编辑工作台布局")).toBeInTheDocument();
+
+    // 隐藏第一张卡片：补丁必须把 calendar 写进 hidden
+    // Base UI Switch 会同时渲染可见按钮与表单隐藏输入，两者共享同一 aria-label。
+    fireEvent.click(screen.getAllByLabelText("显示 时空活跃热力日历")[0]);
+    const hidePatch = mockedModule.__mockUpdateSettings.mock.calls.at(-1)?.[0] as
+      | ((previous: Record<string, unknown>) => Record<string, unknown>)
+      | undefined;
+    expect(hidePatch).toBeTypeOf("function");
+    const hiddenSettings = hidePatch!({ existing: true });
+    expect(hiddenSettings.workbenchCardLayout).toMatchObject({ hidden: ["calendar"] });
+
+    // 下移第一张卡片：补丁顺序里 calendar 不再排第一
+    mockedModule.__mockUpdateSettings.mockClear();
+    fireEvent.click(screen.getByLabelText("下移 时空活跃热力日历"));
+    const movePatch = mockedModule.__mockUpdateSettings.mock.calls.at(-1)?.[0] as
+      | ((previous: Record<string, unknown>) => Record<string, unknown>)
+      | undefined;
+    const movedSettings = movePatch!({});
+    const movedOrder = (movedSettings.workbenchCardLayout as { order: string[] }).order;
+    expect(movedOrder[0]).toBe("mood");
+    expect(movedOrder[1]).toBe("calendar");
   });
 
   it("日历热力矩阵能够正常渲染并支持切换今天", () => {
