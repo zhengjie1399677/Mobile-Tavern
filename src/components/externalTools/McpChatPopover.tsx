@@ -27,10 +27,15 @@ import { KernelServices, type IExternalSourceRuntimeService } from "../../applic
 import { useOptionalKernel } from "../../contexts/KernelContext";
 import type { ExternalToolDescriptor } from "../../domain/externalSources/contracts";
 import {
+  buildToolArguments,
+  deriveInitialToolArguments,
+  findMissingRequiredArguments,
+  listToolArgumentFields,
   resolvePrimaryArgumentKey,
   stringifyExternalToolResult,
   type ExternalToolInvocationPayload,
   type ExternalToolInvocationTarget,
+  type ToolArgumentField,
 } from "./externalToolInvocation";
 
 interface McpChatPopoverProps {
@@ -67,7 +72,8 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
   const [loading, setLoading] = React.useState(false);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<ExternalToolInvocationTarget | null>(null);
-  const [query, setQuery] = React.useState("");
+  const [fieldValues, setFieldValues] = React.useState<Record<string, string | boolean>>({});
+  const [formError, setFormError] = React.useState<string | null>(null);
   const [executing, setExecuting] = React.useState(false);
   const [togglingId, setTogglingId] = React.useState<string | null>(null);
 
@@ -116,7 +122,8 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
     if (open) return;
     // 关闭后清掉临时选择，避免下次打开残留上一次的调用意图。
     setSelected(null);
-    setQuery("");
+    setFieldValues({});
+    setFormError(null);
     setExecuting(false);
   }, [open]);
 
@@ -151,7 +158,22 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
       sourceName: row.name,
       tool,
     });
-    setQuery((draftText ?? "").trim());
+    setFieldValues(deriveInitialToolArguments(tool.inputSchema, draftText));
+    setFormError(null);
+  };
+
+  const selectedFields: ToolArgumentField[] = React.useMemo(
+    () => (selected ? listToolArgumentFields(selected.tool.inputSchema) : []),
+    [selected],
+  );
+
+  const primaryKey = selected
+    ? resolvePrimaryArgumentKey(selected.tool.inputSchema)
+    : null;
+
+  const setFieldValue = (key: string, value: string | boolean) => {
+    setFieldValues((current) => ({ ...current, [key]: value }));
+    setFormError(null);
   };
 
   const handleInvoke = async () => {
@@ -161,9 +183,14 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
       await showAlert("外部能力运行时未就绪，无法调用。", "调用失败");
       return;
     }
-    const primaryKey = resolvePrimaryArgumentKey(selected.tool.inputSchema);
-    const trimmed = query.trim();
-    const input: Record<string, unknown> = primaryKey ? { [primaryKey]: trimmed } : {};
+    const fields = listToolArgumentFields(selected.tool.inputSchema);
+    const missing = findMissingRequiredArguments(fields, fieldValues);
+    if (missing.length > 0) {
+      setFormError(`请填写必填参数：${missing.join("、")}`);
+      return;
+    }
+    const input = buildToolArguments(fields, fieldValues);
+    const queryText = primaryKey ? String(fieldValues[primaryKey] ?? "").trim() : "";
     setExecuting(true);
     try {
       const response = await runtime.testCallTool(
@@ -174,7 +201,7 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
       await onConfirm({
         target: selected,
         input,
-        query: trimmed,
+        query: queryText,
         resultText: stringifyExternalToolResult(response.result),
         durationMs: response.durationMs,
       });
@@ -328,7 +355,15 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
                                   <span className="block truncate text-[11px] font-medium">
                                     {tool.localName}
                                   </span>
-                                  <span className="line-clamp-1 block text-[9.5px] text-muted-foreground">
+                                  <span
+                                    className="block text-[9.5px] text-muted-foreground"
+                                    style={{
+                                      display: "-webkit-box",
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: "vertical",
+                                      overflow: "hidden",
+                                    }}
+                                  >
                                     {tool.description || "无描述"}
                                   </span>
                                 </button>
@@ -348,15 +383,72 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
                 <p className="truncate text-[10px] font-semibold text-primary">
                   {selected.sourceName} / {selected.tool.localName}
                 </p>
-                <textarea
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  rows={2}
-                  placeholder={resolvePrimaryArgumentKey(selected.tool.inputSchema)
-                    ? `输入查询内容（${resolvePrimaryArgumentKey(selected.tool.inputSchema)}）`
-                    : "该工具没有可识别的文本参数，可直接调用"}
-                  className="w-full resize-none rounded-lg border border-border/70 bg-background/80 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-primary/50"
-                />
+                {selectedFields.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    该工具不需要参数，可直接调用。
+                  </p>
+                ) : (
+                  <div className="max-h-44 space-y-1.5 overflow-y-auto overscroll-contain pr-0.5">
+                    {selectedFields.map((field) => (
+                      <label key={field.key} className="block space-y-1">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <span className="font-mono text-foreground">{field.key}</span>
+                          {field.required && <span className="text-rose-400">*</span>}
+                          {field.primary && (
+                            <span className="rounded bg-primary/12 px-1 text-[9px] text-primary">
+                              草稿自动带入
+                            </span>
+                          )}
+                          {field.type !== "string" && (
+                            <span className="rounded bg-muted px-1 text-[9px]">{field.type}</span>
+                          )}
+                        </span>
+                        {field.type === "boolean" ? (
+                          <span className="flex items-center justify-between rounded-lg border border-border/70 bg-background/80 px-2 py-1">
+                            <span className="text-[10px] text-muted-foreground">
+                              {field.description || "布尔开关"}
+                            </span>
+                            <Switch
+                              aria-label={field.key}
+                              checked={fieldValues[field.key] === true}
+                              onCheckedChange={(value: boolean) => setFieldValue(field.key, value)}
+                              className="data-[state=checked]:bg-primary h-4 w-7 shrink-0 [&_span]:h-3 [&_span]:w-3"
+                            />
+                          </span>
+                        ) : field.type === "json" ? (
+                          <textarea
+                            value={String(fieldValues[field.key] ?? "")}
+                            onChange={(event) => setFieldValue(field.key, event.target.value)}
+                            rows={2}
+                            spellCheck={false}
+                            placeholder={field.description || "{ }"}
+                            className="w-full resize-none rounded-lg border border-border/70 bg-background/80 px-2 py-1.5 font-mono text-[10.5px] text-foreground outline-none focus:border-primary/50"
+                          />
+                        ) : field.primary ? (
+                          <textarea
+                            value={String(fieldValues[field.key] ?? "")}
+                            onChange={(event) => setFieldValue(field.key, event.target.value)}
+                            rows={2}
+                            placeholder={field.description || "输入查询内容"}
+                            className="w-full resize-none rounded-lg border border-border/70 bg-background/80 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-primary/50"
+                          />
+                        ) : (
+                          <input
+                            type={field.type === "number" ? "number" : "text"}
+                            inputMode={field.type === "number" ? "decimal" : undefined}
+                            value={String(fieldValues[field.key] ?? "")}
+                            onChange={(event) => setFieldValue(field.key, event.target.value)}
+                            placeholder={field.description || field.key}
+                            className="w-full rounded-lg border border-border/70 bg-background/80 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-primary/50"
+                          />
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {formError && (
+                  <p className="text-[10px] font-medium text-rose-400">{formError}</p>
+                )}
                 <button
                   type="button"
                   disabled={executing}

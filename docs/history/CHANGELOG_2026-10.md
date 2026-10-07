@@ -1,5 +1,11 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**修复聊天 MCP 气泡弹层调用多参数工具报 `-32602 Invalid arguments`（GitMCP 等）。**
+  1. **根因**：弹层此前只把输入框草稿映射到单个"主参数"，`owner` / `repo` 这类必填项保持为空，被 MCP 服务端按严格 schema 拒绝；用户看到的就是"调用失败：Invalid arguments for tool …"。
+  2. **修法**：按工具 JSON Schema 生成**逐参数表单**——必填标 `*`，string/number/boolean/JSON 各自控件；`query`/`prompt` 等查询类字段用草稿自动带入；草稿里出现 `owner/repo` 形态时自动拆分给 owner / repo，出现 URL 时带入 url；调用前本地校验必填项，缺参直接内联提示，不再打到服务端。
+  3. **顺带**：工具描述按两行截断（此前长描述撑满列表）。
+  4. **测试**：`listToolArgumentFields` / `deriveInitialToolArguments` / `buildToolArguments` / `findMissingRequiredArguments` 均有单测覆盖；气泡 E2E（按钮 / `/tool` / 空态跳工作台）保持全绿。
+
 - 2026-10-07：**聊天内 MCP 改为气泡弹层（Popover），删除底部大面板；工作台布局动效保留。**
   1. **MCP 形态重做**：删除 `ExternalToolInvocationSheet`（全屏底部面板：按布局视口定位，虚拟键盘弹出时底部按钮被遮挡、位置与安全区也容易错位），改为输入框左侧「MCP 能力」按钮锚定的 Base UI Popover。面板内直接完成聊天侧设置：来源启停（同步自动挂载）、连通状态、工具清单；选中工具后用输入框草稿自动匹配主参数（query/prompt 等）并显式调用，结果格式化后作为上下文送入当前会话；空态与页脚都可一键跳工作台「扩展能力」。`/tool <查询>` 命令保留并打开同一气泡。
   2. **逻辑与 UI 解耦**：主参数推导、结果序列化、送入对话的格式化抽到 `components/externalTools/externalToolInvocation.ts`，单测直接覆盖；气泡组件只负责交互与设置。
