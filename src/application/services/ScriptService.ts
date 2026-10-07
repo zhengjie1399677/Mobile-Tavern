@@ -5,10 +5,16 @@ import {
   KernelServices,
 } from "../serviceContracts";
 import type { ICompatibilityRuntimeService } from "../compatibility/contracts";
-import { CharacterCard, ChatSession } from "../../types";
+import { CharacterCard, ChatSession, Message } from "../../types";
 import { Logger } from "../../utils/logger";
 
 const logger = Logger.create("ScriptService");
+
+/**
+ * 回放时的 MVU 快速跳过判定：与输出中间件的预扫描保持一致，
+ * 不含任何状态更新指令的消息不必走 store 变换与解析。
+ */
+const MVU_REPLAY_TRIGGER_PATTERN = /(?:<UpdateVariable\b|<initvar\b|_\.(?:set|add|delete|remove|unset|assign|insert|move)\s*\()/i;
 
 
 export interface ITavernHelperBridge {
@@ -332,6 +338,56 @@ export class ScriptService implements IScriptService<CharacterCard, ChatSession>
       }
       return session;
     }
+  }
+
+  /**
+   * 按消息序列回放 MVU 状态。
+   *
+   * 分支回溯必须"完全回退到分叉节点"：优先用消息携带的状态快照，快照缺失时
+   * （旧会话、外部导入历史）用本方法从角色基线开始逐条重放 AI 消息里的状态指令，
+   * 得到与当时等价的变量形态，避免分支凭空丢失卡片状态。
+   *
+   * 返回 undefined 表示角色卡与运行时都没有 MVU 状态能力，调用方应保持原降级值，
+   * 不得凭空写入 `{stat_data:{}}` 之类的默认状态。
+   */
+  async replayMvuState(
+    character: CharacterCard,
+    messages: readonly Message[],
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown> | undefined> {
+    checkAborted(signal, this.abortController?.signal);
+    const runtime = this.getCompatibilityRuntime();
+    const hasStateReducer = (runtime?.getDiagnostics().stateReducers?.length ?? 0) > 0;
+    if (!hasStateReducer || !character || typeof character !== "object") return undefined;
+
+    const extensions = character.extensions as Record<string, unknown> | undefined;
+    const hasCardState = Boolean(
+      extensions
+      && (
+        extensions.mvu_settings
+        || extensions.mvu
+        || extensions.MVU
+        || (extensions.tavern_helper && typeof extensions.tavern_helper === "object")
+      ),
+    );
+    if (!hasCardState) return undefined;
+
+    let state = this.initializeMvuFromCharacter(character);
+    for (const message of messages) {
+      checkAborted(signal, this.abortController?.signal);
+      if (message.sender !== "assistant") continue;
+      const content = message.content ?? "";
+      if (!MVU_REPLAY_TRIGGER_PATTERN.test(content)) continue;
+      const processed = runtime?.transformText({
+        text: content,
+        character,
+        isAiMessage: true,
+        mode: "store",
+        signal: signal ?? this.abortController?.signal,
+      }) ?? content;
+      state = this.parseMvuMessage(processed, state, signal ?? this.abortController?.signal);
+    }
+    return state;
   }
 
   private getCompatibilityRuntime(): ICompatibilityRuntimeService | null {

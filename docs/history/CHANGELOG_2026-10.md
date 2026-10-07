@@ -1,5 +1,12 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**按"完全回退到分叉节点、不回退外部长期记忆"重做分支状态语义。**
+  1. **状态回退补全**：回溯分支此前只从消息快照恢复变量/状态表，快照缺失（旧会话、外部导入历史）就直接没有状态；现在新增 `IScriptService.replayMvuState()`——从角色基线开始，按消息前缀逐条重放 AI 消息里的 MVU 指令（store 变换 + `parseMvuMessage`，带无指令快速跳过），把变量真正回退到分叉节点。
+  2. **去除伪造状态表**：旧实现给"无快照的中段分支"调用 `initDefaultSheets()` 造一份默认表，等于凭空发明历史（违反 `runtime_boundaries.md` 的"缺失状态不得伪造"）。现在只认节点快照 / 分支点在末尾时的当前表，否则保持 `undefined` 由运行时按缺失降级。
+  3. **节点状态一起回退**：`pinnedMessageIds` / `mutedMessageIds` 按分支内新消息 ID 重映射后继承，`activePromptSceneProfileId` 一并复制。
+  4. **长期记忆不回退**：新增 `domain/chat/branchState`（`carryOverBranchMemory` / `remapBranchMessageIds`），把源会话当前的词典、事件片段、时态事实整体复制进新分支——会话与主键重写、来源消息映射到分支内新 ID、supersede 链保持、分叉点之后的来源引用原样保留（那条记忆本就属于外部时间线）。记忆复制失败时回滚刚创建的分支，不留半成品。
+  5. **测试**：`branchState.test.ts` 覆盖重映射（含 supersede 链与"分叉点之后引用保持原样"）；`backtrackBranchState.test.ts` 用 fake-indexeddb 跑通四条：中段分叉取节点快照、无快照回放 MVU 且不造表、回忆控制/场景/长期记忆完整携带、记忆复制失败回滚分支。全量单测与质量门禁通过。
+
 - 2026-10-07：**审查并修复角色卡聊天"平行宇宙"分支；修复预设正则被来源判定跳过、工作台拖动、卡片 HUD 残留与聊天内 MCP 显性调用。**
   1. **平行宇宙只剩空柱（分支审查主问题）**：sessions Store 拆分后 `queryDirectory` 返回的 `session.messages` 恒为空数组，宇宙图给每条分支画出的时间柱长度都是 0，轮次节点与记忆晶体全部不可见。新增 `loadUniverseSessionsForCharacter()`（`sessionDirectoryUseCases`）按会话补最近 160 条消息窗口后，`SessionManagerModal` 用它渲染；每个会话最多水合 40 条分支。
   2. **记忆晶体挂错节点（轮次错位）**：图里用"渲染下标 + 1"去匹配 `fragment.sourceTurnEnd`，而碎片写的是 messages Store 的绝对 `turnIndex`（0 基，`commitTurn` 分配）。现在统一用 `message.turnIndex` 做节点身份与碎片匹配，审计回调也传绝对轮次；`MemoryFragmentEditor` 只把展示文案改为 1 基。

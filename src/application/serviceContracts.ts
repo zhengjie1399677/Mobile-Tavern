@@ -570,6 +570,15 @@ export interface IScriptService<TCharacter = unknown, TSession = unknown> extend
   initializeMvuFromCharacter(character: TCharacter): Record<string, unknown>;
   parseMvuMessage(messageContent: string, currentVariables: Record<string, unknown>, signal?: AbortSignal): Record<string, unknown>;
   executeMvuScript(session: TSession, messageContent: string, signal?: AbortSignal): Promise<TSession>;
+  /**
+   * 从角色基线开始回放一段消息序列里的 MVU 状态更新，返回分叉点当时的状态形态。
+   * 快照缺失时的分支回退依赖它；角色与运行时都没有状态能力时返回 undefined。
+   */
+  replayMvuState(
+    character: TCharacter,
+    messages: readonly unknown[],
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown> | undefined>;
   registerBridge(bridge: unknown): void;
 }
 

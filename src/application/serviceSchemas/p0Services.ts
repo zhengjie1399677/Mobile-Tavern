@@ -42,12 +42,13 @@ export const ChatStreamServiceSchema = KernelServiceBaseSchema.extend({
 
 /**
  * Script：parseMvuMessage 输出经 Compatibility Host 写入插件状态命名空间，LLM 文本→数据库转换点。
- * 接口方法：initializeMvuFromCharacter, parseMvuMessage, executeMvuScript, registerBridge
+ * 接口方法：initializeMvuFromCharacter, parseMvuMessage, executeMvuScript, replayMvuState, registerBridge
  */
 export const ScriptServiceSchema = KernelServiceBaseSchema.extend({
   initializeMvuFromCharacter: fnSchema,
   parseMvuMessage: fnSchema,
   executeMvuScript: fnSchema,
+  replayMvuState: fnSchema,
   registerBridge: fnSchema,
 });
 

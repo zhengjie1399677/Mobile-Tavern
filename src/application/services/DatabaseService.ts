@@ -52,6 +52,12 @@ import {
   findLegacyMvuVariables,
   findSessionStateSnapshot,
 } from "../../domain/chat/sessionStateSnapshot";
+import {
+  carryOverBranchMemory,
+  remapBranchMessageIds,
+  type BranchMemorySnapshot,
+} from "../../domain/chat/branchState";
+import { restoreSessionMemorySnapshot } from "../../infrastructure/storage/repositories/sessionMemorySnapshotRepository";
 import type { MemoryServiceTyped } from "./memory";
 import { collectMessageAssetIds } from "../../domain/messages/messageContent";
 
@@ -626,33 +632,69 @@ export class DatabaseService implements IDatabaseService<
       : undefined;
     const snapshot = findSessionStateSnapshot(sourceSubHistory);
     const legacyVariables = findLegacyMvuVariables(sourceSubHistory);
-    let tableMemory = snapshot?.tableMemory;
-    if (!tableMemory && sourceSession.tableMemory) {
-      if (msgIndex === fullHistory.length - 1) {
-        tableMemory = structuredClone(sourceSession.tableMemory);
-      } else if (this.kernel.hasService("memory")) {
-        const character = await this.getCharacterById(sourceSession.characterId);
-        tableMemory = this.kernel
-          .getService<MemoryServiceTyped>("memory")
-          .getStateTable()
-          .initDefaultSheets(character?.name || "NPC");
-      }
-    }
+    const isBranchingFromLatest = msgIndex === fullHistory.length - 1;
+
+    // 状态表：只认消息携带的快照；分叉点在末尾时当前会话状态就是节点状态。
+    // 旧实现对无快照的中段分支会 initDefaultSheets() 造一份默认表——那是伪造历史，
+    // 违反"完全回退到分叉节点"（见 docs/agents/runtime_boundaries.md）。
+    const tableMemory = snapshot?.tableMemory
+      ?? (isBranchingFromLatest && sourceSession.tableMemory
+        ? structuredClone(sourceSession.tableMemory)
+        : undefined);
+
     const snapshotPluginState = snapshot?.version === 2
       ? snapshot.runtimePluginState
       : snapshot?.variables
         ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: snapshot.variables }
         : undefined;
+    const legacyPluginState = legacyVariables
+      ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(legacyVariables) }
+      : undefined;
+    const latestPluginState = isBranchingFromLatest
+      ? structuredClone(sourceSession.runtimePluginState)
+        ?? (sourceSession.variables
+          ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(sourceSession.variables) }
+          : undefined)
+      : undefined;
+    // 快照缺失（旧会话 / 外部导入历史）时按消息回放 MVU 状态，
+    // 把变量真正回退到分叉节点，而不是让分支凭空丢失卡片状态。
+    let replayedPluginState: ChatSession["runtimePluginState"] | undefined;
+    if (!snapshotPluginState && !legacyPluginState && !latestPluginState) {
+      try {
+        const character = await this.getCharacterById(sourceSession.characterId);
+        const scriptService = this.kernel.hasService(KernelServices.Script)
+          ? this.kernel.getService<IScriptService<CharacterCard, ChatSession>>(KernelServices.Script)
+          : null;
+        const replayed = character && scriptService
+          ? await scriptService.replayMvuState(
+              character,
+              sourceSubHistory,
+              this.abortController?.signal,
+            )
+          : undefined;
+        replayedPluginState = replayed ? this.createCompatibilityState(replayed) : undefined;
+      } catch (error: unknown) {
+        logger.warn("Failed to replay MVU state for branch; branch keeps node snapshot only", {
+          error,
+          sessionId: sourceSession.id,
+          messageId: msgId,
+        });
+      }
+    }
     const runtimePluginState = snapshotPluginState
-      ?? (legacyVariables
-        ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(legacyVariables) }
-        : undefined)
-      ?? (msgIndex === fullHistory.length - 1
-        ? structuredClone(sourceSession.runtimePluginState)
-          ?? (sourceSession.variables
-            ? { [SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID]: structuredClone(sourceSession.variables) }
-            : undefined)
-        : undefined);
+      ?? legacyPluginState
+      ?? latestPluginState
+      ?? replayedPluginState;
+
+    // 会话级回忆控制与 Prompt 场景选择同属"节点状态"，必须一起回退。
+    const remappedPinnedIds = remapBranchMessageIds(
+      sourceSession.pinnedMessageIds,
+      branchedMessageIds,
+    );
+    const remappedMutedIds = remapBranchMessageIds(
+      sourceSession.mutedMessageIds,
+      branchedMessageIds,
+    );
 
     const newSession: ChatSession = {
       id: newSessionId,
@@ -664,13 +706,67 @@ export class DatabaseService implements IDatabaseService<
       lastSummarizedMessageId,
       runtimePluginState,
       tableMemory,
+      pinnedMessageIds: remappedPinnedIds,
+      mutedMessageIds: remappedMutedIds,
+      activePromptSceneProfileId: sourceSession.activePromptSceneProfileId,
       parentSessionId: sourceSession.id,
       parentMessageId: msgId,
       compositionSnapshot: sourceSession.compositionSnapshot
         ?? this.getAgentCompositionSnapshot(),
     };
     await this.replaceCompleteSessions([newSession]);
+
+    // 外部长期记忆不回退：把源会话当前的词典 / 片段 / 事实带入新分支
+    //（此后两条分支各自独立演进）。失败时回滚整个分支，避免留下"有会话没记忆"的半成品。
+    await this.carryOverSessionMemory(
+      newSession.id,
+      sourceSession.id,
+      branchedMessageIds,
+    );
     return newSession;
+  }
+
+  /** 把源会话当前长期记忆复制进新分支；无记忆服务时静默跳过。 */
+  private async carryOverSessionMemory(
+    branchSessionId: string,
+    sourceSessionId: string,
+    branchedMessageIds: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    if (!this.kernel.hasService(KernelServices.Memory)) return;
+    const storage = this.kernel
+      .getService<MemoryServiceTyped>(KernelServices.Memory)
+      .getStorage();
+    try {
+      const [dictEntries, fragments, facts] = await Promise.all([
+        storage.getDictBySession(sourceSessionId),
+        storage.getFragmentsBySession(sourceSessionId),
+        storage.getTemporalFactsBySession(sourceSessionId),
+      ]);
+      if (dictEntries.length === 0 && fragments.length === 0 && facts.length === 0) return;
+      const snapshot: BranchMemorySnapshot = carryOverBranchMemory(
+        { dictEntries, fragments, facts },
+        {
+          sourceSessionId,
+          branchSessionId,
+          messageIdMap: branchedMessageIds,
+        },
+      );
+      await restoreSessionMemorySnapshot(snapshot, this.abortController?.signal);
+    } catch (error: unknown) {
+      logger.warn("Failed to carry over long-term memory into branch; rolling back branch", {
+        error,
+        branchSessionId,
+      });
+      // 走仓库层删除而不是 this.deleteSession：后者带"必须先归档"的用户语义守护，
+      // 这里回滚的是刚刚创建、尚未暴露给用户的分支记录。
+      await deleteSession(branchSessionId, this.abortController?.signal).catch((cleanupError: unknown) => {
+        logger.warn("Failed to roll back branch after memory carry-over failure", {
+          error: cleanupError,
+          branchSessionId,
+        });
+      });
+      throw error;
+    }
   }
 
   async createBacktrackFromTimeline(sourceSession: ChatSession, title: string, summaryId: string): Promise<ChatSession> {
