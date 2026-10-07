@@ -186,6 +186,15 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
     setFormError(null);
   };
 
+  /** 收起工具参数/结果区，回到来源与工具列表（不关闭整个面板）。 */
+  const clearToolSelection = React.useCallback(() => {
+    setSelected(null);
+    setFieldValues({});
+    setFormError(null);
+    setCallResult(null);
+    setCopied(false);
+  }, []);
+
   const selectedFields: ToolArgumentField[] = React.useMemo(
     () => (selected ? listToolArgumentFields(selected.tool.inputSchema) : []),
     [selected],
@@ -412,6 +421,16 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
                                 </button>
                               );
                             })}
+                            {/* 子条目收起：折叠该来源的工具列表，不关闭整个面板 */}
+                            <button
+                              type="button"
+                              aria-label={`收起 ${row.name}`}
+                              onClick={() => setExpandedId(null)}
+                              className="flex w-full items-center justify-center gap-1 rounded-lg py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                            >
+                              <ChevronDown className="size-3 rotate-180" />
+                              收起
+                            </button>
                           </div>
                         )}
                       </div>
@@ -423,9 +442,20 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
 
             {selected && (
               <div className="space-y-2 border-t border-border/60 bg-card/60 px-3 py-2.5">
-                <p className="truncate text-[10px] font-semibold text-primary">
-                  {selected.sourceName} / {selected.tool.localName}
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-[10px] font-semibold text-primary">
+                    {selected.sourceName} / {selected.tool.localName}
+                  </p>
+                  <button
+                    type="button"
+                    aria-label="收起工具面板"
+                    title="收起"
+                    onClick={clearToolSelection}
+                    className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
                 {selectedFields.length === 0 ? (
                   <p className="text-[10px] text-muted-foreground">
                     该工具不需要参数，可直接调用。
