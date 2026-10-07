@@ -1,11 +1,11 @@
 /**
  * 聊天界面里的 MCP 气泡弹层（Popover）。
  *
- * 取代此前的全屏底部面板：
- *   - 触发按钮就在输入框左侧，点开是锚定在按钮上的气泡，不再被虚拟键盘遮挡；
- *   - 面板内直接做 MCP 设置：来源启停、连通状态、工具清单；
- *   - 选中工具后用输入框草稿自动匹配主参数并显式调用，结果送回对话；
- *   - 高级管理仍跳工作台「扩展能力」，聊天内只保留高频操作。
+ * 用户定稿（2026-10-07）：
+ *   - 总开关默认关闭，关闭时聊天里不出现该入口；
+ *   - 只允许手动调用，结果不再自动发起对话；
+ *   - 调用成功后只提供「插入输入框」，且只插数据正文（不插 `{text,raw,isError}` 包装）；
+ *   - 面板必须能关：× 按钮、Android 返回键、点外部。
  */
 import React from "react";
 import { Popover } from "@base-ui/react/popover";
@@ -18,22 +18,26 @@ import {
   Power,
   RefreshCw,
   Send,
+  X,
   Sparkles,
+  Copy,
+  Check as CheckIcon,
 } from "lucide-react";
 import { Switch } from "../../../components/ui/switch";
 import { externalSourceUseCases } from "../../application/externalSources/externalSourceUseCases";
 import { syncExternalSourceToolMounts } from "../../application/useCases/externalSourceToolMounting";
 import { KernelServices, type IExternalSourceRuntimeService } from "../../application/serviceContracts";
 import { useOptionalKernel } from "../../contexts/KernelContext";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 import type { ExternalToolDescriptor } from "../../domain/externalSources/contracts";
 import {
   buildToolArguments,
   deriveInitialToolArguments,
+  extractToolResultData,
+  EXTERNAL_TOOL_RESULT_PREVIEW_MAX_CHARS,
   findMissingRequiredArguments,
   listToolArgumentFields,
   resolvePrimaryArgumentKey,
-  stringifyExternalToolResult,
-  type ExternalToolInvocationPayload,
   type ExternalToolInvocationTarget,
   type ToolArgumentField,
 } from "./externalToolInvocation";
@@ -45,7 +49,8 @@ interface McpChatPopoverProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly getRuntime: () => IExternalSourceRuntimeService | null;
-  readonly onConfirm: (payload: ExternalToolInvocationPayload) => Promise<void>;
+  /** 把工具结果的数据正文插入聊天输入框（不发送、不带 JSON 包装）。 */
+  readonly onInsertData: (data: string) => void;
   readonly onOpenWorkbench: () => void;
   readonly showAlert: (message: string, title?: string) => Promise<void> | void;
   /** 触发按钮形态：`bar` 适配快捷栏（图标+文字），`icon` 适配输入框行内图标。 */
@@ -66,7 +71,7 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
   open,
   onOpenChange,
   getRuntime,
-  onConfirm,
+  onInsertData,
   onOpenWorkbench,
   showAlert,
   triggerVariant = "icon",
@@ -81,6 +86,18 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
   const [formError, setFormError] = React.useState<string | null>(null);
   const [executing, setExecuting] = React.useState(false);
   const [togglingId, setTogglingId] = React.useState<string | null>(null);
+  const [callResult, setCallResult] = React.useState<{
+    readonly data: string;
+    readonly durationMs: number;
+    readonly isError: boolean;
+  } | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  // Android 返回键优先关气泡，而不是退出聊天；优先级高于聊天页自身的返回处理。
+  useMobileBackHandler(open, () => {
+    onOpenChange(false);
+    return true;
+  }, 960);
 
   const reload = React.useCallback(async () => {
     setLoading(true);
@@ -130,6 +147,8 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
     setFieldValues({});
     setFormError(null);
     setExecuting(false);
+    setCallResult(null);
+    setCopied(false);
   }, [open]);
 
   const handleToggleSource = async (row: SourceRow, enabled: boolean) => {
@@ -195,27 +214,30 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
       return;
     }
     const input = buildToolArguments(fields, fieldValues);
-    const queryText = primaryKey ? String(fieldValues[primaryKey] ?? "").trim() : "";
     setExecuting(true);
+    setCallResult(null);
     try {
       const response = await runtime.testCallTool(
         selected.sourceId,
         selected.tool.localName,
         input,
       );
-      await onConfirm({
-        target: selected,
-        input,
-        query: queryText,
-        resultText: stringifyExternalToolResult(response.result),
+      // 只提取数据正文：绝不把 { text, raw, isError } 包装或协议原文塞进对话。
+      setCallResult({
+        data: extractToolResultData(response.result),
         durationMs: response.durationMs,
+        isError: Boolean(
+          response.result
+          && typeof response.result === "object"
+          && (response.result as { isError?: unknown }).isError === true,
+        ),
       });
-      onOpenChange(false);
     } catch (error: unknown) {
-      await showAlert(
-        `调用 ${selected.tool.localName} 失败：${error instanceof Error ? error.message : String(error)}`,
-        "调用失败",
-      );
+      setCallResult({
+        data: error instanceof Error ? error.message : String(error),
+        durationMs: 0,
+        isError: true,
+      });
     } finally {
       setExecuting(false);
     }
@@ -254,7 +276,7 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
         >
           <Popover.Popup
             aria-label="MCP 能力面板"
-            className="flex max-h-[min(58dvh,26rem)] w-[min(21rem,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-2xl border border-border/80 bg-popover/97 text-popover-foreground shadow-2xl backdrop-blur-xl outline-none animate-in fade-in zoom-in-95 duration-150"
+            className="flex max-h-[min(52dvh,24rem)] w-[min(21rem,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-2xl border border-border/80 bg-popover/97 text-popover-foreground shadow-2xl backdrop-blur-xl outline-none animate-in fade-in zoom-in-95 duration-150"
           >
             <header className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2.5">
               <div className="flex min-w-0 items-center gap-2">
@@ -275,6 +297,14 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
                 className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
               >
                 <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+              </button>
+              <button
+                type="button"
+                aria-label="关闭 MCP 面板"
+                onClick={() => onOpenChange(false)}
+                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+              >
+                <X className="size-3.5" />
               </button>
             </header>
 
@@ -462,24 +492,81 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
                 {formError && (
                   <p className="text-[10px] font-medium text-rose-400">{formError}</p>
                 )}
-                <button
-                  type="button"
-                  disabled={executing}
-                  onClick={() => void handleInvoke()}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary/15 py-1.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/25 active:scale-[0.99] disabled:opacity-50"
-                >
-                  {executing
-                    ? <Loader2 className="size-3.5 animate-spin" />
-                    : <Send className="size-3.5" />}
-                  {executing ? "调用中…" : "调用并送入对话"}
-                </button>
+                {callResult ? (
+                  <div className="space-y-1.5">
+                    <div
+                      className={`rounded-lg border px-2 py-1.5 ${
+                        callResult.isError
+                          ? "border-rose-500/30 bg-rose-500/10"
+                          : "border-emerald-500/25 bg-emerald-500/8"
+                      }`}
+                    >
+                      <p className={`text-[10px] font-semibold ${callResult.isError ? "text-rose-300" : "text-emerald-300"}`}>
+                        {callResult.isError ? "调用失败" : `调用成功 · 耗时 ${callResult.durationMs}ms`}
+                      </p>
+                      <pre className="mt-1 max-h-28 overflow-y-auto overscroll-contain whitespace-pre-wrap break-all font-mono text-[10px] leading-relaxed text-foreground/90">
+                        {callResult.data.slice(0, EXTERNAL_TOOL_RESULT_PREVIEW_MAX_CHARS)}
+                      </pre>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {!callResult.isError && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onInsertData(callResult.data);
+                            onOpenChange(false);
+                          }}
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/15 py-1.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/25 active:scale-[0.99]"
+                        >
+                          <Send className="size-3.5" />
+                          插入输入框
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(callResult.data).then(() => setCopied(true)).catch(() => undefined);
+                        }}
+                        className="flex items-center justify-center gap-1 rounded-lg border border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        {copied ? <CheckIcon className="size-3.5" /> : <Copy className="size-3.5" />}
+                        {copied ? "已复制" : "复制"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={executing}
+                        onClick={() => void handleInvoke()}
+                        className="rounded-lg border border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      >
+                        重试
+                      </button>
+                    </div>
+                    <p className="text-[9.5px] text-muted-foreground">
+                      {callResult.isError
+                        ? "失败结果不会进入对话；修改参数后重试。"
+                        : "只把数据正文插入输入框，可编辑后再发送。"}
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={executing}
+                    onClick={() => void handleInvoke()}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary/15 py-1.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/25 active:scale-[0.99] disabled:opacity-50"
+                  >
+                    {executing
+                      ? <Loader2 className="size-3.5 animate-spin" />
+                      : <Send className="size-3.5" />}
+                    {executing ? "调用中…" : "调用"}
+                  </button>
+                )}
               </div>
             )}
 
             <footer className="flex items-center justify-between border-t border-border/60 px-3 py-2">
               <span className="flex items-center gap-1 text-[9.5px] text-muted-foreground">
                 <Check className="size-3" />
-                结果会作为上下文进入当前会话
+                只手动调用，不会自动进入对话
               </span>
               <button
                 type="button"

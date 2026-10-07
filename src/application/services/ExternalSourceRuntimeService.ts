@@ -57,6 +57,11 @@ export interface ExternalSourceStorePort {
 
 export interface ExternalSourceRuntimeDeps {
   readonly store?: ExternalSourceStorePort;
+  /**
+   * 外部能力总开关门禁；缺省视为启用（保持旧测试/直接构造语义）。
+   * 生产装配注入 `isExternalCapabilitiesEnabled`，默认关闭时不连接任何来源。
+   */
+  readonly isFeatureEnabled?: () => boolean;
   /** 默认实现动态 import MCP driver；测试可注入确定性 driver。 */
   readonly loadDriver?: () => Promise<ConnectorDriver>;
   /** 解析来源静态凭据为请求头；默认走独立加密凭据库，测试可注入。 */
@@ -133,6 +138,8 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
 
   async init(kernel: IKernel): Promise<void> {
     this.kernel = kernel;
+    // 总开关默认关闭：启动时绝不擅自连接外部来源，等设置加载/用户拨开关后再 reload。
+    if (!this.isFeatureEnabled()) return;
     await this.reload(BOOTSTRAP_CONNECT_TIMEOUT_MS);
   }
 
@@ -144,6 +151,10 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
   /** 重新连接所有已启用来源；来源之间并行，单个失败只记录不抛出。 */
   async reload(connectTimeoutMs = DEFAULT_CONNECTOR_TIMEOUT_MS): Promise<void> {
     await this.disposeAll();
+    if (!this.isFeatureEnabled()) {
+      this.failures = {};
+      return;
+    }
     const store = this.deps.store ?? (await defaultStore());
     const enabled = (await store.list()).filter((source) => source.enabled);
     const settled = await Promise.allSettled(
@@ -195,6 +206,7 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
   }
 
   async probe(sourceId: string): Promise<ExternalCapabilitySnapshot> {
+    this.assertFeatureEnabled();
     const store = this.deps.store ?? (await defaultStore());
     const source = await store.get(sourceId);
     if (!source) throw new Error("EXTERNAL_SOURCE_NOT_FOUND");
@@ -218,6 +230,7 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     localName: string,
     input: unknown,
   ): Promise<{ result: unknown; durationMs: number }> {
+    this.assertFeatureEnabled();
     // 与工具执行路径保持一致：来源被停用/删除后立即失效，不因为“只是测试”而放行。
     await this.assertSourceActive(sourceId);
     const entry = this.connections.get(sourceId);
@@ -493,6 +506,15 @@ export class ExternalSourceRuntimeService implements IExternalSourceRuntimeServi
     const store = this.deps.store ?? (await defaultStore());
     const current = await store.get(sourceId);
     if (!current?.enabled) throw new Error("EXTERNAL_SOURCE_REVOKED");
+  }
+
+  /** 总开关门禁：缺省实现视为启用，生产装配注入真实门禁（默认关闭）。 */
+  private isFeatureEnabled(): boolean {
+    return this.deps.isFeatureEnabled?.() ?? true;
+  }
+
+  private assertFeatureEnabled(): void {
+    if (!this.isFeatureEnabled()) throw new Error("EXTERNAL_CAPABILITIES_DISABLED");
   }
 
   private async executeExternalTool(

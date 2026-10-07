@@ -37,6 +37,8 @@ import {
 } from "../../application/serviceContracts";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useOptionalKernel } from "../../contexts/KernelContext";
+import { setExternalCapabilitiesEnabled } from "../../application/externalSources/externalCapabilityGate";
+import { Switch } from "../../../components/ui/switch";
 
 interface ToolCapabilitiesWidgetProps {
   className?: string;
@@ -47,11 +49,15 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
 }) => {
   // 组件可能在无 KernelProvider 的隔离测试里渲染，这里用可选内核，缺失时跳过挂载同步。
   const kernel = useOptionalKernel();
-  const { showCustomAlert, showCustomConfirm, getKernelService } = useUnifiedApp((state) => ({
-    showCustomAlert: state.showCustomAlert,
-    showCustomConfirm: state.showCustomConfirm,
-    getKernelService: state.getKernelService,
-  }));
+  const { showCustomAlert, showCustomConfirm, getKernelService, settings, updateSettings } =
+    useUnifiedApp((state) => ({
+      showCustomAlert: state.showCustomAlert,
+      showCustomConfirm: state.showCustomConfirm,
+      getKernelService: state.getKernelService,
+      settings: state.settings,
+      updateSettings: state.updateSettings,
+    }));
+  const externalCapabilitiesEnabled = settings?.enableExternalCapabilities === true;
 
   // 默认标签为 mcp（以第三方兼容为主）
   const [activeTab, setActiveTab] = useState<"mcp" | "plugin">("mcp");
@@ -391,7 +397,32 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
       {/* 1. MCP 外部能力视界（默认展示） */}
       {activeTab === "mcp" && (
         <div className="space-y-2">
-          {mcpSources.length === 0 ? (
+          {/* 总开关：默认关闭。关闭时不连接任何来源、聊天界面也不出现 MCP 入口。 */}
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold text-foreground">启用外部能力（MCP）</p>
+              <p className="mt-0.5 text-[9.5px] leading-relaxed text-muted-foreground">
+                默认关闭。开启后聊天快捷栏才出现 MCP 入口，且只能在聊天里手动调用（模型不会自动调用）。
+              </p>
+            </div>
+            <Switch
+              aria-label="启用外部能力"
+              checked={externalCapabilitiesEnabled}
+              onCheckedChange={(value: boolean) => {
+                updateSettings((prev) => ({ ...prev, enableExternalCapabilities: value }));
+                setExternalCapabilitiesEnabled(value);
+                const runtime = getRuntime();
+                if (runtime) void runtime.reload();
+              }}
+              className="data-[state=checked]:bg-cyan-500 h-4 w-8 shrink-0 [&_span]:h-3 [&_span]:w-3"
+            />
+          </div>
+
+          {!externalCapabilitiesEnabled ? (
+            <div className="flex min-h-14 items-center justify-center rounded-xl border border-dashed border-white/10 p-3 text-center text-[11px] text-muted-foreground">
+              外部能力已关闭。打开上方开关后才能接入 / 启用 MCP 来源。
+            </div>
+          ) : mcpSources.length === 0 ? (
             <div className="flex min-h-16 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 p-3 text-center text-xs text-muted-foreground">
               <Sparkles className="mb-1 h-4 w-4 text-cyan-400/60" />
               <span>{mcpLoading ? "正在读取 MCP 状态..." : "暂无已接入的第三方 MCP 服务"}</span>

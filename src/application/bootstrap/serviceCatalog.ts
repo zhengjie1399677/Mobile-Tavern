@@ -12,7 +12,14 @@ export interface ServiceModuleDescriptor {
 export const coreServiceCatalog: readonly ServiceModuleDescriptor[] = [
   { name: KernelServices.AgentRuntime, initTimeoutMs: 3000, load: async () => new (await import("../services/AgentRuntimeService")).AgentRuntimeService() },
   { name: KernelServices.ToolConnectors, initTimeoutMs: 5000, load: async () => new (await import("../services/ToolPluginRuntimeService")).ToolPluginRuntimeService() },
-  { name: KernelServices.ExternalSources, initTimeoutMs: 8000, load: async () => new (await import("../services/ExternalSourceRuntimeService")).ExternalSourceRuntimeService() },
+  {
+    name: KernelServices.ExternalSources,
+    initTimeoutMs: 8000,
+    // 外部能力总开关默认关闭：门禁位不满足时服务不连接任何来源（设置加载或用户拨开关后再 reload）。
+    load: async () => new (await import("../services/ExternalSourceRuntimeService")).ExternalSourceRuntimeService({
+      isFeatureEnabled: (await import("../externalSources/externalCapabilityGate")).isExternalCapabilitiesEnabled,
+    }),
+  },
   { name: KernelServices.ContextSources, initTimeoutMs: 3000, load: async () => new (await import("../services/ContextSourceService")).ContextSourceService() },
   { name: KernelServices.ComposerCommands, initTimeoutMs: 3000, load: async () => new (await import("../services/ComposerCommandService")).ComposerCommandService() },
   { name: KernelServices.CompatibilityRuntime, initTimeoutMs: 3000, load: async () => new (await import("../services/CompatibilityRuntimeService")).CompatibilityRuntimeService() },

@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  EXTERNAL_TOOL_RESULT_MAX_CHARS,
   buildToolArguments,
   deriveInitialToolArguments,
+  extractToolResultData,
   findMissingRequiredArguments,
-  formatExternalToolResultForConversation,
   listToolArgumentFields,
   resolvePrimaryArgumentKey,
-  stringifyExternalToolResult,
-  type ExternalToolInvocationPayload,
 } from "../../src/components/externalTools/externalToolInvocation";
 
 describe("外部工具显性调用辅助逻辑", () => {
@@ -22,37 +19,21 @@ describe("外部工具显性调用辅助逻辑", () => {
     expect(resolvePrimaryArgumentKey({})).toBeNull();
   });
 
-  it("格式化结果并截断超长返回", () => {
-    const payload: ExternalToolInvocationPayload = {
-      target: {
-        sourceId: "deepwiki",
-        sourceName: "DeepWiki",
-        tool: {
-          sourceId: "deepwiki",
-          qualifiedName: "mcp.deepwiki.ask_question",
-          localName: "ask_question",
-          description: "问答",
-          inputSchema: { properties: { query: { type: "string" } } },
-        },
-      },
-      input: { query: "2001 年大事" },
-      query: "2001 年大事",
-      resultText: "答".repeat(EXTERNAL_TOOL_RESULT_MAX_CHARS + 50),
-      durationMs: 123,
+  it("插入正文只取数据本身，绝不带 { text, raw, isError } 包装", () => {
+    // 运行时包装：text 是数据，raw 是协议原文 —— 只能取 text
+    const wrapped = {
+      text: "老张把钥匙交给了主角。",
+      raw: { content: [{ type: "text", text: "老张把钥匙交给了主角。" }], isError: false },
+      isError: false,
     };
+    expect(extractToolResultData(wrapped)).toBe("老张把钥匙交给了主角。");
+    expect(extractToolResultData(wrapped)).not.toContain("raw");
+    expect(extractToolResultData(wrapped)).not.toContain("isError");
 
-    const text = formatExternalToolResultForConversation(payload);
-
-    expect(text).toContain("【外部能力结果 · DeepWiki/ask_question】");
-    expect(text).toContain("耗时 123ms");
-    expect(text).toContain("2001 年大事");
-    expect(text).toContain("结果过长已截断");
-    expect(text.length).toBeLessThan(EXTERNAL_TOOL_RESULT_MAX_CHARS + 200);
-  });
-
-  it("对象结果序列化为 JSON，字符串原样返回", () => {
-    expect(stringifyExternalToolResult("plain")).toBe("plain");
-    expect(stringifyExternalToolResult({ a: 1 })).toBe('{\n  "a": 1\n}');
+    expect(extractToolResultData("纯字符串结果")).toBe("纯字符串结果");
+    expect(extractToolResultData({ content: [{ type: "text", text: "A" }, { type: "text", text: "B" }] }))
+      .toBe("A\nB");
+    expect(extractToolResultData({ foo: 1 })).toBe('{\n  "foo": 1\n}');
   });
 
   it("多参数工具会生成逐参数表单，必填优先且类型判断正确", () => {

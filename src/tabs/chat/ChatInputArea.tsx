@@ -43,10 +43,6 @@ import {
 } from "./attachment-composer/PendingAttachmentStrip";
 import { ComposerCommandSuggestions } from "./ComposerCommandSuggestions";
 import { useChatVoiceInput } from "./useChatVoiceInput";
-import {
-  formatExternalToolResultForConversation,
-  type ExternalToolInvocationPayload,
-} from "../../components/externalTools/externalToolInvocation";
 import { McpChatPopover } from "../../components/externalTools/McpChatPopover";
 
 /**
@@ -363,27 +359,20 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     setMcpPopoverOpen(true);
   }, []);
 
-  const handleExternalToolResult = React.useCallback(async (
-    payload: ExternalToolInvocationPayload,
-  ): Promise<void> => {
-    if (!activeSession) {
-      await showCustomAlert("请先进入一个会话，再调用外部能力。", "无法调用");
-      return;
-    }
-    const text = formatExternalToolResultForConversation(payload);
-    setLocalInput("");
-    setUserInputMessage("");
+  /**
+   * 工具结果只插入输入框（数据正文），不自动发送、不触发模型。
+   * 用户可自行编辑后再决定怎么使用这段资料。
+   */
+  const handleInsertToolData = React.useCallback((data: string): void => {
+    const text = data.trim();
+    if (!text) return;
+    const current = localInput || "";
+    const next = current.trim() ? `${current.trim()}\n\n${text}` : text;
+    setLocalInput(next);
+    setUserInputMessage(next);
     setReplySuggestions([]);
-    // 结果作为一条用户侧上下文消息进入历史，模型在下一轮就能基于真实结果续写。
-    await handleSendMessage(text, { skipAI: false });
-  }, [
-    activeSession,
-    handleSendMessage,
-    setLocalInput,
-    setReplySuggestions,
-    setUserInputMessage,
-    showCustomAlert,
-  ]);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [localInput, setLocalInput, setReplySuggestions, setUserInputMessage]);
 
   const executeComposerCommand = React.useCallback(async (
     command: ComposerCommandDescriptor,
@@ -394,6 +383,15 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     if (command.owner === "host.builtin") {
       // `/tool [查询]` 走显性调用面板：列出已启用工具并自动匹配 / 预填查询。
       if (command.name === "tool") {
+        if (settings.enableExternalCapabilities !== true) {
+          await showCustomAlert(
+            "外部能力（MCP）总开关当前是关闭的。\n\n请到 工作台 → 扩展能力 打开「启用外部能力（MCP）」后再使用。",
+            "外部能力已关闭",
+          );
+          setLocalInput("");
+          setUserInputMessage("");
+          return;
+        }
         setLocalInput("");
         setUserInputMessage("");
         setReplySuggestions([]);
@@ -468,6 +466,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     showCustomConfirm,
     t,
     openMcpPopover,
+    settings.enableExternalCapabilities,
   ]);
 
   const executeComposerCommandIfPresent = React.useCallback(async (): Promise<boolean> => {
@@ -651,21 +650,23 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               <Play className="w-3.5 h-3.5" />
               <span className="text-xs font-medium">{t("chat_input.continue")}</span>
             </button>
-            {/* MCP 能力：快捷栏里的显性入口（气泡弹层锚定在此按钮上） */}
-            <McpChatPopover
-              triggerVariant="bar"
-              triggerDisabled={isSending || !activeSession}
-              open={mcpPopoverOpen}
-              onOpenChange={(next) => {
-                if (next) setMcpSeedText((localInput || "").trim());
-                setMcpPopoverOpen(next);
-              }}
-              draftText={mcpSeedText}
-              getRuntime={getExternalSourceRuntime}
-              onConfirm={handleExternalToolResult}
-              onOpenWorkbench={() => setActiveTab("workbench")}
-              showAlert={showCustomAlert}
-            />
+            {/* MCP 能力：总开关打开时才出现在快捷栏（气泡锚定在此按钮上，默认关闭=不显示） */}
+            {settings.enableExternalCapabilities === true && (
+              <McpChatPopover
+                triggerVariant="bar"
+                triggerDisabled={isSending || !activeSession}
+                open={mcpPopoverOpen}
+                onOpenChange={(next) => {
+                  if (next) setMcpSeedText((localInput || "").trim());
+                  setMcpPopoverOpen(next);
+                }}
+                draftText={mcpSeedText}
+                getRuntime={getExternalSourceRuntime}
+                onInsertData={handleInsertToolData}
+                onOpenWorkbench={() => setActiveTab("workbench")}
+                showAlert={showCustomAlert}
+              />
+            )}
           </div>
 
           <div

@@ -43,11 +43,11 @@ export interface ThirdPartyMcpPreset {
   readonly authScheme?: ExternalAuthScheme;
   readonly authPlaceholder?: string;
   readonly tags: readonly string[];
-  /** 用途分组：角色扮演用户优先看到前两组，开发向默认折叠。 */
+  /** 用途分组；空分组由导入弹窗自动隐藏。 */
   readonly category: ThirdPartyMcpPresetCategory;
 }
 
-/** 预置模板的用途分组：只保留角色扮演向与通用查询，开发向服务不再推荐。 */
+/** 预置模板的用途分组：角色扮演向 / 通用查询；当前收录模板均属通用查询。 */
 export type ThirdPartyMcpPresetCategory = "roleplay" | "general";
 
 export const THIRD_PARTY_MCP_PRESET_CATEGORY_LABEL: Record<ThirdPartyMcpPresetCategory, string> = {
@@ -87,13 +87,14 @@ export const THIRD_PARTY_MCP_PRESETS: readonly ThirdPartyMcpPreset[] = Object.fr
   },
   {
     id: "mcp-wiki",
-    name: "Wiki 知识检索",
-    description: "公网免鉴权知识 / 词条检索（search + 文档查询），可用于设定考据与背景补充",
+    // 诚实分类：mcp.wiki 是 MCP 协议自身的文档 wiki，不是角色扮演考据源。
+    name: "MCP 文档检索（mcp.wiki）",
+    description: "公网免鉴权的 MCP 协议文档 wiki（search + 文档查询），偏开发/文档向",
     endpoint: "https://mcp.wiki/mcp",
     era: "auto",
     requiresAuth: false,
-    tags: ["知识检索", "免鉴权", "已验证"],
-    category: "roleplay",
+    tags: ["文档检索", "免鉴权", "已验证"],
+    category: "general",
   },
   {
     id: "brave-search",

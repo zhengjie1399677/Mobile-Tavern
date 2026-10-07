@@ -15,6 +15,8 @@ import {
   ISettingsService,
   IPresetService,
   IWorldbookService,
+  KernelServices,
+  type IExternalSourceRuntimeService,
 } from "@/src/application/serviceContracts";
 import {
   DEFAULT_REPLY_SUGGESTIONS_PROMPT,
@@ -30,6 +32,7 @@ import {
   isReasoningStrength,
   normalizeReasoningStrength,
 } from "../../application/services/llmCompatibility";
+import { setExternalCapabilitiesEnabled } from "../../application/externalSources/externalCapabilityGate";
 
 interface UseSettingsLoaderDeps {
   setSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
@@ -222,6 +225,10 @@ export const useSettingsLoader = ({
             globalChatBg: storedSet.globalChatBg || DEFAULT_SETTINGS.globalChatBg,
             enableHtmlRendering: storedSet.enableHtmlRendering ?? DEFAULT_SETTINGS.enableHtmlRendering,
             enableScriptExecution: storedSet.enableScriptExecution ?? DEFAULT_SETTINGS.enableScriptExecution,
+            // 外部能力（MCP）默认关闭：默认值缺失或旧数据一律降级为关闭，用户在工作台显式打开。
+            enableExternalCapabilities: storedSet.enableExternalCapabilities
+              ?? DEFAULT_SETTINGS.enableExternalCapabilities
+              ?? false,
             // CHANGE-SAFE：旧版本只有 enableScriptExecution。已开启脚本的旧用户迁移到
             // trusted 以避免现有 MVU 卡静默失效；新用户与未开启脚本的旧数据默认 isolated。
             scriptSecurityMode: storedSet.scriptSecurityMode
@@ -308,6 +315,18 @@ export const useSettingsLoader = ({
           } as UserSettings;
 
           setSettings(mergedSet);
+
+          // 外部能力总开关：设置加载完成后把门禁位同步给运行时；
+          // 开启时补一次 reload（服务启动时因默认关而跳过连接），关闭时保持断开。
+          setExternalCapabilitiesEnabled(mergedSet.enableExternalCapabilities === true);
+          if (
+            mergedSet.enableExternalCapabilities === true
+            && kernel.hasService(KernelServices.ExternalSources)
+          ) {
+            void kernel
+              .getService<IExternalSourceRuntimeService>(KernelServices.ExternalSources)
+              .reload();
+          }
 
           if (bootstrap.presetsDirty) {
             await presetService.saveStoredSavedPresets(bootstrap.savedPresets);

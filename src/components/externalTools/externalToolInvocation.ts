@@ -18,8 +18,8 @@ export interface ExternalToolInvocationPayload {
   readonly durationMs: number;
 }
 
-/** 送入对话的工具结果最大长度；超出即截断，避免一次调用撑爆上下文。 */
-export const EXTERNAL_TOOL_RESULT_MAX_CHARS = 6000;
+/** 结果预览的最大长度；完整数据在用户点击「插入输入框」时才使用。 */
+export const EXTERNAL_TOOL_RESULT_PREVIEW_MAX_CHARS = 1200;
 
 export type ToolArgumentType = "string" | "number" | "boolean" | "json";
 
@@ -207,20 +207,32 @@ export function stringifyExternalToolResult(result: unknown): string {
   }
 }
 
-/** 组装送入对话的工具结果消息（模型与用户都能看到）。 */
-export function formatExternalToolResultForConversation(
-  payload: ExternalToolInvocationPayload,
-): string {
-  const raw = payload.resultText;
-  const truncated = raw.length > EXTERNAL_TOOL_RESULT_MAX_CHARS
-    ? `${raw.slice(0, EXTERNAL_TOOL_RESULT_MAX_CHARS)}\n…（结果过长已截断）`
-    : raw;
-  const args = JSON.stringify(payload.input);
-  const cost = Number.isFinite(payload.durationMs) ? `，耗时 ${payload.durationMs}ms` : "";
-  return [
-    `【外部能力结果 · ${payload.target.sourceName}/${payload.target.tool.localName}】${cost}`,
-    `调用参数：${args}`,
-    "结果：",
-    truncated,
-  ].join("\n");
+/**
+ * 从工具调用返回值里提取"数据本身"。
+ *
+ * 运行时返回的是 `{ text, raw, isError }` 包装：`text` 是 MCP 内容块压平后的数据，
+ * `raw` 是协议原文。用户明确要求插入正文时**只插数据**，绝不能把整个 JSON 包装塞进对话。
+ */
+export function extractToolResultData(result: unknown): string {
+  if (typeof result === "string") return result;
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    const record = result as Record<string, unknown>;
+    if (typeof record.text === "string") return record.text;
+    if (Array.isArray(record.content)) {
+      const text = record.content
+        .map((block) => (
+          block && typeof block === "object" && typeof (block as { text?: unknown }).text === "string"
+            ? (block as { text: string }).text
+            : ""
+        ))
+        .filter(Boolean)
+        .join("\n");
+      if (text) return text;
+    }
+  }
+  try {
+    return JSON.stringify(result, null, 2);
+  } catch {
+    return String(result);
+  }
 }

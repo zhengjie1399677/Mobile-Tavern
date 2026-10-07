@@ -65,6 +65,9 @@ vi.mock("../../src/UnifiedAppContext", () => ({
       showCustomAlert: mockShowCustomAlert,
       showCustomConfirm: mockShowCustomConfirm,
       getKernelService: mockGetKernelService,
+      // 本套用例验证"总开关已打开"后的来源管理与工具视界；总开关默认关的用例见 E2E。
+      settings: { enableExternalCapabilities: true },
+      updateSettings: vi.fn(),
     }),
 }));
 

@@ -246,6 +246,35 @@ describe("静态凭据到请求头的映射", () => {
 });
 
 describe("外部能力源运行时（真实 Agent Runtime + 本地 MCP 夹具）", () => {
+  it("总开关关闭时不连接任何来源，手动调用也被拒绝", async () => {
+    const store = createMemoryStore([source()]);
+    const agentRuntime = new AgentRuntimeService(journal);
+    const composer = new ComposerCommandService();
+    const kernel = {
+      getService: (name: string) =>
+        (name === KernelServices.ComposerCommands ? composer : agentRuntime),
+      hasService: () => true,
+    } as unknown as IKernel;
+    await agentRuntime.init(kernel);
+    composer.init(kernel);
+    const service = new ExternalSourceRuntimeService({
+      store,
+      loadDriver: async () => createMcpConnectorDriver(),
+      isFeatureEnabled: () => false,
+    });
+    try {
+      await service.init(kernel);
+      // 默认关：启动不连接，诊断里也没有已连接来源
+      expect(service.getDiagnostics().connectedSources).toEqual([]);
+      // 聊天手动调用同样被门禁挡住
+      await expect(service.testCallTool("fixture", "echo", { text: "x" }))
+        .rejects.toThrow("EXTERNAL_CAPABILITIES_DISABLED");
+    } finally {
+      await service.destroy();
+      await agentRuntime.destroy();
+    }
+  });
+
   it("静态凭据注入到真实请求头，未配置时不发送", async () => {
     receivedAuthorization.length = 0;
     const withCredential = await createRuntimeFixture([source()], async () => ({

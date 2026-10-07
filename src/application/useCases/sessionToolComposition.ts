@@ -49,5 +49,7 @@ export function resolveSessionEnabledToolNames(input: SessionEnabledToolsInput):
       .getService<IExternalSourceRuntimeService>(KernelServices.ExternalSources)
       .extendComposition(composed);
   }
-  return [...(composed.contributionOrder.tool ?? [])];
+  // 用户定稿（2026-10-07）：MCP 只允许在聊天界面里手动强制调用，
+  // 不向模型暴露任何外部来源工具（避免模型自行调用 + 避免提示词污染）。
+  return [...(composed.contributionOrder.tool ?? [])].filter((name) => !name.startsWith("mcp."));
 }

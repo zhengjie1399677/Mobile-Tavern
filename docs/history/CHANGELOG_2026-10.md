@@ -1,5 +1,14 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**MCP 降级为默认关闭的手动能力：总开关 / 只手动调用 / 结果只插数据。**
+  1. **总开关（默认关）**：新增 `UserSettings.enableExternalCapabilities`（默认 false）与运行时门禁 `externalCapabilityGate`；`ExternalSourceRuntimeService` 启动时不再擅自连接来源，设置加载或用户拨开关后才 `reload()`（关闭即断开、清空诊断）。工作台「扩展能力」卡片加总开关与关闭态说明。
+  2. **不强行显示**：聊天快捷栏的 MCP 入口只在总开关打开时渲染；关闭时输入 `/tool` 会明确提示"去工作台开启"。
+  3. **只允许手动调用**：`resolveSessionEnabledToolNames` 永久过滤 `mcp.*`——模型不再获得任何外部来源工具，从根上杜绝自动调用与提示词污染；调用只走聊天内手动 `testCallTool`。
+  4. **结果只插数据**：取消自动发送；调用成功后气泡内显示结果预览，提供「插入输入框 / 复制 / 重试」。插入只取数据正文（新增 `extractToolResultData`，取 `{text,raw,isError}.text`），绝不插 JSON 包装；`isError` 结果不提供插入、也不进入对话。
+  5. **气泡可关**：头部 ×、Android 返回键（`useMobileBackHandler`，优先级高于聊天页返回）、Escape 与点击外部；面板最大高度收窄到 52dvh，留出可点的外部区域。
+  6. **模板分类纠错**：`mcp.wiki` 由"角色扮演向"改为"通用查询"，描述改为"MCP 协议文档 wiki，偏开发/文档向"；空分组自动隐藏。
+  7. **测试**：单测 1443 通过（新增门禁、数据提取、组合过滤用例；更新 ToolCapabilitiesWidget / sessionToolComposition 断言）；E2E 重写为"默认无入口 → 打开总开关 → 开合气泡（×/Escape/外点）"，桌面 + 移动通过。
+
 - 2026-10-07：**MCP 入口挪进快捷栏；快捷栏「重载上一段剧情」精简为「重发」。**
   1. `McpChatPopover` 新增 `triggerVariant`（bar/icon）：气泡触发按钮从输入框行内图标改为快捷栏里的「MCP」按钮（输入框「+」→「快捷栏」展开后可见），仍锚定气泡、不受虚拟键盘遮挡；`/tool <查询>` 继续直接打开同一气泡。
   2. zh-CN / zh-TW 的 `chat_input.reroll_last` 由「重载上一段剧情」精简为「重发 / 重發」（该键仅用于快捷栏）。

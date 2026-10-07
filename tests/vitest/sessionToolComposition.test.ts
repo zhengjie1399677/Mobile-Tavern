@@ -1,9 +1,7 @@
-// 回归：已启用外部能力源（MCP）对"已有会话"立即生效。
+// 回归：会话可用工具解析。
 //
-// 组合快照在会话建立时冻结；如果发送链路只读冻结快照里的 tool 列表，
-// 用户在工作台启用 MCP 后，老会话里模型永远看不到工具
-//（"测试调用正常、正文聊天根本调用不了一点"）。
-// 外部来源是用户显式启用的实时能力，必须叠加。
+// 用户定稿（2026-10-07）：MCP 只允许在聊天界面里手动强制调用，
+// 不向模型暴露任何外部来源工具；这里钉住"mcp.* 永远被过滤"的边界。
 import { describe, expect, it, vi } from "vitest";
 import { resolveSessionEnabledToolNames } from "../../src/application/useCases/sessionToolComposition";
 import { KernelServices } from "../../src/application/serviceContracts";
@@ -22,7 +20,7 @@ function createSnapshot(): AgentCompositionSnapshot {
 }
 
 describe("resolveSessionEnabledToolNames", () => {
-  it("冻结会话也会叠加当前已启用的外部来源工具", () => {
+  it("外部来源工具永远不暴露给模型（只允许聊天里手动调用）", () => {
     const extendComposition = vi.fn((snapshot: AgentCompositionSnapshot) => ({
       ...snapshot,
       contributionOrder: {
@@ -52,7 +50,8 @@ describe("resolveSessionEnabledToolNames", () => {
       sessionComposition: createSnapshot(),
     });
 
-    expect(names).toEqual(["session.branch", "mcp.wiki.search"]);
+    // mcp.* 被过滤：即使组合里叠加了外部来源，模型也拿不到，避免自行调用与提示词污染。
+    expect(names).toEqual(["session.branch"]);
     expect(extendComposition).toHaveBeenCalledTimes(1);
     // 冻结快照不得再叠加 Tool 插件贡献（保持会话安全边界）。
     expect(toolConnectorsExtend).not.toHaveBeenCalled();

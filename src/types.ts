@@ -445,6 +445,12 @@ export interface UserSettings {
   expressionTriggers?: Record<string, string>;
   enableScriptExecution?: boolean; // Toggle to execute custom interactive iframe scripts
   /**
+   * 外部能力（MCP）总开关，默认关闭。
+   * 关闭时聊天界面不显示 MCP 入口、不向模型暴露 MCP 工具；
+   * 开启后也只允许用户在聊天里显式调用（不会自动调用）。
+   */
+  enableExternalCapabilities?: boolean;
+  /**
    * isolated：opaque-origin iframe + 最小 postMessage bridge；
    * trusted：保留旧 SillyTavern 同源父窗口兼容能力，仅用于明确受信角色卡。
    */

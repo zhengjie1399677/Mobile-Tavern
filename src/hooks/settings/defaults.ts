@@ -464,6 +464,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   globalChatBg: "",
   enableHtmlRendering: true,
   enableScriptExecution: false,
+  enableExternalCapabilities: false,
   scriptSecurityMode: "isolated",
   enableLoopProtection: true,
   expressionTriggers: {
