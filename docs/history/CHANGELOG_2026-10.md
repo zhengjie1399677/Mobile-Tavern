@@ -1,5 +1,11 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**第三方 MCP 推荐模板改为按用途分组，角色扮演优先。**
+  1. **背景**：公网免鉴权 MCP 生态目前基本是开发向服务（代码搜索、仓库文档、技术文档检索），而本应用用户几乎全是角色扮演场景，原先平铺的模板列表容易让人误以为"MCP 就是这些开发工具"。
+  2. **分组**：`ThirdPartyMcpPreset` 新增 `category`（roleplay / general / developer）与 `THIRD_PARTY_MCP_PRESET_CATEGORY_LABEL`；模态框按「角色扮演向 → 通用查询 → 开发向（默认折叠，可展开）」渲染，避免开发工具占据首屏。
+  3. **新增免鉴权条目**：实测 `https://mcp.wiki/mcp`（`initialize` 200、无 `WWW-Authenticate`，工具为 `search_mcp_wiki` / `query_docs_filesystem_mcp_wiki`）并加入「角色扮演向」，用于设定考据与背景补充；DeepWiki 归入「通用查询」，grep.app / GitMCP / GitHub / Brave 归入「开发向」。
+  4. **引导**：角色扮演分组顶部明确写出"多数需求已内置"（骰子 / 随机 / 抽选 / 字数命令、记忆写入、联网搜索），MCP 只是扩展通道，不是角色扮演的必需品。
+
 - 2026-10-07：**修复「正则产出卡片的卡片在受信模式下永久停在『正在载入脚本依赖…』」，并把手布局改为长按拖动。**
   1. **根因**：重型 UI 库（Vue/Pinia/jQuery）的加载判定只看"卡片脚本 / 开场白 iframe / 开场白 HTML 代码块"。而状态栏与插图卡几乎都是**渲染期由正则产出** ```html 的——这类卡片往往没有 tavern_helper 脚本、开场白里也没有代码块，于是受信模式下 `areRuntimeLibrariesReady("trusted")` 永远为 false，消息 iframe 永久停在占位符（线上实测：正则误杀修复后，人妻 卡片卡在这一步）。
   2. **修法**：`bridgeCore` 抽出可测的 `shouldLoadUiLibraries()`，新增第四个条件——角色卡 / 全局 / 预设存在**启用的正则脚本**即加载重型库；诊断日志同步输出 `hasRenderableRegexScripts` 与触发原因。

@@ -5,6 +5,8 @@ import {
   parseThirdPartyMcpConfig,
   presetToFormValues,
   THIRD_PARTY_MCP_PRESETS,
+  THIRD_PARTY_MCP_PRESET_CATEGORY_LABEL,
+  type ThirdPartyMcpPresetCategory,
   type McpSourceFormValues,
   type ParsedMcpSourceCandidate,
   type ThirdPartyMcpPreset,
@@ -38,6 +40,7 @@ export const ThirdPartyMcpImportModal: React.FC<ThirdPartyMcpImportModalProps> =
   } | null>(null);
 
   const [manualForm, setManualForm] = useState<McpSourceFormValues>(EMPTY_MANUAL_FORM);
+  const [showDeveloperPresets, setShowDeveloperPresets] = useState(false);
 
   const handleParseJson = () => {
     const result = parseThirdPartyMcpConfig(importJsonText);
@@ -63,6 +66,34 @@ export const ThirdPartyMcpImportModal: React.FC<ThirdPartyMcpImportModalProps> =
     (manualForm.authScheme ?? "bearer") === "bearer"
       ? `${credentialHeader}: Bearer <Key>`
       : `${credentialHeader}: <Key>`;
+
+  /** 单个预置模板行；分组渲染复用同一份 JSX。 */
+  const renderPresetRow = (preset: ThirdPartyMcpPreset) => (
+    <div
+      key={preset.id}
+      className="flex items-center justify-between gap-2 rounded-xl border border-white/5 bg-white/5 p-2.5 hover:bg-white/8 transition-all"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold text-foreground">{preset.name}</span>
+          {preset.tags.map((tag) => (
+            <span key={tag} className="rounded bg-white/10 px-1 py-0.2 text-[8px] text-muted-foreground">
+              {tag}
+            </span>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{preset.description}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => handleApplyPreset(preset)}
+        aria-label={`选用预置 ${preset.name}`}
+        className="shrink-0 rounded-md border border-cyan-500/30 bg-cyan-500/15 px-2.5 py-1 text-[10px] font-bold text-cyan-300 hover:bg-cyan-500/25 active:scale-95"
+      >
+        选用
+      </button>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm animate-in fade-in duration-150">
@@ -200,42 +231,41 @@ export const ThirdPartyMcpImportModal: React.FC<ThirdPartyMcpImportModalProps> =
           {modalTab === "presets" && (
             <div className="space-y-2">
               <p className="text-[11px] text-muted-foreground">
-                经过实测的公网 MCP 模版；带「免鉴权」标签的无需申请 Key，选用后直接保存即可试用：
+                经过实测的公网 MCP 模版，按用途分组；带「免鉴权」标签的无需申请 Key，选用后直接保存即可试用。
               </p>
-              <div className="space-y-1.5">
-                {THIRD_PARTY_MCP_PRESETS.map((preset) => (
-                  <div
-                    key={preset.id}
-                    className="flex items-center justify-between gap-2 rounded-xl border border-white/5 bg-white/5 p-2.5 hover:bg-white/8 transition-all"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-foreground">
-                          {preset.name}
-                        </span>
-                        {preset.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded bg-white/10 px-1 py-0.2 text-[8px] text-muted-foreground"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                        {preset.description}
+
+              {(["roleplay", "general"] as const).map((category) => {
+                const presets = THIRD_PARTY_MCP_PRESETS.filter((preset) => preset.category === category);
+                if (presets.length === 0) return null;
+                return (
+                  <div key={category} className="space-y-1.5">
+                    <p className="pt-1 text-[10px] font-bold uppercase tracking-wider text-cyan-300/90">
+                      {THIRD_PARTY_MCP_PRESET_CATEGORY_LABEL[category]}
+                    </p>
+                    {category === "roleplay" && (
+                      <p className="rounded-lg border border-white/8 bg-black/25 px-2.5 py-2 text-[10px] leading-relaxed text-muted-foreground">
+                        角色扮演侧的多数需求已内置，不必依赖 MCP：骰子 / 随机 / 抽选 / 字数（`/dice` 等命令）、
+                        记忆写入、联网搜索（需 Key）。MCP 生态目前仍以开发向服务为主，这里只收录实测可用的。
                       </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyPreset(preset)}
-                      aria-label={`选用预置 ${preset.name}`}
-                      className="shrink-0 rounded-md border border-cyan-500/30 bg-cyan-500/15 px-2.5 py-1 text-[10px] font-bold text-cyan-300 hover:bg-cyan-500/25 active:scale-95"
-                    >
-                      选用
-                    </button>
+                    )}
+                    {presets.map(renderPresetRow)}
                   </div>
-                ))}
+                );
+              })}
+
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowDeveloperPresets((value) => !value)}
+                  aria-expanded={showDeveloperPresets}
+                  className="flex w-full items-center justify-between rounded-lg border border-white/8 bg-black/20 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                >
+                  <span>{THIRD_PARTY_MCP_PRESET_CATEGORY_LABEL.developer}（默认折叠）</span>
+                  <span>{showDeveloperPresets ? "收起" : "展开"}</span>
+                </button>
+                {showDeveloperPresets && THIRD_PARTY_MCP_PRESETS
+                  .filter((preset) => preset.category === "developer")
+                  .map(renderPresetRow)}
               </div>
             </div>
           )}

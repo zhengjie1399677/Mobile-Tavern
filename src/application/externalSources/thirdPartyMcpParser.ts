@@ -43,7 +43,18 @@ export interface ThirdPartyMcpPreset {
   readonly authScheme?: ExternalAuthScheme;
   readonly authPlaceholder?: string;
   readonly tags: readonly string[];
+  /** 用途分组：角色扮演用户优先看到前两组，开发向默认折叠。 */
+  readonly category: ThirdPartyMcpPresetCategory;
 }
+
+/** 预置模板的用途分组。 */
+export type ThirdPartyMcpPresetCategory = "roleplay" | "general" | "developer";
+
+export const THIRD_PARTY_MCP_PRESET_CATEGORY_LABEL: Record<ThirdPartyMcpPresetCategory, string> = {
+  roleplay: "角色扮演向",
+  general: "通用查询",
+  developer: "开发向",
+};
 
 /**
  * 手动/预置表单的字段值。
@@ -68,11 +79,22 @@ export const THIRD_PARTY_MCP_PRESETS: readonly ThirdPartyMcpPreset[] = Object.fr
   {
     id: "deepwiki",
     name: "DeepWiki 文档检索",
-    description: "公网免鉴权文档检索与知识库 MCP 服务，开箱即用",
+    description: "公网免鉴权文档检索与知识库 MCP 服务，开箱即用（偏技术文档）",
     endpoint: "https://mcp.deepwiki.com/mcp",
     era: "auto",
     requiresAuth: false,
     tags: ["知识库", "免鉴权", "已验证"],
+    category: "general",
+  },
+  {
+    id: "mcp-wiki",
+    name: "Wiki 知识检索",
+    description: "公网免鉴权知识 / 词条检索（search + 文档查询），可用于设定考据与背景补充",
+    endpoint: "https://mcp.wiki/mcp",
+    era: "auto",
+    requiresAuth: false,
+    tags: ["知识检索", "免鉴权", "已验证"],
+    category: "roleplay",
   },
   {
     id: "brave-search",
@@ -85,6 +107,7 @@ export const THIRD_PARTY_MCP_PRESETS: readonly ThirdPartyMcpPreset[] = Object.fr
     authScheme: "raw",
     authPlaceholder: "粘贴 Brave Search API Key (BSA...)",
     tags: ["联网搜索", "外部服务"],
+    category: "general",
   },
   {
     id: "grep-app-code-search",
@@ -94,6 +117,7 @@ export const THIRD_PARTY_MCP_PRESETS: readonly ThirdPartyMcpPreset[] = Object.fr
     era: "auto",
     requiresAuth: false,
     tags: ["代码搜索", "免鉴权", "已验证"],
+    category: "developer",
   },
   {
     id: "gitmcp-repo-docs",
@@ -103,6 +127,7 @@ export const THIRD_PARTY_MCP_PRESETS: readonly ThirdPartyMcpPreset[] = Object.fr
     era: "auto",
     requiresAuth: false,
     tags: ["仓库文档", "免鉴权", "已验证"],
+    category: "developer",
   },
   {
     id: "github-remote",
@@ -115,6 +140,7 @@ export const THIRD_PARTY_MCP_PRESETS: readonly ThirdPartyMcpPreset[] = Object.fr
     authScheme: "bearer",
     authPlaceholder: "粘贴 GitHub Personal Access Token (ghp_...)",
     tags: ["开发", "代码仓库"],
+    category: "developer",
   },
 ]);
 
