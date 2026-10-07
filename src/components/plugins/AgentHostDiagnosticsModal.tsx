@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
+import { purgeCompatibilityDomResidue } from "../../compatibility/sillytavern/parentDomResidue";
 
 interface AgentHostDiagnosticsModalProps {
   isOpen: boolean;
@@ -22,6 +23,19 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
   const [diagnostics, setDiagnostics] = React.useState<AgentRuntimeDiagnostics | null>(null);
   const [profileId, setProfileId] = React.useState<string>("mobile-tavern.tavern");
   const [isCompatEnabled, setIsCompatEnabled] = React.useState<boolean>(true);
+
+  const [residueMessage, setResidueMessage] = React.useState<string | null>(null);
+
+  const handlePurgeResidue = React.useCallback(() => {
+    try {
+      const removed = purgeCompatibilityDomResidue();
+      setResidueMessage(removed > 0
+        ? `已清理 ${removed} 个卡片脚本残留节点`
+        : "没有发现卡片脚本残留");
+    } catch (error) {
+      setResidueMessage(`清理失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, []);
 
   const refreshDiagnostics = React.useCallback(() => {
     try {
@@ -46,6 +60,7 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
   React.useEffect(() => {
     if (isOpen) {
       refreshDiagnostics();
+      setResidueMessage(null);
     }
   }, [isOpen, refreshDiagnostics]);
 
@@ -209,7 +224,19 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-border/60 bg-muted/20 flex justify-end">
+        <div className="p-3 border-t border-border/60 bg-muted/20 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <button
+              type="button"
+              onClick={handlePurgeResidue}
+              className="min-h-11 rounded-xl border border-border/70 px-3 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+            >
+              清理卡片残留
+            </button>
+            {residueMessage && (
+              <p className="mt-1 truncate text-[10px] text-muted-foreground/80">{residueMessage}</p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}

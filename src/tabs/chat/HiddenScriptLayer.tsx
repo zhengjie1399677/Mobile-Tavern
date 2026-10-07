@@ -19,6 +19,7 @@ import type {
   CompatibilityIframePolicy,
   CompatibilityRendererDefinition,
 } from "../../application/compatibility/contracts";
+import { purgeCompatibilityDomResidue } from "../../compatibility/sillytavern/parentDomResidue";
 
 interface HiddenScriptLayerProps {
   settings: UserSettings;
@@ -180,6 +181,26 @@ const HiddenScriptLayer = ({
       unsub();
     };
   }, [kernel]);
+
+  /**
+   * 退出会话 / 切换角色时收拾卡片脚本留在父页面的前端节点。
+   *
+   * 角色卡脚本常把状态栏 / HUD 直接挂到父页面 `document.body`，iframe 销毁不会带走它们，
+   * 表现为"退出后前端仍悬浮在屏幕上、甚至出现在别的会话里，只能大退才消失"。
+   * 这里延后一拍执行：先让各 iframe 的 about:blank 导航触发其自身的 pagehide 清理，
+   * 再统一收尾（同样覆盖"聊天页签没有被卸载、只是切换了角色/会话"的情况）。
+   */
+  React.useEffect(() => {
+    return () => {
+      window.setTimeout(() => {
+        try {
+          purgeCompatibilityDomResidue();
+        } catch (error) {
+          console.warn("[HiddenScriptLayer] 清理卡片 DOM 残留失败:", error);
+        }
+      }, 0);
+    };
+  }, [activeCharacter?.id, activeSessionId]);
 
   const canRenderScripts = Boolean(
     renderer && libsReady && settings.enableScriptExecution && !scriptDestroyed,
