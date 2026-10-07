@@ -79,8 +79,15 @@ async function defaultLoadDriver(): Promise<ConnectorDriver> {
 async function defaultStore(): Promise<ExternalSourceStorePort> {
   const module = await import("../../infrastructure/externalSources/externalSourceStorage");
   return {
-    list: () => module.listExternalSources(),
-    get: (id) => module.getExternalSource(id),
+    // 必须在这里剥掉 createdAt/updatedAt：端口对外承诺的是 ExternalCapabilitySource，
+    // 而底层记录带存储元数据，直接透传会被严格契约的 .strict() 拒绝。
+    // 必须在这里剥掉 createdAt/updatedAt：端口对外承诺的是 ExternalCapabilitySource，
+    // 而底层记录带存储元数据，直接透传会被严格契约的 .strict() 拒绝。
+    list: async () => (await module.listExternalSources()).map(module.toExternalCapabilitySource),
+    get: async (id) => {
+      const record = await module.getExternalSource(id);
+      return record ? module.toExternalCapabilitySource(record) : null;
+    },
   };
 }
 

@@ -108,6 +108,29 @@ export const CharacterProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return loaded;
   };
 
+  /**
+   * 活跃角色必须是完整卡。
+   *
+   * 首屏只加载轻量目录（`getCharacterCatalog()` → `extensions.__catalogOnly`，不含
+   * `regex_scripts` / `tavern_helper.scripts` / 世界书 / 开场白）。会话管理器、聊天历史等
+   * 入口过去只调用 `setActiveCharId()` 就直接渲染，导致渲染层拿到的是一张"没有脚本的正则
+   * 空卡"：角色卡正则不执行、状态栏与插图不出现、MVU 变量不注入，而且完全不报错。
+   * 这里在活跃角色仍是目录投影时补一次完整卡加载，作为所有入口的统一兜底。
+   */
+  const hydratingCharacterIdRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeCharId) return;
+    const current = characters.find((character) => character.id === activeCharId);
+    if (!current || !current.extensions?.__catalogOnly) return;
+    if (hydratingCharacterIdRef.current === activeCharId) return;
+    hydratingCharacterIdRef.current = activeCharId;
+    void loadCharacterById(activeCharId).finally(() => {
+      if (hydratingCharacterIdRef.current === activeCharId) {
+        hydratingCharacterIdRef.current = null;
+      }
+    });
+  }, [activeCharId, characters]);
+
   const deleteCharacter = async (id: string) => {
     try {
       await characterUseCases.deleteCharacter(id);

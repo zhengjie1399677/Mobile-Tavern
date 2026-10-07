@@ -193,6 +193,39 @@ describe("外部能力源配置存储", () => {
       /EXTERNAL_SOURCE_CREDENTIAL_EMPTY/,
     );
   });
+
+  it("默认存储的 IndexedDB 记录（带 createdAt/updatedAt）可以直接重连而不触发 unrecognized_keys", async () => {
+    // 红检背景：记录里带 createdAt/updatedAt，而 externalCapabilitySourceSchema 是 .strict()。
+    // 早期 defaultStore 直接把存储记录透传给运行时，导致"导入/探测 MCP 后"报
+    // `Unrecognized keys: "createdAt", "updatedAt"`（与 API Key 无关）。
+    const saved = await upsertExternalSource(source());
+    expect(saved.createdAt).toBeGreaterThan(0);
+
+    const agentRuntime = new AgentRuntimeService(journal);
+    const composer = new ComposerCommandService();
+    const kernel = {
+      getService: (name: string) =>
+        (name === KernelServices.ComposerCommands ? composer : agentRuntime),
+      hasService: () => true,
+    } as unknown as IKernel;
+    await agentRuntime.init(kernel);
+    composer.init(kernel);
+
+    // 刻意不注入 store：走生产同款 defaultStore()，必须自己剥掉存储元数据
+    const service = new ExternalSourceRuntimeService({
+      loadDriver: async () => createMcpConnectorDriver(),
+    });
+    await service.init(kernel);
+    try {
+      const diagnostics = service.getDiagnostics();
+      expect(diagnostics.failures).toEqual({});
+      expect(diagnostics.connectedSources).toContain("fixture");
+    } finally {
+      await service.destroy();
+      await agentRuntime.destroy();
+      await __externalSourceStorageTest.reset();
+    }
+  });
 });
 
 describe("静态凭据到请求头的映射", () => {

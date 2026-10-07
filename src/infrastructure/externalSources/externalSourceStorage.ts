@@ -71,8 +71,15 @@ async function readyStore(
   return { store: tx.objectStore(storeName), tx };
 }
 
-/** 只挑出契约字段，避免把存储元数据（createdAt/updatedAt）喂给严格 Schema。 */
-function toSourceInput(record: StoredExternalSource): ExternalCapabilitySource {
+/**
+ * 只挑出契约字段，避免把存储元数据（createdAt/updatedAt）喂给严格 Schema。
+ *
+ * 这是"存储记录 → 运行时契约"的唯一投影入口：所有把读出的来源交给
+ * `externalCapabilitySourceSchema` 校验的调用方都必须先经过它，否则 `.strict()`
+ * 会把 createdAt/updatedAt 报成 `unrecognized_keys`（线上表现为导入/探测 MCP 来源后
+ * 弹出 `Unrecognized keys: "createdAt", "updatedAt"`）。
+ */
+export function toExternalCapabilitySource(record: StoredExternalSource): ExternalCapabilitySource {
   return {
     schemaVersion: record.schemaVersion,
     id: record.id,
@@ -127,7 +134,7 @@ export async function setExternalSourceEnabled(
 ): Promise<StoredExternalSource> {
   const current = await getExternalSource(id);
   if (!current) throw new Error("EXTERNAL_SOURCE_NOT_FOUND");
-  return upsertExternalSource({ ...toSourceInput(current), enabled }, now);
+  return upsertExternalSource({ ...toExternalCapabilitySource(current), enabled }, now);
 }
 
 /** 删除来源；调用方负责在此之前关闭已建立的连接。 */

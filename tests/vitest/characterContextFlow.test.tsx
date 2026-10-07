@@ -36,6 +36,7 @@ function CharacterConsumer() {
     <div>
       <span data-testid="catalog">{characters.map((character) => character.name).join(",")}</span>
       <span data-testid="active">{activeCharacter?.name ?? "未选择"}</span>
+      <span data-testid="active-description">{activeCharacter?.description ?? ""}</span>
       <button onClick={() => setActiveCharId("character-1")}>选择角色</button>
       <button onClick={() => void saveCharacter(createCharacter("character-2", "角色乙"))}>
         保存角色
@@ -119,6 +120,59 @@ describe("角色跨组件数据流契约", () => {
     await waitFor(() => {
       expect(characterService.deleteCharacter).toHaveBeenCalledWith("character-1");
       expect(screen.getByTestId("catalog")).toHaveTextContent("角色乙");
+    });
+  });
+
+  it("活跃角色仍是轻量目录投影时自动补载完整卡", async () => {
+    // 目录投影只带展示字段：没有 regex_scripts / tavern_helper.scripts / 世界书。
+    const catalogEntry = {
+      id: "character-1",
+      name: "角色甲",
+      avatar: "",
+      extensions: { __catalogOnly: true },
+    } as unknown as CharacterCard;
+    const fullCard = {
+      ...createCharacter("character-1", "角色甲"),
+      description: "完整卡描述",
+      extensions: { regex_scripts: [{ id: "regex-1", scriptName: "插图" }] },
+    } as unknown as CharacterCard;
+
+    const characterService = {
+      name: "character",
+      init: vi.fn(),
+      getAllCharacters: vi.fn().mockResolvedValue([fullCard]),
+      getCharacterCatalog: vi.fn().mockResolvedValue([catalogEntry]),
+      getCharacterById: vi.fn().mockResolvedValue(fullCard),
+      saveCharacter: vi.fn().mockResolvedValue(undefined),
+      deleteCharacter: vi.fn().mockResolvedValue(undefined),
+      bulkSaveCharacters: vi.fn().mockResolvedValue(undefined),
+      getStoredDefaultCharactersInitializedFlag: vi.fn().mockResolvedValue(true),
+      saveStoredDefaultCharactersInitializedFlag: vi.fn().mockResolvedValue(undefined),
+    } satisfies ICharacterService<CharacterCard>;
+    const kernel = {
+      getService: vi.fn(() => characterService),
+    } as unknown as IKernel;
+
+    render(
+      <KernelProvider kernel={kernel}>
+        <AppProvider>
+          <CharacterProvider>
+            <CharacterConsumer />
+          </CharacterProvider>
+        </AppProvider>
+      </KernelProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("catalog")).toHaveTextContent("角色甲");
+    });
+    expect(screen.getByTestId("active-description")).toHaveTextContent("");
+
+    fireEvent.click(screen.getByRole("button", { name: "选择角色" }));
+
+    await waitFor(() => {
+      expect(characterService.getCharacterById).toHaveBeenCalledWith("character-1");
+      expect(screen.getByTestId("active-description")).toHaveTextContent("完整卡描述");
     });
   });
 });
