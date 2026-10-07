@@ -57,3 +57,55 @@ export function purgeCompatibilityDomResidue(doc: Document = document): number {
   }
   return removed;
 }
+
+/** React 管理的 DOM 节点都带 `__reactFiber$` / `__reactProps$` 这类自有属性。 */
+function hasReactMarker(element: Element): boolean {
+  return Object.getOwnPropertyNames(element).some((key) => key.startsWith("__react"));
+}
+
+export interface CompatibilityDomResidueGuard {
+  /** 停止观察并清理期间被注入的父页面顶层节点，返回清理数量。 */
+  dispose(): number;
+}
+
+/**
+ * 记录"兼容脚本存活期间"父页面新增的顶层节点，并在卸载时精确回收。
+ *
+ * 命名约定兜底（{@link purgeCompatibilityDomResidue}）覆盖不了无 id/class 的注入节点
+ * （例如角色卡 HUD 的悬浮星形 div）。这里用 MutationObserver 记录新增节点，
+ * 清理时跳过 React 管理的节点（带 `__react*` 自有属性）与应用 portal 容器，
+ * 既不会误删应用 UI，也不需要依赖节点命名。
+ */
+export function startCompatibilityDomResidueGuard(doc: Document = document): CompatibilityDomResidueGuard {
+  const recorded = new Set<Element>();
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      record.addedNodes.forEach((node) => {
+        if (node.nodeType === 1) recorded.add(node as Element);
+      });
+    }
+  });
+  const targets = [doc.body, doc.documentElement].filter((target): target is HTMLElement => Boolean(target));
+  for (const target of targets) observer.observe(target, { childList: true, subtree: false });
+
+  return {
+    dispose(): number {
+      observer.disconnect();
+      let removed = 0;
+      for (const element of recorded) {
+        if (!element.isConnected) continue;
+        if (hasReactMarker(element)) continue;
+        try {
+          if (element.matches(PROTECTED_SELECTOR)) continue;
+          if (element.closest("#root")) continue;
+        } catch {
+          continue;
+        }
+        element.remove();
+        removed += 1;
+      }
+      recorded.clear();
+      return removed;
+    },
+  };
+}

@@ -45,6 +45,12 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
   const [draftOrder, setDraftOrder] = React.useState<string[]>(() => [...order]);
   const [draftHidden, setDraftHidden] = React.useState<string[]>(() => [...hidden]);
   const [draggingId, setDraggingId] = React.useState<string | null>(null);
+  /**
+   * 长按判定期间就把该行的 touch-action 设为 none。
+   * Android WebView 会在长按窗口内先启动滚动并发出 pointercancel，
+   * 导致"完全拖不动"；先接管触摸，未长按成功再恢复滚动。
+   */
+  const [armedId, setArmedId] = React.useState<string | null>(null);
 
   const draftOrderRef = React.useRef<string[]>(draftOrder);
   const draftHiddenRef = React.useRef<string[]>(draftHidden);
@@ -73,6 +79,7 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
 
   const clearLongPress = React.useCallback(() => {
     longPressStartRef.current = null;
+    setArmedId(null);
     if (longPressRef.current !== null) {
       window.clearTimeout(longPressRef.current);
       longPressRef.current = null;
@@ -149,6 +156,7 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const startY = event.clientY;
     clearLongPress();
+    setArmedId(id);
     longPressStartRef.current = { id, y: startY };
     longPressRef.current = window.setTimeout(() => {
       longPressRef.current = null;
@@ -200,7 +208,7 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
                 onPointerUp={clearLongPress}
                 onPointerCancel={clearLongPress}
                 onPointerLeave={clearLongPress}
-                style={dragging ? { touchAction: "none" } : undefined}
+                style={dragging || armedId === id ? { touchAction: "none" } : undefined}
                 className={`flex items-center gap-2 rounded-xl border p-2.5 transition-all ${
                   dragging
                     ? "border-cyan-400/40 bg-cyan-500/10 shadow-lg scale-[1.02]"
@@ -215,6 +223,11 @@ export const WorkbenchLayoutDialog: React.FC<WorkbenchLayoutDialogProps> = ({
                   onPointerDown={(event) => {
                     event.stopPropagation();
                     clearLongPress();
+                    try {
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                    } catch {
+                      // 捕获失败时仍依赖 window 监听兜底
+                    }
                     beginDrag(id, event.clientY);
                   }}
                   className="shrink-0 cursor-grab touch-none rounded-md p-1 text-muted-foreground/70 hover:text-foreground active:cursor-grabbing"

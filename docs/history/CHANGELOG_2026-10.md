@@ -1,5 +1,11 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**修复卡片 iframe 白屏（多个角色卡受影响）、工作台拖动失效、HUD 残留，并让 MCP 启用即挂载。**
+  1. **白屏根因（关键）**：`SafeIframe` 的清理 effect 依赖 `srcDocStoreKey`，而该 key 每次渲染都会变（带 `Date.now()`）。于是每次重渲染都会执行"清空 srcdoc + 跳 `about:blank`"，把同一 DOM 节点上刚写好的卡片内容擦掉——表现为卡片 iframe 变成一整块白屏（多个卡片、首次进入尤其明显，重新进入因不再重渲染才正常）。现在 store key 变化只回收旧 key 内存，**绝不再碰 iframe 本体**；只有真正卸载时才清空。桌面探针实测：修复前 `srcdocLength=0`，修复后 `srcdocLength=57078`、iframe 内部 DOM 16944 字符。
+  2. **工作台拖动**：长按判定期间即把该行 `touch-action` 设为 `none`（此前 Android WebView 会在长按窗口内先启动滚动并发出 `pointercancel`，表现"完全拖不动"）；抓手按下额外 `setPointerCapture`。
+  3. **HUD 残留**：新增 `startCompatibilityDomResidueGuard()`（经 Renderer 契约暴露为 `startDomResidueGuard`）：兼容脚本存活期间用 MutationObserver 记录父页面顶层新增节点，卸载时回收其中**没有 React 标记**（`__react*` 自有属性）且不在 `#root` 内的节点——覆盖没有 id/class 的注入物（例如角色卡 HUD 的悬浮星形），与既有的命名约定兜底互补。
+  4. **MCP 启用即挂载**：新增 `syncExternalSourceToolMounts`，工作台启停来源时自动把该来源工具加入/移出**当前自定义 Profile** 的显式清单（内置 Profile 本身隐式包含所有启用来源，无需改动）；新会话即自动带上。同时按用户反馈**移除开发向预置与分组**（grep.app / GitMCP / GitHub），只保留角色扮演向（Wiki 知识检索）与通用查询（DeepWiki、Brave 搜索）。
+
 - 2026-10-07：**修复「装配」里角色无法选择：内置 Profile 只读状态缺可执行入口。**
   1. **根因**：`AgentProfileEditor` 以 `editable = !profile.builtin` 控制全部控件，内置的 Tavern Agent / Base Agent 属于只读模板，于是「1. 角色」下拉整体 `disabled`——用户看到"需要有效角色"却怎么也选不了。原提示只有一行小字"先点击复制，再编辑副本"，没有可点击入口。
   2. **修法**：只读提示升级为高对比度告警块，并内置「**复制并编辑副本**」按钮（调用既有 `copyProfile` 流程：提示命名 → 复制 → 切换到副本并把编辑器留在打开状态，副本可直接编辑）。

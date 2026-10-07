@@ -190,10 +190,18 @@ const HiddenScriptLayer = ({
    * 再统一收尾（同样覆盖"聊天页签没有被卸载、只是切换了角色/会话"的情况）。
    */
   React.useEffect(() => {
+    const disposeDomResidueGuard = compatibilityRuntime.getRenderer()?.startDomResidueGuard?.();
     return () => {
       window.setTimeout(() => {
         try {
-          compatibilityRuntime.getRenderer()?.purgeDomResidue?.();
+          const removedByGuard = disposeDomResidueGuard?.() ?? 0;
+          const removedByName = compatibilityRuntime.getRenderer()?.purgeDomResidue?.() ?? 0;
+          if (removedByGuard + removedByName > 0) {
+            console.log("[HiddenScriptLayer] 已清理卡片脚本 DOM 残留:", {
+              removedByGuard,
+              removedByName,
+            });
+          }
         } catch (error) {
           console.warn("[HiddenScriptLayer] 清理卡片 DOM 残留失败:", error);
         }

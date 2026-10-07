@@ -40,7 +40,6 @@ export const ThirdPartyMcpImportModal: React.FC<ThirdPartyMcpImportModalProps> =
   } | null>(null);
 
   const [manualForm, setManualForm] = useState<McpSourceFormValues>(EMPTY_MANUAL_FORM);
-  const [showDeveloperPresets, setShowDeveloperPresets] = useState(false);
 
   const handleParseJson = () => {
     const result = parseThirdPartyMcpConfig(importJsonText);
@@ -253,20 +252,6 @@ export const ThirdPartyMcpImportModal: React.FC<ThirdPartyMcpImportModalProps> =
                 );
               })}
 
-              <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowDeveloperPresets((value) => !value)}
-                  aria-expanded={showDeveloperPresets}
-                  className="flex w-full items-center justify-between rounded-lg border border-white/8 bg-black/20 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-                >
-                  <span>{THIRD_PARTY_MCP_PRESET_CATEGORY_LABEL.developer}（默认折叠）</span>
-                  <span>{showDeveloperPresets ? "收起" : "展开"}</span>
-                </button>
-                {showDeveloperPresets && THIRD_PARTY_MCP_PRESETS
-                  .filter((preset) => preset.category === "developer")
-                  .map(renderPresetRow)}
-              </div>
             </div>
           )}
 

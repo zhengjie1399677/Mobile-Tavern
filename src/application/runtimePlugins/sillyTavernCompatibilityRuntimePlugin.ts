@@ -17,6 +17,7 @@ import {
 import { applySillyTavernRegexScripts } from "../../compatibility/sillytavern/mvuParser";
 import { resolveSillyTavernWorldInfo } from "../../compatibility/sillytavern/worldInfoResolver";
 import { purgeCompatibilityDomResidue } from "../../compatibility/sillytavern/parentDomResidue";
+import { startCompatibilityDomResidueGuard } from "../../compatibility/sillytavern/parentDomResidue";
 import {
   sillyTavernPromptPresetCodec,
 } from "../../infrastructure/compat/sillytavern";
@@ -147,6 +148,10 @@ const renderer: CompatibilityRendererDefinition = {
   },
   purgeDomResidue() {
     return purgeCompatibilityDomResidue();
+  },
+  startDomResidueGuard() {
+    const guard = startCompatibilityDomResidueGuard();
+    return () => guard.dispose();
   },
 };
 

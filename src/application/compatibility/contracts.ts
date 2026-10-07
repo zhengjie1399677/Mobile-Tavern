@@ -201,6 +201,13 @@ export interface CompatibilityRendererDefinition {
    * iframe 销毁不会带走它们；通用消费者只能经本契约调用，不得直接依赖生态实现。
    */
   purgeDomResidue?(): number;
+  /**
+   * 启动"父页面 DOM 残留"记录，返回停止并回收的函数（可选能力）。
+   *
+   * 覆盖没有 id/class 的注入节点（角色卡 HUD 等），由生态实现内部实现，
+   * 通用消费者不得直接依赖具体实现。
+   */
+  startDomResidueGuard?(): () => number;
 }
 
 export interface CompatibilityRuntimeDiagnostics {

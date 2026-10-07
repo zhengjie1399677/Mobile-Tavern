@@ -58,6 +58,7 @@ function createIframeScopeKey(sessionId?: string): string {
 const SafeIframe = React.memo((props: SafeIframeProps) => {
   const { srcDoc, srcDocStoreKey, ...rest } = props;
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const storeKeyRef = React.useRef(srcDocStoreKey);
 
   // 关键修复：Android WebView 对超长 srcdoc attribute（50KB+）有硬性截断限制，
   // 通过 React prop（setAttribute）设置时会静默失败导致 iframe 白屏。
@@ -78,9 +79,24 @@ const SafeIframe = React.memo((props: SafeIframeProps) => {
     }
   }, [srcDoc]);
 
+  /**
+   * store key 每次渲染都会变（带 Date.now()），旧 key 只需回收内存，**绝不能碰 iframe 本体**。
+   *
+   * 历史缺陷（2026-10-07 修复）：清理逻辑原本挂在 `[srcDocStoreKey]` 上，于是每次重渲染都会
+   * 执行"清空 srcdoc + 跳 about:blank"，把同一 DOM 节点上刚写好的卡片内容擦掉——表现为
+   * 卡片 iframe 变成一整块白屏（多个卡片、首次进入尤其明显，重新进入因不再重渲染才正常）。
+   */
+  React.useLayoutEffect(() => {
+    const previousKey = storeKeyRef.current;
+    if (previousKey === srcDocStoreKey) return;
+    if (previousKey) removeFormattedTextSrcdoc(previousKey);
+    storeKeyRef.current = srcDocStoreKey;
+  }, [srcDocStoreKey]);
+
+  // 只有真正卸载时才清空 iframe 并回收当前 key。
   React.useEffect(() => {
-    const storedKey = srcDocStoreKey;
     return () => {
+      const storedKey = storeKeyRef.current;
       if (storedKey) removeFormattedTextSrcdoc(storedKey);
       const iframe = iframeRef.current;
       if (!iframe) return;
@@ -91,7 +107,7 @@ const SafeIframe = React.memo((props: SafeIframeProps) => {
         // 浏览上下文销毁本身已经是最后一道清理兜底。
       }
     };
-  }, [srcDocStoreKey]);
+  }, []);
 
   // 不通过 React prop 传递 srcDoc，由 useLayoutEffect 直接写入 DOM property
   return <iframe ref={iframeRef} {...rest} />;

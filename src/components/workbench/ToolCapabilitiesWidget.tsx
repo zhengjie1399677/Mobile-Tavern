@@ -16,6 +16,7 @@ import {
   Play,
 } from "lucide-react";
 import { toolPluginManagementUseCases } from "../../application/useCases/toolPluginManagementUseCases";
+import { syncExternalSourceToolMounts } from "../../application/useCases/externalSourceToolMounting";
 import { externalSourceUseCases } from "../../application/externalSources/externalSourceUseCases";
 import {
   candidateToExternalSource,
@@ -35,6 +36,7 @@ import {
   type IExternalSourceRuntimeService,
 } from "../../application/serviceContracts";
 import { useUnifiedApp } from "../../UnifiedAppContext";
+import { useOptionalKernel } from "../../contexts/KernelContext";
 
 interface ToolCapabilitiesWidgetProps {
   className?: string;
@@ -43,6 +45,8 @@ interface ToolCapabilitiesWidgetProps {
 export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
   className = "",
 }) => {
+  // 组件可能在无 KernelProvider 的隔离测试里渲染，这里用可选内核，缺失时跳过挂载同步。
+  const kernel = useOptionalKernel();
   const { showCustomAlert, showCustomConfirm, getKernelService } = useUnifiedApp((state) => ({
     showCustomAlert: state.showCustomAlert,
     showCustomConfirm: state.showCustomConfirm,
@@ -164,6 +168,23 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
       const runtime = getRuntime();
       if (runtime) {
         await runtime.reload();
+      }
+      // 启用即自动挂载 / 停用即卸载：自定义 Profile 的显式工具清单跟随变更；
+      // 内置 Profile 本身隐式包含所有启用来源，无需改动。
+      try {
+        if (kernel) {
+          const result = syncExternalSourceToolMounts({ kernel, sourceId: source.id, enabled: nextEnabled });
+          if (result.reason === "updated") {
+            showCustomAlert(
+              nextEnabled
+                ? "已启用并自动挂载到当前 Profile；新建会话即可使用。"
+                : "已停用并从当前 Profile 卸载。",
+              "外部能力",
+            );
+          }
+        }
+      } catch (syncError) {
+        console.warn("[ToolCapabilitiesWidget] 同步 Profile 工具挂载失败:", syncError);
       }
       await loadMcpSources();
     } catch (e) {

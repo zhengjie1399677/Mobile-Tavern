@@ -47,13 +47,12 @@ export interface ThirdPartyMcpPreset {
   readonly category: ThirdPartyMcpPresetCategory;
 }
 
-/** 预置模板的用途分组。 */
-export type ThirdPartyMcpPresetCategory = "roleplay" | "general" | "developer";
+/** 预置模板的用途分组：只保留角色扮演向与通用查询，开发向服务不再推荐。 */
+export type ThirdPartyMcpPresetCategory = "roleplay" | "general";
 
 export const THIRD_PARTY_MCP_PRESET_CATEGORY_LABEL: Record<ThirdPartyMcpPresetCategory, string> = {
   roleplay: "角色扮演向",
   general: "通用查询",
-  developer: "开发向",
 };
 
 /**
@@ -108,39 +107,6 @@ export const THIRD_PARTY_MCP_PRESETS: readonly ThirdPartyMcpPreset[] = Object.fr
     authPlaceholder: "粘贴 Brave Search API Key (BSA...)",
     tags: ["联网搜索", "外部服务"],
     category: "general",
-  },
-  {
-    id: "grep-app-code-search",
-    name: "grep.app 代码搜索",
-    description: "公网免鉴权 GitHub 代码搜索，可直接检索公开仓库代码片段与用法",
-    endpoint: "https://mcp.grep.app",
-    era: "auto",
-    requiresAuth: false,
-    tags: ["代码搜索", "免鉴权", "已验证"],
-    category: "developer",
-  },
-  {
-    id: "gitmcp-repo-docs",
-    name: "GitMCP 仓库文档",
-    description: "公网免鉴权仓库文档检索；端点可改为 https://gitmcp.io/<owner>/<repo> 指向任意公开仓库",
-    endpoint: "https://gitmcp.io/docs",
-    era: "auto",
-    requiresAuth: false,
-    tags: ["仓库文档", "免鉴权", "已验证"],
-    category: "developer",
-  },
-  {
-    id: "github-remote",
-    name: "GitHub 远端探针",
-    description: "GitHub 远程代码检索与公开仓库只读探针",
-    endpoint: "https://api.githubcopilot.com/mcp",
-    era: "modern",
-    requiresAuth: true,
-    authHeader: "Authorization",
-    authScheme: "bearer",
-    authPlaceholder: "粘贴 GitHub Personal Access Token (ghp_...)",
-    tags: ["开发", "代码仓库"],
-    category: "developer",
   },
 ]);
 
