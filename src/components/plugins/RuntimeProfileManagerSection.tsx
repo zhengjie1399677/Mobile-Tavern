@@ -60,6 +60,7 @@ export default function RuntimeProfileManagerSection() {
   const service = kernel.getService<IRuntimeProfileService>(KernelServices.RuntimeProfiles);
   const {
     activeSession,
+    activeCharacter,
     characters,
     settings,
     showCustomAlert,
@@ -67,6 +68,7 @@ export default function RuntimeProfileManagerSection() {
     showCustomPrompt,
   } = useUnifiedApp((state) => ({
     activeSession: state.activeSession,
+    activeCharacter: state.activeCharacter,
     characters: state.characters,
     settings: state.settings,
     showCustomAlert: state.showCustomAlert,
@@ -531,6 +533,7 @@ export default function RuntimeProfileManagerSection() {
             <AgentProfileEditor
               profile={inspected}
               characters={characters}
+              defaultCharacterId={activeSession?.characterId ?? activeCharacter?.id ?? undefined}
               promptPresets={settings.savedPresets ?? []}
               fallbackSampling={settings.preset}
               tools={editableTools}
@@ -538,6 +541,7 @@ export default function RuntimeProfileManagerSection() {
               busy={busy}
               onSave={saveAgent}
               onSaveAndStart={saveAgentAndStart}
+              onRequestDuplicate={() => void copyProfile(inspected)}
             />
           </div>
         </DialogContent>

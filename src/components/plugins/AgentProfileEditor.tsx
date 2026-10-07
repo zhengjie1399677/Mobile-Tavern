@@ -13,6 +13,8 @@ import type {
 interface AgentProfileEditorProps {
   readonly profile: RuntimeProfileRecord;
   readonly characters: readonly CharacterCard[];
+  /** 档案未绑定角色时的预填值（通常是当前会话/当前角色），避免"1. 角色"空着无法保存。 */
+  readonly defaultCharacterId?: string;
   readonly promptPresets: readonly PresetBundleV2[];
   readonly fallbackSampling: SamplerPreset;
   readonly tools: readonly RuntimeProfileToolMount[];
@@ -20,11 +22,14 @@ interface AgentProfileEditorProps {
   readonly busy: boolean;
   readonly onSave: (agent: RuntimeProfileAgentSettings) => Promise<void>;
   readonly onSaveAndStart: (agent: RuntimeProfileAgentSettings) => Promise<void>;
+  /** 只读（内置）Profile 的"复制并编辑"入口；缺省时只显示只读提示。 */
+  readonly onRequestDuplicate?: () => void;
 }
 
 export default function AgentProfileEditor({
   profile,
   characters,
+  defaultCharacterId,
   promptPresets,
   fallbackSampling,
   tools,
@@ -32,8 +37,10 @@ export default function AgentProfileEditor({
   busy,
   onSave,
   onSaveAndStart,
+  onRequestDuplicate,
 }: AgentProfileEditorProps) {
-  const [characterId, setCharacterId] = useState(profile.agent?.characterId ?? "");
+  const resolveDefaultCharacterId = () => profile.agent?.characterId ?? defaultCharacterId ?? "";
+  const [characterId, setCharacterId] = useState(resolveDefaultCharacterId);
   const [promptPresetId, setPromptPresetId] = useState(profile.agent?.promptPresetId ?? "");
   const [selectedToolNames, setSelectedToolNames] = useState(
     () => new Set(profile.agent?.toolMounts.map((tool) => tool.name) ?? tools.map((tool) => tool.name)),
@@ -42,14 +49,14 @@ export default function AgentProfileEditor({
   const [sampling, setSampling] = useState(() => profile.agent?.sampling ?? toSampling(fallbackSampling));
 
   useEffect(() => {
-    setCharacterId(profile.agent?.characterId ?? "");
+    setCharacterId(profile.agent?.characterId ?? defaultCharacterId ?? "");
     setPromptPresetId(profile.agent?.promptPresetId ?? "");
     setSelectedToolNames(new Set(
       profile.agent?.toolMounts.map((tool) => tool.name) ?? tools.map((tool) => tool.name),
     ));
     setCustomSampling(profile.agent?.sampling !== undefined);
     setSampling(profile.agent?.sampling ?? toSampling(fallbackSampling));
-  }, [fallbackSampling, profile, tools]);
+  }, [defaultCharacterId, fallbackSampling, profile, tools]);
 
   const selectedPreset = useMemo(
     () => promptPresets.find((preset) => preset.id === promptPresetId),
@@ -83,8 +90,20 @@ export default function AgentProfileEditor({
       </div>
 
       {!editable && (
-        <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
-          内置 Profile 为只读模板。先点击“复制”，再编辑副本。
+        <div className="space-y-2 rounded-xl border border-amber-500/35 bg-amber-500/10 p-2.5">
+          <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+            内置 Profile 是只读模板，角色 / Tool / 行为都无法直接编辑——需要先复制成自己的 Profile。
+          </p>
+          {onRequestDuplicate && (
+            <button
+              type="button"
+              onClick={onRequestDuplicate}
+              disabled={busy}
+              className="min-h-9 w-full rounded-lg bg-amber-500/25 px-3 text-[11px] font-bold text-amber-800 transition-colors hover:bg-amber-500/35 disabled:opacity-50 dark:text-amber-200"
+            >
+              复制并编辑副本
+            </button>
+          )}
         </div>
       )}
 
