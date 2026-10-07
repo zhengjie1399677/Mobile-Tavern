@@ -105,6 +105,38 @@ const HISTORY_JSON = {
   ],
 };
 
+/** 带 tavern_helper 后台脚本的卡片：脚本把悬浮 HUD 直接挂到父页面（模拟白星星残留）。 */
+const HUD_CARD_JSON = {
+  name: "E2E残留测试卡",
+  description: "父页面残留清理验证",
+  personality: "",
+  scenario: "",
+  first_mes: "你好。",
+  mes_example: "",
+  extensions: {
+    tavern_helper: {
+      scripts: [
+        {
+          id: "e2e-hud-script",
+          name: "HUD注入",
+          enabled: true,
+          content: [
+            "try {",
+            "  var d = window.parent.document;",
+            "  if (!d.getElementById('e2e-hud-star')) {",
+            "    var el = d.createElement('div');",
+            "    el.id = 'e2e-hud-star';",
+            "    el.textContent = '★';",
+            "    d.body.appendChild(el);",
+            "  }",
+            "} catch (e) { /* 隔离模式拿不到父页面，正是受信模式才需要清理 */ }",
+          ].join("\n"),
+        },
+      ],
+    },
+  },
+};
+
 /** 打开应用根节点。 */
 async function openApp(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/", { timeout: 60_000 });
@@ -129,7 +161,10 @@ async function importPreset(page: import("@playwright/test").Page): Promise<void
 }
 
 /** 导入角色卡，结束后停留在角色页。 */
-async function importCard(page: import("@playwright/test").Page): Promise<void> {
+async function importCard(
+  page: import("@playwright/test").Page,
+  card: Record<string, unknown> = CARD_JSON,
+): Promise<void> {
   await page.getByRole("tab", { name: "角色" }).click();
   await page
     // 设置页签是 Keep-Alive，仍留在 DOM 里且有同名文件输入，必须限定在角色面板内。
@@ -137,7 +172,7 @@ async function importCard(page: import("@playwright/test").Page): Promise<void> 
     .setInputFiles({
       name: "e2e-cot-card.json",
       mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(CARD_JSON)),
+      buffer: Buffer.from(JSON.stringify(card)),
     });
   await expect(page.getByText(/导入成功/)).toBeVisible({ timeout: 10_000 });
   await page.getByRole("button", { name: "确定" }).click();
@@ -235,5 +270,34 @@ test.describe("平行宇宙视图", () => {
     await page.getByRole("button", { name: /全部分支/ }).click();
     await page.getByRole("button", { name: /时空图谱/ }).click();
     await expect(page.locator('svg circle[role="button"]')).toHaveCount(2, { timeout: 20_000 });
+  });
+});
+
+test.describe("卡片 HUD 残留", () => {
+  test("退出聊天后脚本注入到父页面的悬浮节点被回收", async ({ page }) => {
+    await openApp(page);
+
+    // 开启脚本执行 + 受信模式（父页面注入只可能在受信沙箱里发生）
+    await page.getByRole("tab", { name: "设置" }).click();
+    await expect(page.locator(".settings-shell").first()).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: /高级设置/ }).click({ timeout: 15_000 });
+    // 功能开关收在「功能设置」折叠面板里
+    await page.getByRole("button", { name: /^功能设置/ }).click({ timeout: 15_000 });
+    const jsSwitch = page.getByLabel("卡片 JS 脚本执行").first();
+    await expect(jsSwitch).toBeVisible({ timeout: 10_000 });
+    await jsSwitch.click();
+    await page.getByLabel("受信完整兼容模式").first().click();
+
+    await importCard(page, HUD_CARD_JSON);
+    await page.getByText(HUD_CARD_JSON.name).first().click();
+    await expect(page.locator("#chat-input-area-container")).toBeVisible({ timeout: 30_000 });
+
+    // 后台脚本把悬浮星形节点挂到父页面（白星星）
+    await expect(page.locator("#e2e-hud-star")).toBeAttached({ timeout: 30_000 });
+
+    // 退出聊天回到首页：残留必须被回收，不能继续悬浮在别的页面
+    // 聊天是全屏页，底栏被隐藏，退出走聊天头部的返回按钮。
+    await page.getByRole("button", { name: "返回角色列表" }).click();
+    await expect(page.locator("#e2e-hud-star")).toHaveCount(0, { timeout: 15_000 });
   });
 });
