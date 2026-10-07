@@ -16,6 +16,7 @@ import {
 } from "../../compatibility/sillytavern";
 import { applySillyTavernRegexScripts } from "../../compatibility/sillytavern/mvuParser";
 import { resolveSillyTavernWorldInfo } from "../../compatibility/sillytavern/worldInfoResolver";
+import { purgeCompatibilityDomResidue } from "../../compatibility/sillytavern/parentDomResidue";
 import {
   sillyTavernPromptPresetCodec,
 } from "../../infrastructure/compat/sillytavern";
@@ -143,6 +144,9 @@ const renderer: CompatibilityRendererDefinition = {
       // 尚未绑定运行 Kernel 时事件总线为空，无需阻断 Profile 卸载。
     }
     renderer.setGenerationState({ isSending: false, streamingMessageId: null });
+  },
+  purgeDomResidue() {
+    return purgeCompatibilityDomResidue();
   },
 };
 

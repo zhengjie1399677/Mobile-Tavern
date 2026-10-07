@@ -9,7 +9,6 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
-import { purgeCompatibilityDomResidue } from "../../compatibility/sillytavern/parentDomResidue";
 
 interface AgentHostDiagnosticsModalProps {
   isOpen: boolean;
@@ -28,14 +27,15 @@ export function AgentHostDiagnosticsModal({ isOpen, onClose }: AgentHostDiagnost
 
   const handlePurgeResidue = React.useCallback(() => {
     try {
-      const removed = purgeCompatibilityDomResidue();
+      const compat = getKernelService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime);
+      const removed = compat?.getRenderer()?.purgeDomResidue?.() ?? 0;
       setResidueMessage(removed > 0
         ? `已清理 ${removed} 个卡片脚本残留节点`
         : "没有发现卡片脚本残留");
     } catch (error) {
       setResidueMessage(`清理失败：${error instanceof Error ? error.message : String(error)}`);
     }
-  }, []);
+  }, [getKernelService]);
 
   const refreshDiagnostics = React.useCallback(() => {
     try {

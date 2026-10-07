@@ -19,7 +19,6 @@ import type {
   CompatibilityIframePolicy,
   CompatibilityRendererDefinition,
 } from "../../application/compatibility/contracts";
-import { purgeCompatibilityDomResidue } from "../../compatibility/sillytavern/parentDomResidue";
 
 interface HiddenScriptLayerProps {
   settings: UserSettings;
@@ -194,13 +193,13 @@ const HiddenScriptLayer = ({
     return () => {
       window.setTimeout(() => {
         try {
-          purgeCompatibilityDomResidue();
+          compatibilityRuntime.getRenderer()?.purgeDomResidue?.();
         } catch (error) {
           console.warn("[HiddenScriptLayer] 清理卡片 DOM 残留失败:", error);
         }
       }, 0);
     };
-  }, [activeCharacter?.id, activeSessionId]);
+  }, [activeCharacter?.id, activeSessionId, compatibilityRuntime]);
 
   const canRenderScripts = Boolean(
     renderer && libsReady && settings.enableScriptExecution && !scriptDestroyed,

@@ -194,6 +194,13 @@ export interface CompatibilityRendererDefinition {
   getGenerationState(): CompatibilityGenerationState;
   setGenerationState(update: CompatibilityGenerationStateUpdate): void;
   cleanBridge(): void;
+  /**
+   * 清理卡片脚本留在**父页面**的 DOM 残留，返回清理数量（可选能力）。
+   *
+   * 角色卡脚本（状态栏 / 前端 HUD）常把节点直接挂到父页面 document.body，
+   * iframe 销毁不会带走它们；通用消费者只能经本契约调用，不得直接依赖生态实现。
+   */
+  purgeDomResidue?(): number;
 }
 
 export interface CompatibilityRuntimeDiagnostics {
