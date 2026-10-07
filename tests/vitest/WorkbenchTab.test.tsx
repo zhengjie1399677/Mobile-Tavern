@@ -89,7 +89,7 @@ describe("WorkbenchTab (宿主工作台)", () => {
     });
 
     fireEvent.click(screen.getByLabelText("编辑工作台布局"));
-    expect(screen.getByText("编辑布局")).toBeInTheDocument();
+    expect(screen.getByText("工作台布局")).toBeInTheDocument();
 
     // 隐藏第一张卡片：补丁必须把 calendar 写进 hidden
     // Base UI Switch 会同时渲染可见按钮与表单隐藏输入，两者共享同一 aria-label。

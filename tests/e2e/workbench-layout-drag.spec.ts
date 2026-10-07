@@ -20,7 +20,7 @@ test.describe("工作台布局拖动", () => {
     const layoutButton = page.getByLabel("编辑工作台布局");
     await expect(layoutButton).toBeVisible({ timeout: 30_000 });
     await layoutButton.click();
-    await expect(page.getByText("编辑布局")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("工作台布局")).toBeVisible({ timeout: 10_000 });
 
     const rows = page.locator("[data-card-row]");
     await expect(rows.first()).toBeVisible({ timeout: 10_000 });
@@ -56,7 +56,7 @@ test.describe("工作台布局拖动", () => {
     // 关闭并重开面板：改动必须已写入设置（持久化）
     await page.getByRole("button", { name: "完成" }).click();
     await layoutButton.click();
-    await expect(page.getByText("编辑布局")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("工作台布局")).toBeVisible({ timeout: 10_000 });
     await expect(rows.nth(1)).toHaveAttribute("data-card-row", firstId!, { timeout: 10_000 });
   });
 });
