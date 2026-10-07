@@ -651,6 +651,21 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               <Play className="w-3.5 h-3.5" />
               <span className="text-xs font-medium">{t("chat_input.continue")}</span>
             </button>
+            {/* MCP 能力：快捷栏里的显性入口（气泡弹层锚定在此按钮上） */}
+            <McpChatPopover
+              triggerVariant="bar"
+              triggerDisabled={isSending || !activeSession}
+              open={mcpPopoverOpen}
+              onOpenChange={(next) => {
+                if (next) setMcpSeedText((localInput || "").trim());
+                setMcpPopoverOpen(next);
+              }}
+              draftText={mcpSeedText}
+              getRuntime={getExternalSourceRuntime}
+              onConfirm={handleExternalToolResult}
+              onOpenWorkbench={() => setActiveTab("workbench")}
+              showAlert={showCustomAlert}
+            />
           </div>
 
           <div
@@ -790,19 +805,6 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             setUserInputMessage("/");
             requestAnimationFrame(() => textareaRef.current?.focus());
           }}
-        />
-        {/* MCP 气泡弹层：锚定在输入框左侧，键盘弹出也不会被遮住。 */}
-        <McpChatPopover
-          open={mcpPopoverOpen}
-          onOpenChange={(next) => {
-            if (next) setMcpSeedText((localInput || "").trim());
-            setMcpPopoverOpen(next);
-          }}
-          draftText={mcpSeedText}
-          getRuntime={getExternalSourceRuntime}
-          onConfirm={handleExternalToolResult}
-          onOpenWorkbench={() => setActiveTab("workbench")}
-          showAlert={showCustomAlert}
         />
         <textarea
           ref={textareaRef}

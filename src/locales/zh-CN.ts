@@ -633,7 +633,7 @@ export default {
   "message_bubble.export_success": "导出成功",
   "message_bubble.click_to_save": "点击保存图片",
   "message_bubble.round_label": "第 {roundNum} 轮对话",
-  "chat_input.reroll_last": "重载上一段剧情",
+  "chat_input.reroll_last": "重发",
   "chat_input.continue": "继续",
   "chat_input.suggestions_label": "✨ 叙事分支生成器:",
   "chat_input.click_mode": "点击行为: {mode}",

@@ -1,5 +1,10 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**MCP 入口挪进快捷栏；快捷栏「重载上一段剧情」精简为「重发」。**
+  1. `McpChatPopover` 新增 `triggerVariant`（bar/icon）：气泡触发按钮从输入框行内图标改为快捷栏里的「MCP」按钮（输入框「+」→「快捷栏」展开后可见），仍锚定气泡、不受虚拟键盘遮挡；`/tool <查询>` 继续直接打开同一气泡。
+  2. zh-CN / zh-TW 的 `chat_input.reroll_last` 由「重载上一段剧情」精简为「重发 / 重發」（该键仅用于快捷栏）。
+  3. E2E 更新为"先展开快捷栏再点 MCP 按钮"的路径，桌面 + 移动全绿。
+
 - 2026-10-07：**修复聊天 MCP 气泡弹层调用多参数工具报 `-32602 Invalid arguments`（GitMCP 等）。**
   1. **根因**：弹层此前只把输入框草稿映射到单个"主参数"，`owner` / `repo` 这类必填项保持为空，被 MCP 服务端按严格 schema 拒绝；用户看到的就是"调用失败：Invalid arguments for tool …"。
   2. **修法**：按工具 JSON Schema 生成**逐参数表单**——必填标 `*`，string/number/boolean/JSON 各自控件；`query`/`prompt` 等查询类字段用草稿自动带入；草稿里出现 `owner/repo` 形态时自动拆分给 owner / repo，出现 URL 时带入 url；调用前本地校验必填项，缺参直接内联提示，不再打到服务端。

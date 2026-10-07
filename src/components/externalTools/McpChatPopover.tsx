@@ -48,6 +48,9 @@ interface McpChatPopoverProps {
   readonly onConfirm: (payload: ExternalToolInvocationPayload) => Promise<void>;
   readonly onOpenWorkbench: () => void;
   readonly showAlert: (message: string, title?: string) => Promise<void> | void;
+  /** 触发按钮形态：`bar` 适配快捷栏（图标+文字），`icon` 适配输入框行内图标。 */
+  readonly triggerVariant?: "bar" | "icon";
+  readonly triggerDisabled?: boolean;
 }
 
 interface SourceRow {
@@ -66,6 +69,8 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
   onConfirm,
   onOpenWorkbench,
   showAlert,
+  triggerVariant = "icon",
+  triggerDisabled,
 }) => {
   const kernel = useOptionalKernel();
   const [rows, setRows] = React.useState<SourceRow[]>([]);
@@ -223,13 +228,21 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
       <Popover.Trigger
         aria-label="MCP 能力"
         title="MCP 能力"
-        className={`flex size-[38px] shrink-0 items-center justify-center rounded-xl border transition-all active:scale-95 ${
-          open
-            ? "border-primary/40 bg-primary/15 text-primary"
-            : "border-border/80 bg-input/30 text-muted-foreground hover:bg-muted hover:text-foreground"
-        }`}
+        disabled={triggerDisabled}
+        className={triggerVariant === "bar"
+          ? `flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 transition-colors disabled:opacity-40 ${
+              open
+                ? "bg-primary/12 text-primary"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-primary"
+            }`
+          : `flex size-[38px] shrink-0 items-center justify-center rounded-xl border transition-all active:scale-95 ${
+              open
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-border/80 bg-input/30 text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
       >
-        <Plug className="size-4" />
+        <Plug className={triggerVariant === "bar" ? "w-3.5 h-3.5" : "size-4"} />
+        {triggerVariant === "bar" && <span className="text-xs font-medium">MCP</span>}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner

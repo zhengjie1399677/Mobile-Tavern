@@ -34,7 +34,10 @@ test.describe("MCP 显性调用入口", () => {
     await page.getByText(CARD_JSON.name).first().click();
     await expect(page.locator("#chat-input-area-container")).toBeVisible({ timeout: 30_000 });
 
-    // 入口一：输入框左侧的 MCP 能力按钮 → 锚定气泡
+    // 入口一：先展开快捷栏（输入框「+」→ 快捷栏），再点快捷栏里的 MCP 按钮
+    await page.getByRole("button", { name: "添加内容" }).click();
+    await expect(page.getByRole("menu", { name: "添加内容与输入工具" })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("menuitemcheckbox", { name: /快捷栏/ }).click();
     await page.getByRole("button", { name: "MCP 能力" }).click();
     const popover = page.getByLabel("MCP 能力面板");
     await expect(popover).toBeVisible({ timeout: 10_000 });
