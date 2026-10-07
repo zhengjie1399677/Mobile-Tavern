@@ -5,7 +5,7 @@ import {
   resolvePrimaryArgumentKey,
   stringifyExternalToolResult,
   type ExternalToolInvocationPayload,
-} from "../../src/components/externalTools/ExternalToolInvocationSheet";
+} from "../../src/components/externalTools/externalToolInvocation";
 
 describe("外部工具显性调用辅助逻辑", () => {
   it("优先把查询写进 query/prompt 等常见参数", () => {

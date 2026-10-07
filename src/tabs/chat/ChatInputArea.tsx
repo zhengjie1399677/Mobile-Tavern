@@ -11,7 +11,6 @@ import {
   Mic,
   Loader2,
   Play,
-  Sparkles,
   AudioWaveform,
   Terminal,
 } from "lucide-react";
@@ -45,10 +44,10 @@ import {
 import { ComposerCommandSuggestions } from "./ComposerCommandSuggestions";
 import { useChatVoiceInput } from "./useChatVoiceInput";
 import {
-  ExternalToolInvocationSheet,
   formatExternalToolResultForConversation,
   type ExternalToolInvocationPayload,
-} from "../../components/externalTools/ExternalToolInvocationSheet";
+} from "../../components/externalTools/externalToolInvocation";
+import { McpChatPopover } from "../../components/externalTools/McpChatPopover";
 
 /**
  * 用于在事件 currentTarget 上标记 _touched 状态，
@@ -72,8 +71,8 @@ function toMessageAttachmentPart(item: PendingAttachment): MessageContentPart {
 
 const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
-  const [toolSheetOpen, setToolSheetOpen] = React.useState(false);
-  const [toolSeedText, setToolSeedText] = React.useState("");
+  const [mcpPopoverOpen, setMcpPopoverOpen] = React.useState(false);
+  const [mcpSeedText, setMcpSeedText] = React.useState("");
   const { t } = useTranslation();
   const {
     isSending,
@@ -101,6 +100,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     createNewBranch,
     handleAutoSummaryCheck,
     showCustomConfirm,
+    setActiveTab,
   } = useUnifiedApp((state) => ({
     isSending: state.isSending,
     setIsSending: state.setIsSending,
@@ -126,6 +126,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     createNewBranch: state.createNewBranch,
     handleAutoSummaryCheck: state.handleAutoSummaryCheck,
     showCustomConfirm: state.showCustomConfirm,
+    setActiveTab: state.setActiveTab,
   }));
   const compatibilityVariables = activeSession
     ? getKernelService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
@@ -357,9 +358,9 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     }
   }, [getKernelService]);
 
-  const openToolSheet = React.useCallback((seed: string) => {
-    setToolSeedText(seed);
-    setToolSheetOpen(true);
+  const openMcpPopover = React.useCallback((seed: string) => {
+    setMcpSeedText(seed);
+    setMcpPopoverOpen(true);
   }, []);
 
   const handleExternalToolResult = React.useCallback(async (
@@ -396,7 +397,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         setLocalInput("");
         setUserInputMessage("");
         setReplySuggestions([]);
-        openToolSheet(argument.trim());
+        openMcpPopover(argument.trim());
         return;
       }
       await executeBuiltinComposerCommand({
@@ -466,7 +467,7 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     showCustomAlert,
     showCustomConfirm,
     t,
-    openToolSheet,
+    openMcpPopover,
   ]);
 
   const executeComposerCommandIfPresent = React.useCallback(async (): Promise<boolean> => {
@@ -650,19 +651,6 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
               <Play className="w-3.5 h-3.5" />
               <span className="text-xs font-medium">{t("chat_input.continue")}</span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowQuickActions(false);
-                openToolSheet((localInput || "").trim());
-              }}
-              disabled={isSending || !activeSession}
-              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-cyan-300 transition-colors hover:bg-cyan-500/10 hover:text-cyan-200 disabled:opacity-40"
-              title="显式调用已启用的 MCP / 外部工具，把真实结果送入对话"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">调用能力</span>
-            </button>
           </div>
 
           <div
@@ -802,6 +790,19 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
             setUserInputMessage("/");
             requestAnimationFrame(() => textareaRef.current?.focus());
           }}
+        />
+        {/* MCP 气泡弹层：锚定在输入框左侧，键盘弹出也不会被遮住。 */}
+        <McpChatPopover
+          open={mcpPopoverOpen}
+          onOpenChange={(next) => {
+            if (next) setMcpSeedText((localInput || "").trim());
+            setMcpPopoverOpen(next);
+          }}
+          draftText={mcpSeedText}
+          getRuntime={getExternalSourceRuntime}
+          onConfirm={handleExternalToolResult}
+          onOpenWorkbench={() => setActiveTab("workbench")}
+          showAlert={showCustomAlert}
         />
         <textarea
           ref={textareaRef}
@@ -946,14 +947,6 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
         )}
       </div>
 
-      <ExternalToolInvocationSheet
-        open={toolSheetOpen}
-        onClose={() => setToolSheetOpen(false)}
-        seedText={toolSeedText}
-        getRuntime={getExternalSourceRuntime}
-        onConfirm={handleExternalToolResult}
-        showAlert={showCustomAlert}
-      />
     </div>
   );
 };
