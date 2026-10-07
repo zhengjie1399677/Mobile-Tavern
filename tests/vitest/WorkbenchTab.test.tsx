@@ -89,7 +89,7 @@ describe("WorkbenchTab (宿主工作台)", () => {
     });
 
     fireEvent.click(screen.getByLabelText("编辑工作台布局"));
-    expect(screen.getByText("编辑工作台布局")).toBeInTheDocument();
+    expect(screen.getByText("编辑布局")).toBeInTheDocument();
 
     // 隐藏第一张卡片：补丁必须把 calendar 写进 hidden
     // Base UI Switch 会同时渲染可见按钮与表单隐藏输入，两者共享同一 aria-label。
@@ -101,9 +101,12 @@ describe("WorkbenchTab (宿主工作台)", () => {
     const hiddenSettings = hidePatch!({ existing: true });
     expect(hiddenSettings.workbenchCardLayout).toMatchObject({ hidden: ["calendar"] });
 
-    // 下移第一张卡片：补丁顺序里 calendar 不再排第一
+    // 长按拖动：抓手按下即进入拖动，向上移动一行（跨过一个行高）
     mockedModule.__mockUpdateSettings.mockClear();
-    fireEvent.click(screen.getByLabelText("下移 时空活跃热力日历"));
+    const dragHandle = screen.getByLabelText("拖动 心智气象罗盘");
+    fireEvent.pointerDown(dragHandle, { clientY: 200 });
+    fireEvent.pointerMove(window, { clientY: 136 });
+    fireEvent.pointerUp(window, { clientY: 136 });
     const movePatch = mockedModule.__mockUpdateSettings.mock.calls.at(-1)?.[0] as
       | ((previous: Record<string, unknown>) => Record<string, unknown>)
       | undefined;

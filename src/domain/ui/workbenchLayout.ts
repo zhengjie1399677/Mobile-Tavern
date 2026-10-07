@@ -50,19 +50,20 @@ export function resolveHiddenWorkbenchCards(
 }
 
 /**
- * 移动一张卡片：返回新的顺序数组（越界时原样返回）。
- * 界面层的上移/下移按钮与拖拽都只需要消费这个结果。
+ * 把一张卡片移动到目标下标（越界自动夹取；卡片不存在时原样返回）。
+ * 长按拖动与键盘排序都只需要消费这个纯函数的结果。
  */
-export function moveWorkbenchCard(
+export function moveWorkbenchCardTo(
   order: readonly string[],
   cardId: string,
-  direction: -1 | 1,
+  targetIndex: number,
 ): string[] {
-  const index = order.indexOf(cardId);
-  if (index < 0) return [...order];
-  const target = index + direction;
-  if (target < 0 || target >= order.length) return [...order];
+  const fromIndex = order.indexOf(cardId);
+  if (fromIndex < 0) return [...order];
+  const clamped = Math.max(0, Math.min(order.length - 1, Math.trunc(targetIndex)));
+  if (clamped === fromIndex) return [...order];
   const next = [...order];
-  [next[index], next[target]] = [next[target], next[index]];
+  next.splice(fromIndex, 1);
+  next.splice(clamped, 0, cardId);
   return next;
 }

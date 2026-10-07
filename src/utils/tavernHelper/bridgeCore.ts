@@ -463,6 +463,51 @@ function messageContainsHtmlCodeBlock(character: any): boolean {
   return messages.some(m => /```html\b/i.test(m) || /```\s*<[\s\S]*?```/i.test(m));
 }
 
+function countEnabledRegexScripts(source: unknown): number {
+  const values = Array.isArray(source)
+    ? source
+    : source && typeof source === "object"
+      ? Object.values(source as Record<string, unknown>)
+      : [];
+  return values.filter((item) =>
+    Boolean(item) && typeof item === "object" && (item as { disabled?: unknown }).disabled !== true
+  ).length;
+}
+
+/**
+ * 是否存在"渲染期才产出 HTML"的正则脚本（角色卡 / 全局 / 预设）。
+ *
+ * 状态栏与插图卡几乎都是由正则把模型输出替换成 ```html 代码块后，再由 FormattedText
+ * 转成消息 iframe 的。这类卡片往往**没有 tavern_helper 脚本、开场白里也没有代码块**，
+ * 如果只按卡片脚本判断，受信模式下重型 UI 库不会加载，消息 iframe 会永久停在
+ * 「正在载入脚本依赖…」占位符（线上实测：人妻 卡片在修复正则误杀后卡在这一步）。
+ */
+function hasRenderableRegexScripts(
+  character: CharacterCard | null,
+  settings?: { globalRegexScripts?: unknown; presetRegexScripts?: unknown } | null,
+): boolean {
+  const extensions = (character?.extensions ?? {}) as Record<string, unknown>;
+  return countEnabledRegexScripts(extensions.regex_scripts) > 0
+    || countEnabledRegexScripts(settings?.globalRegexScripts) > 0
+    || countEnabledRegexScripts(settings?.presetRegexScripts) > 0;
+}
+
+/**
+ * 是否需要加载重型 UI 库（Vue / Pinia / jQuery）。
+ *
+ * 导出的纯函数便于测试：四个条件任一成立即加载——卡片脚本/MVU 设定、开场白 iframe、
+ * 开场白 HTML 代码块，以及会在渲染期产出 HTML 的正则脚本。
+ */
+export function shouldLoadUiLibraries(
+  character: CharacterCard | null,
+  settings?: { globalRegexScripts?: unknown; presetRegexScripts?: unknown } | null,
+): boolean {
+  return hasCardScripts(character)
+    || messageContainsIframe(character)
+    || messageContainsHtmlCodeBlock(character)
+    || hasRenderableRegexScripts(character, settings);
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // 分层懒加载：核心库 vs 重型 UI 库
 //
@@ -620,7 +665,8 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
   const hasScripts = hasCardScripts(params.activeCharacter);
   const hasIframe = messageContainsIframe(params.activeCharacter);
   const hasHtmlBlock = messageContainsHtmlCodeBlock(params.activeCharacter);
-  const shouldLoadUiLibs = enableScript && (hasScripts || hasIframe || hasHtmlBlock);
+  const hasRegexScripts = hasRenderableRegexScripts(params.activeCharacter, params.settings);
+  const shouldLoadUiLibs = enableScript && shouldLoadUiLibraries(params.activeCharacter, params.settings);
   const shouldLoadMath = enableScript && cardNeedsMathRuntime(params.activeCharacter);
   console.log("[SillyTavern Compatibility Runtime] initTavernHelperBridge 诊断:", {
     charName,
@@ -628,6 +674,7 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
     hasCardScripts: hasScripts,
     messageContainsIframe: hasIframe,
     messageContainsHtmlCodeBlock: hasHtmlBlock,
+    hasRenderableRegexScripts: hasRegexScripts,
     willLoadUiLibs: shouldLoadUiLibs,
     willLoadMath: shouldLoadMath,
   });
@@ -641,11 +688,14 @@ export function initTavernHelperBridge(params: TavernHelperBridgeParams) {
     // 1. 角色卡包含 tavern_helper 脚本或 MVU 设定（原有逻辑）
     // 2. 角色卡的 first_mes / alternate_greetings 包含 <iframe> 标签
     // 3. 角色卡的 first_mes / alternate_greetings 包含 HTML 代码块（```html 或 ``` <）
+    // 4. 角色卡 / 全局 / 预设存在启用的正则脚本（状态栏、插图等渲染期产出 HTML 的卡片）
     //    因为 FormattedText 渲染消息 iframe 时需要 createMessageIframeSrcDoc 注入
     //    jQuery shim 与桥接代码，而 libsReady=false 会导致 iframe 显示
     //    "正在载入脚本依赖..." 占位符而非实际内容。
     if (shouldLoadUiLibs) {
-      const reason = hasScripts ? "hasCardScripts" : (hasIframe ? "messageContainsIframe" : "messageContainsHtmlCodeBlock");
+      const reason = hasScripts
+        ? "hasCardScripts"
+        : (hasIframe ? "messageContainsIframe" : (hasHtmlBlock ? "messageContainsHtmlCodeBlock" : "hasRenderableRegexScripts"));
       console.log("[SillyTavern Compatibility Runtime] 触发 UI 库加载，原因:", reason);
       ensureUiLibsLoaded().then(() => {
         console.log("[SillyTavern Compatibility Runtime] UI 库加载完成，验证:", {

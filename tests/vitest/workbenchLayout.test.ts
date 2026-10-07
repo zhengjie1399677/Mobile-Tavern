@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  moveWorkbenchCard,
+  moveWorkbenchCardTo,
   resolveHiddenWorkbenchCards,
   resolveWorkbenchCardOrder,
 } from "../../src/domain/ui/workbenchLayout";
@@ -26,12 +26,13 @@ describe("工作台卡片布局解析", () => {
     })).toEqual(["mood"]);
   });
 
-  it("上下移动越界时保持原顺序", () => {
-    const order = ["a", "b", "c"];
-    expect(moveWorkbenchCard(order, "b", -1)).toEqual(["b", "a", "c"]);
-    expect(moveWorkbenchCard(order, "b", 1)).toEqual(["a", "c", "b"]);
-    expect(moveWorkbenchCard(order, "a", -1)).toEqual(["a", "b", "c"]);
-    expect(moveWorkbenchCard(order, "c", 1)).toEqual(["a", "b", "c"]);
-    expect(moveWorkbenchCard(order, "missing", 1)).toEqual(["a", "b", "c"]);
+  it("拖动到目标下标：越界夹取、原位返回、未知 id 无副作用", () => {
+    const order = ["a", "b", "c", "d"];
+    expect(moveWorkbenchCardTo(order, "a", 2)).toEqual(["b", "c", "a", "d"]);
+    expect(moveWorkbenchCardTo(order, "d", 0)).toEqual(["d", "a", "b", "c"]);
+    expect(moveWorkbenchCardTo(order, "b", -5)).toEqual(["b", "a", "c", "d"]);
+    expect(moveWorkbenchCardTo(order, "b", 99)).toEqual(["a", "c", "d", "b"]);
+    expect(moveWorkbenchCardTo(order, "b", 1)).toEqual(["a", "b", "c", "d"]);
+    expect(moveWorkbenchCardTo(order, "missing", 2)).toEqual(["a", "b", "c", "d"]);
   });
 });

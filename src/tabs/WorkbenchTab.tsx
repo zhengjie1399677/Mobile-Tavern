@@ -96,7 +96,7 @@ export default function WorkbenchTab(): React.JSX.Element {
             className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-card/40 px-2.5 py-2 text-[10px] font-semibold text-muted-foreground backdrop-blur-xl shadow-sm transition-colors hover:text-foreground active:scale-95"
           >
             <LayoutGrid className="h-3.5 w-3.5" />
-            卡片布局
+            布局
           </button>
 
           {/* 实时数字时钟 */}

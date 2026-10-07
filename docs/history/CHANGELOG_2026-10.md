@@ -1,5 +1,11 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-07：**修复「正则产出卡片的卡片在受信模式下永久停在『正在载入脚本依赖…』」，并把手布局改为长按拖动。**
+  1. **根因**：重型 UI 库（Vue/Pinia/jQuery）的加载判定只看"卡片脚本 / 开场白 iframe / 开场白 HTML 代码块"。而状态栏与插图卡几乎都是**渲染期由正则产出** ```html 的——这类卡片往往没有 tavern_helper 脚本、开场白里也没有代码块，于是受信模式下 `areRuntimeLibrariesReady("trusted")` 永远为 false，消息 iframe 永久停在占位符（线上实测：正则误杀修复后，人妻 卡片卡在这一步）。
+  2. **修法**：`bridgeCore` 抽出可测的 `shouldLoadUiLibraries()`，新增第四个条件——角色卡 / 全局 / 预设存在**启用的正则脚本**即加载重型库；诊断日志同步输出 `hasRenderableRegexScripts` 与触发原因。
+  3. **工作台布局**：入口按钮由「卡片布局」简化为「布局」；排序交互从「上移/下移按钮」换成**长按拖动**（行体长按 320ms，或直接按住左侧抓手），拖动期间只改本地草稿、松手才落库一次；显示开关仍即时保存。
+  4. **验证**：`tests/vitest/bridgeProfileLibraries.test.ts` 覆盖四个加载条件（正则卡/全局预设正则/全禁用不加载/脚本与代码块）；`workbenchLayout.test.ts` 改为覆盖 `moveWorkbenchCardTo` 的越界夹取与未知 id；`WorkbenchTab.test.tsx` 用指针事件模拟长按拖动。桌面 dev 实测日志：`触发 UI 库加载，原因: hasRenderableRegexScripts` → `libsReady=true，停止轮询`，占位符消失。
+
 - 2026-10-07：**修复导入/探测 MCP 来源后报 `Unrecognized keys: "createdAt", "updatedAt"`（与 API Key 无关）。**
   1. **根因**：`ExternalSourceRuntimeService.defaultStore()` 把 IndexedDB 存储记录（`StoredExternalSource`，带 `createdAt` / `updatedAt` 元数据）直接透传给 `openExternalSource()`，而 `externalCapabilitySourceSchema` 是 `.strict()` 契约，于是**每次重连 / 探测能力 / 单工具测试都会以 `unrecognized_keys` 失败**。用户表现为：选用 DeepWiki 等模板保存后弹出这段 Zod JSON，误以为是缺少 Key。
   2. **修法**：存储层把私有的 `toSourceInput` 提升为唯一投影 `toExternalCapabilitySource()`，`defaultStore()` 的 `list` / `get` 在端口边界剥掉存储元数据后再交给运行时契约；启停路径复用同一投影。
