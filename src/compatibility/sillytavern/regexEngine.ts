@@ -87,6 +87,22 @@ export function sanitizeRegexMacro(x: string): string {
 }
 
 /**
+ * 只拦截"量词直接包裹量词组/字符类"的嵌套量词形态（ReDoS 高危），例如
+ * `(a+)+`、`(a*)*`、`([a-z]+)*`、`[a+]*`。
+ *
+ * 历史缺陷（2026-09-01 引入，2026-10-07 修复）：原判定第二个分支只要求
+ * "字符类之后再出现任意量词"，于是 `[\s\S]*?` 这类最常见的跨行匹配写法也被判成
+ * 灾难正则——角色卡正则被整条替换为 `(?!)`（永不匹配），状态栏、插图与 MVU 卡片
+ * 在渲染层静默消失；世界书正则键则静默降级为子串匹配。
+ * 现在要求量词紧跟在分组/字符类结束符之后，`([\s\S]*?)`、`(abc+).*def*` 等
+ * 常见写法不再误伤。
+ */
+export function isPotentiallyCatastrophicRegex(pattern: string): boolean {
+  return /\([^()]*[+*][^()]*\)\s*[+*]/.test(pattern)
+    || /\[[^\]]*[+*][^\]]*\]\s*[+*]/.test(pattern);
+}
+
+/**
  * 编译解析字符串为 RegExp 实例
  */
 export function parseRegexFromString(input: string): RegExp | null {

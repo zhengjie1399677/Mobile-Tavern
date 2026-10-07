@@ -67,4 +67,60 @@ describe("SillyTavern Compatibility Regex 来源与阶段", () => {
 
     expect(result).toBe("global");
   });
+
+  it("跨行匹配 [\\s\\S]*? 不被误判为灾难正则，卡片状态栏正则可正常替换", () => {
+    const result = applySillyTavernRegexScripts(
+      "<SceneInfo>\n地点：测试小区\n</SceneInfo>\n正文",
+      {
+        name: "角色",
+        extensions: {
+          regex_scripts: [{
+            id: "card-illustration",
+            scriptName: "插图",
+            findRegex: "/<SceneInfo>([\\s\\S]*?)<\\/SceneInfo>/gm",
+            replaceString: "```\n<!DOCTYPE html><html><body>card</body></html>\n```",
+            disabled: false,
+            placement: [1, 2],
+            markdownOnly: true,
+            promptOnly: false,
+          }],
+        },
+      },
+      true,
+      "角色",
+      "用户",
+      "render",
+    );
+
+    expect(result).toContain("card");
+    expect(result).not.toContain("<SceneInfo>");
+    expect(result).toContain("正文");
+  });
+
+  it("真正的嵌套量词仍然 fail-closed", () => {
+    const result = applySillyTavernRegexScripts(
+      "xxxx",
+      {
+        name: "角色",
+        extensions: {
+          regex_scripts: [{
+            id: "unsafe",
+            scriptName: "unsafe",
+            findRegex: "(x+)+",
+            replaceString: "hit",
+            disabled: false,
+            placement: [1, 2],
+            markdownOnly: true,
+            promptOnly: false,
+          }],
+        },
+      },
+      true,
+      "角色",
+      "用户",
+      "render",
+    );
+
+    expect(result).toBe("xxxx");
+  });
 });

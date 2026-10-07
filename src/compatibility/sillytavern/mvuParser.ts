@@ -1,6 +1,7 @@
 /** SillyTavern Compatibility Runtime 的 MVU 解析入口。 */
 import {
   applySillyTavernRegexEngine,
+  isPotentiallyCatastrophicRegex,
   type RegexEngineScript,
 } from "./regexEngine";
 
@@ -16,14 +17,15 @@ function collectRegexScripts(input: unknown): unknown[] {
     if (!value || typeof value !== "object" || Array.isArray(value)) return value;
     const record = value as Record<string, unknown>;
     const pattern = typeof record.findRegex === "string" ? record.findRegex : "";
-    return isPotentiallyCatastrophicRegex(pattern)
-      ? { ...record, findRegex: "(?!)" }
-      : value;
+    if (!isPotentiallyCatastrophicRegex(pattern)) return value;
+    // 停用必须留痕：历史缺陷就是这里静默把整条正则换成 (?!)，
+    // 表现为角色卡状态栏/插图与 MVU 卡片凭空消失且没有任何报错。
+    console.warn(
+      "[SillyTavern Compatibility Runtime] 已停用疑似嵌套量词（ReDoS）正则，本条不会执行:",
+      record.scriptName ?? record.id ?? pattern.slice(0, 60),
+    );
+    return { ...record, findRegex: "(?!)" };
   });
-}
-
-function isPotentiallyCatastrophicRegex(pattern: string): boolean {
-  return /(\([^\)]*[+*][^\)]*\)[^\)]*[+*])|(\[[^\]]*[+*\][^\)]*[+*])/.test(pattern);
 }
 
 function regexIdentity(value: unknown): string | null {

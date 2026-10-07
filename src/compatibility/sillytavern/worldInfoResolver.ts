@@ -6,6 +6,7 @@ import {
   evaluateVariableCondition,
   type VariableConditionContext,
 } from "../../domain/conditions";
+import { isPotentiallyCatastrophicRegex } from "./regexEngine";
 
 const DEFAULT_PROMPT_BUDGET_CHARS = 6000;
 const DEFAULT_SCAN_CHARS = 8000;
@@ -47,10 +48,6 @@ function sourceString(entry: LorebookEntry, ...keys: string[]): string | undefin
     if (typeof value === "string") return value;
   }
   return undefined;
-}
-
-function isPotentiallyCatastrophicRegex(pattern: string): boolean {
-  return /(\([^\)]*[+*][^\)]*\)[^\)]*[+*])|(\[[^\]]*[+*\][^\)]*[+*])/.test(pattern);
 }
 
 function selectiveLogic(entry: LorebookEntry): SelectiveLogic {
