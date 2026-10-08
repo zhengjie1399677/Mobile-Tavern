@@ -534,7 +534,23 @@ export interface IPromptService<TCharacter = unknown, TSession = unknown, TSetti
   ): string;
 }
 
+/**
+ * 遥测归属上下文：当前玩家、角色、模型与会话。
+ *
+ * 由应用组合根在活跃状态变化时注入一次，之后所有遥测事件（含基础设施与全局错误兜底）
+ * 都自动携带归属信息；事件自身显式传入的同名字段优先级更高。
+ */
+export interface TelemetryContext {
+  playerName?: string;
+  characterName?: string;
+  modelName?: string;
+  sessionId?: string;
+  /** 聊天会话创建时间戳（ms）。与 App 进程会话的启动时间无关。 */
+  chatSessionStartedAt?: number;
+}
+
 export interface ITelemetryService extends IKernelService {
+  setContext(context: TelemetryContext): void;
   reportUsage(action?: string, extraData?: Record<string, unknown>): void;
   incrementUsageCount(): void;
   reportLlmPerformance(

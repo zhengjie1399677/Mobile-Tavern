@@ -15,6 +15,7 @@ import {
   type IAgentRuntimeService,
   type IDatabaseService,
   type IRuntimeProfileService,
+  type ITelemetryService,
 } from "../application/serviceContracts";
 import { applyAgentProfilePresetBinding } from "../application/useCases/agentProfilePresetBinding";
 import { DEFAULT_SETTINGS } from "../hooks/settings/defaults";
@@ -127,6 +128,27 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     settingsHook.customWorldbooks,
     launchPlugin
   );
+
+  // 遥测归属上下文同步：活跃玩家/角色/模型/会话变化时注入一次，
+  // 之后所有事件（含性能、诊断、基础设施与全局错误兜底）都自动带上归属信息，
+  // 不再依赖每个调用点手工传参。
+  useEffect(() => {
+    if (!kernel.hasService(KernelServices.Telemetry)) return;
+    kernel.getService<ITelemetryService>(KernelServices.Telemetry).setContext({
+      playerName: settingsHook.settings.userName,
+      characterName: charState.activeCharacter?.name,
+      modelName: settingsHook.settings.api.modelName,
+      sessionId: chatState.activeSession?.id,
+      chatSessionStartedAt: chatState.activeSession?.createdAt,
+    });
+  }, [
+    kernel,
+    settingsHook.settings.userName,
+    settingsHook.settings.api.modelName,
+    charState.activeCharacter?.name,
+    chatState.activeSession?.id,
+    chatState.activeSession?.createdAt,
+  ]);
 
   const resumeAttemptedRef = useRef(false);
   useEffect(() => {

@@ -1,5 +1,13 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-09：**遥测补齐：事件自定义字段不再丢失，所有事件自动携带玩家/角色/模型/会话；发布 v1.9.3（用户反馈"日志一堆未知"）。**
+  1. **根因（两层丢失 + 一层缺失）**：`TelemetryService.buildLog` 只回填固定列，`keyboard_viewport_diagnostic` 的视口尺寸、`ar_*` 的 status 等自定义字段在 JS 侧构建日志时就被丢掉；即便透传，Rust `TelemetryLog` 也是封闭结构体，serde 默认忽略未知字段，落盘与上传前再丢一次。归属信息方面，`player_name`/`session_id` 此前只有 `api_error` 与 `llm_performance` 手工传参，其余事件一律是"未知/无"。
+  2. **修法（三处）**：`buildLog` 把未命中固定列的 `extraData` 键原样展开进日志体（固定列后置，事件载荷不能覆盖 schema 列）；`TelemetryLog` 新增 `#[serde(default, flatten)] extra: BTreeMap<String, serde_json::Value>`，未知字段在落盘、序列化、再次读取三个环节都保留；新增遥测归属上下文 `ITelemetryService.setContext()`，由 `AppContextAssembler` 在玩家/角色/模型/会话变化时注入一次，解析顺序为"事件显式传参 → 活跃上下文 → 既有兜底值"。
+  3. **口径补齐**：新增固定列 `device_platform`（WebView 上报的设备/架构串，`platform` 仍固定为宿主 "Tauri"）与 `chat_session_started_at`（聊天会话创建时间，ISO 8601 UTC），并把 `session_start_time` / `session_duration_sec` 在代码与结构体注释中明确为 **App 进程会话**，不再与 `session_id` 的聊天会话混淆；归属上下文改为模块级共享，`utils/telemetry.ts` 在 Kernel 尚未注册遥测服务时的兜底实例同样带上归属信息。
+  4. **边界**：上下文覆盖式写入（换角色、清空会话不能残留旧归属）；未设置上下文时行为与旧版一致（未知/无/空）；旧版客户端日志与 `rust_panic` 日志无 `extra`/`device_platform`/`chat_session_started_at` 字段仍可反序列化。
+  5. **版本来源修正**：workspace 根 `Cargo.lock` 才是 cargo 实际读取的锁文件，此前 `bump-version` 只更新 `src-tauri/Cargo.lock`，导致根锁里 `app` 版本长期停在 1.8.8。脚本与 `version_bump.md` 已纳入根锁，本次 `bump-version patch` 同步 9 个文件，`npm run check:version` 通过。
+  6. **验证**：`cargo test --lib telemetry` 3/3 通过（含自定义字段往返保留、旧日志兼容、新列默认值）；新增 `tests/vitest/telemetryService.test.ts` 7 用例（上下文注入、显式传参优先、兜底值不回归、覆盖式清空、固定列不被覆盖、设备/会话新列、跨实例共享）；`npm run lint` 通过；`npm test` 208 文件 / 1465 用例、87 个系统套件全绿。
+
 - 2026-10-08：**MCP 气泡内部"子条目"支持单独收起（用户反馈）。**
   1. 展开的来源行新增「收起」按钮：只折叠该来源的工具列表，**不关闭整个气泡**；
   2. 选中工具后的参数/结果区头部新增 ×（`收起工具面板`）：清空当前工具选择并回到列表，来源保持展开，可继续选别的工具；

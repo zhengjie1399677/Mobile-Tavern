@@ -1,6 +1,7 @@
 use base64::Engine;
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
+use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -25,9 +26,18 @@ pub struct TelemetryLog {
     pub generation_time_ms: String,
     pub detail: String,
     pub session_id: String,
+    /// 聊天会话创建时间（ISO 8601，UTC）。
+    /// 注意：`session_start_time` / `session_duration_sec` 描述的是 App 进程会话，
+    /// 与 `session_id` 指向的聊天会话不是同一维度。旧版日志缺失时为空。
+    #[serde(default)]
+    pub chat_session_started_at: String,
     pub session_start_time: String,
     pub session_duration_sec: String,
     pub platform: String,
+    /// WebView 上报的设备平台串（如 `Linux armv8l`），用于区分设备与架构。
+    /// `platform` 固定为宿主 "Tauri"，两者语义不同。旧版日志缺失时为空。
+    #[serde(default)]
+    pub device_platform: String,
     pub user_agent: String,
     pub language: String,
     pub timezone: String,
@@ -37,6 +47,11 @@ pub struct TelemetryLog {
     /// 旧版日志（无此字段）反序列化时默认为空字符串，保持向后兼容。
     #[serde(default)]
     pub trace_id: String,
+    /// 事件自定义字段（如键盘视口尺寸、AR 可用性状态等）。
+    /// 前端 extraData 中不属于上方固定列的键会原样落入此处，随日志一并落盘与上传，
+    /// 避免诊断类事件在 JS → Rust 边界丢字段。旧版日志无此字段时默认为空，保持向后兼容。
+    #[serde(default, flatten)]
+    pub extra: BTreeMap<String, serde_json::Value>,
     pub __time__: Option<u64>,
 }
 
@@ -142,14 +157,17 @@ pub fn enqueue_panic_log(panic_location: &str, panic_payload: &str) {
         generation_time_ms: "0".to_string(),
         detail: format!("location={} payload={}", panic_location, panic_payload),
         session_id: "unknown".to_string(),
+        chat_session_started_at: "".to_string(),
         session_start_time: "".to_string(),
         session_duration_sec: "0".to_string(),
         platform: "Tauri".to_string(),
+        device_platform: "".to_string(),
         user_agent: "".to_string(),
         language: "".to_string(),
         timezone: "".to_string(),
         app_version: "".to_string(),
         trace_id: "".to_string(),
+        extra: BTreeMap::new(),
         __time__: None,
     };
 
@@ -503,8 +521,95 @@ pub async fn start_telemetry_loop(
 
 #[cfg(test)]
 mod tests {
-    use super::wait_for_delay_or_shutdown;
+    use super::{wait_for_delay_or_shutdown, TelemetryLog};
     use tokio::sync::watch;
+
+    /// 诊断类事件（如 keyboard_viewport_diagnostic）依赖自定义字段传递现场数据，
+    /// 这些键必须在反序列化、落盘序列化与再次读取三个环节都完整保留。
+    #[test]
+    fn preserves_event_specific_fields_across_round_trip() {
+        let raw = r#"{
+            "action": "keyboard_viewport_diagnostic",
+            "device_id": "c6f0250b",
+            "player_name": "未知",
+            "character_name": "未知",
+            "model": "",
+            "tokens_used": "0",
+            "generation_time_ms": "0",
+            "detail": "",
+            "session_id": "无",
+            "chat_session_started_at": "2026-10-08T07:55:44.000Z",
+            "session_start_time": "2026/10/8 15:55:44",
+            "session_duration_sec": "32046",
+            "platform": "Tauri",
+            "device_platform": "Linux armv8l",
+            "user_agent": "ua",
+            "language": "zh-CN",
+            "timezone": "Asia/Shanghai",
+            "trace_id": "",
+            "vvp_height": 812.5,
+            "window_height": 900,
+            "height_diff": 87.5,
+            "is_keyboard_open": true
+        }"#;
+
+        let log: TelemetryLog = serde_json::from_str(raw).expect("deserialize telemetry log");
+        assert_eq!(log.action, "keyboard_viewport_diagnostic");
+        assert_eq!(log.extra.len(), 4);
+        assert_eq!(log.device_platform, "Linux armv8l");
+        assert_eq!(log.chat_session_started_at, "2026-10-08T07:55:44.000Z");
+        assert_eq!(
+            log.extra.get("vvp_height").and_then(|value| value.as_f64()),
+            Some(812.5)
+        );
+        assert_eq!(
+            log.extra
+                .get("is_keyboard_open")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+
+        // 上传前 read_and_split_queue 会按同一结构体再次反序列化，自定义字段不得在序列化时丢失。
+        let serialized = serde_json::to_string(&log).expect("serialize telemetry log");
+        assert!(serialized.contains("\"vvp_height\":812.5"));
+        assert!(serialized.contains("\"is_keyboard_open\":true"));
+
+        let reparsed: TelemetryLog =
+            serde_json::from_str(&serialized).expect("reparse telemetry log");
+        assert_eq!(reparsed.extra.len(), 4);
+        assert_eq!(reparsed.action, "keyboard_viewport_diagnostic");
+    }
+
+    /// 旧版本客户端与 panic 日志没有自定义字段，必须仍可反序列化。
+    #[test]
+    fn accepts_logs_without_event_specific_fields() {
+        let raw = r#"{
+            "action": "rust_panic",
+            "device_id": "unknown",
+            "player_name": "unknown",
+            "character_name": "unknown",
+            "model": "",
+            "tokens_used": "0",
+            "generation_time_ms": "0",
+            "detail": "location=src/lib.rs payload=boom",
+            "session_id": "unknown",
+            "session_start_time": "",
+            "session_duration_sec": "0",
+            "platform": "Tauri",
+            "user_agent": "",
+            "language": "",
+            "timezone": "",
+            "app_version": "",
+            "trace_id": "",
+            "__time__": null
+        }"#;
+
+        let log: TelemetryLog = serde_json::from_str(raw).expect("deserialize legacy telemetry log");
+        assert!(log.extra.is_empty());
+        assert_eq!(log.device_platform, "");
+        assert_eq!(log.chat_session_started_at, "");
+        assert_eq!(log.__time__, None);
+    }
 
     #[test]
     fn shutdown_interrupts_backoff_wait() {

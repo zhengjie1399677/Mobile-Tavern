@@ -1,9 +1,56 @@
-import { ITelemetryService, IKernel } from "../serviceContracts";
+import { ITelemetryService, IKernel, TelemetryContext } from "../serviceContracts";
 import { invoke } from '@tauri-apps/api/core';
 import { Logger } from "../../utils/logger";
 import { getErrorMessage } from "../../utils/errorUtils";
 
 const logger = Logger.create("TelemetryService");
+
+/**
+ * 已被固定列消费、不再作为自定义字段透传的 extraData 键。
+ * 其余键（键盘视口尺寸、AR 状态等诊断数据）一律原样透传，
+ * 避免事件现场在 JS 构建日志时被静默丢弃。
+ */
+const TELEMETRY_CONSUMED_KEYS = new Set([
+  "playerName",
+  "characterName",
+  "modelName",
+  "model",
+  "totalTokens",
+  "tokens_used",
+  "generationTime",
+  "generation_time_ms",
+  "sessionId",
+  "traceId",
+  "detail",
+  "reason",
+  "message",
+  "error",
+  "filename",
+  "lineno",
+  "colno",
+  "stack",
+]);
+
+/** 取第一个非空文本值，用于归属信息分级回退：显式传参 → 活跃上下文 → 兜底默认值。 */
+function pickTelemetryText(...candidates: unknown[]): string {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+  return "";
+}
+
+/** 收集未命中固定列的事件自定义字段，交由 Rust 侧 `extra` 字段落盘与上传。 */
+function collectTelemetryExtras(extraData: Record<string, unknown>): Record<string, unknown> {
+  const extras: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(extraData)) {
+    if (TELEMETRY_CONSUMED_KEYS.has(key)) continue;
+    if (value === undefined || typeof value === "function") continue;
+    extras[key] = value;
+  }
+  return extras;
+}
 
 /** Tauri WebView 注入的内部接口声明（与 src/utils/keyManager.ts、TtsService.ts 对齐）。 */
 interface TauriWindow extends Window {
@@ -11,6 +58,14 @@ interface TauriWindow extends Window {
 }
 
 let sessionStartTime = Date.now();
+
+/**
+ * 归属上下文放在模块级而非实例级。
+ *
+ * `utils/telemetry.ts` 在 Kernel 尚未注册遥测服务时会退化到一个独立实例，
+ * 模块级共享可保证「无论哪个实例处理事件」都带上同一份归属信息。
+ */
+let telemetryContext: TelemetryContext = {};
 
 /**
  * 遥测与数据统计上报服务
@@ -21,6 +76,16 @@ export class TelemetryService implements ITelemetryService {
   private kernel!: IKernel;
   // P1-1/P1-2: 服务级 AbortController
   private abortController: AbortController | null = null;
+
+  /**
+   * 覆盖式写入遥测归属上下文。
+   *
+   * 采用覆盖而非增量合并：角色或会话被清空时必须同步清空，
+   * 否则后续事件会继续挂到已经失效的角色/会话上。
+   */
+  setContext(context: TelemetryContext): void {
+    telemetryContext = { ...context };
+  }
 
   /**
    * 初始化遥测服务
@@ -125,19 +190,32 @@ export class TelemetryService implements ITelemetryService {
       }
     }
 
+    const playerName = pickTelemetryText(extraData.playerName, telemetryContext.playerName);
+    const characterName = pickTelemetryText(extraData.characterName, telemetryContext.characterName);
+    const modelName = pickTelemetryText(extraData.modelName, extraData.model, telemetryContext.modelName);
+    const sessionId = pickTelemetryText(extraData.sessionId, telemetryContext.sessionId);
+    const chatSessionStartedAt = telemetryContext.chatSessionStartedAt;
+
     return {
+      // 自定义字段先展开，随后的固定列优先级更高，避免事件载荷覆盖 schema 字段。
+      ...collectTelemetryExtras(extraData),
       action: action,
       device_id: deviceInfo.deviceId,
-      player_name: String(extraData.playerName || "未知"),
-      character_name: String(extraData.characterName || "未知"),
-      model: String(extraData.modelName || extraData.model || ""),
+      player_name: playerName || "未知",
+      character_name: characterName || "未知",
+      model: modelName,
       tokens_used: String(extraData.totalTokens || extraData.tokens_used || "0"),
       generation_time_ms: String(Math.round(extraData.generationTime || extraData.generation_time_ms || 0)),
       detail: detailStr,
-      session_id: String(extraData.sessionId || "无"),
+      session_id: sessionId || "无",
+      chat_session_started_at: typeof chatSessionStartedAt === "number" && Number.isFinite(chatSessionStartedAt)
+        ? new Date(chatSessionStartedAt).toISOString()
+        : "",
+      // 注意：以下两项是 App 进程会话（本次启动至今），与 session_id 的聊天会话不是一回事。
       session_start_time: new Date(sessionStartTime).toLocaleString(),
       session_duration_sec: String(Math.round(eventDurMs / 1000)),
       platform: "Tauri",
+      device_platform: deviceInfo.platform,
       user_agent: deviceInfo.userAgent,
       language: deviceInfo.language,
       timezone: deviceInfo.timeZone,
