@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isOutsideVisibleViewport,
   resolveAppViewportHeight,
+  resolveEffectiveBottomInset,
   resolveKeyboardViewportState,
 } from "../../src/utils/viewportLayout";
 
@@ -36,5 +37,15 @@ describe("移动端可视视口布局", () => {
       isOpen: false,
     });
     expect(resolveKeyboardViewportState(landscape, 260, 800).isOpen).toBe(true);
+  });
+
+  it("软键盘可见时底部安全区按 0 结算", () => {
+    // 键盘弹起：即使桥上报了输入法高度也不能当作底部 inset
+    expect(resolveEffectiveBottomInset(312, true)).toBe(0);
+    // 键盘收起：使用导航栏 / 手势条 inset
+    expect(resolveEffectiveBottomInset(24, false)).toBe(24);
+    // 异常值收敛
+    expect(resolveEffectiveBottomInset(Number.NaN, false)).toBe(0);
+    expect(resolveEffectiveBottomInset(-8, false)).toBe(0);
   });
 });

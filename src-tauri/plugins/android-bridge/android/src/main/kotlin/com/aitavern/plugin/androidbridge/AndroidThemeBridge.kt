@@ -236,6 +236,7 @@ class AndroidThemeBridge(
         var leftPx = 0
         var rightPx = 0
         var insetsResolved = false
+        var imeVisible = false
 
         val rootView = activity.window.decorView.rootView
         val rawInsets = rootView.rootWindowInsets
@@ -245,7 +246,11 @@ class AndroidThemeBridge(
                 WindowInsetsCompat.Type.systemBars() or
                     WindowInsetsCompat.Type.displayCutout()
             )
-            bottomPx = systemBars.bottom
+            // 底部只认导航栏 / 手势条。systemBars 的联合结果在部分 ROM（MIUI 等）
+            // 上会把输入法高度一起算进来，键盘弹起时底栏就会被顶到页面中间。
+            val navigationBars = compatInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            imeVisible = compatInsets.isVisible(WindowInsetsCompat.Type.ime())
+            bottomPx = if (imeVisible) 0 else navigationBars.bottom
             leftPx = systemBars.left
             rightPx = systemBars.right
             insetsResolved = bottomPx != 0 || leftPx != 0 || rightPx != 0
@@ -254,7 +259,9 @@ class AndroidThemeBridge(
         // 3. Fallback for the bottom inset on devices where the WindowInsets
         //    are not yet available (very early in the layout pass). We compute
         //    the difference between the real and usable display height.
-        if (!insetsResolved) {
+        //    注意：adjustResize 下这个差值正好等于输入法高度，键盘可见时绝不能
+        //    把它当作底部安全区，否则底栏和固定底部操作会被整体顶起一个键盘高度。
+        if (!insetsResolved && !imeVisible) {
             try {
                 @Suppress("DEPRECATION")
                 val display = activity.windowManager.defaultDisplay
@@ -299,6 +306,10 @@ class AndroidThemeBridge(
             WindowInsetsCompat.Type.systemBars() or
                 WindowInsetsCompat.Type.displayCutout()
         )
+        // 与 getSafeAreas 保持同一口径：底部只取导航栏，键盘可见时按 0 处理，
+        // 避免把输入法高度当成底部安全区推给前端。
+        val navigationBars = compatInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+        val imeVisible = compatInsets.isVisible(WindowInsetsCompat.Type.ime())
 
         val statusResourceId = activity.resources.getIdentifier(
             "status_bar_height", "dimen", "android"
@@ -310,7 +321,7 @@ class AndroidThemeBridge(
         }
 
         val topDp = (topPx / density).toInt()
-        val bottomDp = (systemBars.bottom / density).toInt()
+        val bottomDp = (if (imeVisible) 0 else navigationBars.bottom / density).toInt()
         val leftDp = (systemBars.left / density).toInt()
         val rightDp = (systemBars.right / density).toInt()
 

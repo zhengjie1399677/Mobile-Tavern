@@ -34,6 +34,21 @@ export function isOutsideVisibleViewport(
 }
 
 /**
+ * 结算实际生效的底部安全区。
+ *
+ * 软键盘可见时导航栏已被键盘盖住，此时仍保留底部 inset 会把底栏与固定底部操作
+ * 顶到页面中间；部分 ROM 的 WindowInsets 兜底还会直接把键盘高度当成底部 inset，
+ * 偏移量正好等于键盘高度。因此键盘可见时一律按 0 处理。
+ */
+export function resolveEffectiveBottomInset(
+  nativeBottomInset: number,
+  keyboardOpen: boolean,
+): number {
+  if (keyboardOpen) return 0;
+  return Number.isFinite(nativeBottomInset) ? Math.max(0, nativeBottomInset) : 0;
+}
+
+/**
  * 根据可视视口推导软键盘状态。
  *
  * 旋转会同时显著改变宽度和高度，不能继续沿用竖屏高度基准，否则横屏会被误判为

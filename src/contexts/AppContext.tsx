@@ -1,6 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useRef, startTransition } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef, startTransition } from "react";
 import { TRANSLATIONS } from "../locales/index";
 import { setActiveThemePackageStyles } from "../utils/themePackage";
+import {
+  resolveEffectiveBottomInset,
+  resolveKeyboardViewportState,
+  type KeyboardViewportState,
+} from "../utils/viewportLayout";
 
 /**
  * 原生 Android WebView 注入的桥接对象形状（仅声明本文件实际使用的方法子集）。
@@ -28,6 +33,14 @@ interface NativeSafeAreaInsets {
 
 const normalizeSafeAreaInset = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0;
+
+/** 读取 CSS 变量里的安全区像素值，缺失或非法时按 0 处理。 */
+const readSafeAreaVar = (name: string): number => {
+  if (typeof window === "undefined") return 0;
+  const raw = window.getComputedStyle(document.documentElement).getPropertyValue(name);
+  const parsed = parseInt(raw, 10);
+  return isNaN(parsed) ? 0 : parsed;
+};
 
 const parseNativeSafeAreaInsets = (value: unknown): NativeSafeAreaInsets | null => {
   if (typeof value !== "object" || value === null) return null;
@@ -191,33 +204,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem("mobile_tavern_theme", newTheme);
   };
 
-  const [safeAreas, setSafeAreas] = useState<{ top: number; bottom: number }>(() => {
-    if (typeof window !== "undefined") {
-      const style = window.getComputedStyle(document.documentElement);
-      const topVal = style.getPropertyValue("--safe-area-top") || style.getPropertyValue("--android-safe-area-top");
-      const bottomVal = style.getPropertyValue("--safe-area-bottom") || style.getPropertyValue("--android-safe-area-bottom");
-      const top = parseInt(topVal, 10);
-      const bottom = parseInt(bottomVal, 10);
-      return {
-        top: isNaN(top) ? 0 : top,
-        bottom: isNaN(bottom) ? 0 : bottom,
-      };
-    }
-    return { top: 0, bottom: 0 };
+  const [nativeSafeAreas, setNativeSafeAreas] = useState<NativeSafeAreaInsets>(() => ({
+    top: readSafeAreaVar("--safe-area-top") || readSafeAreaVar("--android-safe-area-top"),
+    bottom: readSafeAreaVar("--safe-area-bottom") || readSafeAreaVar("--android-safe-area-bottom"),
+    left: readSafeAreaVar("--safe-area-left") || readSafeAreaVar("--android-safe-area-left"),
+    right: readSafeAreaVar("--safe-area-right") || readSafeAreaVar("--android-safe-area-right"),
+  }));
+  const [isKeyboardCoveringViewport, setIsKeyboardCoveringViewport] = useState(false);
+  const keyboardViewportStateRef = useRef<KeyboardViewportState>({
+    baselineHeight: 0,
+    viewportWidth: 0,
+    isOpen: false,
   });
+
+  /**
+   * 软键盘可见时底部安全区按 0 处理。
+   *
+   * 键盘弹起后导航栏已经被键盘盖住，此时仍保留底部 inset 会把底栏和固定底部操作
+   * 顶到页面中间；部分 ROM 的 WindowInsets 兜底还会直接把键盘高度当成底部 inset，
+   * 偏移量正好等于键盘高度。顶部与左右不受影响。
+   */
+  const safeAreas = useMemo(
+    () => ({
+      top: nativeSafeAreas.top,
+      bottom: resolveEffectiveBottomInset(nativeSafeAreas.bottom, isKeyboardCoveringViewport),
+    }),
+    [nativeSafeAreas.top, nativeSafeAreas.bottom, isKeyboardCoveringViewport],
+  );
+
+  // 软键盘开合检测：按帧合并，且只在状态真正切换时更新。
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    let frameId: number | null = null;
+    const applyKeyboardState = () => {
+      frameId = null;
+      const nextState = resolveKeyboardViewportState(
+        keyboardViewportStateRef.current,
+        viewport?.height ?? window.innerHeight,
+        viewport?.width ?? window.innerWidth,
+      );
+      keyboardViewportStateRef.current = nextState;
+      setIsKeyboardCoveringViewport(nextState.isOpen);
+    };
+    const scheduleKeyboardState = () => {
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(applyKeyboardState);
+    };
+    window.addEventListener("resize", scheduleKeyboardState);
+    viewport?.addEventListener("resize", scheduleKeyboardState);
+    applyKeyboardState();
+    return () => {
+      window.removeEventListener("resize", scheduleKeyboardState);
+      viewport?.removeEventListener("resize", scheduleKeyboardState);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  // 把生效值写回 CSS 变量；--android-safe-area-* 保留桥上报的原始值供诊断。
+  useEffect(() => {
+    const style = document.documentElement.style;
+    style.setProperty("--safe-area-top", `${safeAreas.top}px`);
+    style.setProperty("--safe-area-bottom", `${safeAreas.bottom}px`);
+    style.setProperty("--safe-area-left", `${nativeSafeAreas.left}px`);
+    style.setProperty("--safe-area-right", `${nativeSafeAreas.right}px`);
+    style.setProperty("--android-safe-area-top", `${nativeSafeAreas.top}px`);
+    style.setProperty("--android-safe-area-bottom", `${nativeSafeAreas.bottom}px`);
+    style.setProperty("--android-safe-area-left", `${nativeSafeAreas.left}px`);
+    style.setProperty("--android-safe-area-right", `${nativeSafeAreas.right}px`);
+  }, [safeAreas, nativeSafeAreas]);
 
   // Synchronize Android Native Safe Area Heights via bridge and custom events
   useEffect(() => {
     const updateSafeAreas = ({ top, bottom, left, right }: NativeSafeAreaInsets) => {
-      setSafeAreas({ top, bottom });
-      document.documentElement.style.setProperty('--android-safe-area-top', `${top}px`);
-      document.documentElement.style.setProperty('--android-safe-area-bottom', `${bottom}px`);
-      document.documentElement.style.setProperty('--android-safe-area-left', `${left}px`);
-      document.documentElement.style.setProperty('--android-safe-area-right', `${right}px`);
-      document.documentElement.style.setProperty('--safe-area-top', `${top}px`);
-      document.documentElement.style.setProperty('--safe-area-bottom', `${bottom}px`);
-      document.documentElement.style.setProperty('--safe-area-left', `${left}px`);
-      document.documentElement.style.setProperty('--safe-area-right', `${right}px`);
+      setNativeSafeAreas({ top, bottom, left, right });
     };
 
     const tryFetchSafeAreas = () => {
