@@ -24,12 +24,89 @@ describe("SillyTavern Compatibility World Info resolver", () => {
           keys: ["城门"],
           order: 20,
           secondary_keys: ["不存在", "城门"],
-          sourceMetadata: { extensions: { selectiveLogic: 4 } },
+          // ST world_info_logic.NOT_ALL = 1
+          sourceMetadata: { extensions: { selectiveLogic: 1 } },
         }),
       ],
     });
 
     expect(result.map((item) => item.id)).toEqual(["高优先级", "低优先级"]);
+  });
+
+  it("按 SillyTavern 数字枚举解释次要关键词策略", () => {
+    const resolve = (logic: number, secondaryKeys: string[], input: string) =>
+      resolveSillyTavernWorldInfo({
+        messages: [],
+        userInput: input,
+        entries: [
+          entry("条目", {
+            keys: ["城门"],
+            secondary_keys: secondaryKeys,
+            sourceMetadata: { extensions: { selectiveLogic: logic } },
+          }),
+        ],
+      }).map((item) => item.id);
+
+    // 0 = AND ANY：至少命中一个次关键词
+    expect(resolve(0, ["守卫"], "城门 守卫")).toEqual(["条目"]);
+    expect(resolve(0, ["守卫"], "城门")).toEqual([]);
+    // 3 = AND ALL：次关键词必须全部命中
+    expect(resolve(3, ["守卫", "夜色"], "城门 守卫")).toEqual([]);
+    expect(resolve(3, ["守卫", "夜色"], "城门 守卫 夜色")).toEqual(["条目"]);
+    // 2 = NOT ANY：任一次关键词都不许出现
+    expect(resolve(2, ["守卫"], "城门")).toEqual(["条目"]);
+    expect(resolve(2, ["守卫"], "城门 守卫")).toEqual([]);
+    // 1 = NOT ALL：只要不是全部命中就放行
+    expect(resolve(1, ["守卫", "夜色"], "城门 守卫")).toEqual(["条目"]);
+    expect(resolve(1, ["守卫", "夜色"], "城门 守卫 夜色")).toEqual([]);
+  });
+
+  it("selective 为 false 时次关键词完全不参与判定", () => {
+    const result = resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "城门",
+      entries: [
+        entry("条目", {
+          keys: ["城门"],
+          secondary_keys: ["守卫"],
+          sourceMetadata: { selective: false, keysecondary: ["守卫"], selectiveLogic: 3 },
+        }),
+      ],
+    });
+
+    expect(result.map((item) => item.id)).toEqual(["条目"]);
+  });
+
+  it("旧数据只剩 ST 原生 keysecondary 时仍然生效", () => {
+    const result = resolveSillyTavernWorldInfo({
+      messages: [],
+      userInput: "城门",
+      entries: [
+        entry("旧条目", {
+          keys: ["城门"],
+          sourceMetadata: { keysecondary: ["守卫"], selectiveLogic: 0 },
+        }),
+      ],
+    });
+
+    expect(result.map((item) => item.id)).toEqual([]);
+  });
+
+  it("未声明 scanDepth 时默认只扫最近 2 条消息", () => {
+    const history = [
+      { id: "m1", sender: "user" as const, content: "远方的灯塔", timestamp: 0 },
+      { id: "m2", sender: "assistant" as const, content: "好的", timestamp: 1 },
+      { id: "m3", sender: "user" as const, content: "继续", timestamp: 2 },
+    ];
+    const run = (overrides: Partial<LorebookEntry>) =>
+      resolveSillyTavernWorldInfo({
+        messages: history,
+        userInput: "在吗",
+        entries: [entry("灯塔设定", { keys: ["灯塔"], ...overrides })],
+      }).map((item) => item.id);
+
+    expect(run({})).toEqual([]);
+    expect(run({ scanDepth: 3 })).toEqual(["灯塔设定"]);
   });
 
   it("支持延迟递归和 exclude_recursion", () => {
@@ -132,32 +209,30 @@ describe("SillyTavern Compatibility World Info resolver", () => {
     expect(turn3.map((e) => e.id)).toEqual(["醉酒状态"]);
   });
 
-  it("支持 Delay 延迟生效轮数", () => {
+  it("Delay 按 SillyTavern 语义：聊天楼层数不足时抑制该条目", () => {
     const delayedEntry = entry("蓄力技", {
       keys: ["蓄力"],
       content: "大招准备就绪！",
-      delay: 2,
+      delay: 3,
     });
 
-    let timedState: any = undefined;
-
-    // 第一次触发，计数器累积为 1 < 2，未达到生效要求
+    // 聊天只有 1 层（< 3）：命中关键词也保持抑制
     const run1 = resolveSillyTavernWorldInfo({
-      messages: [],
+      messages: [{ id: "m1", sender: "user", content: "hi", timestamp: 0 }],
       userInput: "开始蓄力",
       entries: [delayedEntry],
-      onUpdateTimedState: (state) => { timedState = state; },
     });
     expect(run1.map((e) => e.id)).toEqual([]);
-    expect(timedState.delayCounters["蓄力技"]).toBe(1);
 
-    // 第二次触发，计数器达到 2，成功激活
+    // 聊天达到 3 层：延迟结束，命中即激活
     const run2 = resolveSillyTavernWorldInfo({
-      messages: [],
+      messages: [
+        { id: "m1", sender: "user", content: "hi", timestamp: 0 },
+        { id: "m2", sender: "assistant", content: "hello", timestamp: 1 },
+        { id: "m3", sender: "user", content: "again", timestamp: 2 },
+      ],
       userInput: "继续蓄力",
       entries: [delayedEntry],
-      timedState,
-      onUpdateTimedState: (state) => { timedState = state; },
     });
     expect(run2.map((e) => e.id)).toEqual(["蓄力技"]);
   });

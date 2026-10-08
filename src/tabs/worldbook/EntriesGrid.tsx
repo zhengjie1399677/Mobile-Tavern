@@ -141,9 +141,9 @@ export default function EntriesGrid({
                   <span>
                     位置:{" "}
                     {entry.position === "after_char_def"
-                      ? "📌角色后"
+                      ? "📌角色卡设定之后"
                       : entry.position === "before_char_def"
-                        ? "📌角色前"
+                        ? "📌角色卡设定之前"
                         : entry.position === "top"
                           ? "📌最顶部"
                           : entry.position === "in_chat"
@@ -221,11 +221,11 @@ export default function EntriesGrid({
                           </span>
                           <span className="text-foreground font-medium">
                             {entry.position === "after_char_def"
-                              ? "角色定义后"
+                              ? "角色卡设定之后（排在角色描述 / 性格 / 场景下方）"
                               : entry.position === "before_char_def"
-                                ? "角色定义前"
+                                ? "角色卡设定之前（排在角色描述 / 性格 / 场景上方）"
                                 : entry.position === "top"
-                                  ? "对话最顶部"
+                                  ? "对话最顶部（整段提示词最前面）"
                                   : entry.position === "in_chat"
                                     ? "历史对话中 (按深度)"
                                     : "最新发言上方"}

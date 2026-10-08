@@ -6,6 +6,18 @@ const logger = Logger.create("LorebookResolver");
 
 const PROMPT_BUDGET_CHARS = 6000;
 const MAX_SCAN_CHARS = 8000;
+/** 与 SillyTavern `world_info_depth` 默认值一致：未声明 scanDepth 时只扫最近 2 条消息。 */
+const DEFAULT_SCAN_DEPTH = 2;
+
+function normalizeKeys(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.filter((key): key is string => typeof key === "string").map((key) => key.trim()).filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    return raw.split(",").map((key) => key.trim()).filter(Boolean);
+  }
+  return [];
+}
 
 function matchesKey(
   key: string,
@@ -91,22 +103,27 @@ export function resolveTriggeredLorebookEntries(
         continue;
       }
 
-      const scanDepth = entry.scanDepth ?? 10;
+      const scanDepth = entry.scanDepth ?? DEFAULT_SCAN_DEPTH;
       if (scanDepth === 0) continue;
       const scanText = getScanText(scanDepth);
       const match = (key: string) =>
         matchesKey(key, !!entry.useRegex, !!entry.caseSensitive, scanText);
       if (!(entry.keys || []).some(match)) continue;
 
-      const secondaryKeys = entry.secondary_keys || [];
-      const logic = entry.selectiveLogic || "NONE";
-      let secondaryMatched = true;
-      if (logic !== "NONE" && secondaryKeys.length > 0) {
-        if (logic === "AND_ANY") secondaryMatched = secondaryKeys.some(match);
-        else if (logic === "AND_ALL") secondaryMatched = secondaryKeys.every(match);
-        else if (logic === "NOT_ANY") secondaryMatched = !secondaryKeys.some(match);
+      const secondaryKeys = normalizeKeys(entry.secondary_keys);
+      if (secondaryKeys.length > 0) {
+        // 未声明策略时按 ST 默认的 AND ANY，与编辑器里展示的默认值保持一致；
+        // 用户显式选择 NONE 时仍然表示「次关键词不参与判定」。
+        const logic = entry.selectiveLogic ?? "AND_ANY";
+        const matched = secondaryKeys.map(match);
+        const secondaryMatched =
+          logic === "NONE" ? true
+            : logic === "AND_ALL" ? matched.every(Boolean)
+              : logic === "NOT_ANY" ? !matched.some(Boolean)
+                : logic === "NOT_ALL" ? !matched.every(Boolean)
+                  : matched.some(Boolean);
+        if (!secondaryMatched) continue;
       }
-      if (!secondaryMatched) continue;
 
       const probability = entry.probability ?? 100;
       if (probability < 100 && Math.random() * 100 > probability) continue;

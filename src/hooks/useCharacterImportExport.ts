@@ -2,7 +2,7 @@ import React, { useCallback } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useCharactersState } from "../contexts/CharacterContext";
 import { CharacterCard, LorebookEntry } from "../types";
-import { parseCharacterFile } from "../utils/cardParser";
+import { mapSillyTavernLorebookEntry, parseCharacterFile } from "../utils/cardParser";
 import { catbotEventBus } from "../utils/catbotEventBus";
 import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 import {
@@ -129,77 +129,9 @@ export const useCharacterImportExport = () => {
         return;
       }
 
+      // 与卡片内嵌世界书共用同一份映射，避免两套字段解释各自漂移。
       const importedEntries: LorebookEntry[] = rawEntries
-        .map((entry: any) => {
-          const keysArr: string[] = Array.isArray(entry.keys)
-            ? entry.keys
-            : Array.isArray(entry.key)
-              ? entry.key
-              : (entry.key || entry.keys || "")
-                  .split(",")
-                  .map((k: string) => k.trim())
-                  .filter(Boolean);
-
-          const stPosition = entry.position !== undefined ? entry.position : entry.placement;
-          let position: "top" | "after_char_def" | "before_char_def" | "before_last_mes" | "in_chat" = "after_char_def";
-          if (stPosition !== undefined) {
-            const numPos = Number(stPosition);
-            if (!isNaN(numPos)) {
-              switch (numPos) {
-                case 0: position = "before_char_def"; break;
-                case 1: position = "after_char_def"; break;
-                case 2: position = "after_char_def"; break;
-                case 3: position = "after_char_def"; break;
-                case 4: position = "in_chat"; break;
-                default: position = "after_char_def"; break;
-              }
-            } else if (typeof stPosition === "string") {
-              const strPos = stPosition as string;
-              if (strPos === "top" || strPos === "after_char_def" || strPos === "before_char_def" || strPos === "before_last_mes" || strPos === "in_chat") {
-                position = strPos;
-              } else {
-                position = "after_char_def";
-              }
-            }
-          }
-
-          let depth = entry.depth !== undefined ? Number(entry.depth) : 4;
-          const order = entry.order !== undefined ? Number(entry.order) : 100;
-          const probability = entry.probability !== undefined ? Number(entry.probability) : 100;
-          const addMemo = !!entry.addMemo;
-
-          const extensions = entry.extensions || {};
-          if (extensions.position !== undefined) {
-            const numExtPos = Number(extensions.position);
-            if (!isNaN(numExtPos)) {
-              switch (numExtPos) {
-                case 0: position = "before_char_def"; break;
-                case 1: position = "after_char_def"; break;
-                case 2: position = "after_char_def"; break;
-                case 3: position = "after_char_def"; break;
-                case 4: position = "in_chat"; break;
-                default: position = "after_char_def"; break;
-              }
-            }
-          }
-          if (extensions.depth !== undefined) depth = Number(extensions.depth);
-
-          const isEnabled = entry.enabled !== false;
-          return {
-            id: "import_wi_" + Math.random().toString(36).substring(2, 9),
-            keys: keysArr,
-            content: entry.content || entry.value || "",
-            constant: !!(entry.constant || entry.constant_active),
-            enabled: isEnabled,
-            disabled: !isEnabled,
-            comment: entry.comment || "",
-            position,
-            depth,
-            order,
-            probability,
-            addMemo,
-          };
-        })
+        .map((entry: any) => mapSillyTavernLorebookEntry(entry))
         .filter((e) => e.content);
 
       if (importedEntries.length === 0) {

@@ -71,6 +71,89 @@ describe("角色卡世界书键名归一化", () => {
   });
 });
 
+describe("SillyTavern 世界书条目字段对齐", () => {
+  it("读取 ST 原生 disable 字段", () => {
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      content: "设定",
+      disable: true,
+    })).toMatchObject({ enabled: false, disabled: true });
+
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      content: "设定",
+      disable: false,
+    })).toMatchObject({ enabled: true, disabled: false });
+
+    // 本应用自己的导出用 enabled，两者都要认
+    expect(mapSillyTavernLorebookEntry({
+      keys: ["城门"],
+      content: "设定",
+      enabled: false,
+    })).toMatchObject({ enabled: false, disabled: true });
+  });
+
+  it("读取 ST 原生 keysecondary 与次关键词策略枚举", () => {
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      keysecondary: ["守卫"],
+      content: "设定",
+      extensions: { selectiveLogic: 0 },
+    })).toMatchObject({
+      secondary_keys: ["守卫"],
+      selectiveLogic: "AND_ANY",
+    });
+
+    // ST world_info_logic：1=NOT ALL、2=NOT ANY、3=AND ALL
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      keysecondary: ["守卫"],
+      content: "设定",
+      extensions: { selectiveLogic: 1 },
+    }).selectiveLogic).toBe("NOT_ALL");
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      keysecondary: ["守卫"],
+      content: "设定",
+      extensions: { selectiveLogic: 2 },
+    }).selectiveLogic).toBe("NOT_ANY");
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      keysecondary: ["守卫"],
+      content: "设定",
+      extensions: { selectiveLogic: 3 },
+    }).selectiveLogic).toBe("AND_ALL");
+  });
+
+  it("selective 为 false 或没有次关键词时不启用次关键词判定", () => {
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      keysecondary: ["守卫"],
+      selective: false,
+      content: "设定",
+    }).selectiveLogic).toBe("NONE");
+
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      content: "设定",
+    }).selectiveLogic).toBe("NONE");
+  });
+
+  it("接受 ST 原生 scanDepth 驼峰写法", () => {
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      content: "设定",
+      scanDepth: 4,
+    }).scanDepth).toBe(4);
+
+    expect(mapSillyTavernLorebookEntry({
+      key: ["城门"],
+      content: "设定",
+      scanDepth: null,
+    }).scanDepth).toBeUndefined();
+  });
+});
+
 describe("角色卡来源字段保真", () => {
   it("导入并导出时保留未知卡片字段与 World Info 来源字段", async () => {
     const parsed = await parseCharacterFile(new File([JSON.stringify({

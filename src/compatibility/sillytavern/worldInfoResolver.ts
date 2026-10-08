@@ -6,10 +6,13 @@ import {
   evaluateVariableCondition,
   type VariableConditionContext,
 } from "../../domain/conditions";
+import { normalizeSelectiveLogic } from "../../utils/cardParser";
 import { isPotentiallyCatastrophicRegex } from "./regexEngine";
 
 const DEFAULT_PROMPT_BUDGET_CHARS = 6000;
 const DEFAULT_SCAN_CHARS = 8000;
+/** 与 SillyTavern `world_info_depth` 默认值一致：未声明 scan_depth 时只扫最近 2 条消息。 */
+const DEFAULT_SCAN_DEPTH = 2;
 
 type SelectiveLogic = "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NOT_ALL" | "NONE";
 
@@ -50,17 +53,17 @@ function sourceString(entry: LorebookEntry, ...keys: string[]): string | undefin
   return undefined;
 }
 
-function selectiveLogic(entry: LorebookEntry): SelectiveLogic {
-  const raw = sourceValue(entry, "selectiveLogic") ?? entry.selectiveLogic;
-  if (typeof raw === "number") {
-    return ({ 1: "AND_ANY", 2: "AND_ALL", 3: "NOT_ANY", 4: "NOT_ALL" } as const)[raw] ?? "NONE";
-  }
-  if (typeof raw !== "string") return "NONE";
-  const normalized = raw.toUpperCase();
-  return normalized === "AND_ANY" || normalized === "AND_ALL" ||
-    normalized === "NOT_ANY" || normalized === "NOT_ALL"
-    ? normalized
-    : "NONE";
+/**
+ * 次要关键词策略。来源里的 ST 枚举优先（历史数据归一字段可能来自旧编码），
+ * 其次是归一字段本身；两者都没有时按 ST 默认的 AND ANY 处理。
+ */
+function selectiveLogic(entry: LorebookEntry, secondaryKeyCount: number): SelectiveLogic {
+  const fromSource = normalizeSelectiveLogic(sourceValue(entry, "selectiveLogic"));
+  if (fromSource) return fromSource;
+  if (entry.selectiveLogic === "NONE") return "NONE";
+  const fromEntry = normalizeSelectiveLogic(entry.selectiveLogic);
+  if (fromEntry) return fromEntry;
+  return secondaryKeyCount > 0 ? "AND_ANY" : "NONE";
 }
 
 function matchesKey(key: string, entry: LorebookEntry, scanText: string): boolean {
@@ -103,16 +106,31 @@ function contributesToRecursion(entry: LorebookEntry): boolean {
     sourceBoolean(entry, "prevent_recursion", "preventRecursion") === true);
 }
 
-function passesSecondaryKeys(entry: LorebookEntry, match: (key: string) => boolean): boolean {
-  const rawKeys = entry.secondary_keys;
-  const keys = Array.isArray(rawKeys)
-    ? rawKeys
-    : typeof rawKeys === "string"
-      ? (rawKeys as string).split(",").map((k) => k.trim()).filter(Boolean)
+function readSecondaryKeys(entry: LorebookEntry): string[] {
+  // 字段声明是 string[]，但编辑器历史上会把逗号分隔字符串直接写进来，两边都要兼容。
+  const own: unknown = entry.secondary_keys;
+  const normalized = Array.isArray(own)
+    ? own.filter((key): key is string => typeof key === "string").map((key) => key.trim()).filter(Boolean)
+    : typeof own === "string"
+      ? own.split(",").map((key) => key.trim()).filter(Boolean)
       : [];
+  if (normalized.length > 0) return normalized;
+  // 早期导入只把 ST 原生命名字段留在了 sourceMetadata 里。
+  const fromSource = sourceValue(entry, "keysecondary");
+  return Array.isArray(fromSource)
+    ? fromSource.filter((key): key is string => typeof key === "string").map((key) => key.trim()).filter(Boolean)
+    : typeof fromSource === "string"
+      ? fromSource.split(",").map((key) => key.trim()).filter(Boolean)
+      : [];
+}
+
+function passesSecondaryKeys(entry: LorebookEntry, match: (key: string) => boolean): boolean {
+  // ST：selective 为 false 时次关键词完全不参与判定。
+  if (sourceBoolean(entry, "selective") === false) return true;
+  const keys = readSecondaryKeys(entry);
   if (keys.length === 0) return true;
   const matched = keys.map(match);
-  switch (selectiveLogic(entry)) {
+  switch (selectiveLogic(entry, keys.length)) {
     case "AND_ANY": return matched.some(Boolean);
     case "AND_ALL": return matched.every(Boolean);
     case "NOT_ANY": return !matched.some(Boolean);
@@ -212,19 +230,15 @@ export function resolveSillyTavernWorldInfo(
       let isTriggered = isConstant || isSticky;
 
       if (!isTriggered) {
-        const scanDepth = sourceNumber(entry, "scan_depth", "scanDepth") ?? entry.scanDepth ?? 10;
+        const scanDepth = sourceNumber(entry, "scan_depth", "scanDepth") ?? entry.scanDepth ?? DEFAULT_SCAN_DEPTH;
         const scanText = getScanText(scanDepth);
         const match = (key: string) => matchesKey(key, entry, scanText);
         const hasMatch = scanDepth > 0 && entry.keys.some(match) && passesSecondaryKeys(entry, match);
 
         if (hasMatch) {
           const delayReq = sourceNumber(entry, "delay") ?? entry.delay ?? 0;
-          if (delayReq > 0) {
-            const currentCounter = (timedState.delayCounters[entry.id] ?? 0) + 1;
-            timedState.delayCounters[entry.id] = currentCounter;
-            if (currentCounter < delayReq) continue;
-            timedState.delayCounters[entry.id] = 0;
-          }
+          // ST 语义：聊天楼层数不足 delay 时抑制该条目，并非「连续命中 N 次」计数。
+          if (delayReq > 0 && request.messages.length < delayReq) continue;
 
           const useProbability = sourceBoolean(entry, "useProbability", "use_probability") ?? true;
           const probability = sourceNumber(entry, "probability") ?? entry.probability ?? 100;

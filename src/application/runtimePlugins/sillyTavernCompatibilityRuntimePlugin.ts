@@ -22,7 +22,7 @@ import {
   sillyTavernPromptPresetCodec,
 } from "../../infrastructure/compat/sillytavern";
 import { z } from "zod";
-import type { CharacterCard, ChatSession } from "../../types";
+import type { CharacterCard, ChatSession, LorebookEntry } from "../../types";
 import {
   SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID,
   type CompatibilityBackgroundScript,
@@ -38,6 +38,7 @@ import {
 } from "../services/prompt/PromptMacroFormatter";
 import { registerRuntimeCapabilities } from "../bootstrap/capabilityRegistry";
 import { KernelServices } from "../serviceContracts";
+import type { PromptNode } from "../services/prompt/types";
 import { defineRuntimePlugin } from "./contracts";
 import {
   COMPATIBILITY_CODEC_CAPABILITY,
@@ -167,6 +168,21 @@ function promptRole(value: unknown): PromptRole {
   return value === "user" || value === "assistant" ? value : "system";
 }
 
+/** ST 世界书条目的 role 是数字枚举：0=system、1=user、2=assistant。 */
+const ST_WORLD_INFO_ROLES: Readonly<Record<number, PromptRole>> = {
+  0: "system",
+  1: "user",
+  2: "assistant",
+};
+
+function worldInfoEntryRole(entry: LorebookEntry): PromptRole {
+  const source = asRecord(entry.sourceMetadata);
+  const raw = source.role ?? asRecord(source.extensions).role;
+  if (raw === "user" || raw === "assistant" || raw === "system") return raw;
+  const index = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isFinite(index) ? ST_WORLD_INFO_ROLES[index] ?? "system" : "system";
+}
+
 function promptText(value: unknown): string {
   if (typeof value === "string") return value;
   const record = asRecord(value);
@@ -268,6 +284,75 @@ export function buildSillyTavernInjectionPromptSections(
       },
     }];
   });
+}
+
+/**
+ * 世界书条目的分块：常规位置归入上下文块；ST 的 atDepth 条目必须真正按深度
+ * 插进聊天历史（role 可指定），不能当普通上下文块拼进 system，
+ * 因此按「深度 + 角色」单独成节点，交给请求整形层经 metadata 注入。
+ */
+export function buildSillyTavernWorldInfoNodes(
+  entries: readonly LorebookEntry[],
+  format: (entry: LorebookEntry) => string,
+): PromptNode[] {
+  const groups = new Map<string, string[]>();
+  const depthGroups = new Map<string, {
+    depth: number;
+    role: PromptRole;
+    order: number;
+    contents: Array<{ order: number; content: string }>;
+  }>();
+  for (const entry of entries) {
+    const content = format(entry);
+    if (!content) continue;
+    if (entry.position === "in_chat") {
+      const depth = typeof entry.depth === "number" && Number.isFinite(entry.depth)
+        ? Math.max(0, Math.floor(entry.depth))
+        : 4;
+      const role = worldInfoEntryRole(entry);
+      const order = typeof entry.order === "number" && Number.isFinite(entry.order) ? entry.order : 100;
+      const key = `${depth}:${role}`;
+      const group = depthGroups.get(key) ?? { depth, role, order, contents: [] };
+      group.contents.push({ order, content });
+      depthGroups.set(key, group);
+      continue;
+    }
+    const group = entry.position === "before_char_def" || entry.position === "top"
+      ? "before_char_def"
+      : "after_char_def";
+    groups.set(group, [...(groups.get(group) ?? []), content]);
+  }
+  const sectionNodes: PromptNode[] = [...groups.entries()].map(([group, contents]) => ({
+    id: `sillytavern_world_info_${group}`,
+    phase: "Context",
+    type: "Context",
+    priority: group === "before_char_def" ? "High" : "Normal",
+    mutable: true,
+    title: `World Info (${group})`,
+    content: contents.join("\n\n"),
+  }));
+  const depthNodes: PromptNode[] = [...depthGroups.entries()].map(([key, group]) => ({
+    id: `sillytavern_world_info_depth_${key}`,
+    phase: "Context",
+    type: "Context",
+    priority: "Normal",
+    mutable: true,
+    title: `World Info (@Depth ${group.depth})`,
+    // ST 先按 order 降序处理再 unshift，最终同一注入块内是 order 升序。
+    content: group.contents
+      .slice()
+      .sort((left, right) => left.order - right.order)
+      .map((item) => item.content)
+      .join("\n\n"),
+    metadata: {
+      compatibility: "sillytavern",
+      position: "in_chat",
+      depth: group.depth,
+      role: group.role,
+      order: group.order,
+    },
+  }));
+  return [...sectionNodes, ...depthNodes];
 }
 
 /** 受信 SillyTavern Compatibility Runtime；与用户安装的沙箱插件物理分离。 */
@@ -434,25 +519,7 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
               ? `[设定及备注: ${entry.comment}]\n${content}`
               : content;
           };
-          const groups = new Map<string, string[]>();
-          for (const entry of triggeredLorebookEntries) {
-            const group = entry.position === "in_chat"
-              ? "in_chat"
-              : entry.position === "before_char_def" || entry.position === "top"
-                ? "before_char_def"
-                : "after_char_def";
-            const content = format(entry);
-            if (content) groups.set(group, [...(groups.get(group) ?? []), content]);
-          }
-          return [...groups.entries()].map(([group, contents]) => ({
-            id: `sillytavern_world_info_${group}`,
-            phase: "Context" as const,
-            type: "Context" as const,
-            priority: group === "before_char_def" ? "High" as const : "Normal" as const,
-            mutable: true,
-            title: `World Info (${group})`,
-            content: contents.join("\n\n"),
-          }));
+          return buildSillyTavernWorldInfoNodes(triggeredLorebookEntries, format);
         },
       }));
     }

@@ -342,6 +342,72 @@ function extractSillyTavernFields(raw: any): Partial<CharacterCard> {
 }
 
 /**
+ * SillyTavern `world_info_logic` 枚举：0=AND ANY、1=NOT ALL、2=NOT ANY、3=AND ALL。
+ * 数字、名称与历史写法都收口到这里，禁止各处自行假设编号从 1 开始。
+ * 返回 undefined 表示「没有声明有效策略」，由调用方决定默认值。
+ */
+export type SelectiveLogicValue = "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NOT_ALL";
+
+export function normalizeSelectiveLogic(raw: unknown): SelectiveLogicValue | undefined {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    switch (raw) {
+      case 0: return "AND_ANY";
+      case 1: return "NOT_ALL";
+      case 2: return "NOT_ANY";
+      case 3: return "AND_ALL";
+      default: return undefined;
+    }
+  }
+  if (typeof raw === "string") {
+    const value = raw.trim().toUpperCase().replace(/[\s-]+/g, "_");
+    if (value === "AND_ANY" || value === "AND_ALL" || value === "NOT_ANY" || value === "NOT_ALL") {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * 归一策略写回 SillyTavern 枚举。NONE 与未声明统一写 AND ANY(0)，
+ * 因为它由 `selective: false` 单独表达，不靠该数字区分。
+ */
+function toStSelectiveLogicNumber(value: LorebookEntry["selectiveLogic"]): number {
+  switch (value) {
+    case "NOT_ALL": return 1;
+    case "NOT_ANY": return 2;
+    case "AND_ALL": return 3;
+    case "AND_ANY": return 0;
+    default: return 0;
+  }
+}
+
+/**
+ * SillyTavern 条目里布尔字段可能写成 boolean 或 1/0，统一判定。
+ */
+function readStBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1" || value === "true") return true;
+  if (value === 0 || value === "0" || value === "false") return false;
+  return undefined;
+}
+
+/**
+ * 关键词列表归一：ST 原生格式是字符串数组，本应用编辑器存的是逗号分隔字符串。
+ */
+function readKeyList(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((key): key is string => typeof key === "string")
+      .map((key) => key.trim())
+      .filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    return raw.split(",").map((key) => key.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/**
  * 将酒馆标准 World Info/Lorebook 字段映射为统一的 LorebookEntry 接口格式
  */
 export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
@@ -408,27 +474,28 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
   if (extensions.depth !== undefined) depth = Number(extensions.depth);
 
   // Advanced Lorebook Extraction
-  const secondaryKeys = Array.isArray(entry.secondary_keys) ? entry.secondary_keys : [];
-  let selectiveLogic: "AND_ANY" | "AND_ALL" | "NOT_ANY" | "NONE" = "NONE";
+  // 原生命中字段名是 keysecondary；secondary_keys 是角色卡 V2 character_book 的写法。
+  const secondaryKeys = readKeyList(
+    entry.secondary_keys ?? entry.keysecondary ?? entry.secondaryKeys,
+  );
+  // ST 用 selective 控制次关键词是否参与：false 时次关键词完全不判定。
+  const selectiveEnabled = readStBoolean(entry.selective) !== false;
+  let selectiveLogic: LorebookEntry["selectiveLogic"] = "NONE";
   const rawSelLogic = extensions.selectiveLogic !== undefined ? extensions.selectiveLogic : entry.selectiveLogic;
-  if (rawSelLogic !== undefined) {
-    if (typeof rawSelLogic === "number") {
-      switch (rawSelLogic) {
-        case 1: selectiveLogic = "AND_ANY"; break;
-        case 2: selectiveLogic = "AND_ALL"; break;
-        case 3: selectiveLogic = "NOT_ANY"; break;
-        default: selectiveLogic = "NONE"; break;
-      }
-    } else if (typeof rawSelLogic === "string") {
-      const strLogic = rawSelLogic as string;
-      if (strLogic === "AND_ANY" || strLogic === "AND_ALL" || strLogic === "NOT_ANY" || strLogic === "NONE") {
-        selectiveLogic = strLogic;
-      }
-    }
+  if (selectiveEnabled) {
+    // ST 未声明策略时按 AND ANY 处理（world_info_logic.AND_ANY = 0）。
+    selectiveLogic = normalizeSelectiveLogic(rawSelLogic)
+      ?? (secondaryKeys.length > 0 ? "AND_ANY" : "NONE");
   }
   const caseSensitive = !!(extensions.case_sensitive ?? entry.case_sensitive ?? entry.caseSensitive);
   const useRegex = !!(entry.use_regex ?? entry.useRegex);
-  const scanDepth = extensions.scan_depth !== undefined ? Number(extensions.scan_depth) : (entry.scan_depth !== undefined ? Number(entry.scan_depth) : undefined);
+  const rawScanDepth = extensions.scan_depth ?? entry.scan_depth ?? entry.scanDepth;
+  const parsedScanDepth = rawScanDepth === undefined || rawScanDepth === null ? NaN : Number(rawScanDepth);
+  const scanDepth = Number.isFinite(parsedScanDepth) && parsedScanDepth >= 0 ? parsedScanDepth : undefined;
+  // ST 用 disable 表示禁用；本应用内部统一成 enabled/disabled。
+  const isDisabled = readStBoolean(entry.disable) === true
+    || readStBoolean(entry.disabled) === true
+    || entry.enabled === false;
 
   return {
     id: entry.id || Math.random().toString(36).substring(2, 9),
@@ -440,8 +507,8 @@ export function mapSillyTavernLorebookEntry(entry: any): LorebookEntry {
     scanDepth,
     content: entry.content || entry.value || "",
     constant: !!(entry.constant || entry.constant_active),
-    enabled: entry.enabled !== false,
-    disabled: entry.enabled === false,
+    enabled: !isDisabled,
+    disabled: isDisabled,
     comment: entry.comment || "",
     position,
     depth,
@@ -536,33 +603,35 @@ export function injectPngMetadata(
               sourceExtensions && typeof sourceExtensions === "object" && !Array.isArray(sourceExtensions)
                 ? sourceExtensions as Record<string, unknown>
                 : {};
-            let selectiveLogicVal = 0;
-            if (e.selectiveLogic === "AND_ANY") selectiveLogicVal = 1;
-            else if (e.selectiveLogic === "AND_ALL") selectiveLogicVal = 2;
-            else if (e.selectiveLogic === "NOT_ANY") selectiveLogicVal = 3;
+            const selectiveLogicVal = toStSelectiveLogicNumber(e.selectiveLogic);
+            const secondaryKeys = readKeyList(e.secondary_keys);
 
-            let stPosStr = "after_char";
+            // 写出 ST 原生数字位置：0=角色定义前、1=角色定义后、4=按深度插入。
             let stPosNum = 1;
             if (e.position === "before_char_def") {
-              stPosStr = "before_char";
               stPosNum = 0;
             } else if (e.position === "in_chat") {
-              stPosStr = "in_chat";
               stPosNum = 4;
             } else if (e.position === "top") {
-              stPosStr = "top";
               stPosNum = 0;
             }
 
             return {
               ...sourceMetadata,
               keys: e.keys,
+              // ST 原生命名为 key / keysecondary / selective / disable / position(数字)。
+              // 同时保留本应用既有字段名，保证两侧都能读回同一条目。
+              key: e.keys,
               secondary_keys: e.secondary_keys || [],
+              keysecondary: secondaryKeys,
+              selective: e.selectiveLogic !== "NONE",
+              selectiveLogic: selectiveLogicVal,
+              disable: !e.enabled,
               content: e.content,
               constant: e.constant,
               enabled: e.enabled,
               comment: e.comment || "",
-              position: stPosStr,
+              position: stPosNum,
               use_regex: !!e.useRegex,
               extensions: {
                 ...normalizedSourceExtensions,

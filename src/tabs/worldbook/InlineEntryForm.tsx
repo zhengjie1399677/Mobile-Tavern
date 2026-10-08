@@ -12,6 +12,40 @@ export interface InlineEntryFormProps {
 }
 
 /**
+ * 「插入位置」各选项的直白解释。
+ * 原先只写「角色前 / 角色后」，会被误读成「上一个 / 下一个角色」。
+ * 这里统一说明：它指的是本条内容在角色卡设定区块的前面还是后面。
+ */
+const POSITION_HINTS: Record<NonNullable<LorebookEntry["position"]>, string> = {
+  after_char_def: "本条内容排在角色描述 / 性格 / 场景的后面。",
+  before_char_def: "本条内容排在角色描述 / 性格 / 场景的前面。",
+  top: "本条内容排在整段提示词的最前面。",
+  before_last_mes: "本条内容排在聊天记录末尾、最新一条发言之前。",
+  in_chat: "本条内容按「检索后推深度」插入聊天记录内部。",
+};
+
+type PositionValue = NonNullable<LorebookEntry["position"]>;
+
+/**
+ * 插入位置的结构图行。提示词从上到下铺开，slot 是可点的插入点，
+ * anchor 是角色卡设定本体，divider 只做区块分隔。
+ */
+type PositionRow =
+  | { kind: "slot"; value: PositionValue; label: string }
+  | { kind: "anchor"; label: string; caption: string }
+  | { kind: "divider"; label: string };
+
+const POSITION_ROWS: readonly PositionRow[] = [
+  { kind: "slot", value: "top", label: "提示词最顶部" },
+  { kind: "slot", value: "before_char_def", label: "角色卡设定之前" },
+  { kind: "anchor", label: "角色卡设定", caption: "描述 · 性格 · 场景" },
+  { kind: "slot", value: "after_char_def", label: "角色卡设定之后" },
+  { kind: "divider", label: "聊天记录" },
+  { kind: "slot", value: "in_chat", label: "历史对话中" },
+  { kind: "slot", value: "before_last_mes", label: "最新一条发言之前" },
+];
+
+/**
  * 内联编辑 / 新建世界设定条目表单组件。
  *
  * 对应原 GlobalWorldbookTab 内部 `renderInlineForm` 函数：
@@ -24,6 +58,9 @@ export default function InlineEntryForm({
   setEditingId,
   onSave,
 }: InlineEntryFormProps) {
+  const currentPosition = (editForm.position || "after_char_def") as PositionValue;
+  const currentDepth = editForm.depth !== undefined ? editForm.depth : 4;
+
   const safeRenderKeys = (keys: unknown): string => {
     if (Array.isArray(keys)) {
       return keys
@@ -148,28 +185,87 @@ export default function InlineEntryForm({
 
       {/* 高级触发条件 */}
       <div className="border-t border-border/50 pt-2.5 space-y-2">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-          <div>
-            <label className="block text-[10px] text-muted-foreground mb-1">
-              插入位置 (Position)
-            </label>
-            <select
-              value={editForm.position || "after_char_def"}
-              onChange={(e) =>
-                setEditForm((prev) => ({
-                  ...prev,
-                  position: e.target.value as LorebookEntry["position"],
-                }))
-              }
-              className="w-full bg-input border border-border rounded-lg p-1.5 text-foreground text-xs"
-            >
-              <option className="bg-card text-foreground" value="after_char_def">📌 角色定义之后</option>
-              <option className="bg-card text-foreground" value="before_char_def">📌 角色定义之前</option>
-              <option className="bg-card text-foreground" value="top">📌 对话最顶部</option>
-              <option className="bg-card text-foreground" value="before_last_mes">💬 最新发言上方</option>
-              <option className="bg-card text-foreground" value="in_chat">💬 历史对话中 (按深度)</option>
-            </select>
+        <div>
+          <label className="block text-[10px] text-muted-foreground mb-1">
+            插入位置 (Position)
+          </label>
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-2 py-1.5">
+            <div className="relative pl-4">
+              <span
+                className="absolute left-1.5 top-2.5 bottom-2.5 w-px bg-border"
+                aria-hidden="true"
+              />
+              {POSITION_ROWS.map((row, index) => {
+                if (row.kind === "anchor") {
+                  return (
+                    <div
+                      key={`anchor-${index}`}
+                      className="my-0.5 rounded-md border border-border/60 bg-card/60 px-2 py-1"
+                    >
+                      <div className="text-[10.5px] font-semibold text-foreground">
+                        {row.label}
+                      </div>
+                      <div className="text-[9.5px] text-muted-foreground">
+                        {row.caption}
+                      </div>
+                    </div>
+                  );
+                }
+                if (row.kind === "divider") {
+                  return (
+                    <div
+                      key={`divider-${index}`}
+                      className="flex items-center gap-1.5 px-2 py-0.5"
+                    >
+                      <span className="text-[9.5px] text-muted-foreground">
+                        {row.label}
+                      </span>
+                      <span className="h-px flex-1 bg-border/60" />
+                    </div>
+                  );
+                }
+                const active = currentPosition === row.value;
+                return (
+                  <button
+                    key={row.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() =>
+                      setEditForm((prev) => ({ ...prev, position: row.value }))
+                    }
+                    className={`relative flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[10.5px] transition select-none ${
+                      active
+                        ? "bg-primary/15 text-foreground ring-1 ring-primary/50"
+                        : "text-muted-foreground hover:bg-muted/50"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border ${
+                        active ? "border-primary bg-primary" : "border-border bg-card"
+                      }`}
+                      style={{ left: "-13px" }}
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1 truncate">
+                      {row.value === "in_chat"
+                        ? `${row.label} · 深度 ${currentDepth}`
+                        : row.label}
+                    </span>
+                    {active && (
+                      <span className="shrink-0 rounded-full bg-primary px-1.5 py-[1px] text-[9px] font-semibold text-primary-foreground">
+                        本条内容
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+          <p className="mt-1 text-[10px] leading-snug text-muted-foreground/80">
+            {POSITION_HINTS[currentPosition]}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
           <div>
             <label className="block text-[10px] text-muted-foreground mb-1">
               检索后推深度 (Depth)
