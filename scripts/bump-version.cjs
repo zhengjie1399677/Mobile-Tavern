@@ -18,6 +18,9 @@ const MANAGED_VERSION_FILES = Object.freeze([
   "src-tauri/tauri.conf.json",
   "src-tauri/Cargo.toml",
   "src-tauri/Cargo.lock",
+  // 仓库根 Cargo.lock 是 workspace 实际使用的锁文件（cargo 在 workspace 中忽略
+  // crate 目录内的锁文件），必须与 src-tauri/Cargo.lock 一并同步，避免版本漂移。
+  "Cargo.lock",
   "public/version",
   "README.md",
   "docs/index.html",
@@ -84,12 +87,12 @@ function updateCargoManifest(content, targetVersion) {
   );
 }
 
-function updateCargoLock(content, targetVersion) {
-  return replaceRequired(
+function makeCargoLockUpdater(filePath) {
+  return (content, targetVersion) => replaceRequired(
     content,
     /(\[\[package\]\]\r?\nname = "app"\r?\nversion = ")[^"]+("\r?$)/m,
     `$1${targetVersion}$2`,
-    "src-tauri/Cargo.lock",
+    filePath,
     'name = "app" 的锁定版本',
   );
 }
@@ -132,7 +135,8 @@ const VERSION_UPDATERS = Object.freeze({
   "package-lock.json": updatePackageLock,
   "src-tauri/tauri.conf.json": updateTauriConfig,
   "src-tauri/Cargo.toml": updateCargoManifest,
-  "src-tauri/Cargo.lock": updateCargoLock,
+  "src-tauri/Cargo.lock": makeCargoLockUpdater("src-tauri/Cargo.lock"),
+  "Cargo.lock": makeCargoLockUpdater("Cargo.lock"),
   "public/version": updatePublicVersion,
   "README.md": updateReadme,
   "docs/index.html": updateDownloadPage,

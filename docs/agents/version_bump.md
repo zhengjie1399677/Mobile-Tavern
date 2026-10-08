@@ -37,6 +37,7 @@ npm run check:version
 | `src-tauri/tauri.conf.json` | Tauri `version` |
 | `src-tauri/Cargo.toml` | `[package]` 的 `version` |
 | `src-tauri/Cargo.lock` | `app` 包的锁定版本 |
+| `Cargo.lock` | workspace 根锁里 `app` 包的锁定版本（cargo 在 workspace 中实际读取的锁文件） |
 | `public/version` | `pkgVersion` |
 | `README.md` | 版本徽章 |
 | `docs/index.html` | 页面版本标签与 Android 下载按钮文本 |
