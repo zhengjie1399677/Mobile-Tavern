@@ -558,8 +558,15 @@ export default function SystemReportSection({
         log(`WARNING: Chrome < 87, visualViewport.resize 与部分 CSS 单位 (dvh/svh) 支持可能不完整。`);
       } else if (major < 100) {
         log(`NOTE: Chrome ${major}, visualViewport 支持完整但部分新 API 可能缺失。`);
+      } else if (major < 111) {
+        // oklch() 与 color-mix() 直到 Chrome 111 才被支持：低于 111 时主题色与半透明
+        // 面板声明会在“计算值阶段”整条失效（getComputedStyle 仍返回声明值，故只能靠版本号预警）。
+        log(
+          `WARNING: Chrome ${major} < 111, 不支持 oklch()/color-mix()，主题色与半透明面板声明会被丢弃；` +
+            `已由 src/index.css 的降级配色层（实色主题色 + 调色板 hex）接管，升级 Android System WebView 可恢复完整主题与毛玻璃效果。`,
+        );
       } else {
-        log(`Chrome version OK (>=100).`);
+        log(`Chrome version OK (>=111).`);
       }
     } else {
       log(`NOTE: Chrome version not found in UA (non-Chromium WebView?).`);

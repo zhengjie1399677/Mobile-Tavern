@@ -1141,3 +1141,227 @@ iframe[id^="TH-msg-iframe-"] {
     transform: none !important;
   }
 }
+
+/* ==========================================================================
+   Chrome 108 及更低版本 WebView 降级配色层
+   --------------------------------------------------------------------------
+   背景：Tailwind v4 的主题变量默认使用 oklch()，半透明面板编译为
+   color-mix(in oklab, ...)。oklch() / color-mix() 直到 Chrome 111 才被支持，
+   Chrome 108（Android System WebView 常见版本）会因“计算值阶段失效”而丢弃
+   整条声明：背景变成透明、文字颜色回退为继承色，导致两层页面文字叠在一起。
+   getComputedStyle 仍返回声明值，因此运行时自检无法发现，只能在此静态兜底。
+
+   做法：本层只在浏览器不支持 oklch() 时生效（现代 WebView 完全不进入），
+   把所有主题色变量与 Tailwind 调色板变量重定义为 sRGB hex 等价值。
+   产物中每条 color-mix 声明的“基线声明”引用的是这些变量本身
+   （例如 .bg-card\/75{background-color:var(--card)}），因此变量换成 hex 后，
+   面板会退化为接近原色的实色底，而不是透明底露出下层文字。
+   数值来源：43 个与 Tailwind 自带静态 hex 完全一致，其余按 OKLab → sRGB
+   公式换算，与 src/tabs/settings/sections/system-report/themeDiagnostics.ts
+   中的 oklch 解析/转换保持一致。
+   注意：极旧、不识别 @supports 的 WebView 会整体忽略本层（属已知限制）。
+   ========================================================================== */
+@supports not (color: oklch(0% 0 0)) {
+  /* 主题 0：默认主题（黑曜石暗黑，与下方 obsidian 同值） */
+  :root {
+    --background: #040609;
+    --foreground: #d3d8de;
+    --card: #0a0e11;
+    --card-foreground: #d3d8de;
+    --popover: #0a0e11;
+    --popover-foreground: #d3d8de;
+    --primary: #5194d5;
+    --primary-foreground: #f8f8f8;
+    --secondary: #13161a;
+    --secondary-foreground: #d3d8de;
+    --muted: #0e1216;
+    --muted-foreground: #a3a8ae;
+    --accent: #141b24;
+    --accent-foreground: #d3d8de;
+    --destructive: #a12f2f;
+    --destructive-foreground: #f8f8f8;
+    --border: #171b1f;
+    --input: #171b1f;
+    --ring: #5194d5;
+  }
+
+  /* 主题 1：冰川冷白 */
+  [data-theme="snow"] {
+    --background: #f7fbfd;
+    --foreground: #0c1318;
+    --card: #ffffff;
+    --card-foreground: #0c1318;
+    --popover: #ffffff;
+    --popover-foreground: #0c1318;
+    --primary: #4284c5;
+    --primary-foreground: #f8f8f8;
+    --secondary: #e9f0f5;
+    --secondary-foreground: #0c1318;
+    --muted: #e9f0f5;
+    --muted-foreground: #495157;
+    --accent: #dee9f5;
+    --accent-foreground: #4284c5;
+    --destructive: #c53637;
+    --destructive-foreground: #f8f8f8;
+    --border: #dce2e7;
+    --input: #e5ecf1;
+    --ring: #4284c5;
+  }
+
+  /* 主题 2：浅沙暮色 */
+  [data-theme="sand"] {
+    --background: #f4f2ea;
+    --foreground: #1a160b;
+    --card: #fcfcfc;
+    --card-foreground: #1a160b;
+    --popover: #fcfcfc;
+    --popover-foreground: #1a160b;
+    --primary: #b45000;
+    --primary-foreground: #f8f8f8;
+    --secondary: #e3decf;
+    --secondary-foreground: #1a160b;
+    --muted: #e7e4dd;
+    --muted-foreground: #514d41;
+    --accent: #e3decf;
+    --accent-foreground: #1a160b;
+    --destructive: #a83634;
+    --destructive-foreground: #f8f8f8;
+    --border: #d3cdbf;
+    --input: #d3cdbf;
+    --ring: #a34100;
+  }
+
+  /* 主题 3：荧光深海 */
+  [data-theme="ocean"] {
+    --background: #050b18;
+    --foreground: #e7effc;
+    --card: #0d182b;
+    --card-foreground: #e7effc;
+    --popover: #0d182b;
+    --popover-foreground: #e7effc;
+    --primary: #00b2de;
+    --primary-foreground: #050b18;
+    --secondary: #182437;
+    --secondary-foreground: #e7effc;
+    --muted: #121d30;
+    --muted-foreground: #9da8bb;
+    --accent: #182437;
+    --accent-foreground: #e7effc;
+    --destructive: #a83634;
+    --destructive-foreground: #e7effc;
+    --border: #162235;
+    --input: #162235;
+    --ring: #00b2de;
+  }
+
+  /* 主题 4：黑曜石暗黑 */
+  [data-theme="obsidian"] {
+    --background: #040609;
+    --foreground: #d3d8de;
+    --card: #0a0e11;
+    --card-foreground: #d3d8de;
+    --popover: #0a0e11;
+    --popover-foreground: #d3d8de;
+    --primary: #5194d5;
+    --primary-foreground: #f8f8f8;
+    --secondary: #13161a;
+    --secondary-foreground: #d3d8de;
+    --muted: #0e1216;
+    --muted-foreground: #a3a8ae;
+    --accent: #141b24;
+    --accent-foreground: #d3d8de;
+    --destructive: #a12f2f;
+    --destructive-foreground: #f8f8f8;
+    --border: #171b1f;
+    --input: #171b1f;
+    --ring: #5194d5;
+  }
+
+  /* Tailwind 默认调色板：非半透明用法（bg-zinc-950 / text-cyan-600 等）
+     没有编译期静态 hex 兜底，只有这一处 oklch 变量，缺少它同样会整条失效。 */
+  :root {
+    --color-amber-100: #fef3c6;
+    --color-amber-200: #fee685;
+    --color-amber-300: #ffd236;
+    --color-amber-400: #fcbb00;
+    --color-amber-500: #f99c00;
+    --color-amber-600: #dd7400;
+    --color-amber-700: #bb4d00;
+    --color-amber-800: #953d00;
+    --color-amber-900: #7b3306;
+    --color-amber-950: #461901;
+    --color-blue-400: #51a2ff;
+    --color-blue-500: #3080ff;
+    --color-blue-600: #155dfc;
+    --color-cyan-100: #cefafe;
+    --color-cyan-200: #a2f4fd;
+    --color-cyan-300: #53eafd;
+    --color-cyan-400: #00d2ef;
+    --color-cyan-500: #00b7d7;
+    --color-cyan-600: #0092b8;
+    --color-cyan-700: #007595;
+    --color-cyan-950: #053345;
+    --color-emerald-300: #5ee9b5;
+    --color-emerald-400: #00d294;
+    --color-emerald-500: #00bb7f;
+    --color-emerald-600: #009767;
+    --color-emerald-700: #007a55;
+    --color-emerald-900: #004e3b;
+    --color-emerald-950: #002c22;
+    --color-green-400: #05df72;
+    --color-green-500: #00c758;
+    --color-green-600: #00a63e;
+    --color-indigo-300: #a3b3ff;
+    --color-indigo-400: #7d87ff;
+    --color-indigo-500: #625fff;
+    --color-indigo-600: #4f39f6;
+    --color-indigo-950: #1e1a4d;
+    --color-orange-300: #ffb86a;
+    --color-orange-400: #ff8904;
+    --color-orange-500: #fe6e00;
+    --color-pink-400: #fb64b6;
+    --color-pink-500: #f6339a;
+    --color-purple-300: #dab2ff;
+    --color-purple-400: #c07eff;
+    --color-purple-500: #ac4bff;
+    --color-red-400: #ff6467;
+    --color-red-500: #fb2c36;
+    --color-red-900: #82181a;
+    --color-red-950: #460809;
+    --color-rose-300: #ffa1ad;
+    --color-rose-400: #ff667f;
+    --color-rose-500: #ff2357;
+    --color-rose-600: #ec003f;
+    --color-rose-700: #c70036;
+    --color-rose-900: #8b0836;
+    --color-rose-950: #4d0218;
+    --color-sky-300: #77d4ff;
+    --color-sky-400: #00bcff;
+    --color-sky-500: #00a5ef;
+    --color-sky-600: #0084d1;
+    --color-slate-200: #e2e8f0;
+    --color-slate-400: #90a1b9;
+    --color-slate-500: #62748e;
+    --color-slate-700: #314158;
+    --color-slate-900: #0f172b;
+    --color-teal-300: #46ecd5;
+    --color-teal-400: #00d5be;
+    --color-teal-500: #00baa7;
+    --color-violet-300: #c4b4ff;
+    --color-violet-400: #a684ff;
+    --color-violet-500: #8d54ff;
+    --color-violet-600: #7f22fe;
+    --color-violet-950: #2f0d68;
+    --color-yellow-300: #ffdf20;
+    --color-yellow-400: #fdc700;
+    --color-yellow-500: #edb200;
+    --color-yellow-600: #d08700;
+    --color-zinc-200: #e4e4e7;
+    --color-zinc-300: #d4d4d8;
+    --color-zinc-400: #9f9fa9;
+    --color-zinc-500: #71717b;
+    --color-zinc-800: #27272a;
+    --color-zinc-900: #18181b;
+    --color-zinc-950: #09090b;
+  }
+}
