@@ -2,7 +2,6 @@ import { readFile, stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { preparePresetBundleImport } from "../src/application/useCases/preparePresetBundleImport";
-import { compilePromptComposition } from "../src/domain/prompt-composition";
 import { sillyTavernPromptPresetCodec } from "../src/infrastructure/compat/sillytavern";
 import { DEFAULT_PROMPT_CONFIG } from "../src/hooks/settings/defaults";
 
@@ -13,12 +12,10 @@ interface SampleVerificationResult {
   level?: string;
   prompts?: number;
   enabledPrompts?: number;
-  importedBlocks?: number;
   regex?: number;
   warnings?: number;
   warningCodes?: string;
   errors?: number;
-  compiledMessages?: number;
   elapsedMs: number;
   reason?: string;
 }
@@ -45,34 +42,20 @@ async function verifyPresetSample(filePath: string): Promise<SampleVerificationR
       // 验收必须使用与运行时相同的 Compatibility Codec，否则只能得到"仅通用字段"的降级结果。
       compatibilityCodec: sillyTavernPromptPresetCodec,
     });
-    const compiled = prepared.composition
-      ? compilePromptComposition(prepared.composition, {
-          values: {
-            "worldbook.before": "FIXTURE_WORLD_BEFORE",
-            "worldbook.after": "FIXTURE_WORLD_AFTER",
-            "character.description": "FIXTURE_CHARACTER",
-          },
-          history: [
-            { role: "user", content: "FIXTURE_USER" },
-            { role: "assistant", content: "FIXTURE_ASSISTANT" },
-          ],
-        })
-      : undefined;
     return {
       file: basename(absolutePath),
       bytes: metadata.size,
       kind: "preset",
-      level: prepared.compatibilityAnalysis?.level ?? "legacy",
-      prompts: prepared.compatibilityAnalysis?.promptCount ?? parsed.prompts.length,
-      enabledPrompts: prepared.compatibilityAnalysis?.enabledPromptCount,
-      importedBlocks: prepared.composition?.blocks.length,
+      // 编排链路已删除：验收只统计传统提示词列表（导入后的 `customPrompts`）。
+      level: "legacy",
+      prompts: prepared.bundle.promptConfig.customPrompts?.length ?? 0,
+      enabledPrompts: prepared.bundle.promptConfig.customPrompts?.filter((item) => item.enabled).length,
       // v2 预设实体的正则字段是 `regexScripts`；此处历史上写成 `presetRegexScripts`
       // 导致验收表恒显示 0，掩盖了"预设正则没有随之导入"的问题。
       regex: prepared.bundle.regexScripts?.length ?? 0,
       warnings: prepared.report.warnings.length,
       warningCodes: summarizeCodes(prepared.report.warnings),
       errors: prepared.report.errors.length,
-      compiledMessages: compiled?.messages.length,
       elapsedMs: roundMs(startedAt),
     };
   } catch (error) {
