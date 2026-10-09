@@ -13,6 +13,8 @@
  * 不必再靠截图反推。诊断只读 DOM，不触碰存储，也不需要 Kernel 服务。
  */
 
+import { formatRuntimeErrorEntry, getRecentRuntimeErrors } from "../../../../utils/runtimeErrorLog";
+
 export interface ViewportSizeLike {
   width: number;
   height: number;
@@ -30,6 +32,9 @@ export interface RgbaColor extends RgbColor {
 
 /** 覆盖视口的判定阈值：宽和高都要达到视口的 90%。 */
 const VIEWPORT_COVERAGE_RATIO = 0.9;
+
+/** 报告里最多列出的运行期错误条数（黑匣子本身保留更多）。 */
+const MAX_REPORTED_RUNTIME_ERRORS = 5;
 /** 透明度低于该值的浮层视为不可见，不计入遮挡。 */
 const MIN_VISIBLE_OVERLAY_OPACITY = 0.05;
 /** 报告中单次最多列出的浮层数量，避免刷屏。 */
@@ -265,7 +270,11 @@ const resolveElementBox = (
 const describeElement = (element: Element): string => {
   const classes = Array.from(element.classList).slice(0, MAX_REPORTED_CLASSES);
   const suffix = element.classList.length > classes.length ? ".…" : "";
-  return `${element.tagName.toLowerCase()}${classes.map((name) => `.${name}`).join("")}${suffix}`;
+  // `data-slot` 是项目 UI 基元（Base UI / shadcn 风格）的自述标识，能直接把
+  // "哪个弹层压住了屏幕"讲清楚，比一长串 Tailwind 类名更好用。
+  const slot = element.getAttribute("data-slot");
+  const slotLabel = slot ? `[data-slot=${slot}]` : "";
+  return `${element.tagName.toLowerCase()}${slotLabel}${classes.map((name) => `.${name}`).join("")}${suffix}`;
 };
 
 /**
@@ -305,6 +314,10 @@ const isElementVisible = (element: Element, view: Window, scope: Element): boole
  *
  * 排除 `pointer-events: none`（纯装饰层，例如全局环境光晕）、不可见元素，
  * 以及宽或高不足视口 90% 的条状/卡片式浮层。
+ *
+ * 扫描面是 `document.body` 而不是 `#root`：Base UI 的 Dialog/Select 弹层默认
+ * portal 到 `<body>`（库注释明示），对话框遮罩（`fixed inset-0 bg-black/75`）因此
+ * 落在 `#root` 之外——只扫 `#root` 会让"弹层遮罩压住整屏、点不动"在自检里隐形。
  */
 export function findViewportCoveringOverlays(
   doc: Document,
@@ -313,7 +326,7 @@ export function findViewportCoveringOverlays(
   const view = doc.defaultView;
   if (!view || viewport.width <= 0 || viewport.height <= 0) return [];
 
-  const scope = doc.getElementById("root") ?? doc.body;
+  const scope = doc.body ?? doc.documentElement;
   if (!scope) return [];
 
   const found: { description: string; zIndex: number }[] = [];
@@ -347,12 +360,16 @@ export function findViewportCoveringOverlays(
 
     const zIndex = Number.parseInt(computed.zIndex, 10);
     const resolvedZIndex = Number.isFinite(zIndex) ? zIndex : 0;
+    const backdropFilter = computed.backdropFilter || computed.getPropertyValue("-webkit-backdrop-filter");
+    const backdropHint = backdropFilter && backdropFilter !== "none"
+      ? ` backdrop-filter:${backdropFilter}`
+      : "";
     found.push({
       description: `${describeElement(element)} [position:${position} z-index:${
         Number.isFinite(zIndex) ? zIndex : "auto"
       } opacity:${Number.isFinite(opacity) ? opacity : 1} pointer-events:${
         computed.pointerEvents || "auto"
-      }]`,
+      }${backdropHint}]`,
       zIndex: resolvedZIndex,
     });
   }
@@ -483,6 +500,14 @@ export function collectThemeDiagnosticLines(
   lines.push(`viewport-covering overlays: ${overlays.length}`);
   for (const overlay of overlays) {
     lines.push(`WARNING: blocking overlay over viewport → ${overlay}`);
+  }
+
+  // 渲染/合成层面的故障（例如整屏发黑）在 DOM 与计算样式里全是"正常"，
+  // JS 错误往往是唯一线索，因此把现场黑匣子一并列进报告。
+  const recentErrors = getRecentRuntimeErrors();
+  lines.push(`recent runtime errors: ${recentErrors.length}`);
+  for (const entry of recentErrors.slice(-MAX_REPORTED_RUNTIME_ERRORS)) {
+    lines.push(`WARNING: runtime error → ${formatRuntimeErrorEntry(entry)}`);
   }
 
   return lines;

@@ -2,6 +2,7 @@ import type { IKernel } from "@/src/application/serviceContracts";
 import { getRuntimeKernel } from "../kernel/runtimeKernel";
 import { TelemetryService } from "../application/services/TelemetryService";
 import { getErrorMessage, getErrorDetail } from "./errorUtils";
+import { recordRuntimeError } from "./runtimeErrorLog";
 
 let fallbackTelemetry: TelemetryService | null = null;
 function getTelemetryService(kernel?: IKernel) {
@@ -107,6 +108,14 @@ export function installGlobalErrorHandlers(): void {
       const loc = file ? ` (${file}:${line}:${col})` : "";
       const detail = `${msg}${loc}${stack ? `\nStack: ${stack}` : ""}`;
 
+      // 同一捕获点同时喂给现场黑匣子：遥测关闭或不可达时，系统报告仍能看到最近错误。
+      recordRuntimeError({
+        kind: "error",
+        message: msg,
+        ...(file ? { source: `${file}:${line}` } : {}),
+        at: Date.now(),
+      });
+
       reportImmediate("window_uncaught_error", {
         detail,
         message: msg,
@@ -128,6 +137,8 @@ export function installGlobalErrorHandlers(): void {
       const detail = getErrorDetail(reason).slice(0, 4000);
       const msg = getErrorMessage(reason);
       const stack = (reason instanceof Error ? reason.stack : (reason && typeof reason === "object" && "stack" in reason ? String((reason as Record<string, unknown>).stack) : ""))?.slice(0, 4000) || "";
+
+      recordRuntimeError({ kind: "unhandledrejection", message: msg, at: Date.now() });
 
       reportImmediate("window_unhandled_rejection", {
         detail,

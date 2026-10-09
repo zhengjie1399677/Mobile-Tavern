@@ -32,7 +32,14 @@ export default function DbWritingOverlay() {
       setReleased(false);
       return undefined;
     }
-    const timer = window.setTimeout(() => setEscapeReady(true), WRITE_OVERLAY_ESCAPE_MS);
+    const timer = window.setTimeout(() => {
+      setEscapeReady(true);
+      // 到点先落一条日志：即使用户随后直接杀进程，logcat/JS 日志里也能看到
+      // "遮罩超过 10s 未结束"这一现场，便于定位卡住的写入。
+      console.warn(
+        `[DbWritingOverlay] 写入遮罩已持续超过 ${WRITE_OVERLAY_ESCAPE_MS}ms，等待用户释放遮挡。`,
+      );
+    }, WRITE_OVERLAY_ESCAPE_MS);
     return () => window.clearTimeout(timer);
   }, [isDbWriting]);
 
@@ -56,7 +63,10 @@ export default function DbWritingOverlay() {
   if (!isDbWriting || released) return null;
 
   return (
-    <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center animate-fadeIn">
+    // 刻意不用 backdrop-blur：部分 Android WebView 在动画中给大面积 backdrop-filter
+    // 做合成时会整块渲染成不透明黑（现场表现是"整屏纯黑、文字全看不见"），
+    // 而这层恰恰是故障时唯一还能看到的东西。半透明底色已足够表达"写入中"。
+    <div className="absolute inset-0 bg-black/60 z-50 flex flex-col items-center justify-center animate-fadeIn">
       <div className="bg-card border border-border p-5 rounded-2xl flex flex-col items-center gap-3 shadow-2xl max-w-[200px] text-center">
         <div className="w-8 h-8 border-2 border-[var(--accent-color)]/30 border-t-[var(--accent-color)] rounded-full animate-spin" />
         <div className="space-y-1">

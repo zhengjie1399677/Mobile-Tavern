@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  recordRuntimeError,
+  resetRuntimeErrorLogForTest,
+} from "../../src/utils/runtimeErrorLog";
+import {
   collectThemeDiagnosticLines,
   compositeOver,
   contrastRatio,
@@ -113,6 +117,33 @@ describe("全屏遮挡层扫描", () => {
 
     expect(findViewportCoveringOverlays(document, VIEWPORT)).toHaveLength(0);
   });
+
+  it("识别 #root 之外 portal 到 body 的弹层遮罩（Dialog 位置所在）", () => {
+    // Base UI 的 Dialog/Select 默认 portal 到 <body>，遮罩不在 #root 内。
+    // 只扫 #root 会让"弹层遮罩压住整屏、点不动"在自检里隐形（历史盲区）。
+    const portalOverlay = document.createElement("div");
+    portalOverlay.setAttribute("data-slot", "dialog-overlay");
+    portalOverlay.className = "fixed inset-0 z-50";
+    portalOverlay.style.position = "fixed";
+    portalOverlay.style.width = `${VIEWPORT.width}px`;
+    portalOverlay.style.height = `${VIEWPORT.height}px`;
+    portalOverlay.style.zIndex = "50";
+    document.body.appendChild(portalOverlay);
+
+    const found = findViewportCoveringOverlays(document, VIEWPORT);
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("data-slot=dialog-overlay");
+  });
+
+  it("报告里带上 backdrop-filter，便于定位 WebView 合成异常", () => {
+    overlay.style.backdropFilter = "blur(2px)";
+    document.getElementById("root")!.appendChild(overlay);
+
+    const found = findViewportCoveringOverlays(document, VIEWPORT);
+
+    expect(found[0]).toContain("backdrop-filter:blur(2px)");
+  });
 });
 
 describe("主题诊断输出", () => {
@@ -175,5 +206,17 @@ describe("主题诊断输出", () => {
 
     expect(text).toContain("--background: (empty)");
     expect(text).toContain("ERROR: theme CSS variables missing");
+  });
+
+  it("报告列出最近的运行期错误（渲染类故障往往只剩这一条线索）", () => {
+    resetRuntimeErrorLogForTest();
+    recordRuntimeError({ kind: "error", message: "compositor boom", source: "app.js:1", at: Date.now() });
+
+    const text = collectThemeDiagnosticLines(document, VIEWPORT).join("\n");
+
+    expect(text).toContain("recent runtime errors: 1");
+    expect(text).toContain("WARNING: runtime error → ");
+    expect(text).toContain("compositor boom");
+    resetRuntimeErrorLogForTest();
   });
 });
