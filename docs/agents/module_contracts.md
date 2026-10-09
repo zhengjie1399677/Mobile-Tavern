@@ -278,14 +278,13 @@ someAsyncOp().then(() => {
 ### Prompt 预设与最终消息包
 
 - 预设实体的当前版本是 `PresetBundle`（`schemaVersion: 3`）：`promptConfig`（传统提示词字段）是**唯一 Prompt 权威**，未识别字段进 `extensions` 保真保存。记录必须通过实体 Zod 校验；运行期只能经唯一投影 `projectPresetActivation` 消费。
-- v1 记录（`SavedPresetBundle`）只能经 `domain/presets/bundleMigration` 读取迁移：构造候选 → 实体 schema 校验 → 逐级降级修复 → 记录诊断。存储边界必须"能读就不能失效"，禁止用 `parse` 抛错让整份预设列表失效，也禁止静默丢字段；只有导入边界允许 fail-closed。
-- v1/v2 记录的迁移由 `domain/presets/bundleMigration` 承担：只读取传统 Prompt 字段，`promptPlan`／`composition`／`usePromptComposition`／`prompt`（编排快照）在迁移时整体丢弃，未知键进 `extensions`。
+- v1/v2 记录只能经 `domain/presets/bundleMigration` 读取迁移：构造候选 → 单条实体校验 → 逐级降级修复 → 记录诊断；`promptPlan`／`composition`／`usePromptComposition`／`prompt`（编排快照）在迁移时整体丢弃，未知键进 `extensions`。存储边界必须"能读就不能失效"：禁止用会抛错的 `parse` 让整份列表失效（标识不符契约的记录按不可识别丢弃），也禁止静默丢字段（正则脚本逐条白名单收口，坏条目单独丢弃而不是清空整轨）；迁移诊断由存储边界聚合落日志，是降级行为的唯一可观测性。只有导入边界允许 fail-closed。
 - 启动期预设引导是无 IO 用例：内置预设列表始终以出厂内容重建并置于列表末尾，自定义预设保持原样；`settings.savedPresets` 只在 `saved_presets_bundle` 缺失时继承一次。出厂内容迁移只作用于内置预设。
 - 预设落库判断与切换脏检查共用同一套稳定序列化比较；引导结果幂等——同一份数据第二次引导不得产生写入。
 - SillyTavern Codec 只提供可选 `readPresetPrompts`：把来源 Prompt 候选列表收口为内部传统 Prompt 块。顺序容器、候选库丢弃与 `model → assistant` 只能由该 Codec 判定，通用用例不得反向识别来源字段。有 `prompt_order` 时按 100001 优先顺序导入；完全缺失时按 `prompts` 原顺序保留。
 - `PromptAssemblyResult.messages` 是 Provider 投影前唯一权威消息；发送和重生成不得从 `systemInstruction + history` 再建第二份消息。
 - 请求整形（role wrapper、system squash、assistant prefill、stop sequences）在传统路径内完成，报告随 `PromptAssemblyResult.requestShaping` 返回。
-- Prompt 历史查询窗口同时满足编排历史块与世界书扫描；未声明 `chat_history` 只代表不发送历史，不代表禁用世界书触发上下文。
+- Prompt 历史查询窗口同时满足历史消息与世界书扫描；未声明 `chat_history` 只代表不发送历史，不代表禁用世界书触发上下文。
 
 ### 会话目录与删除安全
 

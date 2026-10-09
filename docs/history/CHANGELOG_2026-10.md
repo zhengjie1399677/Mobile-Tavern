@@ -1,5 +1,12 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-09：**排查"部分 Android 机型整屏看不清 + 点不动"并加固现场取证；清理编排时代文档遗留；预设表单拆分与 8 语言文案补全。**
+  1. **诊断盲区（确定缺陷，已修）**：主题/遮挡层自检此前只扫 `#root`，而 Base UI 弹层默认 portal 到 `<body>`（`dialog-overlay` 是 `fixed inset-0 bg-black/75`）——弹层遮罩压住屏幕时报告必然显示"无遮挡层"。扫描面改为 `document.body`，报告附 `data-slot` 与 `backdrop-filter` 取值，并新增两条用例。
+  2. **渲染层取证**：新增运行期错误黑匣子（`src/utils/runtimeErrorLog.ts`，挂在既有唯一捕获点 `installGlobalErrorHandlers` 上，不重复注册监听），第 14 项报告列出最近 5 条；`index.html` 静态声明 `<meta name="color-scheme" content="dark light">`，防止 WebView 在应用接管主题前做"算法深色"；写入遮罩去掉 `backdrop-blur-[2px]`，并在卡住超过 10s 时先落日志（部分 WebView 会把大面积 `backdrop-filter` 合成成不透明黑，而该层正是故障时唯一还在显示的东西）。
+  3. **文档清理**：`sillytavern_compat.md` 删除/重写 7 处编排时代条目（导入快照、`legacy` 编排草稿、双视图同步、撤销栈、连带删除提示、`PromptBundleV2.prompt` 权威、验收脚本输出列）；`module_contracts.md` 合并重复的迁移条目、补上"诊断由存储边界聚合落日志"、去掉"编排历史块"。
+  4. **预设表单**：正则编辑 Modal 拆分为 `RegexEditorDialog.tsx`（`RegexManagementSection` 845 → 559 行，交互与 className 逐字保持），预设表单内 69 处硬编码中文转为 i18n 键并同步 8 个语言文件。
+  5. **验证**：`tsc`、`check:i18n`（引用 1076 / 定义 1232 × 8 语言一致）、`npm test`（197 个 Vitest 文件 / 1371 例 + 86 个系统套件）全绿。**原始故障尚未复现**：等待反馈者截图与"底栏是否可点、故障前操作、滑动是否恢复"三项判别信息；若确认为 `backdrop-filter` 合成异常，再评估「显示兼容模式」开关。
+
 - 2026-10-09：**预设子系统审查修复（两个数据丢失缺陷 + 读取边界加固 + 死代码清理）。**
   1. **修复"预设正则整条轨道被静默清空"**：编辑器字段 `scope` 曾随对象写进设置并进入预设快照，读取时因实体 schema `.strict()` 校验失败而在末级降级里清空**全部**正则。现在 `saveRegex` 经 `toPersistedRegexScript` 剥离编辑器字段，`bundleMigration.toRegexScripts` 改为逐条白名单构造 + 单条 schema 校验（未知字段只从该条剔除并留 `regex-script-fields-dropped` 诊断、坏条目单独丢弃），末级降级保留已校验脚本，不再整轨清空。
   2. **修复"单条脏记录让整份预设列表不可读"**：`readPresetBundleList` 逐条 try/catch，`id` 不符合实体契约（空串/超 200 字符）的记录按不可识别丢弃并留诊断；读取面不再有会抛错的 `parse`（`module_contracts.md` 早已明文禁止）。此前一条脏记录会让 `useSettingsLoader` 的加载整体中断（界面回落出厂默认、`isReady` 恒 false 导致设置不再落盘）。
