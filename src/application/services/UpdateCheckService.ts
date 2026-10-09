@@ -1,15 +1,15 @@
 import { IKernel, IKernelService, IUpdateCheckService, UpdateInfo } from "../serviceContracts";
+import { compareVersions } from "compare-versions";
 import { publicEnvironment } from "../../config";
 import { Logger } from "../../utils/logger";
 import { CLOUD_ENDPOINTS } from "../../utils/cloudEndpoints";
 
 const logger = Logger.create("UpdateCheckService");
 
-// 注意：客户端不再参与签名计算。
-// 历史问题：曾硬编码 HMAC 密钥 "TavernUpdateCheckSecretSalt" 并在客户端计算签名，
-// 但移动端 App 客户端密钥必然可被逆向提取，签名验证机制形同虚设。
-// 现架构：客户端只发送 clientVersion + userCredential + timestamp，
-// 防刷与防重放由服务端基于 IP 限流 + 时间戳校验统一负责。
+// 架构（2026-10-10 起）：原生客户端直接 GET 本仓库自有服务器的 /version.json，
+// 服务端从 downloads 目录实时推导"最新版本 + 发布日期 + 固定下载链接"，不再经过
+// 阿里云函数计算；是否为新版本由客户端按 compareVersions 自行判定（服务端无状态）。
+// 浏览器开发环境仍走 server.ts 的 /api/check-update 模拟端点。
 
 // Network Information API 类型扩展（部分浏览器使用厂商前缀）
 interface NetworkConnectionLike {
@@ -150,18 +150,22 @@ export class UpdateCheckService implements IUpdateCheckService {
 
     try {
       logger.info("Requesting update check", { url });
-      const response = await fetchFn(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          clientVersion: currentVersion,
-          userCredential,
-          timestamp,
-        }),
-        signal: activeSignal,
-      });
+      // 原生客户端：GET 自有服务器的 version.json（无状态、无需签名/时间戳）；
+      // 浏览器开发环境：沿用 server.ts 的 POST 模拟端点（保留原请求体形状）。
+      const response = isClient
+        ? await fetchFn(url, { method: "GET", signal: activeSignal })
+        : await fetchFn(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              clientVersion: currentVersion,
+              userCredential,
+              timestamp,
+            }),
+            signal: activeSignal,
+          });
 
       if (!response.ok) {
         throw new Error(`HTTP Error ${response.status}`);
@@ -169,36 +173,29 @@ export class UpdateCheckService implements IUpdateCheckService {
 
       const resJson = await response.json();
       
-      // 兼容本地模拟 server.ts 的返回，以及真实的阿里云 FC 返回格式
-      // 真实阿里云 FC 返回：{ success: true, data: { latestVersion, downloadUrl, fileName, ... } }
+      // 兼容两种返回：本站 version.json（平铺）与浏览器开发环境的 { success, data } 模拟结构
       if (resJson.success && resJson.data) {
-        let downloadUrl = resJson.data.downloadUrl || "";
-        if (!isTest && downloadUrl.includes(".aliyuncs.com/")) {
-          const targetVer = resJson.data.latestVersion || resJson.latestVersion || "1.6.1";
-          const cleanVer = targetVer.replace(/^v/, "");
-          downloadUrl = `https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/download/v${cleanVer}/MobileTavern.apk`;
-        }
         return {
           hasUpdate: true,
           // 优先使用服务端返回的 latestVersion，避免客户端硬编码导致版本不同步
           latestVersion: resJson.data.latestVersion || resJson.latestVersion || "",
-          downloadUrl,
+          downloadUrl: resJson.data.downloadUrl || "",
+          releaseDate: resJson.data.releaseDate || resJson.releaseDate,
           message: resJson.message,
           enablePush: resJson.data.enablePush !== false
         };
       }
       
-      // 本地模拟降级兼容
-      let downloadUrlFallback = resJson.downloadUrl || "";
-      if (!isTest && downloadUrlFallback.includes(".aliyuncs.com/")) {
-        const targetVer = resJson.latestVersion || "1.6.0";
-        const cleanVer = targetVer.replace(/^v/, "");
-        downloadUrlFallback = `https://gh.zwy.one/https://github.com/zhengjie1399677/Mobile-Tavern/releases/download/v${cleanVer}/MobileTavern.apk`;
-      }
+      // 本站 version.json：最新版本 + 发布日期 + 固定下载链接；是否为新版本客户端自行判定
+      const latestVersion = String(resJson.latestVersion || "").replace(/^v/, "");
+      const hasUpdate = latestVersion
+        ? compareVersions(latestVersion, String(currentVersion).replace(/^v/, "")) > 0
+        : resJson.hasUpdate === true;
       return {
-        hasUpdate: !!resJson.hasUpdate,
-        latestVersion: resJson.latestVersion || "1.6.0",
-        downloadUrl: downloadUrlFallback,
+        hasUpdate,
+        latestVersion: latestVersion || resJson.latestVersion || currentVersion,
+        downloadUrl: resJson.downloadUrl || resJson.versionedUrl || "",
+        releaseDate: typeof resJson.releaseDate === "string" ? resJson.releaseDate : undefined,
         message: resJson.message,
         enablePush: resJson.enablePush !== false
       };

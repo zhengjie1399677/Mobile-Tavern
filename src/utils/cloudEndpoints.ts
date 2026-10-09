@@ -17,8 +17,15 @@ export const CLOUD_ENDPOINTS = {
   trialToken: "https://mobile-ue-token-zcslobjkak.cn-hangzhou.fcapp.run",
   /** Trial key 下发端点（AES-GCM 加密，由 keyManager.ts 拉取并解密）。 */
   trialKey: "https://mobile-get-key-uggoeabkfb.cn-hangzhou.fcapp.run",
-  /** 版本更新检查端点（由 UpdateCheckService.ts 调用）。 */
-  updateCheck: "https://oss-get-moblie-pkyxzkhwob.cn-hangzhou.fcapp.run/api/check-update",
+  /**
+   * 版本更新检查端点（由 UpdateCheckService.ts 调用）。
+   *
+   * 本仓库自有服务器提供，不再依赖阿里云函数计算/OSS：
+   * - `latestVersion` / `releaseDate` / `downloadUrl` / `sha256` 全部由服务端从
+   *   `downloads` 目录实时推导，发布新 APK 后无需手工维护；
+   * - `downloadUrl` 固定为 `https://neural-node.xyz/dl/latest`，永远指向最新版本。
+   */
+  updateCheck: "https://neural-node.xyz/version.json",
   /** Catbot LLM 代理端点（备用聊天通道，由 LLMService.sendCatbotRequest 调用）。 */
   catbot: "https://catbot-gmkodirnhh.cn-hangzhou.fcapp.run/api/catbot",
 } as const;

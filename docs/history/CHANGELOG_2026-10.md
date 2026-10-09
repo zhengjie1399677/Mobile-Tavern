@@ -1,5 +1,15 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-10：**新增「固定最新下载链接 + 版本信息接口」，更新检查从阿里云函数计算迁到自有服务器（用户要求）。**
+  1. **服务端（`/root/download-tracker/server.js`，systemd `download-tracker.service`）**新增两条路由，数据全部**从 `downloads` 目录实时推导**，发布新 APK 后不需要手工维护任何文件：
+     - `GET /dl/latest`（别名 `/latest`）→ 302 到版本号最高的 `mobile-tavern-<ver>-release.apk`，并写入 `/var/log/download-tracker.log`（带 `via:"latest"`），保持下载统计口径；
+     - `GET /version.json`（别名 `/dl/version.json`）→ `{success, latestVersion, releaseDate, releaseTimestamp, fileName, size, sha256, platform, downloadUrl, versionedUrl, directUrl, message}`，`downloadUrl` 恒为 `https://neural-node.xyz/dl/latest`；`sha256` 按 `文件:mtime:size` 缓存，避免每次请求重算 19MB。
+       实测：`latestVersion=1.9.2`、`releaseDate=2026-10-08`、`size=18982224`、`sha256` 与服务端 `sha256sum` 一致；`/dl/latest` 302 且在下载日志里留下 `via:"latest"` 记录。
+  2. **nginx**（`/etc/nginx/conf.d/xui.conf`，改前备份 `/root/xui.conf.bak-20261010-version`）主域新增 `location = /version.json` 反代到 8787；`/dl/` 本就反代同一服务，因此 `/dl/latest` 无需额外配置。
+  3. **客户端**：`CLOUD_ENDPOINTS.updateCheck` 由阿里云 FC（`oss-get-moblie-*.fcapp.run/api/check-update`，配合已废弃的 OSS 签名下载）改为 `https://neural-node.xyz/version.json`；原生客户端改为 **GET（无状态、无签名/时间戳）**，浏览器开发环境仍走 `server.ts` 的 POST 模拟端点。**是否为新版本改由客户端 `compareVersions(latestVersion, currentVersion)` 判定**（服务端不再返回 `hasUpdate`），`UpdateInfo` 新增 `releaseDate`，并删除已失效的 `.aliyuncs.com` → `gh.zwy.one` 改写分支。
+  4. **宣传页**：下载按钮与 JSON-LD `downloadUrl` 改为固定链接 `https://neural-node.xyz/dl/latest`（不再随版本号变化；线上部署版需按发布流程同步）。
+  5. **验证**：公网实测两个新地址；新增 `tests/vitest/updateCheckService.test.ts`（3 例：更高版本判定更新并带出日期与固定链接、同版本/更高版本不提示、无 `latestVersion` 的响应不误报最新）；命中测试与 `tsc` 通过。
+
 - 2026-10-10：**旧 WebView 降级配色层（Chrome <111 可读性修复）+ 工作台图表换口径与性能收口。**
   1. **旧 WebView 降级层**：`src/index.css` 末尾新增 `@supports not (color: oklch(0% 0 0))`，5 个主题 × 19 个颜色变量 + 83 个 Tailwind 调色板变量改为等价 hex（与原 oklch 逐通道等价、对比度抽样未劣化）；半透明表面靠产物中 `@supports` 之外的基线声明自动退化为接近原色的实色底（已用产物逐条核对：只存在于 `@supports` 内的声明数 = 0）。自检第 9 项 `<111` 由 `OK (>=100)` 改为 WARNING；新增两条守卫（降级层完整且干净、调色板覆盖含数量下限），并做反向验证（改坏标记 → 用例失败）。根因：Tailwind v4 产物含 183 处 `oklch()`、989 处 `color-mix()`，Chrome 108 WebView 整条丢弃 → 面板无底色（透明）→ 两层页面文字叠在一起。
   2. **工作台换口径**：图表不再读"已水合消息窗口"（目录会话 `messages` 恒空、只有当前会话最近 50 条），改为经新增 `infrastructure/storage/repositories/activityMetricsRepository`（`createdAt` 索引 + `IDBKeyRange`）读取持久化消息的真实聚合；配套新增领域分桶 `domain/analytics/activityAggregation`、用例 `application/useCases/workbenchActivityUseCases`（版本键缓存）、唯一 Provider `components/workbench/WorkbenchActivityProvider` 与 `hooks/useLocalDayClock`（跨午夜统一基准）。冷启动即可见完整历史，"总会话数"改用目录口径。

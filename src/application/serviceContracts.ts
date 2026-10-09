@@ -613,6 +613,8 @@ export interface UpdateInfo {
   hasUpdate: boolean;
   latestVersion?: string;
   downloadUrl?: string;
+  /** 最新版本的发布日期（YYYY-MM-DD，服务端给出；旧接口可能缺省）。 */
+  releaseDate?: string;
   message?: string;
   enablePush?: boolean;
 }
