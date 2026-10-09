@@ -16,6 +16,10 @@
        都会暴露成整块深蓝/近黑，而环境光晕照旧画在上面，现场看起来就是"整屏发黑"。
        变量尚未定义时（首帧前）才回落到原来的深蓝。 */
     html, body {
+      /* 静态兜底在前、变量在后：旧 WebView 不认识 oklch() 时 `var(--background)` 会整条失效，
+         background-color 会退化成透明（"整屏发白/发黑 + 面板没底色"），因此必须先给一个
+         一定认识的颜色，再让支持新语法的环境用主题变量覆盖。 */
+      background-color: #0d1726;
       background-color: var(--background, #0d1726);
       margin: 0;
       padding: 0;
