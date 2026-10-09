@@ -505,6 +505,7 @@ export default {
   "preset_form.scope_preset": "Exclusivo do Preset",
   "preset_form.scope_char": "Exclusivo do Personagem",
   "preset_form.confirm_delete_regex": "Tem certeza de que deseja excluir o script regex {scope}【{name}】?",
+  "preset_form.confirm_delete_builtin_prompt": "Excluir【{name}】? O conteúdo será apagado e não pode ser desfeito.",
   "preset_form.regex_empty_error": "O nome do script e a expressão regular não podem estar vazios!",
   "preset_form.confirm_batch_delete_prompts": "Tem certeza de que deseja excluir em lote os {count} módulos de prompt selecionados? Os blocos correspondentes na composição também serão excluídos.",
   "preset_form.confirm_batch_delete_global_regex": "Tem certeza de que deseja excluir em lote os {count} scripts regex globais selecionados?",

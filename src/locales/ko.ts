@@ -512,6 +512,7 @@ export default {
   "preset_form.scope_preset": "프리셋 전용",
   "preset_form.scope_char": "캐릭터 전용",
   "preset_form.confirm_delete_regex": "{scope} 정규식 스크립트【{name}】을(를) 삭제하시겠습니까?",
+  "preset_form.confirm_delete_builtin_prompt": "【{name}】을(를) 삭제하시겠습니까? 내용이 지워지며 되돌릴 수 없습니다.",
   "preset_form.regex_empty_error": "스크립트 이름과 정규식 매칭 문자열은 비워둘 수 없습니다!",
   "preset_form.confirm_batch_delete_prompts": "선택한 {count}개의 프롬프트 모듈을 일괄 삭제하시겠습니까? 구성 내 대응 블록도 함께 삭제됩니다.",
   "preset_form.confirm_batch_delete_global_regex": "선택한 {count}개의 글로벌 정규식 스크립트를 일괄 삭제하시겠습니까?",

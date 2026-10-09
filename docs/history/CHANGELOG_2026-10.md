@@ -1,5 +1,15 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-09：**预设子系统审查修复（两个数据丢失缺陷 + 读取边界加固 + 死代码清理）。**
+  1. **修复"预设正则整条轨道被静默清空"**：编辑器字段 `scope` 曾随对象写进设置并进入预设快照，读取时因实体 schema `.strict()` 校验失败而在末级降级里清空**全部**正则。现在 `saveRegex` 经 `toPersistedRegexScript` 剥离编辑器字段，`bundleMigration.toRegexScripts` 改为逐条白名单构造 + 单条 schema 校验（未知字段只从该条剔除并留 `regex-script-fields-dropped` 诊断、坏条目单独丢弃），末级降级保留已校验脚本，不再整轨清空。
+  2. **修复"单条脏记录让整份预设列表不可读"**：`readPresetBundleList` 逐条 try/catch，`id` 不符合实体契约（空串/超 200 字符）的记录按不可识别丢弃并留诊断；读取面不再有会抛错的 `parse`（`module_contracts.md` 早已明文禁止）。此前一条脏记录会让 `useSettingsLoader` 的加载整体中断（界面回落出厂默认、`isReady` 恒 false 导致设置不再落盘）。
+  3. **迁移诊断可观测**：`settingsRepository.getStoredSavedPresets` 此前只取 `.bundles`、诊断被整体丢弃；现在按诊断码聚合输出 `console.warn`，静默降级至少可在日志里看到。
+  4. **脏检查补齐"未声明即启用"开关**：`useMainPrompt`／`useJailbreak` 两侧统一按 `!== false` 折算（与 `PromptService` 同口径），修复"用户改了它却看不到未保存标记、保存按钮不可点、切换即静默还原"。
+  5. **其余修复**：`substituteRegex` 界面默认值改为与运行期一致的 RAW(1)；角色轨 `regex_scripts` 统一经 `normalizeRegexScripts` 归一（对象形态不再让预设表单抛错白屏）；导入与删除活跃预设补"未保存修改"提示；内置主/规则提示词删除补二次确认；批量删除不再把内置伪条目纳入勾选；`trimStrings` 可正常键入逗号分隔的第二项；导入失败提示区分解析失败与存储失败，不再误报"格式错误"；预设切换时清空批量选择；折叠态写入移出 `setState` updater。
+  6. **死代码与守卫**：删除 v1 激活路径等无消费者导出（`resolvePresetBundleActivation`／`applyPresetBundleActivation`／`PresetBundleSource`／`projectPresetRuntime`／`applyPresetPromptConfig`／`isBuiltinBundle`／`BUILTIN_*`／`PresetBundleV1Like`）、无消费者的 `presetForm/index.ts` barrel 与三处未使用导入；架构守卫补 `applyPresetBundleActivation` 并新增"v1 激活入口不得回归"断言；修正 v2 字样与指向已删测试文件的悬空注释。
+  7. **测试**：新增 `tests/vitest/presetBundleMigration.test.ts`（14 例：未知字段不连坐兄弟脚本、超长 id、垃圾输入不抛错、修复前脏快照往返、干净快照无迁移写入）与 `tests/vitest/presetBundleLifecycle.test.ts`（7 例：脏检查含未声明即启用开关、快照形状、活跃预设定位）；`worldbook-preset.spec.ts` 的预设下拉断言改为匹配当前 Select 实现（原断言的原生 `<option>` 与 `📦/📄` 来源标识在代码中已不存在）。
+  8. **验证**：`npx tsc --noEmit`、`npm run check:i18n`（8 语言新增 `preset_form.confirm_delete_builtin_prompt`）、`npm test`（197 个 Vitest 文件 / 1368 例 + 86 个系统套件）全绿。**未纳入本次**：`RegexManagementSection.tsx`（837 行）按职责拆分、界面硬编码中文转 i18n 键、预设 e2e 需在真机/浏览器环境实际跑一遍确认。
+
 - 2026-10-09：**彻底删除「自由编排（Prompt 组装）」整条链路；预设实体升级到 v3。**
   1. **删除范围**：`src/domain/prompt-composition/**`（10 个文件）、`PromptCompositionRuntimeAdapter`、`PromptCompositionAssembly`、`domain/presets/promptSnapshot`、`promptSwitchSync`，以及 8 个编排专用 Vitest 与 `tests/suites/promptComposition.test.ts`。运行时 `PromptService` 只保留传统路径；`promptHistoryUseCases`、`MemoryAudit`、`publishMemoryAudit` 去掉编排判断与 `traces` 参数。
   2. **预设实体 v3（`schemaVersion: 3`，无兼容期）**：形状收敛为 `{schemaVersion, id, isBuiltin?, sampler, promptConfig, regexScripts, extensions?}`——`prompt` 编排快照整体删除，`legacyPromptConfig` 更名为 `promptConfig` 并成为**唯一 Prompt 权威**，`PromptConfig.composition`/`usePromptComposition`、`UserSettings.promptCompositionTemplates`、`SavedPresetBundle.promptPlan/composition/usePromptComposition`、`PromptPresetPlan*` 与 `SillyTavernPresetAnalysis` 全部移除。`bundleMigration` 重写为 v1/v2 → v3：只读取传统 Prompt 字段，v1 的 `promptPlan`/`composition`/`usePromptComposition` 与 v2 的 `prompt` 一律丢弃，未知键继续进 `extensions`，损坏记录仍逐级降级而不是失效。

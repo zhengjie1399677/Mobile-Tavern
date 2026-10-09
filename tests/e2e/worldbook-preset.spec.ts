@@ -1,10 +1,10 @@
 /**
- * 世界书导入持久化与预设来源区分 E2E 回归测试。
+ * 世界书导入持久化与预设列表 E2E 回归测试。
  *
  * 覆盖两个已修复 bug 的行为验证：
  *   1. 从全局导出格式 JSON 导入世界书到角色后，重启（reload）条目不消失
  *      （根因：catalog 空壳不显示 + 空壳覆盖完整角色卡）。
- *   2. 预设下拉区分内置（📦 · 内置）与导入（📄 · 导入/自定义）预设。
+ *   2. 预设下拉列出出厂预设与导入预设（出厂预设已降级为普通预设，不再有来源标识）。
  *
  * 遵循 AGENTS.md `TEST-CONTROLLED`：有限超时、中文文案断言、不加载境外 CDN。
  */
@@ -86,8 +86,8 @@ test.describe("世界书角色导入持久化", () => {
   });
 });
 
-test.describe("预设来源区分", () => {
-  test("预设下拉区分内置与导入预设", async ({ page }) => {
+test.describe("预设列表", () => {
+  test("下拉列出出厂预设与导入预设", async ({ page }) => {
     await page.goto("/", { timeout: 60_000 });
     await expect(page.locator("#root")).toBeVisible({ timeout: 60_000 });
 
@@ -95,12 +95,14 @@ test.describe("预设来源区分", () => {
     await page.getByRole("tab", { name: "设置" }).click();
     await page.getByRole("button", { name: /^预设/ }).click();
 
-    // 内置预设带「内置」来源标识
+    // 出厂预设已降级为普通预设，与导入预设同列于下拉（不再有来源标识）
     const presetSelect = page.getByLabel(/当前预设/);
     await expect(presetSelect).toBeVisible({ timeout: 10_000 });
+    await presetSelect.click();
     await expect(
-      presetSelect.locator('option', { hasText: "📦 基本预设 · 内置" }),
+      page.locator('[data-slot="select-item"]', { hasText: "基本预设" }),
     ).toHaveCount(1);
+    await page.keyboard.press("Escape");
 
     // 导入一个预设 JSON
     const importFile = page.locator('label:has-text("导入配置") input[type="file"]');
@@ -114,9 +116,11 @@ test.describe("预设来源区分", () => {
     await expect(page.getByText(/预设已导入/)).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: "确定" }).click();
 
-    // 下拉出现导入预设，带「导入/自定义」来源标识
+    // 下拉出现导入的预设
+    await presetSelect.click();
     await expect(
-      presetSelect.locator("option", { hasText: "📄 E2E 测试预设 · 导入/自定义" }),
+      page.locator('[data-slot="select-item"]', { hasText: "E2E 测试预设" }),
     ).toHaveCount(1);
+    await page.keyboard.press("Escape");
   });
 });

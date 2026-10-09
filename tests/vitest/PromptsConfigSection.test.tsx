@@ -14,6 +14,7 @@ function Harness({
   onUpdateCustomPrompt,
   onAddNewCustomPrompt,
   onDeleteCustomPrompt,
+  onDeleteBuiltinPrompt,
   onSettingsChange,
 }: {
   initial: UserSettings;
@@ -21,6 +22,7 @@ function Harness({
   onUpdateCustomPrompt?: (id: string, name: string, role: any, content: string) => void;
   onAddNewCustomPrompt?: () => void;
   onDeleteCustomPrompt?: (id: string) => Promise<void>;
+  onDeleteBuiltinPrompt?: (kind: "main" | "jailbreak") => Promise<void>;
   onSettingsChange?: (settings: UserSettings) => void;
 }) {
   const [settings, setSettings] = useState<UserSettings>(initial);
@@ -59,6 +61,7 @@ function Harness({
         handleUpdateCustomPrompt={updateCustomPrompt}
         handleAddNewCustomPrompt={onAddNewCustomPrompt ?? vi.fn()}
         handleDeleteCustomPrompt={onDeleteCustomPrompt ?? vi.fn(async () => undefined)}
+        handleDeleteBuiltinPrompt={onDeleteBuiltinPrompt ?? vi.fn(async () => undefined)}
         isPromptsFolded={false}
         handleTogglePromptsFold={vi.fn()}
         coreStatusText="0/4"

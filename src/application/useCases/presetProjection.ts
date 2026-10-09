@@ -10,21 +10,6 @@ import { toPresetPromptConfig } from "./presetPromptConfig";
  * 由这里投影：显式声明的字段整体替换，未声明字段回到运行期默认（不继承上一个预设）。
  */
 
-/** 预设拥有的运行期数据投影。 */
-export interface PresetRuntimeProjection {
-  sampler: PresetBundle["sampler"];
-  promptConfig: PresetBundle["promptConfig"];
-  regexScripts: PresetBundle["regexScripts"];
-}
-
-export function projectPresetRuntime(bundle: PresetBundle): PresetRuntimeProjection {
-  return {
-    sampler: bundle.sampler,
-    promptConfig: bundle.promptConfig,
-    regexScripts: bundle.regexScripts,
-  };
-}
-
 /**
  * v2 采样参数 → 运行期完整采样参数。
  *

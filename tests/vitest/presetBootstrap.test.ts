@@ -250,7 +250,7 @@ describe("resolvePresetBootstrap 预设列表", () => {
       storedPresets: [makeCustomPreset()],
     });
 
-    // 迁移入口负责补齐 `regexScripts`（见 presetEntityV2.test.ts），
+    // 迁移入口负责补齐 `regexScripts`（见 presetBundleMigration.test.ts），
     // 因此引导阶段不应再产生"正则被归一化"这类诊断噪音。
     expect(result.savedPresets.find((preset) => preset.id === "custom_1")?.regexScripts).toEqual([]);
     expect(codes(result)).not.toContain("preset-regex-scripts-normalized");

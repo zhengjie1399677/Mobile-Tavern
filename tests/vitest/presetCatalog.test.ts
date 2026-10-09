@@ -12,7 +12,7 @@ import {
 
 /**
  * 预设目录用例契约：锁定从 usePresetBundles 下沉到 application 层的列表代数与串行化语义。
- * 这些断言与 tests/vitest/usePresetBundles.test.ts 的 Hook 行为契约互补。
+ * Hook 侧的调用行为由 tests/vitest/presetSaveEffectiveness.test.ts 与组件用例覆盖。
  */
 
 /** 以出厂内置预设为模板生成测试预设包，避免手写完整 PromptConfig。 */

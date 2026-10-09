@@ -498,6 +498,7 @@ export default {
   "preset_form.scope_preset": "プリセット",
   "preset_form.scope_char": "キャラクター",
   "preset_form.confirm_delete_regex": "{scope} の正規表現スクリプト「{name}」を削除してもよろしいですか？",
+  "preset_form.confirm_delete_builtin_prompt": "「{name}」を削除しますか？内容は消去され、元に戻せません。",
   "preset_form.regex_empty_error": "スクリプト名と正規表現パターンは空にできません！",
   "preset_form.confirm_batch_delete_prompts": "選択した {count} 個のプロンプトモジュールを一括削除してもよろしいですか？編成内の対応ブロックも同時に削除されます。",
   "preset_form.confirm_batch_delete_global_regex": "選択した {count} 個のグローバル正規表現スクリプトを一括削除してもよろしいですか？",

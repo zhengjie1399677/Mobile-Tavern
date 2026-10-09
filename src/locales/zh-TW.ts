@@ -505,6 +505,7 @@ export default {
   "preset_form.scope_preset": "預設專屬",
   "preset_form.scope_char": "角色專屬",
   "preset_form.confirm_delete_regex": "確定要刪除 {scope} 正規表示式腳本【{name}】嗎？",
+  "preset_form.confirm_delete_builtin_prompt": "確定刪除【{name}】嗎？該提示詞內容會被清空且無法復原。",
   "preset_form.regex_empty_error": "腳本名稱和正規表示式匹配串不能為空！",
   "preset_form.confirm_batch_delete_prompts": "確定要批次刪除選中的 {count} 個提示詞模組嗎？編排中的同源區塊會一併刪除。",
   "preset_form.confirm_batch_delete_global_regex": "確定要批次刪除選中的 {count} 個全局正規表示式腳本嗎？",

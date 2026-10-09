@@ -11,7 +11,6 @@ import { DEFAULT_SETTINGS } from "./defaults";
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 import { persistImportedChatSession } from "../../application/useCases/chatImportUseCases";
-import { readPresetBundleList } from "../../domain/presets/bundleMigration";
 import {
   BackupPayloadError,
   normalizeBackupPayload,

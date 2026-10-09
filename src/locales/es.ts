@@ -498,6 +498,7 @@ export default {
   "preset_form.scope_preset": "Preajuste",
   "preset_form.scope_char": "Personaje",
   "preset_form.confirm_delete_regex": "¿Está seguro de que desea eliminar el script regex {scope} «{name}»?",
+  "preset_form.confirm_delete_builtin_prompt": "¿Eliminar «{name}»? Su contenido se borrará y no se puede deshacer.",
   "preset_form.regex_empty_error": "¡El nombre del script y el patrón regex no pueden estar vacíos!",
   "preset_form.confirm_batch_delete_prompts": "¿Está seguro de que desea eliminar por lotes los {count} módulos de prompt seleccionados? Los bloques correspondientes de la composición también se eliminarán.",
   "preset_form.confirm_batch_delete_global_regex": "¿Está seguro de que desea eliminar por lotes los {count} scripts regex globales seleccionados?",

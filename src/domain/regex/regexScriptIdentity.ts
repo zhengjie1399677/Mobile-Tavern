@@ -13,6 +13,35 @@ export function regexScriptKey(script: Pick<RegexScript, "id" | "scriptName">): 
   return typeof script.scriptName === "string" ? script.scriptName.trim() : "";
 }
 
+/**
+ * 正则脚本列表归一：SillyTavern 的 `regex_scripts` 既可能是数组，也可能是
+ * `{"0": {...}}` 形式的对象（历史导出与第三方卡都存在）——数组专有方法直接调用会抛错，
+ * 因此所有消费点必须先经这里归一。
+ *
+ * 只做容器形态归一，不逐字段修复：条目形状由调用方按现有口径判读。
+ */
+export function normalizeRegexScripts(value: unknown): RegexScript[] {
+  const list = Array.isArray(value)
+    ? value
+    : (value && typeof value === "object" ? Object.values(value) : []);
+  return list.filter((item): item is RegexScript =>
+    typeof item === "object" && item !== null && !Array.isArray(item));
+}
+
+/**
+ * 剥离编辑器专用字段（`scope`）后的持久化形态。
+ *
+ * `scope` 只用于把这次编辑路由到 global／preset／character 三个列表，属于界面状态；
+ * 一旦随对象写进设置或角色卡，就成了实体契约之外的字段。历史缺陷：带 `scope` 的预设
+ * 在下次读取时触发实体校验失败，整条正则轨道被清空（见 `bundleMigration` 的逐条收口）。
+ */
+export function toPersistedRegexScript<T extends RegexScript & { scope?: unknown }>(
+  script: T,
+): RegexScript {
+  const { scope: _scope, ...persisted } = script;
+  return persisted;
+}
+
 /** 按稳定身份写入脚本：命中则原地替换，未命中则追加。列表顺序保持稳定。 */
 export function upsertRegexScriptByKey(
   scripts: readonly RegexScript[],

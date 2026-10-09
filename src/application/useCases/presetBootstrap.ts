@@ -35,8 +35,8 @@ export const LEGACY_FORMAT_PRESET_ID = "bundle_format_preservation";
 /**
  * `/default_presets.json` 的收口结果。
  *
- * M1 保持与旧实现一致的宽松合并（未知键随展开透传）；字段级 Zod 校验与未知键丢弃
- * 属于后续预设实体 v2 的收口范围。
+ * 这里只做形状判定与宽松合并（未知键随展开透传）；字段级校验与未知键收口由预设实体
+ * schema（`domain/presets/contracts`）承担。
  */
 export interface ExternalPresetDefaults {
   promptConfig?: Partial<PromptConfig> | undefined;
@@ -130,8 +130,8 @@ export function resolveBuiltinPreset(
   return {
     bundle: {
       ...compiledBuiltin,
-      // 外部静态文件只修补自带预设的传统 Prompt 字段；`prompt` 快照是 v2 的唯一权威，
-      // 不允许被外部文件间接改写（与 v1 时代 `toPresetPromptConfig` 会剥掉编排字段一致）。
+      // 外部静态文件只修补自带预设的传统 Prompt 字段；`promptConfig` 是唯一 Prompt 权威，
+      // 不允许外部文件间接改写其它字段。
       promptConfig: toPresetPromptConfig({
         ...(compiledBuiltin.promptConfig ?? {}),
         ...patch,
@@ -218,7 +218,7 @@ function resolveStoredSettings(
     report("legacy-saved-presets-key-migrated", `count=${stored.savedPresets.length}`);
   }
 
-  // v2 实体的 `regexScripts` 由领域迁移保证是数组（缺失即补空），此处不再重复归一化。
+  // 实体的 `regexScripts` 由领域迁移保证是数组（缺失即补空），此处不再重复归一化。
   let list = storedList;
 
   const withoutLegacyEntry = list.filter((bundle) => bundle.id !== LEGACY_FORMAT_PRESET_ID);
@@ -286,8 +286,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * 读取一个宽松的配置补丁。
  *
- * 返回值在写入前会与出厂基底合并，未知键随展开透传（与旧实现的 `any` 行为一致）；
- * 字段级校验由后续预设实体 v2 的 schema 承担。
+ * 返回值在写入前会与出厂基底合并，未知键随展开透传；
+ * 字段级校验由预设实体 schema（v3）承担。
  */
 function readConfigPatch<T>(value: unknown): Partial<T> | undefined {
   return isRecord(value) ? (value as Partial<T>) : undefined;

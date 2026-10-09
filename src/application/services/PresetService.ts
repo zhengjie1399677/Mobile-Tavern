@@ -17,9 +17,9 @@ import {
  *   - 物理隔离：不侵入 Kernel，不污染通用的 DatabaseService（preset 是业务实体）
  *   - 资源回收：持有服务级 AbortController，destroy 时中止进行中的异步任务
  *
- * 实体版本：对外只有 `PresetBundle`。v1 记录在**存储读取边界**经
- * `domain/presets/bundleMigration` 迁移（能读就不能失效），因此本服务不再做 v1 归一化，
- * 写入也永远只有 v2 形态。
+ * 实体版本：对外只有 `PresetBundle`。v1/v2 记录在**存储读取边界**经
+ * `domain/presets/bundleMigration` 迁移（能读就不能失效），因此本服务不再做旧形状归一化，
+ * 写入也永远只有当前实体版本（v3）形态。
  *
  * 注意：saved_presets_bundle 物理上存储在 settings Store 中（键名独立），
  * 但逻辑上属于独立的 preset 业务域，故独立封装为 PresetService，

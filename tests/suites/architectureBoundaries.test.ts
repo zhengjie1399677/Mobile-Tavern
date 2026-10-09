@@ -247,10 +247,20 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "预设列表的存储读取必须经 domain/presets/bundleMigration 的迁移入口，禁止按 v1 形状直接读"
   );
 
+  // v1 激活入口已随编排链路整体删除：既守"不得回归"，也守 hook 层不得自带激活代数。
+  const presetLifecycleUseCase = read("src/application/useCases/presetBundleLifecycle.ts");
+  assert(
+    !presetLifecycleUseCase.includes("export function resolvePresetBundleActivation") &&
+      !presetLifecycleUseCase.includes("export function applyPresetBundleActivation"),
+    "v1 预设激活入口不得回归；激活只允许经唯一投影 projectPresetActivation"
+  );
+
   for (const directory of ["src/hooks", "src/components", "src/tabs", "src/contexts"]) {
     for (const file of listCodeFiles(directory)) {
+      const content = read(file);
       assert(
-        !read(file).includes("resolvePresetBundleActivation"),
+        !content.includes("resolvePresetBundleActivation") &&
+          !content.includes("applyPresetBundleActivation"),
         `${file} 必须经唯一投影 projectPresetActivation 激活预设，不得调用 v1 激活路径`
       );
     }

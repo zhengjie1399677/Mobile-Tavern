@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
-import type { UserSettings, CharacterCard, RegexScript, CustomPromptBlock } from "../../types";
+import type { UserSettings, CharacterCard, RegexScript, PromptConfig, CustomPromptBlock } from "../../types";
 import { resolveActivePresetBundle } from "../../application/useCases/presetBundleLifecycle";
 import { removePromptBlocksByIds } from "../../domain/prompts/promptBlockIdentity";
 import {
+  normalizeRegexScripts,
   regexScriptKey,
   removeRegexScriptByKey,
   setRegexScriptDisabledByKey,
+  toPersistedRegexScript,
   upsertRegexScriptByKey,
 } from "../../domain/regex/regexScriptIdentity";
 
@@ -63,25 +65,19 @@ export function usePresetFormState({
   });
 
   const handleToggleSamplersFold = () => {
-    setIsSamplersFolded((prev) => {
-      const next = !prev;
-      localStorage.setItem("mobile_tavern_preset_fold_samplers", String(next));
-      return next;
-    });
+    const next = !isSamplersFolded;
+    localStorage.setItem("mobile_tavern_preset_fold_samplers", String(next));
+    setIsSamplersFolded(next);
   };
   const handleTogglePromptsFold = () => {
-    setIsPromptsFolded((prev) => {
-      const next = !prev;
-      localStorage.setItem("mobile_tavern_preset_fold_prompts", String(next));
-      return next;
-    });
+    const next = !isPromptsFolded;
+    localStorage.setItem("mobile_tavern_preset_fold_prompts", String(next));
+    setIsPromptsFolded(next);
   };
   const handleToggleRegexFold = () => {
-    setIsRegexFolded((prev) => {
-      const next = !prev;
-      localStorage.setItem("mobile_tavern_preset_fold_regex", String(next));
-      return next;
-    });
+    const next = !isRegexFolded;
+    localStorage.setItem("mobile_tavern_preset_fold_regex", String(next));
+    setIsRegexFolded(next);
   };
 
   // 计算卡片折叠状态摘要信息
@@ -100,19 +96,28 @@ export function usePresetFormState({
 
   const activeGlobalRegex = (settings.globalRegexScripts || []).filter((r: RegexScript) => !r.disabled).length;
   const activePresetRegex = (settings.presetRegexScripts || []).filter((r: RegexScript) => !r.disabled).length;
-  const activeCharRegex = (activeCharacter?.extensions?.regex_scripts || []).filter((r: RegexScript) => !r.disabled).length;
+  const activeCharRegex = normalizeRegexScripts(activeCharacter?.extensions?.regex_scripts)
+    .filter((r) => !r.disabled).length;
 
   // 正则脚本编辑器局部状态
   const [editingRegex, setEditingRegex] = useState<EditableRegexScript | null>(null);
   const [isRegexModalOpen, setIsRegexModalOpen] = useState(false);
 
+  // 切换预设时清空批量选择：选择里存的是跨预设可能重名的 key，
+  // 留着会让下一次"删除选中"误伤新预设的同名条目。
+  useEffect(() => {
+    setSelectedPromptIds([]);
+    setSelectedGlobalRegexIds([]);
+    setSelectedPresetRegexIds([]);
+    setIsBatchDeletingPrompts(false);
+    setIsBatchDeletingGlobalRegex(false);
+    setIsBatchDeletingPresetRegex(false);
+  }, [activeBundleId]);
+
   const toggleRegexDisabled = async (id: string, disabled: boolean, scope: "global" | "preset" | "character") => {
     if (scope === "character") {
       if (!activeCharacter) return;
-      const rawScripts = activeCharacter.extensions?.regex_scripts || [];
-      const scripts = Array.isArray(rawScripts)
-        ? rawScripts
-        : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
+      const scripts = normalizeRegexScripts(activeCharacter.extensions?.regex_scripts);
       // 身份按 regexScriptKey 判定：缺 id 的历史脚本用 scriptName，否则命中不了、开关静默失效。
       const updatedScripts = setRegexScriptDisabledByKey(scripts, id, disabled);
       if (updatedScripts === scripts) return;
@@ -145,10 +150,7 @@ export function usePresetFormState({
 
     if (scope === "character") {
       if (!activeCharacter) return;
-      const rawScripts = activeCharacter.extensions?.regex_scripts || [];
-      const scripts = Array.isArray(rawScripts)
-        ? rawScripts
-        : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
+      const scripts = normalizeRegexScripts(activeCharacter.extensions?.regex_scripts);
       const updatedScripts = removeRegexScriptByKey(scripts, id);
       if (updatedScripts === scripts) return;
       const updatedChar = {
@@ -181,11 +183,8 @@ export function usePresetFormState({
     const scope = reg.scope || "global";
     if (scope === "character") {
       if (!activeCharacter) return;
-      const rawScripts = activeCharacter.extensions?.regex_scripts || [];
-      const scripts = Array.isArray(rawScripts)
-        ? rawScripts
-        : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
-      const nextList = upsertRegexScriptByKey(scripts, reg);
+      const scripts = normalizeRegexScripts(activeCharacter.extensions?.regex_scripts);
+      const nextList = upsertRegexScriptByKey(scripts, toPersistedRegexScript(reg));
       const updatedChar = {
         ...activeCharacter,
         extensions: {
@@ -202,7 +201,7 @@ export function usePresetFormState({
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
       return {
         ...prev,
-        [field]: upsertRegexScriptByKey(prev[field] || [], reg),
+        [field]: upsertRegexScriptByKey(prev[field] || [], toPersistedRegexScript(reg)),
       };
     });
     setIsRegexModalOpen(false);
@@ -254,6 +253,26 @@ export function usePresetFormState({
     setIsBatchDeletingPresetRegex(false);
   };
 
+  /**
+   * 删除内置「系统提示词 / 规则提示词」。
+   *
+   * 该动作会清空整段提示词且没有撤销，必须与自定义条目同口径二次确认
+   * （列表里删除按钮紧贴展开箭头，误触会静默丢掉整段内容）。
+   */
+  const deleteBuiltinPrompt = async (kind: "main" | "jailbreak") => {
+    const name = t(kind === "main" ? "prompts.system_prompt" : "prompts.jailbreak");
+    const ok = await showCustomConfirm(t("preset_form.confirm_delete_builtin_prompt", { name }));
+    if (!ok) return;
+    updateSettings((prev) => {
+      const promptConfig: PromptConfig = kind === "main"
+        ? { ...prev.promptConfig, useMainPrompt: false, mainPrompt: "" }
+        : { ...prev.promptConfig, useJailbreak: false, jailbreakPrompt: "" };
+      if (kind === "main") delete promptConfig.mainPromptName;
+      else delete promptConfig.jailbreakPromptName;
+      return { ...prev, promptConfig };
+    });
+  };
+
   return {
     activeBundleId,
     selectedPromptIds,
@@ -286,6 +305,7 @@ export function usePresetFormState({
     toggleRegexDisabled,
     deleteRegex,
     saveRegex,
+    deleteBuiltinPrompt,
     handleBatchDeletePrompts,
     handleBatchDeleteGlobalRegex,
     handleBatchDeletePresetRegex,

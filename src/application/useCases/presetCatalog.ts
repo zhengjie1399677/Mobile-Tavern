@@ -10,8 +10,8 @@ import type { PresetBundle } from "../../domain/presets/contracts";
  * 边界：
  * - 无 React、无 IndexedDB、无环境读取；物理存储经 `PresetCatalogPort` 注入，由调用方（Hook）
  *   把 `PresetService` 适配为端口，用例不直接依赖 `infrastructure/storage`。
- * - 内置预设保护保持调用方前置过滤：判定依赖 hooks 层的出厂默认值，application 不得反向依赖 hooks。
- *   调用方必须先把可删 id 过滤出来，删除变换本身只做机械删除（`CHANGE-SAFE`：不改变既有删除规则）。
+ * - 删除规则由调用方决定（默认预设已降级为普通预设，不再有内置保护）；调用方先把可删 id
+ *   过滤出来，删除变换本身只做机械删除（`CHANGE-SAFE`：不改变既有删除规则）。
  * - 纯变换不生成 id、不读时钟：导入的 id 由导入用例生成，快照 id 由调用方决定。
  * - `changed` 只描述本次变换是否真的改动了列表；`mutate` 与改造前一致，每个用户动作都写回一次 Store。
  */

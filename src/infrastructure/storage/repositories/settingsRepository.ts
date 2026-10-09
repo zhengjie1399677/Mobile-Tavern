@@ -14,7 +14,7 @@
 
 import type { UserSettings } from "../../../types";
 import type { PresetBundle } from "../../../domain/presets/contracts";
-import { readPresetBundleList } from "../../../domain/presets/bundleMigration";
+import { readPresetBundleList, type PresetBundleDiagnostic } from "../../../domain/presets/bundleMigration";
 import { getDB } from "../idbConnection";
 import {
   enqueueWrite,
@@ -286,7 +286,7 @@ export async function prepareSettingsStorageRecords(
 /**
  * 读取预设实体列表。
  *
- * 存储里可能是 v2 记录，也可能是历史 v1 记录（`preset`/`promptConfig`/`promptPlan`），
+ * 存储里可能是当前版本记录，也可能是历史 v1/v2 记录（`preset`/`promptConfig`/`promptPlan`），
  * 因此一律经 `readPresetBundleList` 迁移：能读就不能失效，迁移与修复的结论由诊断返回，
  * 不对调用方抛错（`CHANGE-SAFE`）。
  */
@@ -302,10 +302,33 @@ export async function getStoredSavedPresets(): Promise<PresetBundle[] | null> {
     bindReadonlyTransactionAbort(transaction, reject);
   });
   if (raw === null || raw === undefined) return null;
-  return readPresetBundleList(raw).bundles;
+  const result = readPresetBundleList(raw);
+  reportPresetMigrationDiagnostics(result.diagnostics);
+  return result.bundles;
 }
 
-/** 写出预设实体列表；参数类型即 v2，历史形状无法写回。 */
+/**
+ * 把预设读取的迁移/降级结论落到日志。
+ *
+ * 降级设计（丢弃坏记录、剔除未知字段、修复损坏记录）本身是静默的，诊断是它唯一的
+ * 可观测性来源；这里按诊断码聚合输出，避免每次读取刷屏（`CHANGE-SAFE`）。
+ */
+function reportPresetMigrationDiagnostics(diagnostics: readonly PresetBundleDiagnostic[]): void {
+  if (diagnostics.length === 0) return;
+  const counts = new Map<string, number>();
+  for (const item of diagnostics) {
+    counts.set(item.code, (counts.get(item.code) ?? 0) + 1);
+  }
+  const summary = [...counts.entries()].map(([code, count]) => `${code}×${count}`).join(", ");
+  const samples = diagnostics
+    .filter((item) => item.detail)
+    .slice(0, 3)
+    .map((item) => `${item.code}:${item.detail}`)
+    .join(" | ");
+  console.warn(`[preset] 预设列表读取发生迁移/降级：${summary}${samples ? `（示例 ${samples}）` : ""}`);
+}
+
+/** 写出预设实体列表；参数类型即当前实体版本，历史形状无法写回。 */
 export async function saveStoredSavedPresets(presets: PresetBundle[], signal?: AbortSignal): Promise<void> {
   return enqueueWrite(async (ctx) => {
     const db = await getDB();

@@ -12,11 +12,8 @@ interface PromptHistoryRequirement {
   preserveFirstAssistant: boolean;
 }
 
-export function resolvePromptHistoryRequirement(
-  session: ChatSession,
-  settings: UserSettings,
-): PromptHistoryRequirement {
-  void session;
+/** 传统路径的历史窗口要求：窗口只由设置决定（会话参数随编排链路一并移除）。 */
+function resolvePromptHistoryRequirement(settings: UserSettings): PromptHistoryRequirement {
   return {
     limit: resolveLegacyRecentTurns(settings),
     preserveFirstAssistant: true,
@@ -42,7 +39,7 @@ export async function buildAuthoritativePromptSession(
   settings: UserSettings,
   beforeMessageId?: string,
 ): Promise<ChatSession> {
-  const requirement = resolvePromptHistoryRequirement(session, settings);
+  const requirement = resolvePromptHistoryRequirement(settings);
   const messages = requirement.limit === 0
     ? []
     : await databaseService.getSessionPromptMessages(session.id, {

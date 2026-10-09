@@ -502,6 +502,7 @@ export default {
   "preset_form.scope_preset": "Preset",
   "preset_form.scope_char": "Character",
   "preset_form.confirm_delete_regex": "Are you sure you want to delete the {scope} regex script '{name}'?",
+  "preset_form.confirm_delete_builtin_prompt": "Delete '{name}'? Its content will be cleared and this cannot be undone.",
   "preset_form.regex_empty_error": "Script name and regex pattern cannot be empty!",
   "preset_form.confirm_batch_delete_prompts": "Are you sure you want to batch delete the selected {count} prompt modules? The matching blocks in the composition will be deleted as well.",
   "preset_form.confirm_batch_delete_global_regex": "Are you sure you want to batch delete the selected {count} global regex scripts?",

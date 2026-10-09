@@ -152,8 +152,9 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
  * 内置预设的可读来源（v1 形状）。
  *
  * 出厂内容用 v1 字面量书写最直观（传统 Prompt 字段是主要维护对象），运行时统一经
- * `requirePresetBundle` 迁移为 v2 实体导出；迁移结果由 `tests/vitest/presetEntityV2.test.ts`
- * 锁定，因此这里不允许出现手写的 v2 结构分支。v1 字面量保持导出，供迁移对照测试使用。
+ * `requirePresetBundle` 迁移为当前实体（v3）导出；迁移行为由
+ * `tests/vitest/presetBundleMigration.test.ts` 锁定，因此这里不允许出现手写的 v3 结构分支。
+ * v1 字面量保持导出，供迁移对照测试使用。
  */
 export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1: SavedPresetBundle = {
   id: "bundle_mobile_tavern_basic",

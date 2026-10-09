@@ -1,7 +1,10 @@
-import type { RegexScript, SavedPresetBundle } from "../../types";
+import type { ZodError } from "zod";
+import type { RegexScript } from "../../types";
 import {
   PRESET_BUNDLE_SCHEMA_VERSION,
+  PRESET_ID_MAX_LENGTH,
   presetBundleSchema,
+  presetRegexScriptSchema,
   presetSamplerSchema,
   type PresetBundle,
   type PresetSampler,
@@ -25,6 +28,7 @@ export type PresetBundleDiagnosticCode =
   | "preset.bundle.repaired"
   | "preset.bundle.invalid-record"
   | "preset.bundle.regex-script-dropped"
+  | "preset.bundle.regex-script-fields-dropped"
   | "preset.bundle.unknown-keys-preserved";
 
 export interface PresetBundleDiagnostic {
@@ -81,10 +85,32 @@ const SAMPLER_NUMERIC_KEYS = [
   "maxTokens",
 ] as const;
 
+/** 正则脚本实体可识别的字段；与导入边界（`preparePresetBundleImport`）同口径。 */
+const REGEX_SCRIPT_FIELDS: readonly string[] = [
+  "id",
+  "scriptName",
+  "findRegex",
+  "replaceString",
+  "disabled",
+  "placement",
+  "runOnEdit",
+  "markdownOnly",
+  "promptOnly",
+  "substituteRegex",
+  "minDepth",
+  "maxDepth",
+  "trimStrings",
+];
+
+const REGEX_SCRIPT_OPTIONAL_BOOLEAN_KEYS = ["runOnEdit", "markdownOnly", "promptOnly"] as const;
+const REGEX_SCRIPT_OPTIONAL_DEPTH_KEYS = ["minDepth", "maxDepth"] as const;
+
 /** 读取单条预设记录；无法作为预设识别的记录返回 null。 */
 export function readPresetBundle(raw: unknown): PresetBundleReadResult | null {
   if (!isRecord(raw)) return null;
-  const id = readNonEmptyString(raw.id);
+  // 标识不符合实体契约（缺失/空串/超长）的记录没有可用身份，按不可识别丢弃并留诊断。
+  // 绝不能带进实体校验再让 `parse` 抛错——那会让整份列表读取失效（`CHANGE-SAFE`）。
+  const id = readBundleId(raw.id);
   if (id === undefined) return null;
 
   if (raw.schemaVersion === PRESET_BUNDLE_SCHEMA_VERSION) return readCurrentRecord(raw, id);
@@ -113,7 +139,17 @@ export function readPresetBundleList(raw: unknown): PresetBundleListReadResult {
   let migrated = false;
 
   for (const entry of raw) {
-    const result = readPresetBundle(entry);
+    let result: PresetBundleReadResult | null;
+    try {
+      result = readPresetBundle(entry);
+    } catch (error: unknown) {
+      // 读取边界最后一道保险：未预期异常只影响这一条记录，不得让整份列表失效。
+      diagnostics.push({
+        code: "preset.bundle.invalid-record",
+        detail: `${describeRecord(entry)}:${describeError(error)}`,
+      });
+      continue;
+    }
     if (result === null) {
       diagnostics.push({ code: "preset.bundle.invalid-record", detail: describeRecord(entry) });
       continue;
@@ -125,7 +161,7 @@ export function readPresetBundleList(raw: unknown): PresetBundleListReadResult {
   return { bundles, migrated, diagnostics };
 }
 
-function readCurrentRecord(raw: Record<string, unknown>, id: string): PresetBundleReadResult {
+function readCurrentRecord(raw: Record<string, unknown>, id: string): PresetBundleReadResult | null {
   const parsed = presetBundleSchema.safeParse(raw);
   if (parsed.success) {
     return { bundle: parsed.data, migrated: false, diagnostics: [] };
@@ -140,18 +176,19 @@ function readCurrentRecord(raw: Record<string, unknown>, id: string): PresetBund
     preserveFrom: raw,
     knownKeys: V2_KNOWN_KEYS,
   });
+  if (repaired.bundle === null) return null;
   return {
     bundle: repaired.bundle,
     migrated: true,
     diagnostics: [
-      { code: "preset.bundle.repaired", detail: parsed.error.issues.map((issue) => issue.path.join(".")).join(",") },
+      { code: "preset.bundle.repaired", detail: describeIssues(parsed.error) },
       ...repaired.diagnostics,
     ],
   };
 }
 
 /** v2 → v3：丢弃 `prompt` 编排快照，只保留 `legacyPromptConfig` 里的传统 Prompt 字段。 */
-function readV2Record(raw: Record<string, unknown>, id: string): PresetBundleReadResult {
+function readV2Record(raw: Record<string, unknown>, id: string): PresetBundleReadResult | null {
   const traditionalSource = isRecord(raw.legacyPromptConfig)
     ? raw.legacyPromptConfig
     : isRecord(raw.promptConfig) ? raw.promptConfig : undefined;
@@ -164,6 +201,7 @@ function readV2Record(raw: Record<string, unknown>, id: string): PresetBundleRea
     preserveFrom: raw,
     knownKeys: V2_KNOWN_KEYS,
   });
+  if (repaired.bundle === null) return null;
   return {
     bundle: repaired.bundle,
     migrated: true,
@@ -172,7 +210,7 @@ function readV2Record(raw: Record<string, unknown>, id: string): PresetBundleRea
 }
 
 /** v1 → v3：只取传统字段，`promptPlan`／`composition` 一并丢弃。 */
-function readV1Record(raw: Record<string, unknown>, id: string): PresetBundleReadResult {
+function readV1Record(raw: Record<string, unknown>, id: string): PresetBundleReadResult | null {
   const repaired = buildBundle({
     id,
     isBuiltin: raw.isBuiltin === true,
@@ -182,6 +220,7 @@ function readV1Record(raw: Record<string, unknown>, id: string): PresetBundleRea
     preserveFrom: raw,
     knownKeys: V1_KNOWN_KEYS,
   });
+  if (repaired.bundle === null) return null;
   return {
     bundle: repaired.bundle,
     migrated: true,
@@ -199,7 +238,13 @@ interface BuildBundleInput {
   knownKeys: readonly string[];
 }
 
-function buildBundle(input: BuildBundleInput): { bundle: PresetBundle; diagnostics: PresetBundleDiagnostic[] } {
+interface BuildBundleResult {
+  /** 无法构造出可读实体时为 null，调用方按"不可识别记录"丢弃。 */
+  bundle: PresetBundle | null;
+  diagnostics: PresetBundleDiagnostic[];
+}
+
+function buildBundle(input: BuildBundleInput): BuildBundleResult {
   const diagnostics: PresetBundleDiagnostic[] = [];
   const candidate: Record<string, unknown> = {
     schemaVersion: PRESET_BUNDLE_SCHEMA_VERSION,
@@ -222,18 +267,28 @@ function buildBundle(input: BuildBundleInput): { bundle: PresetBundle; diagnosti
   const parsed = presetBundleSchema.safeParse(candidate);
   if (parsed.success) return { bundle: parsed.data, diagnostics };
 
-  // 最后一级降级：丢掉无法校验的正则，保留可读的采样参数与 Prompt 字段。
+  // 最后一级降级：保留已逐条校验过的正则、可读的采样参数与 Prompt 字段。
+  // 绝不因为某个无法解释的字段而整轨清空用户数据（`CHANGE-SAFE`）。
   diagnostics.push({ code: "preset.bundle.repaired", detail: "候选未通过校验，已降级记录" });
   const fallback: Record<string, unknown> = {
     schemaVersion: PRESET_BUNDLE_SCHEMA_VERSION,
     id: input.id,
     sampler: toSampler(input.samplerSource, input.id),
     promptConfig: input.promptConfig ?? {},
-    regexScripts: [],
+    regexScripts: candidate.regexScripts,
   };
   if (input.isBuiltin) fallback.isBuiltin = true;
   if (preserved) fallback.extensions = preserved;
-  return { bundle: presetBundleSchema.parse(fallback), diagnostics };
+  const fallbackParsed = presetBundleSchema.safeParse(fallback);
+  if (fallbackParsed.success) return { bundle: fallbackParsed.data, diagnostics };
+
+  // 理论上不可达：标识已在读取入口按实体契约校验。真到了这里说明契约被改坏，
+  // 按"不可识别记录"丢弃并留诊断，仍然不抛错。
+  diagnostics.push({
+    code: "preset.bundle.invalid-record",
+    detail: describeIssues(fallbackParsed.error),
+  });
+  return { bundle: null, diagnostics };
 }
 
 function toSampler(raw: unknown, fallbackId: string): PresetSampler {
@@ -252,16 +307,30 @@ function toSampler(raw: unknown, fallbackId: string): PresetSampler {
   return parsed.success ? parsed.data : { id, name };
 }
 
+/**
+ * 逐条收口正则脚本：白名单构造候选 → 单条实体校验。
+ *
+ * 旧实现把整条记录 `...entry` 展开后交给 `.strict()` 校验，任何一个未知键（例如编辑器
+ * 曾经把 `scope` 一起写进对象）或类型不符的字段，都会让**整条轨道**在末级降级里被清空。
+ * 现在未知字段只从这一条里剔除（留诊断），校验失败的条目单独丢弃，其余脚本原样保留。
+ */
 function toRegexScripts(raw: unknown, diagnostics: PresetBundleDiagnostic[]): RegexScript[] {
   if (!Array.isArray(raw)) return [];
   const scripts: RegexScript[] = [];
-  for (const entry of raw) {
+  raw.forEach((entry, index) => {
     if (!isRecord(entry)) {
-      diagnostics.push({ code: "preset.bundle.regex-script-dropped", detail: describeRecord(entry) });
-      continue;
+      diagnostics.push({ code: "preset.bundle.regex-script-dropped", detail: `${index}:${describeRecord(entry)}` });
+      return;
     }
-    scripts.push({
-      ...entry,
+    const unknownKeys = Object.keys(entry).filter((key) => !REGEX_SCRIPT_FIELDS.includes(key));
+    if (unknownKeys.length > 0) {
+      diagnostics.push({
+        code: "preset.bundle.regex-script-fields-dropped",
+        detail: `${index}:${unknownKeys.join(",")}`,
+      });
+    }
+
+    const candidate: Record<string, unknown> = {
       id: readString(entry.id) ?? "",
       scriptName: readString(entry.scriptName) ?? "",
       findRegex: readString(entry.findRegex) ?? "",
@@ -270,8 +339,29 @@ function toRegexScripts(raw: unknown, diagnostics: PresetBundleDiagnostic[]): Re
       placement: Array.isArray(entry.placement)
         ? entry.placement.filter((item): item is number => typeof item === "number" && Number.isInteger(item))
         : [],
-    });
-  }
+    };
+    for (const key of REGEX_SCRIPT_OPTIONAL_BOOLEAN_KEYS) {
+      if (typeof entry[key] === "boolean") candidate[key] = entry[key];
+    }
+    if (typeof entry.substituteRegex === "number" && Number.isInteger(entry.substituteRegex)) {
+      candidate.substituteRegex = entry.substituteRegex;
+    }
+    for (const key of REGEX_SCRIPT_OPTIONAL_DEPTH_KEYS) {
+      const value = entry[key];
+      if (value === null) candidate[key] = null;
+      else if (typeof value === "number" && Number.isInteger(value)) candidate[key] = value;
+    }
+    if (Array.isArray(entry.trimStrings) && entry.trimStrings.every((item) => typeof item === "string")) {
+      candidate.trimStrings = entry.trimStrings;
+    }
+
+    const parsed = presetRegexScriptSchema.safeParse(candidate);
+    if (!parsed.success) {
+      diagnostics.push({ code: "preset.bundle.regex-script-dropped", detail: `${index}:${describeIssues(parsed.error)}` });
+      return;
+    }
+    scripts.push(parsed.data);
+  });
   return scripts;
 }
 
@@ -289,6 +379,13 @@ function collectUnknownKeys(
   return any ? preserved : undefined;
 }
 
+/** 预设标识必须非空且不超过实体契约长度，否则该记录没有可用身份。 */
+function readBundleId(value: unknown): string | undefined {
+  const id = readNonEmptyString(value);
+  if (id === undefined || id.length > PRESET_ID_MAX_LENGTH) return undefined;
+  return id;
+}
+
 function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
@@ -303,10 +400,16 @@ function describeRecord(value: unknown): string {
   return typeof value;
 }
 
+/** 校验问题摘要：`unrecognized_keys` 这类问题没有路径，退回 issue code，避免空诊断。 */
+function describeIssues(error: ZodError): string {
+  return error.issues.map((issue) => issue.path.join(".") || issue.code).join(",");
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : typeof error;
+}
+
 /** 记录形状判定：预设读取面只接受普通对象，数组与 null 都按不可读处理。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
-/** 供类型检查与调用方复用：v1 记录形状。 */
-export type PresetBundleV1Like = Partial<SavedPresetBundle> & { id: string };

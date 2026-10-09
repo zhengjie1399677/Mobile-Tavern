@@ -329,6 +329,8 @@ export const useSettingsLoader = ({
           }
 
           if (bootstrap.presetsDirty) {
+            // 启动引导发生在 isReady 之前，是唯一不经 catalog 串行队列的预设写入；
+            // 用户交互期间的所有读-改-写必须走 createPresetCatalog。
             await presetService.saveStoredSavedPresets(bootstrap.savedPresets);
           }
           if (needSave) {

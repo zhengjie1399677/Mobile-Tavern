@@ -44,7 +44,8 @@ export default tseslint.config(
       "no-undef": "off",
 
       // 未使用变量：tsconfig 未开 noUnusedLocals/Parameters，由 eslint 补位
-      // 历史存量先按 warning 呈现，改动文件由 lint-changed.cjs 强制归零
+      // 历史存量与改动文件都以 warning 呈现；门禁 lint-changed.cjs 用 --quiet 只阻断 error，
+      // warning 由代码审查与架构守卫跟踪（见该脚本头部说明）
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {

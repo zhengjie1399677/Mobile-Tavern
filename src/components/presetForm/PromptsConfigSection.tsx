@@ -27,6 +27,7 @@ interface PromptsConfigSectionProps {
   handleUpdateCustomPrompt: (id: string, name: string, role: "system" | "user" | "assistant", content: string) => void;
   handleAddNewCustomPrompt: () => void;
   handleDeleteCustomPrompt: (id: string) => Promise<void>;
+  handleDeleteBuiltinPrompt: (kind: "main" | "jailbreak") => Promise<void>;
   isPromptsFolded: boolean;
   handleTogglePromptsFold: () => void;
   coreStatusText?: string;
@@ -84,6 +85,7 @@ export default function PromptsConfigSection({
   handleUpdateCustomPrompt,
   handleAddNewCustomPrompt,
   handleDeleteCustomPrompt,
+  handleDeleteBuiltinPrompt,
   isPromptsFolded,
   handleTogglePromptsFold,
   selectedPromptIds,
@@ -315,18 +317,9 @@ export default function PromptsConfigSection({
   };
 
   const handleDelete = async (item: UnifiedPromptItem) => {
-    if (item.type === "main") {
-      updateSettings((prev) => {
-        const promptConfig: PromptConfig = { ...prev.promptConfig, useMainPrompt: false, mainPrompt: "" };
-        delete promptConfig.mainPromptName;
-        return { ...prev, promptConfig };
-      });
-    } else if (item.type === "jailbreak") {
-      updateSettings((prev) => {
-        const promptConfig: PromptConfig = { ...prev.promptConfig, useJailbreak: false, jailbreakPrompt: "" };
-        delete promptConfig.jailbreakPromptName;
-        return { ...prev, promptConfig };
-      });
+    // 内置条目与自定义条目同口径：先确认再清空，避免误触直接丢掉整段提示词。
+    if (item.type === "main" || item.type === "jailbreak") {
+      await handleDeleteBuiltinPrompt(item.type);
     } else {
       await handleDeleteCustomPrompt(item.targetId);
     }
@@ -578,7 +571,7 @@ export default function PromptsConfigSection({
                   >
                     <div className="flex items-center justify-between p-2 gap-2 pr-3 bg-muted/15 hover:bg-muted/30 transition-colors">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {isBatchDeletingPrompts && (
+                        {isBatchDeletingPrompts && p.type === "custom" && (
                           <Checkbox
                             checked={selectedPromptIds.includes(p.targetId)}
                             onCheckedChange={(checked) => {

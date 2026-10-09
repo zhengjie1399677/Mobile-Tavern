@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import type { PromptConfig, UserSettings } from "../../types";
+import type { UserSettings } from "../../types";
 import type { PresetBundle } from "../../domain/presets/contracts";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IKernel, IPresetService, IRuntimeProfileService } from "@/src/application/serviceContracts";
@@ -16,12 +16,10 @@ import {
 import { preparePresetBundleExport } from "../../application/useCases/preparePresetBundleExport";
 import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "./defaults";
 import {
-  applyPresetBundleActivation,
   buildPresetBundleSnapshot,
   collectPresetBundleReferences,
   isPresetBundleInSync,
   resolveActivePresetBundle,
-  type PresetBundleActivation,
 } from "../../application/useCases/presetBundleLifecycle";
 import { projectPresetActivation } from "../../application/useCases/presetProjection";
 import {
@@ -166,6 +164,19 @@ export const usePresetBundles = ({
       + "\n\n确定仍要删除吗？";
   }, [kernel]);
 
+  /**
+   * 丢弃未保存修改的二次确认。
+   *
+   * 切换预设、导入并激活新预设、删除活跃预设都会整体替换当前 Prompt 配置：
+   * 三条路径必须同口径提示，否则用户会以为"导入/删除不会动我未保存的编辑"。
+   */
+  const confirmDiscardUnsavedChanges = useCallback(async (action: string): Promise<boolean> => {
+    if (!isActivePresetDirty) return true;
+    return showCustomConfirm(
+      `当前预设存在未保存的修改，${action}后会丢失这些修改。\n\n如需保留，请先点击「保存修改到当前预设」或「另存为新预设副本」。\n\n仍要继续吗？`,
+    );
+  }, [isActivePresetDirty, showCustomConfirm]);
+
   const handleImportPresetJSON = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -174,6 +185,7 @@ export const usePresetBundles = ({
     reader.onload = async (loadEvent) => {
       try {
         const parsed: unknown = JSON.parse(loadEvent.target?.result as string);
+        if (!await confirmDiscardUnsavedChanges("导入并激活新预设")) return;
         const prepared = preparePresetBundleImport({
           input: parsed,
           fallbackName: file.name.replace(/\.json$/i, ""),
@@ -182,7 +194,11 @@ export const usePresetBundles = ({
           compatibilityCodec,
         });
         const importReportText = formatPresetOperationReport(prepared.report);
-        if (prepared.report.errors.length > 0) throw new Error("PRESET_IMPORT_REPORT_HAS_ERRORS");
+        if (prepared.report.errors.length > 0) {
+          // 报告带错误时按导入失败处理，并把诊断原文交给用户（不再笼统提示"格式错误"）。
+          await showCustomAlert(`预设导入失败。\n\n${importReportText}`);
+          return;
+        }
 
         const importedBundle: PresetBundle = prepared.bundle;
         // DB 是 savedPresets 的单一事实来源，避免陈旧闭包回退已保存预设。
@@ -197,14 +213,16 @@ export const usePresetBundles = ({
         await showCustomAlert(
           `预设已导入\n[${prepared.name}]${importReportText ? `\n\n${importReportText}` : ""}`,
         );
-      } catch {
-        await showCustomAlert("解析或保存预设 JSON 配置文件失败，请确保格式正确");
+      } catch (error: unknown) {
+        // 解析失败与写入失败必须能区分：日志留原始错误，提示不把存储故障说成"格式错误"。
+        console.error("[usePresetBundles] 预设导入失败", error);
+        await showCustomAlert("预设导入失败：请确认文件是有效的预设 JSON，且本地存储可写。");
       } finally {
         input.value = "";
       }
     };
     reader.readAsText(file);
-  }, [settings.promptConfig, updateSettings, showCustomAlert, showCustomConfirm, catalog, compatibilityCodec]);
+  }, [settings.promptConfig, updateSettings, showCustomAlert, catalog, compatibilityCodec, confirmDiscardUnsavedChanges]);
 
   const handleExportPresetJSON = useCallback(() => {
     const prepared = preparePresetBundleExport({
@@ -310,12 +328,7 @@ export const usePresetBundles = ({
   const handleLoadPresetBundle = useCallback(async (bundleId: string) => {
     const bundle = (settings.savedPresets || []).find((candidate) => candidate.id === bundleId);
     if (!bundle) return;
-    if (isActivePresetDirty) {
-      const confirmed = await showCustomConfirm(
-        "当前预设存在未保存的修改，切换后会丢失这些修改。\n\n如需保留，请先点击「保存修改到当前预设」或「另存为新预设副本」。\n\n仍要切换吗？",
-      );
-      if (!confirmed) return;
-    }
+    if (!await confirmDiscardUnsavedChanges("切换")) return;
     // 整体切换必须走函数式通道：值形式 updater 会先求 getNestedDelta（只遍历 next 的键）
     // 再 deepMerge（只覆盖不删除），无法表达"目标预设未声明的字段应被删除"，
     // 会把上一个预设的 useMainPrompt / usePostHistory / reasoningGuidancePrompt 等残留下来。
@@ -323,15 +336,19 @@ export const usePresetBundles = ({
       ...prev,
             ...projectPresetActivation(bundle, DEFAULT_SETTINGS.preset),
     }));
-  }, [settings, updateSettings, isActivePresetDirty, showCustomConfirm]);
+  }, [settings, updateSettings, confirmDiscardUnsavedChanges]);
 
   const handleDeletePresetBundle = useCallback(async (bundleId: string) => {
     const bundle = (settings.savedPresets || []).find((candidate) => candidate.id === bundleId);
     if (!bundle) return;
-    const confirmMessage = buildDeleteConfirmMessage([bundleId], "确定要删除这个本地保存的预设吗？");
+    const isActiveDeleted = bundle.id === activeBundle?.id;
+    // 删除活跃预设同样会丢弃未保存修改：必须与切换同口径提示，不能只问"确定删除吗"。
+    const unsavedWarning = isActiveDeleted && isActivePresetDirty
+      ? "\n\n当前预设存在未保存的修改，删除后会一并丢失。"
+      : "";
+    const confirmMessage = buildDeleteConfirmMessage([bundleId], "确定要删除这个本地保存的预设吗？") + unsavedWarning;
     if (!await showCustomConfirm(confirmMessage)) return;
 
-    const isActiveDeleted = bundle.id === activeBundle?.id;
     // 先落库再改内存状态：写库失败时保持界面与存储一致；删除基准是 Preset Store 的权威列表。
     let nextSaved: PresetBundle[];
     try {
@@ -342,19 +359,22 @@ export const usePresetBundles = ({
       return;
     }
     updateSettings((prev) => buildSettingsAfterRemoval(prev, nextSaved, isActiveDeleted));
-  }, [settings, showCustomConfirm, showCustomAlert, updateSettings, catalog, buildDeleteConfirmMessage, activeBundle]);
+  }, [settings, showCustomConfirm, showCustomAlert, updateSettings, catalog, buildDeleteConfirmMessage, activeBundle, isActivePresetDirty]);
 
   const handleDeletePresetBundles = useCallback(async (bundleIds: string[]) => {
     if (bundleIds.length === 0) return;
     const targets = (settings.savedPresets || []).filter((bundle) => bundleIds.includes(bundle.id));
     const deletableIds = targets.map((bundle) => bundle.id);
     if (deletableIds.length === 0) return;
+    const isCurrentDeleted = Boolean(activeBundle && deletableIds.includes(activeBundle.id));
+    const unsavedWarning = isCurrentDeleted && isActivePresetDirty
+      ? "\n\n当前预设存在未保存的修改，删除后会一并丢失。"
+      : "";
     if (!await showCustomConfirm(buildDeleteConfirmMessage(
       deletableIds,
       `确定要批量删除这 ${deletableIds.length} 个本地预设包吗？`,
-    ))) return;
+    ) + unsavedWarning)) return;
 
-    const isCurrentDeleted = Boolean(activeBundle && deletableIds.includes(activeBundle.id));
     // 批量删除同样以 Preset Store 的权威列表为基准，先落库再改内存状态。
     let nextSaved: PresetBundle[];
     try {
@@ -366,7 +386,7 @@ export const usePresetBundles = ({
     }
     updateSettings((prev) => buildSettingsAfterRemoval(prev, nextSaved, isCurrentDeleted));
     await showCustomAlert("🎉 批量删除成功！");
-  }, [settings, showCustomConfirm, updateSettings, showCustomAlert, catalog, buildDeleteConfirmMessage, activeBundle]);
+  }, [settings, showCustomConfirm, updateSettings, showCustomAlert, catalog, buildDeleteConfirmMessage, activeBundle, isActivePresetDirty]);
 
   return {
     handleImportPresetJSON,

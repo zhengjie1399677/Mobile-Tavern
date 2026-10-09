@@ -498,6 +498,7 @@ export default {
   "preset_form.scope_preset": "Пресет",
   "preset_form.scope_char": "Персонаж",
   "preset_form.confirm_delete_regex": "Вы уверены, что хотите удалить {scope} regex скрипт «{name}»?",
+  "preset_form.confirm_delete_builtin_prompt": "Удалить «{name}»? Содержимое будет очищено без возможности отмены.",
   "preset_form.regex_empty_error": "Имя скрипта и шаблон regex не могут быть пустыми!",
   "preset_form.confirm_batch_delete_prompts": "Вы уверены, что хотите пакетно удалить выбранные модули промптов ({count} шт.)? Соответствующие блоки в композиции также будут удалены.",
   "preset_form.confirm_batch_delete_global_regex": "Вы уверены, что хотите пакетно удалить выбранные глобальные regex скрипты ({count} шт.)?",

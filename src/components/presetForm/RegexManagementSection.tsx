@@ -1,5 +1,5 @@
 import { Sparkles, ChevronDown, ChevronUp, Plus, Trash2, SlidersHorizontal } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../../../components/ui/card";
+import { Card, CardHeader, CardContent } from "../../../components/ui/card";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { Switch } from "../../../components/ui/switch";
 import { Checkbox } from "../../../components/ui/checkbox";
@@ -8,7 +8,7 @@ import { cn } from "../../../lib/utils";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { UserSettings, CharacterCard, RegexScript } from "../../types";
 import type { EditableRegexScript } from "./usePresetFormState";
-import { regexScriptKey } from "../../domain/regex/regexScriptIdentity";
+import { regexScriptKey, normalizeRegexScripts } from "../../domain/regex/regexScriptIdentity";
 import {
   Dialog,
   DialogContent,
@@ -118,6 +118,9 @@ export default function RegexManagementSection({
   saveRegex,
 }: RegexManagementSectionProps) {
   const { t } = useTranslation();
+  // 角色轨正则是外部动态结构（数组或 {"0": {...}} 对象），统一归一后再消费，
+  // 否则对象形态会让 `.filter/.map/.length` 抛错并带崩整个预设表单。
+  const charRegexScripts = normalizeRegexScripts(activeCharacter?.extensions?.regex_scripts);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const closeRegexModal = () => {
     setIsRegexModalOpen(false);
@@ -496,7 +499,7 @@ export default function RegexManagementSection({
               )}
             </div>
 
-            {(!activeCharacter || !activeCharacter.extensions?.regex_scripts || activeCharacter.extensions.regex_scripts.length === 0) ? (
+            {(charRegexScripts.length === 0) ? (
               <div className="border border-dashed border-border/50 rounded-xl p-4 text-center text-muted-foreground flex flex-col items-center justify-center gap-1.5">
                 <span className="text-[10px] font-light text-muted-foreground/60 leading-relaxed">
                   {t("regex.no_char")}
@@ -504,7 +507,7 @@ export default function RegexManagementSection({
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-                {activeCharacter.extensions.regex_scripts.map((r: RegexScript) => {
+                {charRegexScripts.map((r: RegexScript) => {
                   // 与全局 / 预设轨同口径：缺 id 的历史脚本用 scriptName 当身份。
                   const targetId = regexScriptKey(r);
                   return (
@@ -672,8 +675,10 @@ export default function RegexManagementSection({
                       <label className="text-[11px] font-bold text-muted-foreground block">
                         宏参数替换与安全转义 (substituteRegex)
                       </label>
+                      {/* 默认值必须与运行期一致：正则引擎在字段缺失时按 RAW(1) 处理，
+                          显示 2 会造成"界面承诺安全转义、实际按原始替换执行"。 */}
                       <select
-                        value={editingRegex?.substituteRegex ?? 2}
+                        value={editingRegex?.substituteRegex ?? 1}
                         onChange={(e) =>
                           setEditingRegex((prev) => prev ? ({ ...prev, substituteRegex: Number(e.target.value) }) : prev)
                         }
@@ -754,9 +759,12 @@ export default function RegexManagementSection({
                       <label className="text-[11px] font-bold text-muted-foreground block">
                         捕获组修剪文本 (trimStrings，英文逗号分隔)
                       </label>
+                      {/* 非受控输入：值由开放时的草稿决定，中途敲下的逗号不会被同一次渲染吃掉
+                          （旧实现每次 onChange 都 split/join，导致逗号分隔的第二项无法键入）。 */}
                       <Input
+                        key={editingRegex?.id ?? "new-regex"}
                         placeholder="如: SECRET, [Private], //note"
-                        value={(editingRegex?.trimStrings ?? []).join(", ")}
+                        defaultValue={(editingRegex?.trimStrings ?? []).join(", ")}
                         onChange={(e) => {
                           const list = e.target.value
                             .split(",")

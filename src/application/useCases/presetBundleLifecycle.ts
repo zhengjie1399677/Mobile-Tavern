@@ -2,7 +2,6 @@ import type {
   PromptConfig,
   RegexScript,
   SamplerPreset,
-  SavedPresetBundle,
   UserSettings,
 } from "../../types";
 import { PRESET_BUNDLE_SCHEMA_VERSION, type PresetBundle } from "../../domain/presets/contracts";
@@ -27,12 +26,6 @@ export interface PresetBundleActivation {
   presetRegexScripts: RegexScript[];
 }
 
-/** 预设包中可参与激活的部分。 */
-export type PresetBundleSource = Pick<
-  SavedPresetBundle,
-  "preset" | "promptConfig" | "presetRegexScripts"
->;
-
 /** 当前设置中属于预设包的字段。 */
 export type PresetBundleSelection = Pick<
   UserSettings,
@@ -47,15 +40,6 @@ export interface PresetBundleIdentity {
 export interface PresetBundleReferenceSummary {
   count: number;
   profileNames: string[];
-}
-
-export const BUILTIN_PRESET_BUNDLE_ID = "bundle_mobile_tavern_basic";
-export const BUILTIN_SAMPLER_PRESET_ID = "preset_mobile_tavern_basic";
-
-/** 判定预设是否具有内置标记（默认预设已降级为普通预设，无任何特权）。 */
-export function isBuiltinBundle(bundle: PresetBundle | undefined): boolean {
-  if (!bundle) return false;
-  return Boolean(bundle.isBuiltin);
 }
 
 /**
@@ -80,41 +64,6 @@ export function resolveActivePresetBundle(
   );
 }
 
-/** 计算激活预设包后的设置补丁；所有切换入口都必须经由此函数。 */
-export function resolvePresetBundleActivation(
-  bundle: PresetBundleSource,
-  presetDefaults: SamplerPreset,
-): PresetBundleActivation {
-  return {
-    preset: { ...presetDefaults, ...bundle.preset },
-    promptConfig: toPresetPromptConfig(bundle.promptConfig),
-    presetRegexScripts: Array.isArray(bundle.presetRegexScripts)
-      ? bundle.presetRegexScripts
-      : [],
-  };
-}
-
-/**
- * 把预设激活结果应用到完整设置上，返回"整体替换后"的新设置对象。
- *
- * 不变量：目标预设未声明的 Prompt 字段必须在结果里**键不存在**（回落运行时出厂默认），
- * 绝不能保留上一个预设的值。
- *
- * 调用方必须走函数式 `updateSettings` 通道：值形式 updater 会先求 `getNestedDelta`
- * （只遍历 next 的键）再 `deepMerge`（只覆盖不删除），无法表达"删除字段"，
- * 会把上一个预设的 useMainPrompt / usePostHistory / reasoningGuidancePrompt 等残留下来。
- */
-export function applyPresetBundleActivation(
-  settings: UserSettings,
-  bundle: PresetBundleSource,
-  presetDefaults: SamplerPreset,
-): UserSettings {
-  return {
-    ...settings,
-    ...resolvePresetBundleActivation(bundle, presetDefaults),
-  };
-}
-
 /** 用当前设置生成可持久化的预设快照（与切换时的激活规则保持镜像关系）。 */
 export function buildPresetBundleSnapshot(
   selection: PresetBundleSelection,
@@ -131,10 +80,21 @@ export function buildPresetBundleSnapshot(
 }
 
 /**
+ * 预设未声明时必须按运行期默认解读的 Prompt 开关（未声明即启用）。
+ *
+ * `PromptService` 用 `!== false` 判定主提示词与规则提示词（见 `sillytavern_compat.md` 第 4 节），
+ * 因此这两个字段"预设未声明"在请求里的实际取值是启用。脏检查必须同口径，否则
+ * "用户改了、但预设表达不了该字段"会被判成已同步：界面不给未保存标记、保存按钮不可点，
+ * 切换预设时改动被静默还原。
+ */
+const PROMPT_FLAGS_DEFAULT_ON: readonly string[] = ["useMainPrompt", "useJailbreak"];
+
+/**
  * 判断当前设置与预设快照是否一致。
  *
  * 只比较预设明确拥有的字段：激活时未声明字段会回到运行时默认（不再继承当前预设），
- * 因此这些字段不计入脏状态，避免旧预设一加载就显示"未保存"。
+ * 因此这些字段不计入脏状态，避免旧预设一加载就显示"未保存"。唯一的例外是
+ * `PROMPT_FLAGS_DEFAULT_ON`：它们"未声明即启用"有明确的运行期语义，两侧都按同一口径折算。
  */
 export function isPresetBundleInSync(
   bundle: PresetBundle,
@@ -144,6 +104,9 @@ export function isPresetBundleInSync(
   const livePromptConfig = toPresetPromptConfig(selection.promptConfig) as unknown as Record<string, unknown>;
   const storedPromptConfig = (bundle.promptConfig ?? {}) as unknown as Record<string, unknown>;
   if (!hasOwnedKeysEqual(livePromptConfig, storedPromptConfig)) {
+    return false;
+  }
+  if (!areDefaultOnPromptFlagsEqual(livePromptConfig, storedPromptConfig)) {
     return false;
   }
 
@@ -175,6 +138,16 @@ function hasOwnedKeysEqual(
   stored: Record<string, unknown>,
 ): boolean {
   return Object.keys(stored).every((key) => isDeepEqual(live[key], stored[key]));
+}
+
+/** 未声明即启用的开关比较：两侧都按 `!== false` 折算，与请求组装保持同一口径。 */
+function areDefaultOnPromptFlagsEqual(
+  live: Record<string, unknown>,
+  stored: Record<string, unknown>,
+): boolean {
+  return PROMPT_FLAGS_DEFAULT_ON.every(
+    (key) => (live[key] !== false) === (stored[key] !== false),
+  );
 }
 
 function isDeepEqual(left: unknown, right: unknown): boolean {

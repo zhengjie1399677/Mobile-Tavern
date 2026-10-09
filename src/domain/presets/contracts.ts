@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PromptConfig, RegexScript } from "../../types";
+import type { PromptConfig } from "../../types";
 import { MAX_OUTPUT_TOKENS } from "../api/outputTokenLimits";
 
 /**
@@ -13,6 +13,9 @@ import { MAX_OUTPUT_TOKENS } from "../api/outputTokenLimits";
 /** 当前预设实体版本。 */
 export const PRESET_BUNDLE_SCHEMA_VERSION = 3 as const;
 
+/** 预设实体标识长度上限；实体 schema 与存储读取边界共用同一常量（单一来源）。 */
+export const PRESET_ID_MAX_LENGTH = 200;
+
 /**
  * 采样参数的存储形态。
  *
@@ -20,7 +23,7 @@ export const PRESET_BUNDLE_SCHEMA_VERSION = 3 as const;
  * 因此实体层不允许把「缺省」当成非法（`CHANGE-SAFE`）。`id`/`name` 必填。
  */
 export const presetSamplerSchema = z.object({
-  id: z.string().trim().min(1).max(200),
+  id: z.string().trim().min(1).max(PRESET_ID_MAX_LENGTH),
   name: z.string().max(200),
   temperature: z.number().finite().min(0).max(5).optional(),
   topP: z.number().finite().min(0).max(1).optional(),
@@ -59,7 +62,7 @@ export const presetExtensionsSchema = z.record(z.string(), z.unknown());
 
 export const presetBundleSchema = z.object({
   schemaVersion: z.literal(PRESET_BUNDLE_SCHEMA_VERSION),
-  id: z.string().trim().min(1).max(200),
+  id: z.string().trim().min(1).max(PRESET_ID_MAX_LENGTH),
   isBuiltin: z.boolean().optional(),
   sampler: presetSamplerSchema,
   promptConfig: presetPromptConfigSchema,
@@ -69,5 +72,3 @@ export const presetBundleSchema = z.object({
 
 export type PresetSampler = z.infer<typeof presetSamplerSchema>;
 export type PresetBundle = z.infer<typeof presetBundleSchema>;
-
-export type { RegexScript };

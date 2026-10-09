@@ -501,6 +501,7 @@ export default {
   "preset_form.scope_preset": "预设专属",
   "preset_form.scope_char": "角色专属",
   "preset_form.confirm_delete_regex": "确定要删除 {scope} 正则脚本【{name}】吗？",
+  "preset_form.confirm_delete_builtin_prompt": "确定删除【{name}】吗？该提示词内容会被清空且无法撤销。",
   "preset_form.regex_empty_error": "脚本名称和正则表达式匹配串不能为空！",
   "preset_form.confirm_batch_delete_prompts": "确定要批量删除选中的 {count} 个提示词模组吗？编排中的同源区块会一并删除。",
   "preset_form.confirm_batch_delete_global_regex": "确定要批量删除选中的 {count} 个全局正则脚本吗？",

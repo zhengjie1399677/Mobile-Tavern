@@ -94,6 +94,7 @@ export default function PresetForm({
     toggleRegexDisabled,
     deleteRegex,
     saveRegex,
+    deleteBuiltinPrompt,
     handleBatchDeletePrompts,
     handleBatchDeleteGlobalRegex,
     handleBatchDeletePresetRegex,
@@ -142,6 +143,7 @@ export default function PresetForm({
           handleUpdateCustomPrompt={handleUpdateCustomPrompt}
           handleAddNewCustomPrompt={handleAddNewCustomPrompt}
           handleDeleteCustomPrompt={handleDeleteCustomPrompt}
+          handleDeleteBuiltinPrompt={deleteBuiltinPrompt}
           isPromptsFolded={isPromptsFolded}
           handleTogglePromptsFold={handleTogglePromptsFold}
           coreStatusText={coreStatusText}

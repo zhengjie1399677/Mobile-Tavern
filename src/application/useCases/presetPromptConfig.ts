@@ -12,11 +12,6 @@ export function toPresetPromptConfig(config: PromptConfig): PresetPromptConfig {
   return { ...config };
 }
 
-/** 应用预设的 Prompt 字段：整体替换，不做字段级合并。 */
-export function applyPresetPromptConfig(_current: PromptConfig, stored: PresetPromptConfig): PromptConfig {
-  return { ...stored };
-}
-
 /**
  * 预设快照的稳定序列化：键序无关、忽略 `undefined`。
  *
