@@ -13,7 +13,7 @@ import { Checkbox } from "../../../components/ui/checkbox";
 import { Input } from "../../../components/ui/input";
 import { Textarea } from "../../../components/ui/textarea";
 import { cn } from "../../../lib/utils";
-import type { UserSettings } from "../../types";
+import type { PromptConfig, UserSettings } from "../../types";
 import {
   RECOMMENDED_PROMPT_TEMPLATES,
   type PromptTemplateItem,
@@ -50,6 +50,27 @@ interface UnifiedPromptItem {
 }
 
 /**
+ * 内置伪条目的显示名归一。
+ *
+ * 留空或恰好等于界面默认文案时不落库，保证切换语言后仍显示对应语言的默认名。
+ */
+function withBuiltinPromptName(
+  config: PromptConfig,
+  field: "mainPromptName" | "jailbreakPromptName",
+  name: string,
+  defaultLabel: string,
+): PromptConfig {
+  const trimmed = name.trim();
+  const next: PromptConfig = { ...config };
+  if (!trimmed || trimmed === defaultLabel) {
+    delete next[field];
+  } else {
+    next[field] = trimmed;
+  }
+  return next;
+}
+
+/**
  * 预设提示词配置：
  * - 过滤纯系统插槽锚点（marker === true），不在模组列表平铺占位空卡片；
  * - 完整展示所有已启用与未启用提示词，关闭时原地保留，对齐 SillyTavern 交互规范；
@@ -74,6 +95,10 @@ export default function PromptsConfigSection({
   const { t } = useTranslation();
   const [searchKeyword, setSearchKeyword] = useState("");
   const [showTemplatesPanel, setShowTemplatesPanel] = useState(false);
+  // 展开态受控：搜索过滤需要知道哪些条目是打开的，避免改名到不匹配关键字时卡片当场消失。
+  const [openPromptIds, setOpenPromptIds] = useState<string[]>([]);
+  const mainPromptLabel = t("prompts.system_prompt") || "系统提示词";
+  const jailbreakPromptLabel = t("prompts.jailbreak") || "规则提示词";
 
   const handleAddTemplate = (tpl: PromptTemplateItem) => {
     const newId = "comp_" + Math.random().toString(36).substring(2, 9);
@@ -113,7 +138,7 @@ export default function PromptsConfigSection({
       list.push({
         id: "built-in-main-prompt",
         targetId: "built-in-main-prompt",
-        name: t("prompts.system_prompt") || "系统提示词",
+        name: settings.promptConfig.mainPromptName?.trim() || mainPromptLabel,
         role: "system",
         content: settings.promptConfig.mainPrompt || "",
         enabled: settings.promptConfig.useMainPrompt ?? hasMainPromptContent,
@@ -130,7 +155,7 @@ export default function PromptsConfigSection({
       list.push({
         id: "built-in-jailbreak-prompt",
         targetId: "built-in-jailbreak-prompt",
-        name: t("prompts.jailbreak") || "规则提示词",
+        name: settings.promptConfig.jailbreakPromptName?.trim() || jailbreakPromptLabel,
         role: "system",
         content: settings.promptConfig.jailbreakPrompt || "",
         enabled: settings.promptConfig.useJailbreak ?? hasJailbreakContent,
@@ -172,7 +197,7 @@ export default function PromptsConfigSection({
     }
 
     return list;
-  }, [settings.promptConfig, t]);
+  }, [settings.promptConfig, mainPromptLabel, jailbreakPromptLabel]);
 
   const activeCount = useMemo(() => unifiedPrompts.filter((p) => p.enabled).length, [unifiedPrompts]);
   const inactiveCount = unifiedPrompts.length - activeCount;
@@ -181,12 +206,15 @@ export default function PromptsConfigSection({
   const displayedPrompts = useMemo(() => {
     const trimmed = searchKeyword.trim().toLowerCase();
     if (!trimmed) return unifiedPrompts;
+    // 展开中的条目必须留在列表里：否则把它改名到不匹配当前关键字时，
+    // 卡片会当场从列表消失、输入框被卸载，用户没法把名字改完。
     return unifiedPrompts.filter(
       (p) =>
+        openPromptIds.includes(p.id) ||
         p.name.toLowerCase().includes(trimmed) ||
         p.content.toLowerCase().includes(trimmed)
     );
-  }, [unifiedPrompts, searchKeyword]);
+  }, [unifiedPrompts, searchKeyword, openPromptIds]);
 
   const handleToggle = (item: UnifiedPromptItem, enabled: boolean) => {
     if (item.type === "main") {
@@ -211,8 +239,9 @@ export default function PromptsConfigSection({
     content: string
   ) => {
     if (item.type === "main") {
-      if (role !== "system" || (name && name !== (t("prompts.system_prompt") || "系统提示词"))) {
-        // 用户调整了主提示词的角色或重命名，将其平转为标准自定义模组以持久化属性
+      if (role !== "system") {
+        // 角色不是顶层字段能表达的属性，只能平转为标准自定义模组以持久化。
+        // 改名不再走这里：平转会换掉条目标识，导致展开态与焦点在第一次按键时就丢失。
         updateSettings((prev) => {
           const list = prev.promptConfig.customPrompts || [];
           return {
@@ -225,7 +254,7 @@ export default function PromptsConfigSection({
                 ...list,
                 {
                   id: "comp_main_" + Math.random().toString(36).substring(2, 7),
-                  name: name || "系统提示词",
+                  name: name || mainPromptLabel,
                   role,
                   content,
                   enabled: item.enabled,
@@ -237,12 +266,17 @@ export default function PromptsConfigSection({
       } else {
         updateSettings((prev) => ({
           ...prev,
-          promptConfig: { ...prev.promptConfig, mainPrompt: content },
+          promptConfig: withBuiltinPromptName(
+            { ...prev.promptConfig, mainPrompt: content },
+            "mainPromptName",
+            name,
+            mainPromptLabel,
+          ),
         }));
       }
     } else if (item.type === "jailbreak") {
-      if (role !== "system" || (name && name !== (t("prompts.jailbreak") || "规则提示词"))) {
-        // 用户调整了规则提示词的角色或重命名，平转为标准自定义模组以持久化属性
+      if (role !== "system") {
+        // 同上：只有角色调整需要平转，改名在顶层字段上原地保存。
         updateSettings((prev) => {
           const list = prev.promptConfig.customPrompts || [];
           return {
@@ -255,7 +289,7 @@ export default function PromptsConfigSection({
                 ...list,
                 {
                   id: "comp_jailbreak_" + Math.random().toString(36).substring(2, 7),
-                  name: name || "规则提示词",
+                  name: name || jailbreakPromptLabel,
                   role,
                   content,
                   enabled: item.enabled,
@@ -267,7 +301,12 @@ export default function PromptsConfigSection({
       } else {
         updateSettings((prev) => ({
           ...prev,
-          promptConfig: { ...prev.promptConfig, jailbreakPrompt: content },
+          promptConfig: withBuiltinPromptName(
+            { ...prev.promptConfig, jailbreakPrompt: content },
+            "jailbreakPromptName",
+            name,
+            jailbreakPromptLabel,
+          ),
         }));
       }
     } else {
@@ -277,15 +316,17 @@ export default function PromptsConfigSection({
 
   const handleDelete = async (item: UnifiedPromptItem) => {
     if (item.type === "main") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, useMainPrompt: false, mainPrompt: "" },
-      }));
+      updateSettings((prev) => {
+        const promptConfig: PromptConfig = { ...prev.promptConfig, useMainPrompt: false, mainPrompt: "" };
+        delete promptConfig.mainPromptName;
+        return { ...prev, promptConfig };
+      });
     } else if (item.type === "jailbreak") {
-      updateSettings((prev) => ({
-        ...prev,
-        promptConfig: { ...prev.promptConfig, useJailbreak: false, jailbreakPrompt: "" },
-      }));
+      updateSettings((prev) => {
+        const promptConfig: PromptConfig = { ...prev.promptConfig, useJailbreak: false, jailbreakPrompt: "" };
+        delete promptConfig.jailbreakPromptName;
+        return { ...prev, promptConfig };
+      });
     } else {
       await handleDeleteCustomPrompt(item.targetId);
     }
@@ -521,7 +562,12 @@ export default function PromptsConfigSection({
               )}
             </div>
           ) : (
-            <Accordion multiple className="space-y-1.5">
+            <Accordion
+              multiple
+              value={openPromptIds}
+              onValueChange={(next) => setOpenPromptIds(next as string[])}
+              className="space-y-1.5"
+            >
               {displayedPrompts.map((p) => {
                 const contentLength = p.content.trim().length;
                 return (

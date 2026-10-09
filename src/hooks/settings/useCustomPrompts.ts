@@ -57,7 +57,9 @@ export const useCustomPrompts = ({
     updateSettings((prev) => {
       const list = prev.promptConfig.customPrompts || [];
       const updated = list.map((item) => {
-        const matches = item.id === id || (Boolean(item.identifier) && item.identifier === id);
+        // 身份优先用 id：`identifier` 只是没有 id 时的兼容别名。
+        // 两者混用会让"同 identifier 的另一条"被一并改写（SillyTavern 复制条目会带出重复 identifier）。
+        const matches = item.id ? item.id === id : Boolean(item.identifier) && item.identifier === id;
         return matches ? { ...item, id: item.id || id, name, role, content } : item;
       });
       return {

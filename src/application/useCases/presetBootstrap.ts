@@ -3,6 +3,7 @@ import type {
   PromptConfig,
 } from "../../types";
 import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import { ensureUniquePromptBlockIds } from "../../domain/prompts/promptBlockIdentity";
 import { stableSerializePresetSnapshot, toPresetPromptConfig } from "./presetPromptConfig";
 
 /**
@@ -247,7 +248,8 @@ function resolveStoredSettings(
     ...working,
     mainPrompt: working.mainPrompt ?? "",
     useMainPrompt: working.useMainPrompt ?? Boolean(working.mainPrompt && working.mainPrompt.trim().length > 0),
-    customPrompts: working.customPrompts ?? [],
+    // 身份归一：重复 identifier 的条目必须各自可寻址，否则改名/开关/删除会互相牵连。
+    customPrompts: ensureUniquePromptBlockIds(working.customPrompts ?? []),
     sectionHeaders: {
       ...defaultPromptConfig.sectionHeaders,
       ...(working.sectionHeaders ?? {}),

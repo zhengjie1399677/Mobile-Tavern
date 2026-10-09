@@ -1,5 +1,21 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-09：**修复"设备型号误报为 wv"，给写入遮罩加逃生入口，自检新增主题/遮挡层诊断（用户反馈"整屏看不清 + 点不动"）。**
+  1. **机型解析（确定缺陷）**：`getDeviceModel()` 取 Android UA 括号段里分号的**最后一段**，而 WebView UA 的最后一段是 `wv` 标记、机型在带 `Build/` 的段里，于是所有 Android WebView 用户都被上报成"设备型号：wv"（线上系统报告实测）。改为 `parseAndroidDeviceModel()`：优先取 `Build/` 段并剥掉 `Build/…`；无 `Build/` 时取 Android 段之后第一个非占位段，`wv`、Chrome UA Reduction 的占位 `K` 等不计入机型；识别不出机型时回退 `Android Device (Android X)`。
+  2. **写入遮罩逃生入口**：`DbWritingOverlay` 覆盖整个视口（含底栏）并吞掉点击，只要某次 IndexedDB 写入的 `await` 不返回，界面就会永久停在"整屏变暗 + 点不动"，只能杀进程。现在超时 10s 后在浮层内给出「关闭」按钮，Android 返回键（优先级 1500，高于弹窗返回栈）同样可释放遮挡。释放只解除遮挡，**写入本身照常提交**，不改动存储语义。
+  3. **自检新增 `14. THEME / OVERLAY`**：新模块 `themeDiagnostics.ts` 采集 `data-theme`、`color-scheme`（inline / computed / meta / `prefers-color-scheme`）、五个主题变量的原始值与解析出的 sRGB、`#root` 实际生效的文字色与背景色及 WCAG 对比度（<2.5 报 ERROR、<4.5 报 WARNING）、环境光晕挂载状态，以及**当前覆盖视口且拦截点击的浮层清单**（排除 `pointer-events:none` 的装饰层与不足视口 90% 的弹层）。"文字与背景撞色"和"有遮罩压在最上层"这两类成因因此可以在报告里直接区分，不必再靠截图反推。诊断只读 DOM，不触碰存储，也不需要 Kernel 服务。
+  4. **边界**：不新增全屏遮罩、不改写入队列与主题配色语义、不调整版本号；新增 i18n 键 `db.writing_overlay_timeout` 已同步 8 个语言文件。
+  5. **验证**：新增 `tests/vitest/deviceModel.test.ts`（6 例：WebView Build 段、带空格机型、无 Build 段、只有 `wv`、UA Reduction、非 Android）、`tests/vitest/themeDiagnostics.test.ts`（11 例：`oklch/oklab/color(srgb)` 颜色解析、对比度与合成、遮挡层扫描、报告四种分支）、`tests/vitest/DbWritingOverlay.test.tsx`（4 例：无写入不挂载、未超时无入口、超时关闭、返回键释放）；`npx tsc --noEmit` 通过。
+
+- 2026-10-09：**修复预设子条目改名的三类缺陷（用户反馈）。**
+  1. **改内置「系统提示词 / 规则提示词」的名字不再平转成新模组**：此前第一次按键就把伪条目平转成自定义模组、换掉条目标识，手风琴 `value` 随之变化，展开态与输入焦点当场丢失，名字只能敲一个字符。现在显示名单独存进 `PromptConfig.mainPromptName` / `jailbreakPromptName`（留空或等于界面默认文案时不落库，仍然跟随语言），只有**角色**调整才继续平转（角色不是顶层字段能表达的属性）；导出到 SillyTavern 文件时经 `extensions.mobile_tavern_preset.promptRuntime` 往返保留。
+  2. **同 identifier 的条目不再联动改名/开关/删除**：新增 `ensureUniquePromptBlockIds` 在启动引导、预设存储读取、预设导入三个边界给缺失或冲突的条目补确定性唯一 `id`（保留 `identifier` 作为兼容别名），并把列表侧匹配改为「有 `id` 就只按 `id` 命中」；SillyTavern 复制条目带出的重复 identifier 不再让一条操作牵连另一条。
+  3. **搜索态下改名不再让条目当场消失**：手风琴展开态改为受控，`displayedPrompts` 始终保留展开中的条目，避免改名到不匹配关键字时卡片被过滤掉、输入框卸载导致改名中断。
+  4. **顺带统一正则脚本身份**：新增 `regexScriptKey` / `upsertRegexScriptByKey`，全局与预设轨此前只比较 `r.id === reg.id`，两个都缺 `id` 时会 `undefined === undefined` 命中，保存一条就把列表里所有缺 id 脚本一起覆盖；现在三轨（全局/预设/角色）的 key、开关、删除、编辑保存共用同一身份口径。
+  5. **验证**：新增 `promptBlockIdentity.test.ts`（5 用例）与 `regexScriptIdentity.test.ts`（3 用例），`PromptsConfigSection.test.tsx` 增补 3 条改名行为回归；`npm run quality:push` 全绿（210 文件 / 1476 用例、87 个系统套件、web 与 server 构建）。
+  6. **已知残留（不在本次范围）**：编排（自由编排）侧的同步键是 `compatibility.originalIdentifier`，按设计保存 SillyTavern 原始 identifier 以便往返导出；因此两条同 identifier 的条目在**编排视图**里开关仍会互相牵连（列表与编辑器侧已按唯一 `id` 精确命中）。彻底修复需要决定"导入时是否把重复 identifier 改写成唯一值"，会改变 ST 往返身份，属兼容契约变更，留待单独评估；已在 `promptSwitchSync.ts` 头部注明。
+  7. **审查补充（推送前自查发现）**：正则轨的 UI 已改用 `regexScriptKey`（缺 `id` 回落到 `scriptName`）作为列表身份，但 `usePresetFormState` 里的开关与删除仍按 `r.id`/`r.scriptName` 手工比对，导致**缺 `id` 的历史脚本点开关静默无效**（旧实现则会命中所有缺 `id` 的脚本）。现在三轨统一走领域函数 `setRegexScriptDisabledByKey` / `removeRegexScriptByKey`：只命中目标脚本，未命中或状态未变化时返回原数组，调用方据此跳过无意义的设置写入与角色卡保存；`RegexManagementSection` 的角色轨 `targetId` 同步改为同一身份函数。`regexScriptIdentity.test.ts` 增补 2 条（连坐与空写回归）。
+
 - 2026-10-09：**遥测补齐：事件自定义字段不再丢失，所有事件自动携带玩家/角色/模型/会话；发布 v1.9.3（用户反馈"日志一堆未知"）。**
   1. **根因（两层丢失 + 一层缺失）**：`TelemetryService.buildLog` 只回填固定列，`keyboard_viewport_diagnostic` 的视口尺寸、`ar_*` 的 status 等自定义字段在 JS 侧构建日志时就被丢掉；即便透传，Rust `TelemetryLog` 也是封闭结构体，serde 默认忽略未知字段，落盘与上传前再丢一次。归属信息方面，`player_name`/`session_id` 此前只有 `api_error` 与 `llm_performance` 手工传参，其余事件一律是"未知/无"。
   2. **修法（三处）**：`buildLog` 把未命中固定列的 `extraData` 键原样展开进日志体（固定列后置，事件载荷不能覆盖 schema 列）；`TelemetryLog` 新增 `#[serde(default, flatten)] extra: BTreeMap<String, serde_json::Value>`，未知字段在落盘、序列化、再次读取三个环节都保留；新增遥测归属上下文 `ITelemetryService.setContext()`，由 `AppContextAssembler` 在玩家/角色/模型/会话变化时注入一次，解析顺序为"事件显式传参 → 活跃上下文 → 既有兜底值"。

@@ -8,6 +8,7 @@ import { cn } from "../../../lib/utils";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { UserSettings, CharacterCard, RegexScript } from "../../types";
 import type { EditableRegexScript } from "./usePresetFormState";
+import { regexScriptKey } from "../../domain/regex/regexScriptIdentity";
 import {
   Dialog,
   DialogContent,
@@ -246,21 +247,25 @@ export default function RegexManagementSection({
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-                {settings.globalRegexScripts.map((r) => (
+                {settings.globalRegexScripts.map((r) => {
+                  // 与角色轨同口径：缺 id 的历史脚本用 scriptName 当身份，
+                  // 否则 key/开关/删除/编辑会一起落到"所有缺 id 的脚本"上。
+                  const targetId = regexScriptKey(r);
+                  return (
                   <div
-                    key={r.id}
+                    key={targetId}
                     className={`border border-border/40 rounded-lg p-2 bg-muted/10 flex items-center justify-between gap-3 transition ${
                       r.disabled ? "opacity-60" : ""
                     }`}
                   >
                     {isBatchDeletingGlobalRegex && (
                       <Checkbox
-                        checked={selectedGlobalRegexIds.includes(r.id)}
+                        checked={selectedGlobalRegexIds.includes(targetId)}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedGlobalRegexIds((prev) => [...prev, r.id]);
+                            setSelectedGlobalRegexIds((prev) => [...prev, targetId]);
                           } else {
-                            setSelectedGlobalRegexIds((prev) => prev.filter((id) => id !== r.id));
+                            setSelectedGlobalRegexIds((prev) => prev.filter((id) => id !== targetId));
                           }
                         }}
                         className="shrink-0"
@@ -282,13 +287,13 @@ export default function RegexManagementSection({
                       <Switch
                         aria-label={`启用全局正则规则 ${r.scriptName}`}
                         checked={!r.disabled}
-                        onCheckedChange={(checked) => toggleRegexDisabled(r.id, !checked, "global")}
+                        onCheckedChange={(checked) => toggleRegexDisabled(targetId, !checked, "global")}
                         className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
                       />
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingRegex({ ...r, scope: "global" });
+                          setEditingRegex({ ...r, scope: "global", id: targetId });
                           setIsRegexModalOpen(true);
                         }}
                         className="text-[9px] text-muted-foreground hover:text-primary transition font-semibold px-1.5 py-0.5 rounded hover:bg-muted"
@@ -297,14 +302,15 @@ export default function RegexManagementSection({
                       </button>
                       <button
                         type="button"
-                        onClick={() => deleteRegex(r.id, r.scriptName, "global")}
+                          onClick={() => deleteRegex(targetId, r.scriptName, "global")}
                         className="text-[9px] text-rose-500 hover:text-rose-700 transition font-semibold px-1.5 py-0.5 rounded hover:bg-rose-950/20"
                       >
                         {t("regex.delete")}
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -387,21 +393,24 @@ export default function RegexManagementSection({
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-                {settings.presetRegexScripts.map((r) => (
+                {settings.presetRegexScripts.map((r) => {
+                  // 与全局 / 角色轨同口径：缺 id 的历史脚本用 scriptName 当身份。
+                  const targetId = regexScriptKey(r);
+                  return (
                   <div
-                    key={r.id}
+                    key={targetId}
                     className={`border border-border/40 rounded-lg p-2 bg-muted/10 flex items-center justify-between gap-3 transition ${
                       r.disabled ? "opacity-60" : ""
                     }`}
                   >
                     {isBatchDeletingPresetRegex && (
                       <Checkbox
-                        checked={selectedPresetRegexIds.includes(r.id)}
+                        checked={selectedPresetRegexIds.includes(targetId)}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedPresetRegexIds((prev) => [...prev, r.id]);
+                            setSelectedPresetRegexIds((prev) => [...prev, targetId]);
                           } else {
-                            setSelectedPresetRegexIds((prev) => prev.filter((id) => id !== r.id));
+                            setSelectedPresetRegexIds((prev) => prev.filter((id) => id !== targetId));
                           }
                         }}
                         className="shrink-0"
@@ -423,13 +432,13 @@ export default function RegexManagementSection({
                       <Switch
                         aria-label={`启用预设正则规则 ${r.scriptName}`}
                         checked={!r.disabled}
-                        onCheckedChange={(checked) => toggleRegexDisabled(r.id, !checked, "preset")}
+                        onCheckedChange={(checked) => toggleRegexDisabled(targetId, !checked, "preset")}
                         className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
                       />
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingRegex({ ...r, scope: "preset" });
+                          setEditingRegex({ ...r, scope: "preset", id: targetId });
                           setIsRegexModalOpen(true);
                         }}
                         className="text-[9px] text-muted-foreground hover:text-primary transition font-semibold px-1.5 py-0.5 rounded hover:bg-muted"
@@ -438,14 +447,15 @@ export default function RegexManagementSection({
                       </button>
                       <button
                         type="button"
-                        onClick={() => deleteRegex(r.id, r.scriptName, "preset")}
+                        onClick={() => deleteRegex(targetId, r.scriptName, "preset")}
                         className="text-[9px] text-rose-500 hover:text-rose-700 transition font-semibold px-1.5 py-0.5 rounded hover:bg-rose-950/20"
                       >
                         {t("regex.delete")}
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -495,7 +505,8 @@ export default function RegexManagementSection({
             ) : (
               <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
                 {activeCharacter.extensions.regex_scripts.map((r: RegexScript) => {
-                  const targetId = r.id || r.scriptName;
+                  // 与全局 / 预设轨同口径：缺 id 的历史脚本用 scriptName 当身份。
+                  const targetId = regexScriptKey(r);
                   return (
                     <div
                       key={targetId}

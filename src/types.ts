@@ -302,6 +302,16 @@ export interface PromptConfig {
   storyString?: string; // SillyTavern STORY STRING context order templates
   customPrompts?: CustomPromptBlock[]; // SillyTavern customizable prompt block list
   useMainPrompt?: boolean;
+  /**
+   * 「系统提示词」伪条目的显示名。
+   *
+   * SillyTavern 用 `prompts[]` 里 identifier=main 的条目名表达同一个概念，而本应用的正文
+   * 存在顶层 `mainPrompt`。若把改名"平转"成自定义模组，会连带改变条目标识与展开态，
+   * 所以显示名单独保存，留空时回落到界面默认文案。
+   */
+  mainPromptName?: string;
+  /** 「规则提示词」伪条目的显示名；语义同 `mainPromptName`。 */
+  jailbreakPromptName?: string;
   enableReasoningGuidance?: boolean;
   reasoningGuidancePrompt?: string;
 

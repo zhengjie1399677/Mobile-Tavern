@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PromptsConfigSection from "../../src/components/presetForm/PromptsConfigSection";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
+import zhCN from "../../src/locales/zh-CN";
 import type { UserSettings } from "../../src/types";
 
 function Harness({
@@ -12,16 +14,41 @@ function Harness({
   onUpdateCustomPrompt,
   onAddNewCustomPrompt,
   onDeleteCustomPrompt,
+  onSettingsChange,
 }: {
   initial: UserSettings;
   onToggleCustomPrompt?: (id: string, enabled: boolean) => void;
   onUpdateCustomPrompt?: (id: string, name: string, role: any, content: string) => void;
   onAddNewCustomPrompt?: () => void;
   onDeleteCustomPrompt?: (id: string) => Promise<void>;
+  onSettingsChange?: (settings: UserSettings) => void;
 }) {
   const [settings, setSettings] = useState<UserSettings>(initial);
   const updateSettings = (next: UserSettings | ((prev: UserSettings) => UserSettings)) => {
     setSettings((prev) => (typeof next === "function" ? next(prev) : next));
+  };
+  useEffect(() => {
+    onSettingsChange?.(settings);
+  }, [settings, onSettingsChange]);
+  // 与生产实现同语义的更新路径：命中条目改名/改角色/改正文，保证受控输入框真的能改。
+  const updateCustomPrompt = (
+    id: string,
+    name: string,
+    role: "system" | "user" | "assistant",
+    content: string,
+  ) => {
+    onUpdateCustomPrompt?.(id, name, role, content);
+    setSettings((prev) => ({
+      ...prev,
+      promptConfig: {
+        ...prev.promptConfig,
+        customPrompts: (prev.promptConfig.customPrompts ?? []).map((item) =>
+          (item.id ? item.id === id : Boolean(item.identifier) && item.identifier === id)
+            ? { ...item, id: item.id || id, name, role, content }
+            : item,
+        ),
+      },
+    }));
   };
   return (
     <LanguageProvider>
@@ -29,7 +56,7 @@ function Harness({
         settings={settings}
         updateSettings={updateSettings}
         handleToggleCustomPrompt={onToggleCustomPrompt ?? vi.fn()}
-        handleUpdateCustomPrompt={onUpdateCustomPrompt ?? vi.fn()}
+        handleUpdateCustomPrompt={updateCustomPrompt}
         handleAddNewCustomPrompt={onAddNewCustomPrompt ?? vi.fn()}
         handleDeleteCustomPrompt={onDeleteCustomPrompt ?? vi.fn(async () => undefined)}
         isPromptsFolded={false}
@@ -200,5 +227,84 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
     expect(screen.getAllByText(/系统提示词/).length).toBeGreaterThan(0);
     expect(screen.getByText("文风规范")).toBeInTheDocument();
     expect(screen.queryByText("Main Prompt")).not.toBeInTheDocument();
+  });
+
+  it("改名内置「系统提示词」就地保存，不平转成新模组且输入框保持原位", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.mainPrompt = "系统核心设定";
+    settings.promptConfig.useMainPrompt = true;
+    settings.promptConfig.customPrompts = [];
+
+    let latest: UserSettings = settings;
+    render(
+      <Harness
+        initial={settings}
+        onSettingsChange={(next) => {
+          latest = next;
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /展开或折叠 .*系统提示词/ }));
+    fireEvent.change(screen.getByPlaceholderText("提示词名称"), {
+      target: { value: "人格核心" },
+    });
+
+    // 名字落在顶层显示名上，正文与开关不动，也不会平转出新的自定义模组。
+    expect(latest.promptConfig.mainPromptName).toBe("人格核心");
+    expect(latest.promptConfig.mainPrompt).toBe("系统核心设定");
+    expect(latest.promptConfig.customPrompts).toEqual([]);
+    // 输入框仍在（未被卸载），可以继续把名字敲完。
+    expect(screen.getByDisplayValue("人格核心")).toBeInTheDocument();
+  });
+
+  it("把内置显示名改回默认文案时不落库，保证仍跟随界面语言", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.mainPrompt = "系统核心设定";
+    settings.promptConfig.useMainPrompt = true;
+    settings.promptConfig.mainPromptName = "旧名字";
+
+    let latest: UserSettings = settings;
+    render(
+      <Harness
+        initial={settings}
+        onSettingsChange={(next) => {
+          latest = next;
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /展开或折叠 旧名字/ }));
+    fireEvent.change(screen.getByPlaceholderText("提示词名称"), {
+      target: { value: zhCN["prompts.system_prompt"] },
+    });
+
+    expect(latest.promptConfig.mainPromptName).toBeUndefined();
+  });
+
+  it("搜索态下改名不会让展开中的条目当场消失", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.customPrompts = [
+      {
+        id: "style-mod",
+        name: "文风规范",
+        role: "system",
+        content: "言简意赅",
+        enabled: true,
+      },
+    ];
+
+    render(<Harness initial={settings} />);
+    fireEvent.change(screen.getByPlaceholderText(/搜索提示词/), {
+      target: { value: "文风" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /展开或折叠 文风规范/ }));
+
+    fireEvent.change(screen.getByPlaceholderText("提示词名称"), {
+      target: { value: "完全无关的名字" },
+    });
+
+    // 展开中的条目不参与搜索过滤，输入框还在，名字可以继续改。
+    expect(screen.getByDisplayValue("完全无关的名字")).toBeInTheDocument();
   });
 });

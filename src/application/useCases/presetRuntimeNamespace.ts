@@ -17,7 +17,9 @@ export type MobileTavernPromptRuntime = Partial<Pick<
   PromptConfig,
   | "roleplayMode"
   | "useMainPrompt"
+  | "mainPromptName"
   | "useJailbreak"
+  | "jailbreakPromptName"
   | "usePostHistory"
   | "enableReasoningGuidance"
   | "reasoningGuidancePrompt"
@@ -38,7 +40,9 @@ export function buildMobileTavernPresetExtension(promptConfig: PromptConfig): Re
     promptRuntime: {
       roleplayMode: promptConfig.roleplayMode,
       useMainPrompt: promptConfig.useMainPrompt,
+      mainPromptName: promptConfig.mainPromptName,
       useJailbreak: promptConfig.useJailbreak,
+      jailbreakPromptName: promptConfig.jailbreakPromptName,
       usePostHistory: promptConfig.usePostHistory,
       enableReasoningGuidance: promptConfig.enableReasoningGuidance,
       reasoningGuidancePrompt: promptConfig.reasoningGuidancePrompt,
@@ -87,6 +91,8 @@ function parsePromptRuntime(value: unknown): MobileTavernPromptRuntime | undefin
   const stringKeys = [
     "reasoningGuidancePrompt",
     "tableMemoryPrompt",
+    "mainPromptName",
+    "jailbreakPromptName",
   ] as const;
   for (const key of stringKeys) {
     if (typeof value[key] === "string") runtime[key] = value[key];

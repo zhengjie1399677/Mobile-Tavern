@@ -11,6 +11,12 @@ import { removePromptBlocks } from "../../domain/prompt-composition";
  *
  * 对应键：列表侧 `identifier || id`，编排侧 `compatibility.originalIdentifier`。
  * 开关只同步 `enabled`；删除是双向连带的（见 `removeCompositionBlocks` / `applyLegacyPromptRemoval`）。
+ *
+ * 已知残留（不在本轮修复范围）：编排侧键来自 `originalIdentifier`，而它按设计保存
+ * SillyTavern 的原始 identifier（往返导出要用原值）。因此当预设里存在**两条同 identifier**
+ * 的条目时（ST 复制条目会带出），列表/编辑器侧已经按唯一 `id` 精确命中，但在编排视图里
+ * 开关这两条仍会互相牵连。彻底修它需要决定"导入时是否把重复 identifier 改写成唯一值"，
+ * 那会改变 ST 往返身份，属于兼容契约变更，需单独评估后再做。
  */
 
 /**
@@ -68,7 +74,8 @@ function collectSwitchKeys(composition: PromptComposition, blockIds: readonly st
 }
 
 function matchesPromptKey(prompt: CustomPromptBlock, id: string): boolean {
-  return prompt.id === id || (Boolean(prompt.identifier) && prompt.identifier === id);
+  // 身份优先用 id；`identifier` 只在条目没有 id 时充当兼容别名。
+  return prompt.id ? prompt.id === id : Boolean(prompt.identifier) && prompt.identifier === id;
 }
 
 /**
@@ -164,8 +171,7 @@ export function applyLegacyPromptRemoval(
   const list = promptConfig.customPrompts ?? [];
   const targets = new Set(promptIds);
   const isTarget = (prompt: CustomPromptBlock) =>
-    (Boolean(prompt.id) && targets.has(prompt.id))
-    || (Boolean(prompt.identifier) && targets.has(prompt.identifier!));
+    prompt.id ? targets.has(prompt.id) : Boolean(prompt.identifier) && targets.has(prompt.identifier!);
   const removed = list.filter(isTarget);
   if (removed.length === 0) return promptConfig;
 

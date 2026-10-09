@@ -6,6 +6,7 @@ import type {
   SavedPresetBundle,
 } from "../../types";
 import { resolvePromptFromV1Fields } from "../../domain/presets/promptSnapshot";
+import { ensureUniquePromptBlockIds } from "../../domain/prompts/promptBlockIdentity";
 
 /** 从完整设置中提取预设可拥有的传统 Prompt 字段。 */
 export function toPresetPromptConfig(config: PromptConfig): PresetPromptConfig {
@@ -113,7 +114,13 @@ export function normalizeSavedPresetPromptPlan(bundle: SavedPresetBundle): Saved
   } = bundle;
   return {
     ...currentBundle,
-    promptConfig: toPresetPromptConfig(bundle.promptConfig as PromptConfig),
+    promptConfig: {
+      ...toPresetPromptConfig(bundle.promptConfig as PromptConfig),
+      // 存储边界同样收敛身份：旧导入留下的重复 identifier 不能带进运行期列表。
+      customPrompts: ensureUniquePromptBlockIds(
+        (bundle.promptConfig as PromptConfig).customPrompts ?? [],
+      ),
+    },
     promptPlan,
   };
 }

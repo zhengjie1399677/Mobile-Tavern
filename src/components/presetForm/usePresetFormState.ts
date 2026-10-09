@@ -3,6 +3,12 @@ import { useTranslation } from "../../contexts/LanguageContext";
 import type { UserSettings, CharacterCard, RegexScript, CustomPromptBlock } from "../../types";
 import { resolveActivePresetBundle } from "../../application/useCases/presetBundleLifecycle";
 import { applyLegacyPromptRemoval } from "../../application/useCases/promptSwitchSync";
+import {
+  regexScriptKey,
+  removeRegexScriptByKey,
+  setRegexScriptDisabledByKey,
+  upsertRegexScriptByKey,
+} from "../../domain/regex/regexScriptIdentity";
 
 export type RegexEditorScope = "global" | "preset" | "character";
 export type EditableRegexScript = RegexScript & { scope?: RegexEditorScope };
@@ -107,7 +113,9 @@ export function usePresetFormState({
       const scripts = Array.isArray(rawScripts)
         ? rawScripts
         : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
-      const updatedScripts = scripts.map((r: RegexScript) => (r.id === id || r.scriptName === id ? { ...r, disabled } : r));
+      // 身份按 regexScriptKey 判定：缺 id 的历史脚本用 scriptName，否则命中不了、开关静默失效。
+      const updatedScripts = setRegexScriptDisabledByKey(scripts, id, disabled);
+      if (updatedScripts === scripts) return;
       const updatedChar = {
         ...activeCharacter,
         extensions: {
@@ -121,9 +129,11 @@ export function usePresetFormState({
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
       const list = prev[field] || [];
+      const nextList = setRegexScriptDisabledByKey(list, id, disabled);
+      if (nextList === list) return prev;
       return {
         ...prev,
-        [field]: list.map((r: RegexScript) => (r.id === id ? { ...r, disabled } : r)),
+        [field]: nextList,
       };
     });
   };
@@ -139,7 +149,8 @@ export function usePresetFormState({
       const scripts = Array.isArray(rawScripts)
         ? rawScripts
         : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
-      const updatedScripts = scripts.filter((r: RegexScript) => r.id !== id && r.scriptName !== id);
+      const updatedScripts = removeRegexScriptByKey(scripts, id);
+      if (updatedScripts === scripts) return;
       const updatedChar = {
         ...activeCharacter,
         extensions: {
@@ -153,9 +164,11 @@ export function usePresetFormState({
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
       const list = prev[field] || [];
+      const nextList = removeRegexScriptByKey(list, id);
+      if (nextList === list) return prev;
       return {
         ...prev,
-        [field]: list.filter((r: RegexScript) => r.id !== id),
+        [field]: nextList,
       };
     });
   };
@@ -172,13 +185,7 @@ export function usePresetFormState({
       const scripts = Array.isArray(rawScripts)
         ? rawScripts
         : (rawScripts && typeof rawScripts === "object" ? Object.values(rawScripts) : []);
-      const exists = scripts.some((r: RegexScript) => r.id === reg.id || (r.scriptName && r.scriptName === reg.id));
-      let nextList;
-      if (exists) {
-        nextList = scripts.map((r: RegexScript) => (r.id === reg.id || r.scriptName === reg.id ? reg : r));
-      } else {
-        nextList = [...scripts, reg];
-      }
+      const nextList = upsertRegexScriptByKey(scripts, reg);
       const updatedChar = {
         ...activeCharacter,
         extensions: {
@@ -193,17 +200,9 @@ export function usePresetFormState({
     }
     updateSettings((prev) => {
       const field = scope === "global" ? "globalRegexScripts" : "presetRegexScripts";
-      const list = prev[field] || [];
-      const exists = list.some((r: RegexScript) => r.id === reg.id);
-      let nextList;
-      if (exists) {
-        nextList = list.map((r) => (r.id === reg.id ? reg : r));
-      } else {
-        nextList = [...list, reg];
-      }
       return {
         ...prev,
-        [field]: nextList,
+        [field]: upsertRegexScriptByKey(prev[field] || [], reg),
       };
     });
     setIsRegexModalOpen(false);
@@ -231,7 +230,7 @@ export function usePresetFormState({
     updateSettings((prev) => ({
       ...prev,
       globalRegexScripts: (prev.globalRegexScripts || []).filter(
-        (r: RegexScript) => !selectedGlobalRegexIds.includes(r.id)
+        (r: RegexScript) => !selectedGlobalRegexIds.includes(regexScriptKey(r))
       ),
     }));
     setSelectedGlobalRegexIds([]);
@@ -245,7 +244,7 @@ export function usePresetFormState({
     updateSettings((prev) => ({
       ...prev,
       presetRegexScripts: (prev.presetRegexScripts || []).filter(
-        (r: RegexScript) => !selectedPresetRegexIds.includes(r.id)
+        (r: RegexScript) => !selectedPresetRegexIds.includes(regexScriptKey(r))
       ),
     }));
     setSelectedPresetRegexIds([]);
