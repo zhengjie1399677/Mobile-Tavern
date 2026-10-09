@@ -1100,6 +1100,7 @@ export default {
   "chat.delete_character_session_guard": "У этого персонажа остались связанные сессии. Сначала заархивируйте и удалите их в менеджере сессий.",
   "splash.tagline": "Начните свою симфонию души",
   "db.writing_overlay": "Запись в базу данных",
+  "db.writing_overlay_timeout": "Запись занимает слишком много времени — нажмите «Закрыть», чтобы продолжить",
   "update.new_version_title": "✨ Найдена новая версия v{version}",
   "update.downloading": "Запуск безопасного канала загрузки...",
   "update.download_now": "Скачать сейчас",

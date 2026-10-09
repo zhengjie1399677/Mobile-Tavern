@@ -1132,6 +1132,7 @@ export default {
 
   "splash.tagline": "당신의 영혼 교향록을 열어보세요",
   "db.writing_overlay": "데이터베이스 쓰기 중",
+  "db.writing_overlay_timeout": "쓰기가 오래 걸립니다. '닫기'를 눌러 계속 사용할 수 있습니다",
 
   "update.new_version_title": "✨ 새 버전 v{version} 발견",
   "update.downloading": "안전 다운로드 채널 호출 중...",

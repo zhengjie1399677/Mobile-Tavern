@@ -1181,6 +1181,7 @@ export default {
   "chat.delete_character_session_guard": "该角色仍有关联会话，请先在会话管理器中归档并永久删除这些会话。",
   "splash.tagline": "开启你的灵魂交响录",
   "db.writing_overlay": "正在写入数据库",
+  "db.writing_overlay_timeout": "写入耗时过长，可点「关闭」继续操作",
   "update.new_version_title": "✨ 发现新版本 v{version}",
   "update.downloading": "正在唤起安全下载通道...",
   "update.download_now": "立即下载更新",

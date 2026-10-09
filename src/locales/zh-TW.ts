@@ -1110,6 +1110,7 @@ export default {
   "chat.delete_character_session_guard": "該角色仍有關聯會話，請先在會話管理器中封存並永久刪除這些會話。",
   "splash.tagline": "開啟你的靈魂交響錄",
   "db.writing_overlay": "正在寫入數據庫",
+  "db.writing_overlay_timeout": "寫入耗時過長，可點「關閉」繼續操作",
   "update.new_version_title": "✨ 發現新版本 v{version}",
   "update.downloading": "正在喚起安全下載通道...",
   "update.download_now": "立即下載更新",

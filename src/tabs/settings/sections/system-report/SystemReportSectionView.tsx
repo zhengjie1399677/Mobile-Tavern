@@ -5,6 +5,7 @@ import { useTranslation } from "../../../../contexts/LanguageContext";
 import { Logger } from "../../../../utils/logger";
 import { SystemReportPanel } from "./SystemReportPanel";
 import { isErrorLine, isWarningLine, writeClipboard } from "./reportUtils";
+import { collectThemeDiagnosticLines } from "./themeDiagnostics";
 import type {
   DiagnosticSection,
   NavigatorWithConnection,
@@ -712,6 +713,22 @@ export default function SystemReportSection({
       log(`speechSynthesis API unavailable (rely on native bridge TTS).`);
     }
     log(`Elapsed: ${Date.now() - voicesStart}ms`);
+
+    // 14. 主题变量与全屏遮挡层（定位"整个界面看不清 / 点不动"一类现场问题）
+    const themeStart = Date.now();
+    startSection("THEME", "14. THEME / OVERLAY");
+    try {
+      const themeLines = collectThemeDiagnosticLines(document, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+      for (const line of themeLines) {
+        log(line);
+      }
+    } catch (err: unknown) {
+      log(`ERROR: theme/overlay probe failed`, err);
+    }
+    log(`Elapsed: ${Date.now() - themeStart}ms`);
 
     flushSection();
 

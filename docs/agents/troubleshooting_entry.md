@@ -12,6 +12,7 @@
 | Prompt 组装或世界书触发异常 | `PromptService.ts`、`src/application/services/prompt/`、`promptBuilder.ts` | Prompt 与世界书相关测试 |
 | 应用服务未注册或降级异常 | `Kernel.ts`、`src/application/serviceSchemas/`、`registerCoreServices.ts` | Kernel Schema 与架构边界测试 |
 | UI 改动导致全局重渲染 | `UnifiedAppContext.tsx`、相关 `useUnifiedApp(selector)` | 局部组件测试与架构边界测试 |
+| 整屏看不清（字与底同色）、整屏变暗或点不动 | `src/components/DbWritingOverlay.tsx`、`src/index.css` 主题变量、`src/tabs/settings/sections/system-report/themeDiagnostics.ts` | 设置 → 系统报告 → 开始自检，看 `14. THEME / OVERLAY` 的对比度与浮层清单（能区分"配色撞色"与"遮罩压住"）；再对照系统深色模式/强制深色开关 |
 | Android 真机白屏、网络或热重载异常 | Android 调试指南、`vite.config.ts`、`src-tauri/` | 端口、Host、反向映射和生产构建 |
 | 生产包混入 Node 或云端代码 | 移动端规范、云端规范、打包配置 | `npm run build`，必要时检查产物依赖 |
 

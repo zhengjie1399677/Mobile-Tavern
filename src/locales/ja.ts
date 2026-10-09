@@ -1100,6 +1100,7 @@ export default {
   "chat.delete_character_session_guard": "このキャラクターには関連セッションが残っています。先にセッションマネージャーでアーカイブして完全に削除してください。",
   "splash.tagline": "あなたの魂の交響曲を始めましょう",
   "db.writing_overlay": "データベースに書き込み中",
+  "db.writing_overlay_timeout": "書き込みに時間がかかっています。「閉じる」で操作を続けられます",
   "update.new_version_title": "✨ 新しいバージョン v{version} を発見",
   "update.downloading": "安全なダウンロードチャネルを起動中...",
   "update.download_now": "今すぐダウンロード",

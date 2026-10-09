@@ -1110,6 +1110,7 @@ export default {
   "chat.delete_character_session_guard": "Este personagem ainda possui sessões associadas. Arquive e exclua-as permanentemente no gerenciador de sessões primeiro.",
   "splash.tagline": "Abra sua Sinfonia de Almas",
   "db.writing_overlay": "Gravando no Banco de Dados",
+  "db.writing_overlay_timeout": "A gravação está demorando demais — toque em «Fechar» para continuar usando o app",
   "update.new_version_title": "✨ Nova Versão Encontrada v{version}",
   "update.downloading": "Iniciando canal seguro de download...",
   "update.download_now": "Baixar Atualização Agora",

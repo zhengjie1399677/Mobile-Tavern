@@ -1182,6 +1182,7 @@ export default {
   "chat.delete_character_session_guard": "This character still has related sessions. Archive and permanently delete them in the Session Manager first.",
   "splash.tagline": "Begin your soul symphony",
   "db.writing_overlay": "Writing to database",
+  "db.writing_overlay_timeout": "Writing is taking too long — tap Close to keep using the app",
   "update.new_version_title": "✨ New version v{version} found",
   "update.downloading": "Initiating secure download channel...",
   "update.download_now": "Download now",
