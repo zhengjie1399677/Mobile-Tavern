@@ -15,33 +15,6 @@ interface SamplersSectionProps {
   handleToggleSamplersFold: () => void;
 }
 
-const TEMP_PILLS = [
-  { label: "0.65 严谨", value: 0.65 },
-  { label: "0.85 推荐", value: 0.85 },
-  { label: "1.15 创意", value: 1.15 },
-] as const;
-
-const TOP_P_PILLS = [
-  { label: "0.90 稳健", value: 0.9 },
-  { label: "0.95 推荐", value: 0.95 },
-  { label: "1.00 全量", value: 1.0 },
-] as const;
-
-const REP_PENALTY_PILLS = [
-  { label: "1.00 无惩罚", value: 1.0 },
-  { label: "1.05 推荐", value: 1.05 },
-  { label: "1.12 强去重", value: 1.12 },
-] as const;
-
-const MAX_TOKENS_PILLS = [
-  { label: "2K", value: 2048 },
-  { label: "8K", value: 8192 },
-  { label: "32K", value: 32768 },
-  { label: "100K 默认", value: DEFAULT_MAX_OUTPUT_TOKENS },
-  { label: "256K", value: 262144 },
-  { label: "1M", value: MAX_OUTPUT_TOKENS },
-] as const;
-
 /** 2. 温度与采样参数 */
 export default function SamplersSection({
   settings,
@@ -50,6 +23,34 @@ export default function SamplersSection({
   handleToggleSamplersFold,
 }: SamplersSectionProps) {
   const { t } = useTranslation();
+
+  // 快捷档位文案与当前语言绑定，故在组件内构造；纯数字档位无需翻译。
+  const tempPills = [
+    { label: t("samplers.pill_temp_strict"), value: 0.65 },
+    { label: t("samplers.pill_temp_recommended"), value: 0.85 },
+    { label: t("samplers.pill_temp_creative"), value: 1.15 },
+  ] as const;
+
+  const topPPills = [
+    { label: t("samplers.pill_top_p_stable"), value: 0.9 },
+    { label: t("samplers.pill_top_p_recommended"), value: 0.95 },
+    { label: t("samplers.pill_top_p_full"), value: 1.0 },
+  ] as const;
+
+  const repPenaltyPills = [
+    { label: t("samplers.pill_rep_none"), value: 1.0 },
+    { label: t("samplers.pill_rep_recommended"), value: 1.05 },
+    { label: t("samplers.pill_rep_strong"), value: 1.12 },
+  ] as const;
+
+  const maxTokensPills = [
+    { label: "2K", value: 2048 },
+    { label: "8K", value: 8192 },
+    { label: "32K", value: 32768 },
+    { label: t("samplers.pill_max_tokens_default"), value: DEFAULT_MAX_OUTPUT_TOKENS },
+    { label: "256K", value: 262144 },
+    { label: "1M", value: MAX_OUTPUT_TOKENS },
+  ] as const;
 
   const handleResetDefaults = () => {
     updateSettings((prev) => ({
@@ -104,14 +105,14 @@ export default function SamplersSection({
         <CardContent className="pt-3 px-3.5 pb-3.5 space-y-4 overflow-hidden w-full">
           {/* 快捷恢复推荐参数 */}
           <div className="flex justify-between items-center pb-1 border-b border-border/30 text-xs">
-            <span className="text-[11px] text-muted-foreground/80">采样核心控制</span>
+            <span className="text-[11px] text-muted-foreground/80">{t("samplers.quick_controls")}</span>
             <button
               type="button"
               onClick={handleResetDefaults}
               className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted/50 border border-border/40 transition active:scale-95"
             >
               <RotateCcw className="w-3 h-3 text-amber-400" />
-              <span>恢复推荐采样</span>
+              <span>{t("samplers.reset_recommended")}</span>
             </button>
           </div>
 
@@ -142,7 +143,7 @@ export default function SamplersSection({
                 className="w-full accent-primary h-1.5 bg-border rounded-lg appearance-none cursor-pointer"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
-                {TEMP_PILLS.map((pill) => {
+                {tempPills.map((pill) => {
                   const isSelected = Math.abs(settings.preset.temperature - pill.value) < 0.03;
                   return (
                     <button
@@ -194,7 +195,7 @@ export default function SamplersSection({
                 className="w-full accent-primary h-1.5 bg-border rounded-lg appearance-none cursor-pointer"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
-                {TOP_P_PILLS.map((pill) => {
+                {topPPills.map((pill) => {
                   const isSelected = Math.abs(settings.preset.topP - pill.value) < 0.03;
                   return (
                     <button
@@ -248,7 +249,7 @@ export default function SamplersSection({
                 className="w-full accent-primary h-1.5 bg-border rounded-lg appearance-none cursor-pointer"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
-                {REP_PENALTY_PILLS.map((pill) => {
+                {repPenaltyPills.map((pill) => {
                   const isSelected = Math.abs(settings.preset.repetitionPenalty - pill.value) < 0.02;
                   return (
                     <button
@@ -302,7 +303,7 @@ export default function SamplersSection({
                 className="w-full accent-primary h-1.5 bg-border rounded-lg appearance-none cursor-pointer"
               />
               <div className="flex items-center gap-1.5 flex-wrap">
-                {MAX_TOKENS_PILLS.map((pill) => {
+                {maxTokensPills.map((pill) => {
                   const isSelected = settings.preset.maxTokens === pill.value;
                   return (
                     <button

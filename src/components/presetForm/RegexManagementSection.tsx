@@ -1,20 +1,14 @@
-import { Sparkles, ChevronDown, ChevronUp, Plus, Trash2, SlidersHorizontal } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardContent } from "../../../components/ui/card";
-import { useTranslation } from "../../contexts/LanguageContext";
+import { useTranslation, type LanguageContextProps } from "../../contexts/LanguageContext";
 import { Switch } from "../../../components/ui/switch";
 import { Checkbox } from "../../../components/ui/checkbox";
-import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { UserSettings, CharacterCard, RegexScript } from "../../types";
 import type { EditableRegexScript } from "./usePresetFormState";
+import RegexEditorDialog from "./RegexEditorDialog";
 import { regexScriptKey, normalizeRegexScripts } from "../../domain/regex/regexScriptIdentity";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "../../../components/ui/dialog";
-import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 
 interface RegexManagementSectionProps {
   settings: UserSettings;
@@ -43,16 +37,16 @@ interface RegexManagementSectionProps {
   saveRegex: (reg: EditableRegexScript) => Promise<void>;
 }
 
-function renderRuleBadges(r: RegexScript, t: (k: string) => string) {
+function renderRuleBadges(r: RegexScript, t: LanguageContextProps["t"]) {
   const placement = r.placement;
   let placementText = t("regex.placement_output");
   if (placement && placement.length > 0) {
     const tags: string[] = [];
-    if (placement.includes(1)) tags.push("输入");
-    if (placement.includes(2)) tags.push("输出");
-    if (placement.includes(6)) tags.push("思维链");
-    if (placement.includes(5)) tags.push("世界书");
-    if (placement.includes(3)) tags.push("命令");
+    if (placement.includes(1)) tags.push(t("regex.placement_input"));
+    if (placement.includes(2)) tags.push(t("regex.placement_output"));
+    if (placement.includes(6)) tags.push(t("regex.placement_chain"));
+    if (placement.includes(5)) tags.push(t("regex.placement_worldbook"));
+    if (placement.includes(3)) tags.push(t("regex.placement_command"));
     placementText = tags.join("·") || t("regex.placement_output");
   }
 
@@ -63,27 +57,27 @@ function renderRuleBadges(r: RegexScript, t: (k: string) => string) {
       </span>
       {r.markdownOnly && (
         <span className="text-[8px] font-semibold px-1 py-0.2 border border-primary/30 rounded bg-primary/10 text-primary">
-          仅渲染
+          {t("regex.badge_markdown_only")}
         </span>
       )}
       {r.promptOnly && (
         <span className="text-[8px] font-semibold px-1 py-0.2 border border-amber-500/30 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
-          仅Prompt
+          {t("regex.badge_prompt_only")}
         </span>
       )}
       {r.substituteRegex === 2 && (
         <span className="text-[8px] font-semibold px-1 py-0.2 border border-emerald-500/30 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-          安全转义
+          {t("regex.badge_safe_escape")}
         </span>
       )}
       {((r.minDepth !== undefined && r.minDepth !== null) || (r.maxDepth !== undefined && r.maxDepth !== null)) && (
         <span className="text-[8px] font-semibold px-1 py-0.2 border border-border rounded bg-muted/60 text-muted-foreground font-mono">
-          深度 {r.minDepth ?? 0}~{r.maxDepth ?? "∞"}
+          {t("regex.badge_depth", { min: r.minDepth ?? 0, max: r.maxDepth ?? "∞" })}
         </span>
       )}
       {r.trimStrings && r.trimStrings.length > 0 && (
         <span className="text-[8px] font-semibold px-1 py-0.2 border border-border rounded bg-muted/60 text-muted-foreground font-mono">
-          裁剪{r.trimStrings.length}项
+          {t("regex.badge_trim_count", { count: r.trimStrings.length })}
         </span>
       )}
     </div>
@@ -121,17 +115,6 @@ export default function RegexManagementSection({
   // 角色轨正则是外部动态结构（数组或 {"0": {...}} 对象），统一归一后再消费，
   // 否则对象形态会让 `.filter/.map/.length` 抛错并带崩整个预设表单。
   const charRegexScripts = normalizeRegexScripts(activeCharacter?.extensions?.regex_scripts);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const closeRegexModal = () => {
-    setIsRegexModalOpen(false);
-    setEditingRegex(null);
-    setShowAdvanced(false);
-  };
-
-  useMobileBackHandler(isRegexModalOpen, () => {
-    closeRegexModal();
-    return true;
-  }, 850);
 
   return (
     <>
@@ -159,7 +142,7 @@ export default function RegexManagementSection({
             <div className="flex items-center gap-2 shrink-0 overflow-hidden">
               {isRegexFolded && (
                 <span className="text-[10px] text-cyan-400 font-mono bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20 truncate max-w-[150px] sm:max-w-none">
-                  全局: {activeGlobalRegex} | 预设: {activePresetRegex} | 角色: {activeCharRegex}
+                  {t("regex.folded_summary", { global: activeGlobalRegex, preset: activePresetRegex, character: activeCharRegex })}
                 </span>
               )}
               {isRegexFolded ? (
@@ -282,13 +265,13 @@ export default function RegexManagementSection({
                         {renderRuleBadges(r, t)}
                       </div>
                       <div className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">
-                        {r.findRegex} ➔ {r.replaceString === "" ? "(删除)" : r.replaceString}
+                        {r.findRegex} ➔ {r.replaceString === "" ? t("regex.replace_empty_delete") : r.replaceString}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 scale-90">
                       <Switch
-                        aria-label={`启用全局正则规则 ${r.scriptName}`}
+                        aria-label={t("regex.aria_toggle_global", { name: r.scriptName })}
                         checked={!r.disabled}
                         onCheckedChange={(checked) => toggleRegexDisabled(targetId, !checked, "global")}
                         className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
@@ -427,13 +410,13 @@ export default function RegexManagementSection({
                         {renderRuleBadges(r, t)}
                       </div>
                       <div className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">
-                        {r.findRegex} ➔ {r.replaceString === "" ? "(删除)" : r.replaceString}
+                        {r.findRegex} ➔ {r.replaceString === "" ? t("regex.replace_empty_delete") : r.replaceString}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 scale-90">
                       <Switch
-                        aria-label={`启用预设正则规则 ${r.scriptName}`}
+                        aria-label={t("regex.aria_toggle_preset", { name: r.scriptName })}
                         checked={!r.disabled}
                         onCheckedChange={(checked) => toggleRegexDisabled(targetId, !checked, "preset")}
                         className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
@@ -525,12 +508,12 @@ export default function RegexManagementSection({
                           {renderRuleBadges(r, t)}
                         </div>
                         <div className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">
-                          {r.findRegex} ➔ {r.replaceString === "" ? "(删除)" : r.replaceString}
+                          {r.findRegex} ➔ {r.replaceString === "" ? t("regex.replace_empty_delete") : r.replaceString}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 scale-90">
                         <Switch
-                          aria-label={`启用角色正则规则 ${r.scriptName}`}
+                          aria-label={t("regex.aria_toggle_character", { name: r.scriptName })}
                           checked={!r.disabled}
                           onCheckedChange={(checked) => toggleRegexDisabled(targetId, !checked, "character")}
                           className="data-[state=checked]:bg-primary h-3 w-6 [&_span]:h-2 [&_span]:w-2"
@@ -563,283 +546,14 @@ export default function RegexManagementSection({
         )}
       </Card>
 
-      {/* 新建/编辑正则 Modal 浮窗 */}
-      <Dialog open={isRegexModalOpen} onOpenChange={(open) => { if (!open) closeRegexModal(); }}>
-        <DialogContent
-          showCloseButton={false}
-          overlayClassName="bg-black/60 backdrop-blur-sm"
-          className="flex w-full max-w-md flex-col gap-0 overflow-hidden rounded-xl border border-border bg-background p-0 shadow-2xl"
-        >
-            <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
-              <DialogTitle className="text-sm font-bold text-foreground">
-                {editingRegex?.id?.startsWith("reg_") ? t("regex.modal_new") : t("regex.modal_edit")}
-              </DialogTitle>
-              <button
-                type="button"
-                onClick={closeRegexModal}
-                className="min-h-11 rounded-lg px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {t("regex.modal_close")}
-              </button>
-            </div>
-            <div className="p-4 space-y-4 overflow-y-auto max-h-[70vh]">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground block">{t("regex.modal_name")}</label>
-                <Input
-                  value={editingRegex?.scriptName || ""}
-                  onChange={(e) =>
-                    setEditingRegex((prev) => prev ? ({ ...prev, scriptName: e.target.value }) : prev)
-                  }
-                  placeholder={t("regex.modal_name_placeholder")}
-                  className="h-11 text-xs bg-input/50"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground block">{t("regex.modal_find")}</label>
-                <Input
-                  value={editingRegex?.findRegex || ""}
-                  onChange={(e) =>
-                    setEditingRegex((prev) => prev ? ({ ...prev, findRegex: e.target.value }) : prev)
-                  }
-                  placeholder={t("regex.modal_find_placeholder")}
-                  className="h-11 text-xs font-mono bg-input/50"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground block">{t("regex.modal_replace")}</label>
-                <Input
-                  value={editingRegex?.replaceString || ""}
-                  onChange={(e) =>
-                    setEditingRegex((prev) => prev ? ({ ...prev, replaceString: e.target.value }) : prev)
-                  }
-                  placeholder={t("regex.modal_replace_placeholder")}
-                  className="h-11 text-xs bg-input/50"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground block">{t("regex.modal_placement")}</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                    <Checkbox
-                      checked={editingRegex?.placement?.includes(1) || false}
-                      onCheckedChange={(checked) => {
-                        const current: number[] = editingRegex?.placement || [2];
-                        let next;
-                        if (checked) {
-                          next = [...current.filter((value) => value !== 1), 1];
-                        } else {
-                          next = current.filter((value) => value !== 1);
-                        }
-                        setEditingRegex((prev) => prev ? ({ ...prev, placement: next }) : prev);
-                      }}
-                    />
-                    {t("regex.modal_placement_input")}
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                    <Checkbox
-                      checked={editingRegex?.placement?.includes(2) || false}
-                      onCheckedChange={(checked) => {
-                        const current: number[] = editingRegex?.placement || [2];
-                        let next;
-                        if (checked) {
-                          next = [...current.filter((value) => value !== 2), 2];
-                        } else {
-                          next = current.filter((value) => value !== 2);
-                        }
-                        setEditingRegex((prev) => prev ? ({ ...prev, placement: next }) : prev);
-                      }}
-                    />
-                    {t("regex.modal_placement_output")}
-                  </label>
-                </div>
-              </div>
-
-              {/* 高级选项折叠栏 */}
-              <div className="pt-2 border-t border-border/50">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((prev) => !prev)}
-                  className="flex items-center justify-between w-full text-xs font-semibold text-muted-foreground hover:text-foreground transition py-1"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
-                    高级匹配与安全选项
-                  </span>
-                  {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
-
-                {showAdvanced && (
-                  <div className="mt-3 space-y-3 p-2.5 rounded-lg bg-muted/30 border border-border/40 text-xs animate-fadeIn">
-                    {/* 宏替换模式 */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-muted-foreground block">
-                        宏参数替换与安全转义 (substituteRegex)
-                      </label>
-                      {/* 默认值必须与运行期一致：正则引擎在字段缺失时按 RAW(1) 处理，
-                          显示 2 会造成"界面承诺安全转义、实际按原始替换执行"。 */}
-                      <select
-                        value={editingRegex?.substituteRegex ?? 1}
-                        onChange={(e) =>
-                          setEditingRegex((prev) => prev ? ({ ...prev, substituteRegex: Number(e.target.value) }) : prev)
-                        }
-                        className="w-full h-8 px-2 text-xs rounded border border-border bg-background text-foreground"
-                      >
-                        <option value={2}>安全转义模式 (推荐，自动转义角色名中的正则元字符)</option>
-                        <option value={1}>原始替换模式 (RAW，直接替换 {"{{char}}"} / {"{{user}}"})</option>
-                        <option value={0}>不处理宏 (NONE，保持原始字面量)</option>
-                      </select>
-                    </div>
-
-                    {/* 阶段开关 */}
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-muted-foreground block">执行时机</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="flex items-center gap-1.5 text-muted-foreground cursor-pointer select-none">
-                          <Checkbox
-                            checked={Boolean(editingRegex?.markdownOnly)}
-                            onCheckedChange={(checked) =>
-                              setEditingRegex((prev) => prev ? ({ ...prev, markdownOnly: Boolean(checked) }) : prev)
-                            }
-                          />
-                          仅渲染时生效 (markdownOnly)
-                        </label>
-                        <label className="flex items-center gap-1.5 text-muted-foreground cursor-pointer select-none">
-                          <Checkbox
-                            checked={Boolean(editingRegex?.promptOnly)}
-                            onCheckedChange={(checked) =>
-                              setEditingRegex((prev) => prev ? ({ ...prev, promptOnly: Boolean(checked) }) : prev)
-                            }
-                          />
-                          仅发送时生效 (promptOnly)
-                        </label>
-                        <label className="flex items-center gap-1.5 text-muted-foreground cursor-pointer select-none col-span-2">
-                          <Checkbox
-                            checked={editingRegex?.runOnEdit !== false}
-                            onCheckedChange={(checked) =>
-                              setEditingRegex((prev) => prev ? ({ ...prev, runOnEdit: Boolean(checked) }) : prev)
-                            }
-                          />
-                          编辑消息时重新执行 (runOnEdit)
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* 深度范围 */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-muted-foreground block">
-                        消息深度范围 (留空为全部生效)
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          placeholder="最小深度 (minDepth)"
-                          value={editingRegex?.minDepth ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value === "" ? null : Number(e.target.value);
-                            setEditingRegex((prev) => prev ? ({ ...prev, minDepth: v }) : prev);
-                          }}
-                          className="h-8 text-xs bg-background"
-                        />
-                        <span className="text-muted-foreground">~</span>
-                        <Input
-                          type="number"
-                          placeholder="最大深度 (maxDepth)"
-                          value={editingRegex?.maxDepth ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value === "" ? null : Number(e.target.value);
-                            setEditingRegex((prev) => prev ? ({ ...prev, maxDepth: v }) : prev);
-                          }}
-                          className="h-8 text-xs bg-background"
-                        />
-                      </div>
-                    </div>
-
-                    {/* 裁剪关键词 trimStrings */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-muted-foreground block">
-                        捕获组修剪文本 (trimStrings，英文逗号分隔)
-                      </label>
-                      {/* 非受控输入：值由开放时的草稿决定，中途敲下的逗号不会被同一次渲染吃掉
-                          （旧实现每次 onChange 都 split/join，导致逗号分隔的第二项无法键入）。 */}
-                      <Input
-                        key={editingRegex?.id ?? "new-regex"}
-                        placeholder="如: SECRET, [Private], //note"
-                        defaultValue={(editingRegex?.trimStrings ?? []).join(", ")}
-                        onChange={(e) => {
-                          const list = e.target.value
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean);
-                          setEditingRegex((prev) => prev ? ({ ...prev, trimStrings: list }) : prev);
-                        }}
-                        className="h-8 text-xs bg-background font-mono"
-                      />
-                    </div>
-
-                    {/* 扩展生效位置 */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-muted-foreground block">
-                        扩展生效位置 (Placement)
-                      </label>
-                      <div className="flex flex-wrap gap-3">
-                        <label className="flex items-center gap-1.5 text-muted-foreground cursor-pointer select-none">
-                          <Checkbox
-                            checked={editingRegex?.placement?.includes(6) || false}
-                            onCheckedChange={(checked) => {
-                              const current: number[] = editingRegex?.placement || [2];
-                              const next = checked ? [...current.filter((v) => v !== 6), 6] : current.filter((v) => v !== 6);
-                              setEditingRegex((prev) => prev ? ({ ...prev, placement: next }) : prev);
-                            }}
-                          />
-                          思维链 (6)
-                        </label>
-                        <label className="flex items-center gap-1.5 text-muted-foreground cursor-pointer select-none">
-                          <Checkbox
-                            checked={editingRegex?.placement?.includes(5) || false}
-                            onCheckedChange={(checked) => {
-                              const current: number[] = editingRegex?.placement || [2];
-                              const next = checked ? [...current.filter((v) => v !== 5), 5] : current.filter((v) => v !== 5);
-                              setEditingRegex((prev) => prev ? ({ ...prev, placement: next }) : prev);
-                            }}
-                          />
-                          世界书 (5)
-                        </label>
-                        <label className="flex items-center gap-1.5 text-muted-foreground cursor-pointer select-none">
-                          <Checkbox
-                            checked={editingRegex?.placement?.includes(3) || false}
-                            onCheckedChange={(checked) => {
-                              const current: number[] = editingRegex?.placement || [2];
-                              const next = checked ? [...current.filter((v) => v !== 3), 3] : current.filter((v) => v !== 3);
-                              setEditingRegex((prev) => prev ? ({ ...prev, placement: next }) : prev);
-                            }}
-                          />
-                          斜杠命令 (3)
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="px-4 py-3 border-t border-border bg-muted/20 flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={closeRegexModal}
-                className="min-h-11 rounded-md border border-border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted"
-              >
-                {t("prompts.cancel")}
-              </button>
-              <button
-                type="button"
-                disabled={!editingRegex}
-                onClick={() => { if (editingRegex) void saveRegex(editingRegex); }}
-                className="min-h-11 rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-              >
-                {t("regex.modal_save")}
-              </button>
-            </div>
-        </DialogContent>
-      </Dialog>
+      {/* 新建/编辑正则 Modal 浮窗（已拆至 RegexEditorDialog） */}
+      <RegexEditorDialog
+        editingRegex={editingRegex}
+        setEditingRegex={setEditingRegex}
+        isRegexModalOpen={isRegexModalOpen}
+        setIsRegexModalOpen={setIsRegexModalOpen}
+        saveRegex={saveRegex}
+      />
     </>
   );
 }

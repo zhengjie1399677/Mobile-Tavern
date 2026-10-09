@@ -126,7 +126,7 @@ export default function PresetSelectorSection({
 
         {currentBundleName.length > 14 && (
           <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-background/50 border border-border/50 text-[10.5px] text-muted-foreground break-all leading-relaxed">
-            <span className="shrink-0 text-primary font-bold">全名:</span>
+            <span className="shrink-0 text-primary font-bold">{t("preset_selector.full_name")}</span>
             <span className="line-clamp-2 text-foreground/90 font-medium">{currentBundleName}</span>
           </div>
         )}

@@ -350,7 +350,7 @@ export default function PromptsConfigSection({
           <div className="flex items-center gap-2 shrink-0 overflow-hidden">
             {isPromptsFolded && (
               <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 truncate max-w-[160px] sm:max-w-none">
-                开启: {activeCount} / 未开启: {inactiveCount} / 共 {unifiedPrompts.length} 项
+                {t("prompts.folded_summary", { active: activeCount, inactive: inactiveCount, total: unifiedPrompts.length })}
               </span>
             )}
             {isPromptsFolded ? (
@@ -371,14 +371,14 @@ export default function PromptsConfigSection({
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/50 border border-border/40 text-[11px] font-mono">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  已开启 {activeCount}
+                  {t("prompts.active_count", { count: activeCount })}
                 </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/30 border border-border/30 text-[11px] font-mono text-muted-foreground/75">
                   <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                  未开启 {inactiveCount}
+                  {t("prompts.inactive_count", { count: inactiveCount })}
                 </span>
                 <span className="text-[11px] text-muted-foreground/60 hidden sm:inline-block">
-                  （共 {unifiedPrompts.length} 项）
+                  {t("prompts.total_count", { count: unifiedPrompts.length })}
                 </span>
               </div>
 
@@ -427,7 +427,7 @@ export default function PromptsConfigSection({
                       )}
                     >
                       <Sparkles className="w-3 h-3 text-amber-400" />
-                      <span>常用模板</span>
+                      <span>{t("prompts.templates_button")}</span>
                     </button>
                     <button
                       type="button"
@@ -447,7 +447,7 @@ export default function PromptsConfigSection({
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-foreground flex items-center gap-1 text-[11.5px]">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    常用提示词模版库（点击一键加入当前预设）
+                    {t("prompts.templates_title")}
                   </span>
                   <button
                     type="button"
@@ -477,7 +477,7 @@ export default function PromptsConfigSection({
                         onClick={() => handleAddTemplate(tpl)}
                         className="text-[10.5px] font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/20 flex items-center justify-center gap-1 transition active:scale-95 self-end"
                       >
-                        <Plus className="w-3 h-3" /> 一键添加
+                        <Plus className="w-3 h-3" /> {t("prompts.templates_add")}
                       </button>
                     </div>
                   ))}
@@ -491,7 +491,7 @@ export default function PromptsConfigSection({
               <Input
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder="搜索提示词名称或内容..."
+                placeholder={t("prompts.search_placeholder")}
                 className="h-8 pl-8 pr-7 text-xs bg-muted/30 border-border/60 focus-visible:ring-1 focus-visible:ring-primary/40 rounded-lg placeholder:text-muted-foreground/50"
               />
               {searchKeyword && (
@@ -509,11 +509,11 @@ export default function PromptsConfigSection({
           {/* 提示词列表状态指示 */}
           <div className="text-[11px] text-muted-foreground/80 flex items-center justify-between px-0.5">
             <span>
-              提示词列表（显示 {displayedPrompts.length} / 共 {unifiedPrompts.length} 项）
+              {t("prompts.list_summary", { shown: displayedPrompts.length, total: unifiedPrompts.length })}
             </span>
             {searchKeyword.trim() && (
               <span className="text-[10px] text-primary font-mono">
-                匹配“{searchKeyword.trim()}”
+                {t("prompts.search_match", { keyword: searchKeyword.trim() })}
               </span>
             )}
           </div>
@@ -525,11 +525,11 @@ export default function PromptsConfigSection({
               <div className="space-y-1">
                 <span className="text-xs font-semibold text-foreground">
                   {searchKeyword.trim()
-                    ? "未找到匹配的提示词模组"
+                    ? t("prompts.no_match")
                     : t("prompts.no_modules")}
                 </span>
                 <p className="text-[11px] text-muted-foreground/75">
-                  {searchKeyword.trim() ? "请尝试更换关键词搜索" : "可以点击下方推荐模板快速开启高品质对话"}
+                  {searchKeyword.trim() ? t("prompts.no_match_hint") : t("prompts.empty_hint")}
                 </p>
               </div>
 
@@ -585,7 +585,7 @@ export default function PromptsConfigSection({
                           />
                         )}
                         <Switch
-                          aria-label={`启用提示词 ${p.name}`}
+                          aria-label={t("prompts.aria_toggle", { name: p.name })}
                           checked={p.enabled}
                           onCheckedChange={(checked) => handleToggle(p, checked)}
                           onClick={(e) => e.stopPropagation()}
@@ -618,25 +618,25 @@ export default function PromptsConfigSection({
 
                         {/* 字数指示 */}
                         <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0 hidden sm:inline-block">
-                          {contentLength > 0 ? `${contentLength}字` : "空"}
+                          {contentLength > 0 ? t("prompts.char_count", { count: contentLength }) : t("prompts.char_empty")}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
-                          aria-label={`删除提示词 ${p.name}`}
+                          aria-label={t("prompts.aria_delete", { name: p.name })}
                           onClick={(e) => {
                             e.stopPropagation();
                             void handleDelete(p);
                           }}
                           className="p-1 hover:bg-destructive/20 hover:text-destructive text-muted-foreground/70 rounded transition"
-                          title="删除提示词"
+                          title={t("prompts.delete_tooltip")}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                         <AccordionTrigger
-                          aria-label={`展开或折叠 ${p.name} 详情`}
+                          aria-label={t("prompts.aria_expand", { name: p.name })}
                           className="w-6 h-6 flex justify-center items-center p-0 rounded hover:bg-accent/50 [&>svg]:text-muted-foreground"
                         />
                       </div>
@@ -650,7 +650,7 @@ export default function PromptsConfigSection({
                             value={p.name}
                             onChange={(e) => handleUpdate(p, e.target.value, p.role, p.content)}
                             className="h-7.5 text-xs bg-input/50 focus-visible:ring-1 flex-1 min-w-[160px]"
-                            placeholder="提示词名称"
+                            placeholder={t("prompts.name_placeholder")}
                           />
 
                           <div className="flex rounded-md bg-muted/60 p-0.5 border border-border/50 text-[10px] font-bold shrink-0">
@@ -677,19 +677,19 @@ export default function PromptsConfigSection({
                           value={p.content}
                           onChange={(e) => handleUpdate(p, p.name, p.role, e.target.value)}
                           className="min-h-[140px] text-xs font-mono sm:text-xs leading-relaxed resize-y bg-input/40 focus-visible:ring-primary/40 text-foreground shadow-inner custom-scrollbar"
-                          placeholder="在此输入提示词文本内容..."
+                          placeholder={t("prompts.content_placeholder")}
                         />
 
                         {/* 底部信息辅助 */}
                         <div className="flex items-center justify-between text-[10px] text-muted-foreground/60 px-0.5 font-mono">
                           <span>
                             {p.type === "main"
-                              ? "系统提示词"
+                              ? t("prompts.type_main")
                               : p.type === "jailbreak"
-                                ? "规则提示词"
-                                : "提示词模组"}
+                                ? t("prompts.type_jailbreak")
+                                : t("prompts.type_custom")}
                           </span>
-                          <span>{contentLength} 字符</span>
+                          <span>{t("prompts.char_count_full", { count: contentLength })}</span>
                         </div>
                       </div>
                     </AccordionContent>

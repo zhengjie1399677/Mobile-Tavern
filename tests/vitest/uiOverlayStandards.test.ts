@@ -12,7 +12,9 @@ const interactiveOverlaySources = [
   "src/components/plugins/AgentHostDiagnosticsModal.tsx",
   "src/components/ThemeEditorModal.tsx",
   "src/components/FloatingCharacter.tsx",
-  "src/components/presetForm/RegexManagementSection.tsx",
+  // 正则编辑 Modal 已从 RegexManagementSection 拆到 RegexEditorDialog，
+  // 统一 Dialog / 返回键栈的守卫随之迁移到浮层实际所在文件（同等语义）。
+  "src/components/presetForm/RegexEditorDialog.tsx",
   "src/components/plugins/PluginManagerSection.tsx",
   "src/components/plugins/ToolPluginManagerSection.tsx",
 ] as const;
