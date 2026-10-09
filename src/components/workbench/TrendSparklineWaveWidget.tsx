@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Activity } from "lucide-react";
 import { useActivityMetrics } from "./useActivityMetrics";
 
@@ -6,35 +6,65 @@ interface TrendSparklineWaveWidgetProps {
   className?: string;
 }
 
-export const TrendSparklineWaveWidget: React.FC<TrendSparklineWaveWidgetProps> = ({
-  className = "",
-}) => {
-  const { last7Days } = useActivityMetrics();
+/**
+ * SVG 坐标与渲染尺寸 1:1：
+ * viewBox 宽度取容器实宽、高度固定 80（= CSS h-20），
+ * 因此不需要 `preserveAspectRatio="none"`，数据点不会被拉伸成椭圆。
+ */
+const VIEW_HEIGHT = 80;
+const PADDING_X = 16;
+const PADDING_TOP = 12;
+/** 底部留白同时充当刻度文字带：刻度画在同一坐标系内，不再靠外层 flex 对齐。 */
+const PADDING_BOTTOM = 16;
+/** 容器宽度尚未测量到时（首帧 / 无 ResizeObserver 的环境）使用的兜底宽度。 */
+const FALLBACK_WIDTH = 320;
 
-  // 计算波形图点坐标
-  const { pathD, areaD, points, maxVal } = useMemo(() => {
+export const TrendSparklineWaveWidget = React.memo(function TrendSparklineWaveWidget({
+  className = "",
+}: TrendSparklineWaveWidgetProps) {
+  const { last7Days } = useActivityMetrics();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(FALLBACK_WIDTH);
+
+  // 按容器实宽取坐标：曲线、数据点、面积与刻度文字共用同一坐标系。
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const measure = () => {
+      const next = element.clientWidth;
+      if (next > 0) setWidth(next);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const { pathD, areaD, points, baseline } = useMemo(() => {
     let max = 1;
     for (const d of last7Days) {
       if (d.count > max) max = d.count;
     }
 
-    const width = 280;
-    const height = 70;
-    const paddingX = 16;
-    const paddingTop = 12;
-    const paddingBottom = 16;
-    const innerHeight = height - paddingTop - paddingBottom;
-    const step = (width - paddingX * 2) / (last7Days.length - 1);
+    const innerHeight = VIEW_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+    // 面积基线 = 绘图区底部（此前误用绘图高度 70，比 viewBox 高 75 少 5，填充会悬空）。
+    const baselineY = PADDING_TOP + innerHeight;
+    const usableWidth = Math.max(width - PADDING_X * 2, 1);
+    const step = last7Days.length > 1 ? usableWidth / (last7Days.length - 1) : 0;
 
     const pts = last7Days.map((d, i) => {
-      const x = paddingX + i * step;
-      const normalized = d.count / max;
-      const y = paddingTop + innerHeight * (1 - normalized);
+      const x = PADDING_X + i * step;
+      const normalized = Math.min(1, Math.max(0, d.count / max));
+      const y = PADDING_TOP + innerHeight * (1 - normalized);
       return { x, y, count: d.count, label: d.dayLabel };
     });
 
     if (pts.length < 2) {
-      return { pathD: "", areaD: "", points: pts, maxVal: max };
+      return { pathD: "", areaD: "", points: pts, baseline: baselineY };
     }
 
     // 生成平滑贝塞尔曲线路径
@@ -50,10 +80,10 @@ export const TrendSparklineWaveWidget: React.FC<TrendSparklineWaveWidgetProps> =
     }
 
     // 生成面积闭合路径
-    const aD = `${pD} L ${pts[pts.length - 1].x} ${height} L ${pts[0].x} ${height} Z`;
+    const aD = `${pD} L ${pts[pts.length - 1].x} ${baselineY} L ${pts[0].x} ${baselineY} Z`;
 
-    return { pathD: pD, areaD: aD, points: pts, maxVal: max };
-  }, [last7Days]);
+    return { pathD: pD, areaD: aD, points: pts, baseline: baselineY };
+  }, [last7Days, width]);
 
   return (
     <div
@@ -82,11 +112,10 @@ export const TrendSparklineWaveWidget: React.FC<TrendSparklineWaveWidgetProps> =
       </div>
 
       {/* 核心 SVG 平滑渐变波形图 */}
-      <div className="relative mt-2 flex flex-col items-center">
+      <div ref={containerRef} className="relative mt-2">
         <svg
-          viewBox="0 0 280 75"
+          viewBox={`0 0 ${width} ${VIEW_HEIGHT}`}
           className="h-20 w-full overflow-visible"
-          preserveAspectRatio="none"
         >
           <defs>
             {/* 面积流光渐变 */}
@@ -103,17 +132,19 @@ export const TrendSparklineWaveWidget: React.FC<TrendSparklineWaveWidgetProps> =
             </linearGradient>
           </defs>
 
-          {/* 水平轻量基准辅助虚线 */}
-          <line
-            x1="12"
-            y1="40"
-            x2="268"
-            y2="40"
-            stroke="currentColor"
-            strokeWidth="0.8"
-            strokeDasharray="3 3"
-            className="text-white/8"
-          />
+          {/* 水平基准辅助虚线：与面积基线、数据点同一条横线 */}
+          {points.length >= 2 && (
+            <line
+              x1={points[0].x}
+              y1={baseline}
+              x2={points[points.length - 1].x}
+              y2={baseline}
+              stroke="currentColor"
+              strokeWidth="0.8"
+              strokeDasharray="3 3"
+              className="text-white/8"
+            />
+          )}
 
           {/* 渐变波形填充面积 */}
           {areaD && <path d={areaD} fill="url(#wave-area-grad)" />}
@@ -130,7 +161,7 @@ export const TrendSparklineWaveWidget: React.FC<TrendSparklineWaveWidgetProps> =
             />
           )}
 
-          {/* 数据点微光光斑 */}
+          {/* 数据点微光光斑（等比坐标系下为正圆） */}
           {points.map((pt, i) => {
             if (pt.count <= 0) return null;
             return (
@@ -147,22 +178,25 @@ export const TrendSparklineWaveWidget: React.FC<TrendSparklineWaveWidgetProps> =
               </g>
             );
           })}
-        </svg>
 
-        {/* 底部 7 日刻度对齐 */}
-        <div className="flex w-full justify-between px-3 text-center text-[10px] font-mono text-muted-foreground/80 mt-1">
+          {/* 底部 7 日刻度：与数据点同坐标系，x 严格对齐 */}
           {points.map((pt, i) => (
-            <span
+            <text
               key={i}
-              className={pt.count > 0 ? "text-cyan-300 font-bold" : "text-muted-foreground/60"}
+              x={pt.x}
+              y={VIEW_HEIGHT - 3}
+              textAnchor="middle"
+              className={`text-[10px] font-mono ${
+                pt.count > 0 ? "fill-cyan-300 font-bold" : "fill-muted-foreground/60"
+              }`}
             >
               {pt.label}
-            </span>
+            </text>
           ))}
-        </div>
+        </svg>
       </div>
     </div>
   );
-};
+});
 
 export default TrendSparklineWaveWidget;

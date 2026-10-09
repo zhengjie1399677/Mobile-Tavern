@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Sparkles } from "lucide-react";
 import { useActivityMetrics, getMoodColor } from "./useActivityMetrics";
 
@@ -6,18 +6,31 @@ interface RussellMoodCompassWidgetProps {
   className?: string;
 }
 
-export const RussellMoodCompassWidget: React.FC<RussellMoodCompassWidgetProps> = ({
+export const RussellMoodCompassWidget = React.memo(function RussellMoodCompassWidget({
   className = "",
-}) => {
+}: RussellMoodCompassWidgetProps) {
   const { todayMood, saveMood } = useActivityMetrics();
   const svgRef = useRef<SVGSVGElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  /** 拖动中的本地预览坐标：避免每次 pointermove 都推进一次全局心相状态。 */
+  const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
+  const draggingRef = useRef(false);
+  const pendingPointRef = useRef<{ x: number; y: number } | null>(null);
+  const frameRef = useRef<number | null>(null);
 
   // 默认中心或已记录位置
-  const currentX = todayMood?.x ?? 0.3;
-  const currentY = todayMood?.y ?? 0.4;
+  const currentX = dragPoint?.x ?? todayMood?.x ?? 0.3;
+  const currentY = dragPoint?.y ?? todayMood?.y ?? 0.4;
 
   const moodStyle = getMoodColor(currentX, currentY);
+
+  /** 把同一帧内累积的多次 pointermove 合并为一次提交（localStorage 由 Provider 统一防抖写入）。 */
+  const flushPendingPoint = useCallback(() => {
+    const pending = pendingPointRef.current;
+    pendingPointRef.current = null;
+    if (!pending) return;
+    setDragPoint(pending);
+    saveMood(pending);
+  }, [saveMood]);
 
   const handlePointerUpdate = useCallback(
     (clientX: number, clientY: number) => {
@@ -26,6 +39,7 @@ export const RussellMoodCompassWidget: React.FC<RussellMoodCompassWidgetProps> =
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
       const radius = rect.width / 2;
+      if (radius <= 0) return;
 
       let dx = (clientX - centerX) / radius;
       let dy = -(clientY - centerY) / radius; // SVG Y轴向下，因此取负
@@ -36,33 +50,51 @@ export const RussellMoodCompassWidget: React.FC<RussellMoodCompassWidgetProps> =
         dy /= distance;
       }
 
-      saveMood({ x: dx, y: dy });
+      pendingPointRef.current = { x: dx, y: dy };
+      if (frameRef.current !== null) return; // 本帧已排队，合并到同一帧提交
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = null;
+        flushPendingPoint();
+      });
     },
-    [saveMood]
+    [flushPendingPoint]
   );
 
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    setIsDragging(true);
+    draggingRef.current = true;
     e.currentTarget.setPointerCapture(e.pointerId);
     handlePointerUpdate(e.clientX, e.clientY);
   };
 
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (isDragging) {
+    if (draggingRef.current) {
       handlePointerUpdate(e.clientX, e.clientY);
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (isDragging) {
-      setIsDragging(false);
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    // 抬手即收尾：补交最后一帧未提交的坐标；随后回到「已记录心相」这一权威展示值。
+    flushPendingPoint();
+    setDragPoint(null);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
     }
   };
+
+  useEffect(
+    () => () => {
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    },
+    []
+  );
 
   // 映射星核在 SVG (viewBox 0 0 160 160) 上的像素坐标
   const cx = 80 + currentX * 68;
@@ -209,6 +241,6 @@ export const RussellMoodCompassWidget: React.FC<RussellMoodCompassWidgetProps> =
       </div>
     </div>
   );
-};
+});
 
 export default RussellMoodCompassWidget;

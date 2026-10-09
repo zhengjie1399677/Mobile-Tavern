@@ -1,5 +1,12 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-10：**旧 WebView 降级配色层（Chrome <111 可读性修复）+ 工作台图表换口径与性能收口。**
+  1. **旧 WebView 降级层**：`src/index.css` 末尾新增 `@supports not (color: oklch(0% 0 0))`，5 个主题 × 19 个颜色变量 + 83 个 Tailwind 调色板变量改为等价 hex（与原 oklch 逐通道等价、对比度抽样未劣化）；半透明表面靠产物中 `@supports` 之外的基线声明自动退化为接近原色的实色底（已用产物逐条核对：只存在于 `@supports` 内的声明数 = 0）。自检第 9 项 `<111` 由 `OK (>=100)` 改为 WARNING；新增两条守卫（降级层完整且干净、调色板覆盖含数量下限），并做反向验证（改坏标记 → 用例失败）。根因：Tailwind v4 产物含 183 处 `oklch()`、989 处 `color-mix()`，Chrome 108 WebView 整条丢弃 → 面板无底色（透明）→ 两层页面文字叠在一起。
+  2. **工作台换口径**：图表不再读"已水合消息窗口"（目录会话 `messages` 恒空、只有当前会话最近 50 条），改为经新增 `infrastructure/storage/repositories/activityMetricsRepository`（`createdAt` 索引 + `IDBKeyRange`）读取持久化消息的真实聚合；配套新增领域分桶 `domain/analytics/activityAggregation`、用例 `application/useCases/workbenchActivityUseCases`（版本键缓存）、唯一 Provider `components/workbench/WorkbenchActivityProvider` 与 `hooks/useLocalDayClock`（跨午夜统一基准）。冷启动即可见完整历史，"总会话数"改用目录口径。
+  3. **性能**：4 张活跃卡片共享同一份聚合（不再各扫一遍，有用例断言只触发 1 次加载）、6 张卡 `React.memo`、罗盘拖动 rAF 合帧 + 落盘防抖、非工作台页签不重算、流式期间仅重启防抖且版本未变不扫描。
+  4. **脉冲图**：修掉 `preserveAspectRatio="none"` 导致的点被拉成椭圆、x 轴标签与数据点不同坐标系、面积基线 70 与 viewBox 75 不一致、基准虚线错位，删除死变量 `maxVal`；`todayKey` 挂载即冻结造成的跨午夜错位（罗盘把记录写回昨天）一并修复。
+  5. **未做（列为建议，未改语义）**：四套归一化并存、排行卡用元数据而热力卡用消息、"平均 tok/s"为逐条平均、存储卡 `estimate()` 失败时填假数据却显示"健康"、排行"共 N 个会话"仍是已加载页数、日历热力窗口 120 天。**未做真机/Playwright 视觉验证**。
+
 - 2026-10-09：**排查"部分 Android 机型整屏看不清 + 点不动"并加固现场取证；清理编排时代文档遗留；预设表单拆分与 8 语言文案补全。**
   1. **诊断盲区（确定缺陷，已修）**：主题/遮挡层自检此前只扫 `#root`，而 Base UI 弹层默认 portal 到 `<body>`（`dialog-overlay` 是 `fixed inset-0 bg-black/75`）——弹层遮罩压住屏幕时报告必然显示"无遮挡层"。扫描面改为 `document.body`，报告附 `data-slot` 与 `backdrop-filter` 取值，并新增两条用例。
   2. **渲染层取证**：新增运行期错误黑匣子（`src/utils/runtimeErrorLog.ts`，挂在既有唯一捕获点 `installGlobalErrorHandlers` 上，不重复注册监听），第 14 项报告列出最近 5 条；`index.html` 静态声明 `<meta name="color-scheme" content="dark light">`，防止 WebView 在应用接管主题前做"算法深色"；写入遮罩去掉 `backdrop-blur-[2px]`，并在卡住超过 10s 时先落日志（部分 WebView 会把大面积 `backdrop-filter` 合成成不透明黑，而该层正是故障时唯一还在显示的东西）。

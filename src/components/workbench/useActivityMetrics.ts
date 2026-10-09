@@ -1,38 +1,35 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
-import { useUnifiedApp } from "../../UnifiedAppContext";
+import { useMemo } from "react";
+import type { ActivityDayMetric, ActivityGenerationStats } from "../../domain/analytics/activityAggregation";
+import {
+  useWorkbenchActivity,
+  type MoodPoint,
+} from "./WorkbenchActivityProvider";
 
-export interface DayMetric {
-  dateStr: string; // YYYY-MM-DD
-  dayLabel: string; // "周一", "09/03" 等
-  count: number;
-}
+/** 近 7 天趋势数据点（保留旧导出名，卡片沿用同一类型）。 */
+export type DayMetric = ActivityDayMetric;
 
-export interface MoodPoint {
-  x: number; // -1 (负向) .. 1 (正向)
-  y: number; // -1 (低能) .. 1 (高能)
-  updatedAt: number;
-}
+export type { MoodPoint };
 
 export interface ActivityMetricsResult {
+  /** 本地日 → 消息数（近窗口全量历史，不依赖界面已水合的消息窗口）。 */
   dailyHeatmap: Map<string, number>;
+  /** 本地日 → 心相定锚记录。 */
   dailyMoods: Map<string, MoodPoint>;
   todayCount: number;
   todaySessionCount: number;
   todayMood: MoodPoint | null;
   last7Days: DayMetric[];
-  hourlyDistribution: number[]; // 0..23
+  /** 今日各本地小时 → 消息数，长度 24。 */
+  hourlyDistribution: number[];
   maxDailyCount: number;
+  /** 当前本地日键：跨午夜由统一时间基准自动翻转。 */
+  todayKey: string;
+  /** 会话目录里的总会话数（不是「已加载页」条数）。 */
+  totalSessionCount: number;
+  /** 助手回复的用量与生成耗时汇总。 */
+  generation: ActivityGenerationStats;
   saveMood: (point: { x: number; y: number }, dateKey?: string) => void;
 }
-
-const STORAGE_KEY = "mobile_tavern_workbench_moods_v1";
-
-const formatDateKey = (date: Date): string => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
 
 export function getMoodColor(x: number, y: number): {
   primary: string;
@@ -71,113 +68,27 @@ export function getMoodColor(x: number, y: number): {
   };
 }
 
+/**
+ * 工作台活动指标的只读视图。
+ *
+ * 数据来自 `WorkbenchActivityProvider` 里的唯一聚合快照：4 张活跃类卡片共享同一份结果，
+ * 不再各自扫描 `sessions[].messages`（目录会话的消息恒为空，只会得到全 0）。
+ */
 export function useActivityMetrics(): ActivityMetricsResult {
-  const { sessions } = useUnifiedApp((state) => ({
-    sessions: state.sessions,
-  }));
+  const { activity, todayKey, dailyMoods, saveMood } = useWorkbenchActivity();
 
-  // 本地持久化心相记录
-  const [moodRecords, setMoodRecords] = useState<Record<string, MoodPoint>>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-    return {};
-  });
-
-  const dailyMoods = useMemo(() => {
-    return new Map<string, MoodPoint>(Object.entries(moodRecords));
-  }, [moodRecords]);
-
-  const todayKey = useMemo(() => formatDateKey(new Date()), []);
-  const todayMood = dailyMoods.get(todayKey) ?? null;
-
-  const saveMood = useCallback(
-    (point: { x: number; y: number }, targetDateKey = todayKey) => {
-      const updated: MoodPoint = {
-        x: Math.max(-1, Math.min(1, Number(point.x.toFixed(2)))),
-        y: Math.max(-1, Math.min(1, Number(point.y.toFixed(2)))),
-        updatedAt: Date.now(),
-      };
-      setMoodRecords((prev) => {
-        const next = { ...prev, [targetDateKey]: updated };
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-    },
-    [todayKey]
-  );
-
-  return useMemo(() => {
-    const dailyHeatmap = new Map<string, number>();
-    const hourlyDistribution = new Array<number>(24).fill(0);
-    const today = new Date();
-    let todayCount = 0;
-    const todaySessionIds = new Set<string>();
-
-    for (const session of sessions) {
-      if (Array.isArray(session.messages)) {
-        for (const msg of session.messages) {
-          if (typeof msg.timestamp === "number" && msg.timestamp > 0) {
-            const date = new Date(msg.timestamp);
-            const key = formatDateKey(date);
-            dailyHeatmap.set(key, (dailyHeatmap.get(key) ?? 0) + 1);
-
-            const hour = date.getHours();
-            if (hour >= 0 && hour < 24) {
-              hourlyDistribution[hour] += 1;
-            }
-
-            if (key === todayKey) {
-              todayCount += 1;
-              todaySessionIds.add(session.id);
-            }
-          }
-        }
-      } else if (typeof session.updatedAt === "number") {
-        const date = new Date(session.updatedAt);
-        const key = formatDateKey(date);
-        dailyHeatmap.set(key, (dailyHeatmap.get(key) ?? 0) + 1);
-        if (key === todayKey) {
-          todaySessionIds.add(session.id);
-        }
-      }
-    }
-
-    let maxDailyCount = 1;
-    for (const val of dailyHeatmap.values()) {
-      if (val > maxDailyCount) maxDailyCount = val;
-    }
-
-    const last7Days: DayMetric[] = [];
-    const weekLabels = ["日", "一", "二", "三", "四", "五", "六"];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(today.getDate() - i);
-      const key = formatDateKey(d);
-      last7Days.push({
-        dateStr: key,
-        dayLabel: weekLabels[d.getDay()],
-        count: dailyHeatmap.get(key) ?? 0,
-      });
-    }
-
-    return {
-      dailyHeatmap,
-      dailyMoods,
-      todayCount,
-      todaySessionCount: todaySessionIds.size,
-      todayMood,
-      last7Days,
-      hourlyDistribution,
-      maxDailyCount,
-      saveMood,
-    };
-  }, [sessions, dailyMoods, todayKey, todayMood, saveMood]);
+  return useMemo<ActivityMetricsResult>(() => ({
+    dailyHeatmap: activity.dailyHeatmap,
+    dailyMoods,
+    todayCount: activity.todayCount,
+    todaySessionCount: activity.todaySessionCount,
+    todayMood: dailyMoods.get(todayKey) ?? null,
+    last7Days: activity.last7Days,
+    hourlyDistribution: activity.hourlyDistribution,
+    maxDailyCount: activity.maxDailyCount,
+    todayKey,
+    totalSessionCount: activity.totalSessionCount,
+    generation: activity.generation,
+    saveMood,
+  }), [activity, dailyMoods, todayKey, saveMood]);
 }

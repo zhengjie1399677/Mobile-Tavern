@@ -1,16 +1,19 @@
 import React, { useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Flame } from "lucide-react";
+import { formatLocalDayKey } from "../../domain/analytics/activityAggregation";
 import { useActivityMetrics, getMoodColor, type MoodPoint } from "./useActivityMetrics";
 
 interface HostCalendarWidgetProps {
   className?: string;
 }
 
-export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ className = "" }) => {
+export const HostCalendarWidget = React.memo(function HostCalendarWidget({
+  className = "",
+}: HostCalendarWidgetProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
 
-  const { dailyHeatmap, dailyMoods, maxDailyCount } = useActivityMetrics();
+  const { dailyHeatmap, dailyMoods, maxDailyCount, todayKey } = useActivityMetrics();
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -27,12 +30,7 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-    const formatDateKey = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
-    };
+    const formatDateKey = (d: Date) => formatLocalDayKey(d.getTime());
 
     const days: Array<{
       day: number;
@@ -45,7 +43,6 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
       mood?: MoodPoint;
     }> = [];
 
-    const today = new Date();
     const isSameDate = (d1: Date, d2: Date) =>
       d1.getFullYear() === d2.getFullYear() &&
       d1.getMonth() === d2.getMonth() &&
@@ -85,7 +82,8 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
         day: d,
         isCurrentMonth: true,
         date,
-        isToday: isSameDate(date, today),
+        // 今日高亮与活动统计共用同一个本地日基准（跨午夜自动翻转）
+        isToday: key === todayKey,
         isSelected: isSameDate(date, selectedDate),
         activityCount: count,
         activityLevel: getActivityLevel(count),
@@ -112,7 +110,7 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
     }
 
     return days;
-  }, [year, month, selectedDate, dailyHeatmap, dailyMoods]);
+  }, [year, month, selectedDate, dailyHeatmap, dailyMoods, todayKey]);
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -128,12 +126,7 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
     setSelectedDate(now);
   };
 
-  const selectedKey = useMemo(() => {
-    const y = selectedDate.getFullYear();
-    const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
-    const d = String(selectedDate.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }, [selectedDate]);
+  const selectedKey = useMemo(() => formatLocalDayKey(selectedDate.getTime()), [selectedDate]);
 
   const selectedCount = dailyHeatmap.get(selectedKey) ?? 0;
   const selectedMood = dailyMoods.get(selectedKey);
@@ -308,6 +301,6 @@ export const HostCalendarWidget: React.FC<HostCalendarWidgetProps> = ({ classNam
       </div>
     </div>
   );
-};
+});
 
 export default HostCalendarWidget;

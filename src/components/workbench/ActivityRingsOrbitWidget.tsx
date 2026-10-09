@@ -6,9 +6,9 @@ interface ActivityRingsOrbitWidgetProps {
   className?: string;
 }
 
-export const ActivityRingsOrbitWidget: React.FC<ActivityRingsOrbitWidgetProps> = ({
+export const ActivityRingsOrbitWidget = React.memo(function ActivityRingsOrbitWidget({
   className = "",
-}) => {
+}: ActivityRingsOrbitWidgetProps) {
   const { todayCount, todaySessionCount, hourlyDistribution } = useActivityMetrics();
 
   // 外环：今日活跃量（以 30 次交互为满环基准）
@@ -195,6 +195,6 @@ export const ActivityRingsOrbitWidget: React.FC<ActivityRingsOrbitWidgetProps> =
       </div>
     </div>
   );
-};
+});
 
 export default ActivityRingsOrbitWidget;

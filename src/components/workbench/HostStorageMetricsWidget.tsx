@@ -6,13 +6,19 @@ interface HostStorageMetricsWidgetProps {
   className?: string;
 }
 
-export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> = ({
+export const HostStorageMetricsWidget = React.memo(function HostStorageMetricsWidget({
   className = "",
-}) => {
-  const { sessions, characters } = useUnifiedApp((state) => ({
+}: HostStorageMetricsWidgetProps) {
+  const { sessions, characters, totalSessionCount } = useUnifiedApp((state) => ({
     sessions: state.sessions,
     characters: state.characters,
+    totalSessionCount: state.totalSessionCount,
   }));
+
+  // 会话总数取目录口径：`sessions` 只是分页加载到内存的一页（≤50），拿它当总数会严重偏低。
+  const sessionCount = typeof totalSessionCount === "number" && Number.isFinite(totalSessionCount)
+    ? totalSessionCount
+    : (Array.isArray(sessions) ? sessions.length : 0);
 
   const [storageEstimate, setStorageEstimate] = useState<{
     usedMB: number;
@@ -116,7 +122,7 @@ export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> =
           <div className="mt-1.5 flex items-center justify-between text-xs font-bold text-foreground">
             <div className="flex items-center gap-1">
               <Database className="h-3 w-3 text-primary/80" />
-              <span>{sessions.length}</span>
+              <span>{sessionCount}</span>
               <span className="text-[9px] font-normal text-muted-foreground">会话</span>
             </div>
             <div className="text-right">
@@ -132,6 +138,6 @@ export const HostStorageMetricsWidget: React.FC<HostStorageMetricsWidgetProps> =
       </div>
     </div>
   );
-};
+});
 
 export default HostStorageMetricsWidget;

@@ -5,6 +5,7 @@ import {
   WORKBENCH_CARD_IDS,
 } from "../components/workbench/workbenchCards";
 import { WorkbenchLayoutDialog } from "../components/workbench/WorkbenchLayoutDialog";
+import { WorkbenchActivityProvider } from "../components/workbench/WorkbenchActivityProvider";
 import {
   resolveHiddenWorkbenchCards,
   resolveWorkbenchCardOrder,
@@ -109,26 +110,28 @@ export default function WorkbenchTab(): React.JSX.Element {
         </div>
       </div>
 
-      {/* 纯可视化卡片流 */}
-      <div className="relative z-10 space-y-3">
-        {visibleCards.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/15 bg-card/30 p-6 text-center">
-            <p className="text-xs text-muted-foreground">所有卡片都被隐藏了</p>
-            <button
-              type="button"
-              onClick={() => setIsLayoutEditorOpen(true)}
-              className="mt-2 rounded-lg bg-cyan-500/20 px-3 py-1.5 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/30"
-            >
-              打开卡片布局
-            </button>
-          </div>
-        ) : (
-          visibleCards.map((card) => {
-            const CardComponent = card.component;
-            return <CardComponent key={card.id} />;
-          })
-        )}
-      </div>
+      {/* 纯可视化卡片流：所有卡片共享同一次活动聚合（Provider 内只扫描一次存储） */}
+      <WorkbenchActivityProvider>
+        <div className="relative z-10 space-y-3">
+          {visibleCards.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/15 bg-card/30 p-6 text-center">
+              <p className="text-xs text-muted-foreground">所有卡片都被隐藏了</p>
+              <button
+                type="button"
+                onClick={() => setIsLayoutEditorOpen(true)}
+                className="mt-2 rounded-lg bg-cyan-500/20 px-3 py-1.5 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/30"
+              >
+                打开卡片布局
+              </button>
+            </div>
+          ) : (
+            visibleCards.map((card) => {
+              const CardComponent = card.component;
+              return <CardComponent key={card.id} />;
+            })
+          )}
+        </div>
+      </WorkbenchActivityProvider>
 
       <WorkbenchLayoutDialog
         open={isLayoutEditorOpen}

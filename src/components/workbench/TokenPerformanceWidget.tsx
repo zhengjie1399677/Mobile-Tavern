@@ -1,16 +1,10 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Gauge, Zap } from "lucide-react";
-import { useUnifiedApp } from "../../UnifiedAppContext";
+import { ACTIVITY_WINDOW_DAYS } from "../../domain/analytics/activityAggregation";
+import { useActivityMetrics } from "./useActivityMetrics";
 
 interface TokenPerformanceWidgetProps {
   className?: string;
-}
-
-interface MessageSample {
-  id: string;
-  tokens: number;
-  seconds: number;
-  speed: number;
 }
 
 function formatTokens(value: number): string {
@@ -20,45 +14,17 @@ function formatTokens(value: number): string {
 }
 
 /**
- * Token 与生成性能：统计本地已加载消息里助手回复的输出 Token、生成耗时与平均速度。
- * 仅使用消息自身持久化的 tokenCount / generationTime，不额外发请求。
+ * Token 与生成性能：统计近 120 天已持久化助手回复的输出 Token、生成耗时与平均速度。
+ *
+ * 数据来自工作台的统一聚合快照（仓库直接扫 `messages` 存储），
+ * 不再依赖界面已水合的会话窗口——目录会话的 `messages` 恒为空，旧口径会永远显示 0。
+ * 只使用消息自身持久化的 tokenCount / generationTime，不额外发请求。
  */
-export const TokenPerformanceWidget: React.FC<TokenPerformanceWidgetProps> = ({ className = "" }) => {
-  const { sessions } = useUnifiedApp((state) => ({ sessions: state.sessions }));
-
-  const { samples, totalTokens, totalSeconds, averageSpeed } = useMemo(() => {
-    const collected: MessageSample[] = [];
-    let tokenSum = 0;
-    let secondSum = 0;
-    let speedSum = 0;
-    let speedCount = 0;
-
-    for (const session of sessions) {
-      for (const message of session.messages ?? []) {
-        if (message.sender !== "assistant") continue;
-        const tokens = typeof message.tokenCount === "number" && message.tokenCount > 0 ? message.tokenCount : 0;
-        const seconds = typeof message.generationTime === "number" && message.generationTime > 0
-          ? message.generationTime
-          : 0;
-        if (tokens === 0 && seconds === 0) continue;
-        const speed = tokens > 0 && seconds > 0 ? tokens / seconds : 0;
-        collected.push({ id: message.id, tokens, seconds, speed });
-        tokenSum += tokens;
-        secondSum += seconds;
-        if (speed > 0) {
-          speedSum += speed;
-          speedCount += 1;
-        }
-      }
-    }
-
-    return {
-      samples: collected.slice(-40),
-      totalTokens: tokenSum,
-      totalSeconds: secondSum,
-      averageSpeed: speedCount > 0 ? speedSum / speedCount : 0,
-    };
-  }, [sessions]);
+export const TokenPerformanceWidget = React.memo(function TokenPerformanceWidget({
+  className = "",
+}: TokenPerformanceWidgetProps) {
+  const { generation } = useActivityMetrics();
+  const { samples, totalTokens, totalSeconds, averageSpeed } = generation;
 
   const maxTokens = samples.reduce((max, sample) => Math.max(max, sample.tokens), 1);
 
@@ -76,7 +42,7 @@ export const TokenPerformanceWidget: React.FC<TokenPerformanceWidgetProps> = ({ 
           </div>
           <div>
             <h3 className="text-xs font-bold tracking-tight text-foreground">Token 与生成性能</h3>
-            <p className="text-[10px] text-muted-foreground">仅统计已加载到本地的回复</p>
+            <p className="text-[10px] text-muted-foreground">近 {ACTIVITY_WINDOW_DAYS} 天已落盘的回复</p>
           </div>
         </div>
         <span className="font-mono text-[10px] text-cyan-400/90">{samples.length} 条样本</span>
@@ -122,4 +88,6 @@ export const TokenPerformanceWidget: React.FC<TokenPerformanceWidgetProps> = ({ 
       </div>
     </div>
   );
-};
+});
+
+export default TokenPerformanceWidget;
