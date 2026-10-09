@@ -4,15 +4,14 @@ import {
   DEFAULT_REASONING_GUIDANCE_PROMPT,
   DEFAULT_TABLE_MEMORY_PROMPT,
 } from "../../defaults/promptTemplates";
-import { createBasicPromptComposition } from "../../domain/prompt-composition";
 import {
-  type PresetBundleV2,
-  type PresetSamplerV2,
+  type PresetBundle,
+  type PresetSampler,
 } from "../../domain/presets/contracts";
-import { requirePresetBundleV2 } from "../../domain/presets/bundleMigration";
+import { requirePresetBundle } from "../../domain/presets/bundleMigration";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../../domain/api/outputTokenLimits";
 import { CURRENT_PRESET_FACTORY_REVISION } from "../../application/useCases/presetBootstrap";
-import { createPromptPresetPlan, toPresetPromptConfig } from "../../application/useCases/presetPromptConfig";
+import { toPresetPromptConfig } from "../../application/useCases/presetPromptConfig";
 import { DEFAULT_HEADLESS_PORT } from "../../utils/hostBindingPolicy";
 
 export { DEFAULT_REPLY_SUGGESTIONS_PROMPT, DEFAULT_TABLE_MEMORY_PROMPT };
@@ -145,8 +144,6 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
     beforeLast: "=== 临时触发规则与道具 ===",
     jailbreak: "=== 沉浸式扮演增强保护 (Immersive Alignment) ===",
   },
-  usePromptComposition: false,
-  composition: createBasicPromptComposition(),
 };
 
 
@@ -155,7 +152,7 @@ export const DEFAULT_PROMPT_CONFIG: PromptConfig = {
  * 内置预设的可读来源（v1 形状）。
  *
  * 出厂内容用 v1 字面量书写最直观（传统 Prompt 字段是主要维护对象），运行时统一经
- * `requirePresetBundleV2` 迁移为 v2 实体导出；迁移结果由 `tests/vitest/presetEntityV2.test.ts`
+ * `requirePresetBundle` 迁移为 v2 实体导出；迁移结果由 `tests/vitest/presetEntityV2.test.ts`
  * 锁定，因此这里不允许出现手写的 v2 结构分支。v1 字面量保持导出，供迁移对照测试使用。
  */
 export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1: SavedPresetBundle = {
@@ -387,13 +384,11 @@ export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1: SavedPresetBundle = {
       }
     ]
   },
-  // 规划属于预设：基础预设显式声明传统运行模式，并保留可切换的编排快照。
-  promptPlan: createPromptPresetPlan(DEFAULT_PROMPT_CONFIG),
 };
 
 /** 内置预设实体（v2）：`prompt` 快照是唯一 Prompt 权威，传统字段只进只读兼容块。 */
-export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE: PresetBundleV2 =
-  requirePresetBundleV2(MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1);
+export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE: PresetBundle =
+  requirePresetBundle(MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1);
 
 /**
  * 出厂采样参数必须完整。
@@ -401,7 +396,7 @@ export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE: PresetBundleV2 =
  * v2 实体允许采样数值缺省（缺省由运行期与出厂默认合并），但 `UserSettings.preset` 是
  * 完整形状，因此这里对内置预设做一次 fail-fast 校验，避免缺字段时静默使用零值采样。
  */
-function requireCompleteSampler(sampler: PresetSamplerV2): SamplerPreset {
+function requireCompleteSampler(sampler: PresetSampler): SamplerPreset {
   const { temperature, topP, topK, repetitionPenalty, maxTokens } = sampler;
   if (
     temperature === undefined
@@ -444,11 +439,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
     recallTimeoutMs: 3000,
   },
   promptConfig: {
-    ...((MOBILE_TAVERN_BASIC_PRESET_BUNDLE.legacyPromptConfig ?? {}) as PromptConfig),
-    usePromptComposition: false,
-    composition: createBasicPromptComposition(),
+    ...((MOBILE_TAVERN_BASIC_PRESET_BUNDLE.promptConfig ?? {}) as PromptConfig),
   },
-  promptCompositionTemplates: [],
   userName: "user",
   userInfo: "",
   userAvatar: "",

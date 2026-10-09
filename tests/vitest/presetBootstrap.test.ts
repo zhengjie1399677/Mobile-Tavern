@@ -10,8 +10,8 @@ import {
   type PresetBootstrapResult,
 } from "../../src/application/useCases/presetBootstrap";
 import type { PromptConfig, SamplerPreset } from "../../src/types";
-import type { PresetBundleV2 } from "../../src/domain/presets/contracts";
-import { requirePresetBundleV2 } from "../../src/domain/presets/bundleMigration";
+import type { PresetBundle } from "../../src/domain/presets/contracts";
+import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
 
 function makePromptConfig(overrides: Partial<PromptConfig> = {}): PromptConfig {
   return {
@@ -33,7 +33,7 @@ function makePromptConfig(overrides: Partial<PromptConfig> = {}): PromptConfig {
 
 const FACTORY: PresetBootstrapFactoryDefaults = {
   promptConfig: makePromptConfig({ mainPrompt: "FACTORY_PROMPT" }),
-  settingsPromptConfig: makePromptConfig({ mainPrompt: "SETTINGS_BASE", usePromptComposition: false }),
+  settingsPromptConfig: makePromptConfig({ mainPrompt: "SETTINGS_BASE" }),
   tableMemoryPrompt: "FACTORY_TABLE_MEMORY",
 };
 
@@ -55,8 +55,8 @@ function makeSampler(id: string, name: string): SamplerPreset {
  * 出厂内容以 v1 字面量书写（刻意不声明 `presetRegexScripts`，与真实内置预设一致），
  * 再经领域迁移入口转成 v2——与 `defaults.ts` 的做法保持一致。
  */
-function makeBuiltin(overrides: Partial<PromptConfig> = {}): PresetBundleV2 {
-  return requirePresetBundleV2({
+function makeBuiltin(overrides: Partial<PromptConfig> = {}): PresetBundle {
+  return requirePresetBundle({
     id: "bundle_test_builtin",
     isBuiltin: true,
     preset: makeSampler("preset_test_builtin", "测试内置"),
@@ -74,8 +74,8 @@ function makeBuiltin(overrides: Partial<PromptConfig> = {}): PresetBundleV2 {
 
 const COMPILED_BUILTIN = makeBuiltin();
 
-function makeCustomPreset(id = "custom_1"): PresetBundleV2 {
-  return requirePresetBundleV2({
+function makeCustomPreset(id = "custom_1"): PresetBundle {
+  return requirePresetBundle({
     id,
     preset: makeSampler(`preset_${id}`, "自定义预设"),
     promptConfig: makePromptConfig({ mainPrompt: "CUSTOM_MAIN" }),
@@ -161,11 +161,11 @@ describe("resolveBuiltinPreset", () => {
       basicPresetBundlePromptConfig: { mainPrompt: "EXTERNAL_MAIN" },
     });
 
-    expect(resolved.bundle.legacyPromptConfig?.mainPrompt).toBe("EXTERNAL_MAIN");
-    expect(resolved.bundle.legacyPromptConfig?.jailbreakPrompt).toBe("BUILTIN_JAIL");
+    expect(resolved.bundle.promptConfig?.mainPrompt).toBe("EXTERNAL_MAIN");
+    expect(resolved.bundle.promptConfig?.jailbreakPrompt).toBe("BUILTIN_JAIL");
     expect(resolved.bundle.sampler).toBe(COMPILED_BUILTIN.sampler);
-    expect(resolved.bundle.legacyPromptConfig).not.toHaveProperty("composition");
-    expect(COMPILED_BUILTIN.legacyPromptConfig?.mainPrompt).toBe("BUILTIN_MAIN");
+    expect(resolved.bundle.promptConfig).not.toHaveProperty("composition");
+    expect(COMPILED_BUILTIN.promptConfig?.mainPrompt).toBe("BUILTIN_MAIN");
   });
 });
 
@@ -198,7 +198,7 @@ describe("resolvePresetBootstrap 全新安装", () => {
     // 内置预设自身声明的字段最后覆盖，与旧实现一致（外部文件只修补未声明字段）。
     expect(result.promptConfig.mainPrompt).toBe("BUILTIN_MAIN");
     expect(result.promptConfig.jailbreakPrompt).toBe("EXT_JAIL");
-    expect(result.savedPresets[0].legacyPromptConfig?.jailbreakPrompt).toBe("EXT_JAIL");
+    expect(result.savedPresets[0].promptConfig?.jailbreakPrompt).toBe("EXT_JAIL");
   });
 });
 
@@ -217,7 +217,7 @@ describe("resolvePresetBootstrap 预设列表", () => {
   it("自带预设已降级为普通预设，存储中的修改得到保留，不被出厂模板强制覆盖", () => {
     const modifiedBuiltin = {
       ...COMPILED_BUILTIN,
-      legacyPromptConfig: makePromptConfig({ mainPrompt: "USER_MODIFIED_MAIN" }),
+      promptConfig: makePromptConfig({ mainPrompt: "USER_MODIFIED_MAIN" }),
     };
     const customPreset = makeCustomPreset();
 
@@ -227,7 +227,7 @@ describe("resolvePresetBootstrap 预设列表", () => {
     });
 
     expect(result.savedPresets.map((preset) => preset.id)).toEqual([customPreset.id, COMPILED_BUILTIN.id]);
-    expect(result.savedPresets[1].legacyPromptConfig?.mainPrompt).toBe("USER_MODIFIED_MAIN");
+    expect(result.savedPresets[1].promptConfig?.mainPrompt).toBe("USER_MODIFIED_MAIN");
     expect(result.presetsDirty).toBe(false);
   });
 

@@ -124,48 +124,4 @@ describe("事件型记忆片段", () => {
     });
   });
 
-  it("按最终编排轨迹区分已注入与被预算裁剪的记忆源", () => {
-    const snapshot = buildMemoryAuditSnapshot({
-      session: {
-        id: "session-1",
-        summaries: [{ id: "summary-1", timeTag: "夜", location: "渡口", content: "二人约战" }],
-        tableMemory: [{ id: "table-1", name: "关系", columns: ["人物"], rows: [["沈孤鸿"]], enable: true }],
-      } as never,
-      query: "此前发生了什么？",
-      recalled: [],
-      settings: { promptConfig: { usePromptComposition: true } } as never,
-      traces: [
-        {
-          blockId: "summary",
-          blockName: "摘要",
-          sourceType: "template",
-          dataKeys: ["memory.summaries"],
-          resolvedDataKeys: ["memory.summaries"],
-          missingDataKeys: [],
-          messageIndexes: [0],
-          renderedCharacters: 10,
-          estimatedTokens: 5,
-          dropped: false,
-        },
-        {
-          blockId: "table",
-          blockName: "状态",
-          sourceType: "template",
-          dataKeys: ["memory.tables"],
-          resolvedDataKeys: ["memory.tables"],
-          missingDataKeys: [],
-          messageIndexes: [],
-          renderedCharacters: 0,
-          estimatedTokens: 0,
-          dropped: true,
-        },
-      ],
-      estimateTokens: (text) => text.length,
-    });
-
-    expect(snapshot.sources.find((source) => source.key === "memory.summaries"))
-      .toMatchObject({ included: true, dropped: false });
-    expect(snapshot.sources.find((source) => source.key === "memory.tables"))
-      .toMatchObject({ included: false, dropped: true, estimatedTokens: 0 });
-  });
 });

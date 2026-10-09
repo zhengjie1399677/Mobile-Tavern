@@ -1,4 +1,4 @@
-import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import type { PresetBundle } from "../../domain/presets/contracts";
 
 /**
  * 预设目录用例：把 `saved_presets_bundle` 的「读-改-写」编排从 Hook 下沉到 application 层。
@@ -18,18 +18,18 @@ import type { PresetBundleV2 } from "../../domain/presets/contracts";
 
 /** 预设目录的存储端口；由 PresetService 适配，用例不直接依赖 IndexedDB。 */
 export interface PresetCatalogPort {
-  read(): Promise<PresetBundleV2[] | null>;
-  write(presets: PresetBundleV2[]): Promise<void>;
+  read(): Promise<PresetBundle[] | null>;
+  write(presets: PresetBundle[]): Promise<void>;
 }
 
 export interface PresetCatalogMutation {
-  presets: PresetBundleV2[];
+  presets: PresetBundle[];
   changed: boolean;
 }
 
 export interface PresetCatalog {
   mutate(
-    transform: (current: PresetBundleV2[]) => PresetCatalogMutation,
+    transform: (current: PresetBundle[]) => PresetCatalogMutation,
   ): Promise<PresetCatalogMutation>;
 }
 
@@ -67,8 +67,8 @@ export function createPresetCatalog(port: PresetCatalogPort): PresetCatalog {
  * 每次都会生成新的 `preset`/`bundle` id，因此同 id 覆盖场景在导入路径不可达。
  */
 export function registerPresetBundle(
-  current: readonly PresetBundleV2[],
-  incoming: PresetBundleV2,
+  current: readonly PresetBundle[],
+  incoming: PresetBundle,
 ): PresetCatalogMutation {
   return { presets: [...current, incoming], changed: true };
 }
@@ -91,8 +91,8 @@ export interface SavePresetBundleAsNewOptions {
  * 避免静默"保存成功"但什么都没写。
  */
 export function savePresetBundleAsNew(
-  current: readonly PresetBundleV2[],
-  bundle: PresetBundleV2,
+  current: readonly PresetBundle[],
+  bundle: PresetBundle,
   options?: SavePresetBundleAsNewOptions,
 ): PresetCatalogMutation {
   const replaceBundleId = options?.replaceBundleId;
@@ -106,7 +106,7 @@ export function savePresetBundleAsNew(
 
 /** 纯变换：删除一个预设（内置预设不可删，规则按现有 Hook 复刻：调用方先过滤 id）。 */
 export function deletePresetBundle(
-  current: readonly PresetBundleV2[],
+  current: readonly PresetBundle[],
   id: string,
 ): PresetCatalogMutation {
   const presets = current.filter((bundle) => bundle.id !== id);
@@ -120,7 +120,7 @@ export function deletePresetBundle(
  * 若全部为内置预设则直接提示且不写库。
  */
 export function deletePresetBundles(
-  current: readonly PresetBundleV2[],
+  current: readonly PresetBundle[],
   ids: readonly string[],
 ): PresetCatalogMutation {
   const removable = new Set(ids);

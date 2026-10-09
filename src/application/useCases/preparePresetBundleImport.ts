@@ -5,18 +5,15 @@ import type {
   PromptRequestShapingConfig,
   RegexScript,
   SamplerPreset,
-  SillyTavernPresetAnalysis,
 } from "../../types";
 import {
   PRESET_BUNDLE_SCHEMA_VERSION,
-  type PresetBundleV2,
+  type PresetBundle,
 } from "../../domain/presets/contracts";
 import type {
   CompatibilityReport,
-  PromptComposition,
-  PromptCompositionDiagnostic,
-} from "../../domain/prompt-composition";
-import { parsePromptComposition } from "../../domain/prompt-composition";
+  PromptDiagnostic,
+} from "../../domain/prompts/promptAssemblyTypes";
 import { ensureUniquePromptBlockIds } from "../../domain/prompts/promptBlockIdentity";
 import type { CompatibilityCodecDefinition } from "../compatibility/contracts";
 import { dedupeTopLevelPromptBlocks } from "../../domain/prompts/promptSourceBlocks";
@@ -25,9 +22,6 @@ import { parseMobileTavernPresetExtension } from "./presetRuntimeNamespace";
 
 type ExternalRecord = Record<string, unknown>;
 type ImportIdKind = "preset" | "regex" | "bundle";
-
-// 兼容分析结果的唯一定义在 `src/types.ts`；此处只转发既有导出名，保持调用方 API 稳定。
-export type { SillyTavernPresetAnalysis };
 
 export interface PreparePresetBundleImportOptions {
   input: unknown;
@@ -44,9 +38,7 @@ export interface PreparePresetBundleImportOptions {
 
 export interface PreparedPresetBundleImport {
   name: string;
-  bundle: PresetBundleV2;
-  composition?: PromptComposition;
-  compatibilityAnalysis?: SillyTavernPresetAnalysis;
+  bundle: PresetBundle;
   report: CompatibilityReport;
 }
 
@@ -96,16 +88,7 @@ export function preparePresetBundleImport(
   // 部分社区预设没有 prompt_order；Codec 会按 prompts 原顺序降级保留，
   // 因此正式入口只要求存在 prompts，不能在此提前把它排除。
   const isSillyTavernPromptPreset = Array.isArray(data.prompts);
-  const compositionImport = isSillyTavernPromptPreset && codec?.canDecode(data)
-    ? parseCodecImport(codec.decode({ ...data, name }))
-    : undefined;
-  const composition = compositionImport
-    ? { ...compositionImport.composition, name }
-    : undefined;
-  const compatibilityAnalysis = isSillyTavernPromptPreset && codec?.analyze
-    ? parseCompatibilityAnalysis(codec.analyze(data))
-    : undefined;
-  const codecWarnings: PromptCompositionDiagnostic[] = isSillyTavernPromptPreset && !codec
+  const codecWarnings: PromptDiagnostic[] = isSillyTavernPromptPreset && !codec
     ? [{
         level: "warning",
         code: "COMPATIBILITY_CODEC_UNAVAILABLE",
@@ -113,132 +96,27 @@ export function preparePresetBundleImport(
       }]
     : [];
 
-  // v2 实体：`prompt` 快照是唯一 Prompt 权威；导入的传统字段只进只读兼容块
-  // `legacyPromptConfig`（SillyTavern 导出与运行期投影读取它）。
-  const bundle: PresetBundleV2 = {
+  // v3 实体：传统 `promptConfig` 是唯一 Prompt 权威，外部文件不携带任何编排快照。
+  const bundle: PresetBundle = {
     schemaVersion: PRESET_BUNDLE_SCHEMA_VERSION,
     id: createId("bundle"),
     sampler: preset,
-    prompt: composition
-      ? {
-          version: PRESET_BUNDLE_SCHEMA_VERSION,
-          mode: "composition",
-          source: "sillytavern",
-          composition,
-        }
-      : {
-          // 外部文件没有可解码编排时不得继承当前预设的编排快照（见 sillytavern_compat.md 第 4 节）。
-          version: PRESET_BUNDLE_SCHEMA_VERSION,
-          mode: "legacy",
-          source: "mobile-tavern",
-        },
-    legacyPromptConfig: promptConfig,
+    promptConfig: promptConfig,
     regexScripts: regexResult.scripts,
   };
 
   return {
     name,
     bundle,
-    composition,
-    compatibilityAnalysis,
     report: {
       warnings: [
-        ...(compositionImport?.report.warnings ?? []),
         ...codecWarnings,
         ...presetExtension.diagnostics,
         ...regexResult.warnings,
       ],
-      errors: compositionImport?.report.errors ?? [],
+      errors: [],
     },
   };
-}
-
-function parseCodecImport(value: unknown): {
-  composition: PromptComposition;
-  report: CompatibilityReport;
-} {
-  if (!isRecord(value) || !isRecord(value.composition) || !isCompatibilityReport(value.report)) {
-    throw new Error("COMPATIBILITY_CODEC_INVALID_IMPORT_RESULT");
-  }
-  return {
-    composition: parsePromptComposition(value.composition),
-    report: value.report,
-  };
-}
-
-function isCompatibilityReport(value: unknown): value is CompatibilityReport {
-  return isRecord(value) && Array.isArray(value.warnings) && Array.isArray(value.errors);
-}
-
-/**
- * 收口 Codec 的兼容分析结果。
- *
- * Codec 贡献是进程内受信插件，但 `analyze` 在契约中按 `unknown` 暴露，
- * 因此这里逐字段校验形状（不解释来源语义），并避免用整体断言强行改型。
- */
-function parseCompatibilityAnalysis(value: unknown): SillyTavernPresetAnalysis {
-  if (!isRecord(value)) throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
-  const level = value.level;
-  if (level !== "full" && level !== "core" && level !== "recognize_only" && level !== "invalid") {
-    throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
-  }
-  return {
-    level,
-    promptCount: requireAnalysisNumber(value, "promptCount"),
-    orderedPromptCount: requireAnalysisNumber(value, "orderedPromptCount"),
-    enabledPromptCount: requireAnalysisNumber(value, "enabledPromptCount"),
-    markerCount: requireAnalysisNumber(value, "markerCount"),
-    unknownMarkerCount: requireAnalysisNumber(value, "unknownMarkerCount"),
-    inChatPromptCount: requireAnalysisNumber(value, "inChatPromptCount"),
-    attachmentPromptCount: requireAnalysisNumber(value, "attachmentPromptCount"),
-    regexCount: requireAnalysisNumber(value, "regexCount"),
-    tavernHelperScriptCount: requireAnalysisNumber(value, "tavernHelperScriptCount"),
-    enabledTavernHelperScriptCount: requireAnalysisNumber(value, "enabledTavernHelperScriptCount"),
-    remoteScriptCount: requireAnalysisNumber(value, "remoteScriptCount"),
-    tavernHelperScriptBytes: requireAnalysisNumber(value, "tavernHelperScriptBytes"),
-    diagnostics: requireAnalysisDiagnostics(value.diagnostics),
-  };
-}
-
-function requireAnalysisNumber(record: ExternalRecord, field: string): number {
-  const candidate = record[field];
-  if (typeof candidate !== "number") throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
-  return candidate;
-}
-
-function requireAnalysisDiagnostics(value: unknown): string[] {
-  if (!Array.isArray(value) || value.some((item: unknown) => typeof item !== "string")) {
-    throw new Error("COMPATIBILITY_CODEC_INVALID_ANALYSIS");
-  }
-  return value.filter((item: unknown): item is string => typeof item === "string");
-}
-
-export function formatSillyTavernCompatibilityAnalysis(
-  analysis: SillyTavernPresetAnalysis,
-): string {
-  const levelLabel = {
-    full: "完整兼容",
-    core: "核心兼容",
-    recognize_only: "仅识别/降级导入",
-    invalid: "无效格式",
-  }[analysis.level];
-  const scriptSize = analysis.tavernHelperScriptBytes >= 1024 * 1024
-    ? `${(analysis.tavernHelperScriptBytes / 1024 / 1024).toFixed(1)} MB`
-    : `${Math.round(analysis.tavernHelperScriptBytes / 1024)} KB`;
-  const details = [
-    `兼容分级：${levelLabel}`,
-    `Prompt：${analysis.enabledPromptCount}/${analysis.orderedPromptCount} 启用（共 ${analysis.promptCount} 项）`,
-    `Marker：${analysis.markerCount}，In-Chat：${analysis.inChatPromptCount}，正则：${analysis.regexCount}`,
-  ];
-  if (analysis.tavernHelperScriptCount > 0) {
-    details.push(
-      `TavernHelper：${analysis.enabledTavernHelperScriptCount}/${analysis.tavernHelperScriptCount} 启用，脚本 ${scriptSize}`,
-    );
-  }
-  if (analysis.remoteScriptCount > 0) details.push(`外部网络脚本：${analysis.remoteScriptCount} 个（不执行）`);
-  if (analysis.attachmentPromptCount > 0) details.push(`降级：${analysis.attachmentPromptCount} 个数据库附着 Prompt 不执行附着语义`);
-  if (analysis.unknownMarkerCount > 0) details.push(`降级：${analysis.unknownMarkerCount} 个未知 Marker`);
-  return details.join("\n");
 }
 
 export function formatPresetOperationReport(
@@ -260,7 +138,7 @@ export function formatPresetOperationReport(
 }
 
 function groupDiagnostics(
-  diagnostics: PromptCompositionDiagnostic[],
+  diagnostics: PromptDiagnostic[],
 ): Array<{ message: string; count: number }> {
   const groups = new Map<string, { message: string; count: number }>();
   diagnostics.forEach((item) => {
@@ -394,14 +272,14 @@ function hasExternalPromptCandidates(data: ExternalRecord): boolean {
 function parseRegexScripts(
   data: ExternalRecord,
   createId: (kind: ImportIdKind) => string,
-): { scripts: RegexScript[]; warnings: PromptCompositionDiagnostic[] } {
+): { scripts: RegexScript[]; warnings: PromptDiagnostic[] } {
   const extensions = isRecord(data.extensions) ? data.extensions : undefined;
   const rawSource = extensions?.regex_scripts ?? data.regex_scripts;
   const rawScripts = Array.isArray(rawSource)
     ? rawSource
     : isRecord(rawSource) ? Object.values(rawSource) : [];
   const scripts: RegexScript[] = [];
-  const warnings: PromptCompositionDiagnostic[] = [];
+  const warnings: PromptDiagnostic[] = [];
   rawScripts.forEach((item, index) => {
     if (!isRecord(item)) {
       warnings.push(regexWarning(index, "正则项目不是对象，已跳过。"));
@@ -434,7 +312,7 @@ function parseRegexScripts(
   return { scripts, warnings };
 }
 
-function regexWarning(index: number, message: string): PromptCompositionDiagnostic {
+function regexWarning(index: number, message: string): PromptDiagnostic {
   return {
     level: "warning",
     code: "SKIPPED_INVALID_REGEX_SCRIPT",

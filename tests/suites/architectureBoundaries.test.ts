@@ -494,13 +494,6 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "LLM 请求、流式响应、发送与重生成必须统一经过 llmCompatibility 防腐边界",
   );
 
-  for (const file of listCodeFiles("src/domain/prompt-composition")) {
-    assert(
-      !/sillytavern/i.test(read(file)),
-      `${file} 必须保持格式中立，SillyTavern 语义只能存在于 infrastructure/compat`
-    );
-  }
-
   assert(
     !read("src/hooks/useChat/pipelineHelpers.ts").includes("globalKernel"),
     "聊天输出管线必须使用调用方注入的 IKernel"
@@ -910,23 +903,20 @@ export async function testArchitectureBoundaries(): Promise<void> {
     const lines = read(file).split(/\r?\n/).length;
     assert(lines <= 1000, `${file} 超过单文件 1000 行硬上限：${lines}`);
   }
-  const presetPromptPlan = read("src/application/useCases/presetPromptConfig.ts");
   const promptService = read("src/application/services/PromptService.ts");
   const sendMessage = read("src/hooks/useChat/useSendMessage.ts");
   const rerollMessage = read("src/hooks/useChat/useRerollMessage.ts");
   assert(
-    read("src/types.ts").includes("interface PromptPresetPlan")
-      // v2 起"版本快照归一化"由领域层承担：v1 记录只能经迁移入口读取，降级规则只写一处。
-      && presetPromptPlan.includes("resolvePromptFromV1Fields")
-      && read("src/domain/presets/promptSnapshot.ts").includes('mode: "legacy"')
+    // v3 起预设实体只保留传统 Prompt 权威：v1/v2 记录只能经迁移入口读取，且迁移实现只写一处。
+    read("src/domain/presets/bundleMigration.ts").includes("v1/v2 → v3")
       && read("src/domain/presets/bundleMigration.ts").includes("export function readPresetBundleList")
       && read("src/domain/presets/contracts.ts").includes("PRESET_BUNDLE_SCHEMA_VERSION")
-      && promptService.includes("assemblePromptComposition")
+      && !promptService.includes("assemblePromptComposition")
       && sendMessage.includes("assembleAuthoritativePromptEnvelope")
       && rerollMessage.includes("assembleAuthoritativePromptEnvelope")
       && !sendMessage.includes("promptPayload.messages ||")
       && !rerollMessage.includes("promptPayload.messages ||"),
-    "Prompt 预设必须经版本快照归一化，发送与重生成只能消费单一权威 messages，不能恢复二次拼装路径"
+    "Prompt 预设必须经 v1/v2→v3 迁移归一化，运行期只走传统字段，发送与重生成只能消费单一权威 messages"
   );
   assert(
     read("src/components/FormattedText.tsx").includes("./formatted-text/renderingRuntime") &&

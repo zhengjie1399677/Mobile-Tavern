@@ -8,13 +8,13 @@ import {
   buildPresetBundleSnapshot,
 } from "../../src/application/useCases/presetBundleLifecycle";
 import { resolveAgentSessionSettings } from "../../src/application/useCases/resolveAgentSessionSettings";
-import { requirePresetBundleV2 } from "../../src/domain/presets/bundleMigration";
-import type { PresetBundleV2 } from "../../src/domain/presets/contracts";
+import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
+import type { PresetBundle } from "../../src/domain/presets/contracts";
 import type { UserSettings } from "../../src/types";
 
 const mocks = vi.hoisted(() => ({
-  saveStoredSavedPresets: vi.fn(async (_bundles: PresetBundleV2[]): Promise<void> => undefined),
-  getStoredSavedPresets: vi.fn(async (): Promise<PresetBundleV2[]> => []),
+  saveStoredSavedPresets: vi.fn(async (_bundles: PresetBundle[]): Promise<void> => undefined),
+  getStoredSavedPresets: vi.fn(async (): Promise<PresetBundle[]> => []),
 }));
 
 vi.mock("../../src/contexts/KernelContext", () => ({
@@ -40,7 +40,7 @@ describe("预设修改与生效闭环 (Preset Save Effectiveness)", () => {
         promptConfig: DEFAULT_SETTINGS.promptConfig,
         presetRegexScripts: [],
       },
-      { id: "bundle_my_creative", planSource: "native" },
+      { id: "bundle_my_creative" },
     );
 
     let currentSettings: UserSettings = {
@@ -97,7 +97,7 @@ describe("预设修改与生效闭环 (Preset Save Effectiveness)", () => {
 
     // 验证：已持久化并写回 savedPresets
     expect(mocks.saveStoredSavedPresets).toHaveBeenCalled();
-    const savedInStore = mocks.saveStoredSavedPresets.mock.calls[0][0] as PresetBundleV2[];
+    const savedInStore = mocks.saveStoredSavedPresets.mock.calls[0][0] as PresetBundle[];
     const updatedCustom = savedInStore.find((b) => b.id === "bundle_my_creative");
     expect(updatedCustom?.sampler.temperature).toBe(1.15);
 
@@ -125,7 +125,7 @@ describe("预设修改与生效闭环 (Preset Save Effectiveness)", () => {
   });
 
   it("历史脏数据 preset.id === 'custom' 能自动恢复匹配并允许正常修改与保存", () => {
-    const customBundle = requirePresetBundleV2({
+    const customBundle = requirePresetBundle({
       id: "bundle_migrated",
       preset: {
         ...DEFAULT_SETTINGS.preset,

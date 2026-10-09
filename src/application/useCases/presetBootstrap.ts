@@ -2,7 +2,7 @@ import type {
   MemoryConfig,
   PromptConfig,
 } from "../../types";
-import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import type { PresetBundle } from "../../domain/presets/contracts";
 import { ensureUniquePromptBlockIds } from "../../domain/prompts/promptBlockIdentity";
 import { stableSerializePresetSnapshot, toPresetPromptConfig } from "./presetPromptConfig";
 
@@ -59,7 +59,7 @@ export interface PresetBootstrapFactoryDefaults {
 export interface PresetBootstrapStoredSettings {
   preset?: { id?: string } | undefined;
   promptConfig?: PromptConfig | undefined;
-  savedPresets?: PresetBundleV2[] | undefined;
+  savedPresets?: PresetBundle[] | undefined;
   /** 出厂内容修订标记；缺失表示旧数据，需要一次兜底识别。 */
   presetFactoryRevision?: number | undefined;
 }
@@ -68,11 +68,11 @@ export interface PresetBootstrapInput {
   /** 已存储的设置主记录；`null` 表示全新安装。 */
   storedSettings: PresetBootstrapStoredSettings | null;
   /** `saved_presets_bundle` 中的列表；`null` 表示该键尚不存在（旧数据）。 */
-  storedPresets: PresetBundleV2[] | null;
+  storedPresets: PresetBundle[] | null;
   /** 外部静态文件收口结果；`null` 表示未触发拉取或拉取失败。 */
   externalDefaults: ExternalPresetDefaults | null;
   /** 编译期内置预设（未被外部文件覆盖）。 */
-  compiledBuiltin: PresetBundleV2;
+  compiledBuiltin: PresetBundle;
   factory: PresetBootstrapFactoryDefaults;
 }
 
@@ -89,9 +89,9 @@ export interface PresetBootstrapDiagnostic {
 
 export interface PresetBootstrapResult {
   /** 生效的内置预设（已合并外部文件的 `basicPresetBundle.promptConfig`）。 */
-  builtin: PresetBundleV2;
+  builtin: PresetBundle;
   /** 写入 `UserSettings.savedPresets` 的权威列表。 */
-  savedPresets: PresetBundleV2[];
+  savedPresets: PresetBundle[];
   /** 写入 `UserSettings.promptConfig` 的活跃 Prompt 配置。 */
   promptConfig: PromptConfig;
   /** 需要写回 `saved_presets_bundle`。 */
@@ -104,7 +104,7 @@ export interface PresetBootstrapResult {
 }
 
 export interface ResolvedBuiltinPreset {
-  bundle: PresetBundleV2;
+  bundle: PresetBundle;
   /** 是否应用了外部静态文件的 `basicPresetBundle.promptConfig`。 */
   externalPromptConfigApplied: boolean;
 }
@@ -122,7 +122,7 @@ export function readExternalPresetDefaults(raw: unknown): ExternalPresetDefaults
 
 /** 自带预设重建：外部静态文件只允许覆盖传统 Prompt 字段。 */
 export function resolveBuiltinPreset(
-  compiledBuiltin: PresetBundleV2,
+  compiledBuiltin: PresetBundle,
   externalDefaults: ExternalPresetDefaults | null,
 ): ResolvedBuiltinPreset {
   const patch = externalDefaults?.basicPresetBundlePromptConfig;
@@ -132,8 +132,8 @@ export function resolveBuiltinPreset(
       ...compiledBuiltin,
       // 外部静态文件只修补自带预设的传统 Prompt 字段；`prompt` 快照是 v2 的唯一权威，
       // 不允许被外部文件间接改写（与 v1 时代 `toPresetPromptConfig` 会剥掉编排字段一致）。
-      legacyPromptConfig: toPresetPromptConfig({
-        ...(compiledBuiltin.legacyPromptConfig ?? {}),
+      promptConfig: toPresetPromptConfig({
+        ...(compiledBuiltin.promptConfig ?? {}),
         ...patch,
       } as PromptConfig),
     },
@@ -167,7 +167,7 @@ export function resolvePresetBootstrap(input: PresetBootstrapInput): PresetBoots
 /** 全新安装：直接以出厂常量 + 外部静态文件建立第一份预设列表与活跃 Prompt。 */
 function resolveFreshInstall(
   input: PresetBootstrapInput,
-  builtin: PresetBundleV2,
+  builtin: PresetBundle,
   diagnostics: PresetBootstrapDiagnostic[],
   report: (code: PresetBootstrapDiagnosticCode, detail?: string) => void,
 ): PresetBootstrapResult {
@@ -176,7 +176,7 @@ function resolveFreshInstall(
     ? ({
         ...input.factory.settingsPromptConfig,
         ...(external.promptConfig ?? {}),
-        ...(external.basicPresetBundlePromptConfig ? (builtin.legacyPromptConfig ?? {}) : {}),
+        ...(external.basicPresetBundlePromptConfig ? (builtin.promptConfig ?? {}) : {}),
       } as PromptConfig)
     : input.factory.settingsPromptConfig;
 
@@ -197,7 +197,7 @@ function resolveFreshInstall(
 /** 已存在设置记录：旧键迁移、自带预设初始化与活跃 Prompt 的最终形状。 */
 function resolveStoredSettings(
   input: PresetBootstrapInput,
-  builtin: PresetBundleV2,
+  builtin: PresetBundle,
   diagnostics: PresetBootstrapDiagnostic[],
   report: (code: PresetBootstrapDiagnosticCode, detail?: string) => void,
 ): PresetBootstrapResult {
@@ -209,7 +209,7 @@ function resolveStoredSettings(
   if (input.externalDefaults) report("external-defaults-applied", "promptConfig");
 
   // ── 预设列表 ────────────────────────────────────────────────────────────────
-  const storedList: PresetBundleV2[] = input.storedPresets ?? stored.savedPresets ?? [];
+  const storedList: PresetBundle[] = input.storedPresets ?? stored.savedPresets ?? [];
   let presetsDirty = false;
 
   // 旧键迁移：saved_presets_bundle 尚未建立时，从设置主记录的 savedPresets 继承。
@@ -241,7 +241,7 @@ function resolveStoredSettings(
 
   const defaultPromptConfig: Partial<PromptConfig> = input.externalDefaults
     ? { ...input.factory.promptConfig, ...(input.externalDefaults.promptConfig ?? {}) }
-    : (builtinEntry.legacyPromptConfig ?? {});
+    : (builtinEntry.promptConfig ?? {});
 
   const promptConfig = {
     ...defaultPromptConfig,
@@ -271,7 +271,7 @@ function resolveStoredSettings(
   };
 }
 
-function isSamePresetList(left: readonly PresetBundleV2[], right: readonly PresetBundleV2[]): boolean {
+function isSamePresetList(left: readonly PresetBundle[], right: readonly PresetBundle[]): boolean {
   return isSameJson(left, right);
 }
 

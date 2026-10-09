@@ -1,7 +1,7 @@
 import type * as React from "react";
 import { useEffect } from "react";
 import { UserSettings, LorebookEntry, CustomWorldbook } from "../../types";
-import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import type { PresetBundle } from "../../domain/presets/contracts";
 import {
   readExternalPresetDefaults,
   resolvePresetBootstrap,
@@ -80,7 +80,7 @@ export const useSettingsLoader = ({
 }: UseSettingsLoaderDeps) => {
   const kernel = useKernel();
   const settingsService = kernel.getService<ISettingsService<UserSettings>>("settings");
-  const presetService = kernel.getService<IPresetService<PresetBundleV2>>("preset");
+  const presetService = kernel.getService<IPresetService<PresetBundle>>("preset");
   const worldbookService = kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>("worldbook");
 
   // Load Settings and Lorebook from local DB

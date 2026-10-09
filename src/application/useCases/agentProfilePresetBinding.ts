@@ -55,7 +55,7 @@ export function applyAgentProfilePresetBinding(
         missingPresetId: presetId,
       };
     }
-    const activation = projectPresetActivation(settings.promptConfig, bundle, presetDefaults);
+    const activation = projectPresetActivation(bundle, presetDefaults);
     return {
       outcome: "applied",
       settings: withSampling({

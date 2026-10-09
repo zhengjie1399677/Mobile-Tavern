@@ -28,6 +28,40 @@ export function ensureUniquePromptBlockIds<T extends CustomPromptBlock>(
   return changed ? next : [...blocks];
 }
 
+/**
+ * 列表侧身份判定：有 `id` 就只按 `id` 命中，没有 `id` 的历史条目回落到 `identifier`。
+ *
+ * 混用两者会让"同 identifier 的兄弟条目"被一并改写（SillyTavern 复制条目会带出重复 identifier）。
+ */
+export function matchesPromptBlockId(block: CustomPromptBlock, id: string): boolean {
+  return block.id ? block.id === id : Boolean(block.identifier) && block.identifier === id;
+}
+
+/** 列表侧开关：只命中目标条目；未命中或状态未变化时返回原数组。 */
+export function setPromptBlockEnabledById(
+  blocks: readonly CustomPromptBlock[],
+  id: string,
+  enabled: boolean,
+): CustomPromptBlock[] {
+  let changed = false;
+  const next = blocks.map((block) => {
+    if (!matchesPromptBlockId(block, id) || block.enabled === enabled) return block;
+    changed = true;
+    // 老条目第一次被操作时补上唯一 id，后续操作即可稳定按 id 命中。
+    return { ...block, id: block.id || id, enabled };
+  });
+  return changed ? next : (blocks as CustomPromptBlock[]);
+}
+
+/** 列表侧删除：按同一身份口径移除；未命中时返回原数组。 */
+export function removePromptBlocksByIds(
+  blocks: readonly CustomPromptBlock[],
+  ids: readonly string[],
+): CustomPromptBlock[] {
+  const next = blocks.filter((block) => !ids.some((id) => matchesPromptBlockId(block, id)));
+  return next.length === blocks.length ? (blocks as CustomPromptBlock[]) : next;
+}
+
 function claimUniqueId(preferred: string, used: Set<string>): string {
   let candidate = preferred;
   let suffix = 2;

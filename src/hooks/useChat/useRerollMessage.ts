@@ -397,7 +397,6 @@ export function useRerollMessage(p: RerollMessageParams) {
         query: lastUserText,
         recalled: recalledMemories,
         settings: effectiveSettings,
-        traces: promptPayload.traces,
         estimateTokens: (content) => p.promptService.estimateTokens(content),
       });
       if (p.publishMemoryAudit) p.publishMemoryAudit(memoryAudit);

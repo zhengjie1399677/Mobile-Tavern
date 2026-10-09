@@ -1,4 +1,4 @@
-import type { PromptMessage, PromptMessageRole } from "../../../domain/prompt-composition";
+import type { PromptMessage, PromptMessageRole } from "../../../domain/prompts/promptAssemblyTypes";
 import type { PromptRequestShapingConfig } from "../../../types";
 
 export interface PromptRequestShapingReport {

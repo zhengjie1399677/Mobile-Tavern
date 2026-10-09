@@ -1,5 +1,13 @@
 # 2026 年 10 月变更记录
 
+- 2026-10-09：**彻底删除「自由编排（Prompt 组装）」整条链路；预设实体升级到 v3。**
+  1. **删除范围**：`src/domain/prompt-composition/**`（10 个文件）、`PromptCompositionRuntimeAdapter`、`PromptCompositionAssembly`、`domain/presets/promptSnapshot`、`promptSwitchSync`，以及 8 个编排专用 Vitest 与 `tests/suites/promptComposition.test.ts`。运行时 `PromptService` 只保留传统路径；`promptHistoryUseCases`、`MemoryAudit`、`publishMemoryAudit` 去掉编排判断与 `traces` 参数。
+  2. **预设实体 v3（`schemaVersion: 3`，无兼容期）**：形状收敛为 `{schemaVersion, id, isBuiltin?, sampler, promptConfig, regexScripts, extensions?}`——`prompt` 编排快照整体删除，`legacyPromptConfig` 更名为 `promptConfig` 并成为**唯一 Prompt 权威**，`PromptConfig.composition`/`usePromptComposition`、`UserSettings.promptCompositionTemplates`、`SavedPresetBundle.promptPlan/composition/usePromptComposition`、`PromptPresetPlan*` 与 `SillyTavernPresetAnalysis` 全部移除。`bundleMigration` 重写为 v1/v2 → v3：只读取传统 Prompt 字段，v1 的 `promptPlan`/`composition`/`usePromptComposition` 与 v2 的 `prompt` 一律丢弃，未知键继续进 `extensions`，损坏记录仍逐级降级而不是失效。
+  3. **Compatibility Codec 收窄**：契约去掉 `canDecode`/`decode`/`analyze`/`encode`，只保留可选 `readPresetPrompts`（来源 Prompt 候选列表 → 传统提示词块）；`promptPresetAdapter` 只保留该解析与其辅助函数；导入/导出用例不再产出或消费编排快照，导出始终按传统列表生成 `prompts` 与 `prompt_order`。
+  4. **列表侧身份收口**：编排消失后不再需要双视图同步，新增领域函数 `setPromptBlockEnabledById` / `removePromptBlocksByIds`（`domain/prompts/promptBlockIdentity`）替代原 `promptSwitchSync`，沿用「有 `id` 只按 `id` 命中、缺 `id` 回落 `identifier`」口径，未命中/无变化时返回原数组以避免空写。
+  5. **已声明的功能后果（不是回归）**：`ContextContribution` 的记忆召回仍在传统路径生效并进入审计；**非记忆类来源（时钟 `{{date}}` 等、兼容插件 `context.source`）此前只有编排适配器一个注入点，现在没有注入点**，仅参与读取与审计——该缺口已写入 `context_source_seam_design.md` 顶部，待提示词重构时接线。导入兼容分级（`level: full/core/recognize_only`）随之删除。
+  6. **验证**：`npm run quality:push` 全绿（`tsc`、全仓 ESLint、`check:i18n`、全部 Vitest、86 个系统套件、web 与 server 构建）；新增 `tests/vitest/presetEntityV3.test.ts` 钉住 v1/v2→v3 迁移与列表身份口径。`check:i18n` 同步删除 8 语言 `prompt_composer.*` 死键（死键总数 389 → 157）。编排专用用例随功能删除，传统字段导入导出的回归覆盖待后续补强（`preparePresetBundleImport/Export.test.ts`、`presetEntityV2`、`presetBundleLifecycle`、`usePresetBundles`、`promptBlockIdentity` 等文件已删除或改写）。
+
 - 2026-10-09：**修复"设备型号误报为 wv"，给写入遮罩加逃生入口，自检新增主题/遮挡层诊断（用户反馈"整屏看不清 + 点不动"）。**
   1. **机型解析（确定缺陷）**：`getDeviceModel()` 取 Android UA 括号段里分号的**最后一段**，而 WebView UA 的最后一段是 `wv` 标记、机型在带 `Build/` 的段里，于是所有 Android WebView 用户都被上报成"设备型号：wv"（线上系统报告实测）。改为 `parseAndroidDeviceModel()`：优先取 `Build/` 段并剥掉 `Build/…`；无 `Build/` 时取 Android 段之后第一个非占位段，`wv`、Chrome UA Reduction 的占位 `K` 等不计入机型；识别不出机型时回退 `Android Device (Android X)`。
   2. **写入遮罩逃生入口**：`DbWritingOverlay` 覆盖整个视口（含底栏）并吞掉点击，只要某次 IndexedDB 写入的 `await` 不返回，界面就会永久停在"整屏变暗 + 点不动"，只能杀进程。现在超时 10s 后在浮层内给出「关闭」按钮，Android 返回键（优先级 1500，高于弹窗返回栈）同样可释放遮挡。释放只解除遮挡，**写入本身照常提交**，不改动存储语义。

@@ -20,8 +20,6 @@ import {
   getTableMemoryColumnDefinitions,
 } from "../../domain/memory/tableMemorySchema";
 import { selectActivePromptBlocks } from "../../domain/prompts/promptSourceBlocks";
-import { buildPromptCompositionRuntimeData } from "./prompt/PromptCompositionRuntimeAdapter";
-import { assemblePromptComposition } from "./prompt/PromptCompositionAssembly";
 import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
 import type { ContextContribution } from "../../domain/contextSources/contracts";
 import { formatRecalledMemoriesSection } from "./prompt/PromptMemorySection";
@@ -161,58 +159,6 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
 
     // 必须早于其他编排路径，确保严格直连不受任何角色或全局设定影响。
     if (isDirectApiCharacter(character)) return buildDirectApiPromptAssembly(chat, userInput);
-
-    // 自由编排路径：只有用户显式启用时生效。编译器不会补入任何隐藏区块，
-    // 空编排会产生空 messages；旧路径仅作为迁移期显式回退保留。
-    if (settings.promptConfig?.usePromptComposition) {
-      const composition = settings.promptConfig.composition ?? {
-        id: "composition_missing_empty",
-        name: "空编排",
-        version: 1 as const,
-        blocks: [],
-      };
-      const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
-      const triggeredLorebook = this.getTriggeredLorebookEntries(
-        chat.messages || [],
-        userInput,
-        allEntries,
-        3,
-        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
-      );
-      const runtime = buildPromptCompositionRuntimeData({
-        character,
-        chat,
-        userInput,
-        settings,
-        triggeredLorebook,
-        recalledMemories: recalledForPrompt,
-        ...(params.contextContributions ? { contextContributions: params.contextContributions } : {}),
-        cleanHistoryContent: (message, depth) => {
-          if (!hasConfiguredRegexScripts(character, settings)) return message.content;
-          return this.getCompatibilityRuntime()?.transformText({
-            text: message.content,
-            character,
-            isAiMessage: message.sender === "assistant",
-            charName: character.name,
-            userName: settings.userName,
-            mode: "prompt",
-            depth,
-            signal: operationSignal,
-            globalRegexScripts: settings.globalRegexScripts,
-            presetRegexScripts: settings.presetRegexScripts,
-          }) ?? message.content;
-        },
-      });
-      return assemblePromptComposition({
-        composition,
-        runtime,
-        activeSceneProfileId: chat.activePromptSceneProfileId,
-        userInput,
-        settings,
-        estimateTokens: (text) => this.estimateTokens(text),
-        reportDiagnostic: (code, message) => log.warn(`[PromptComposition:${code}] ${message}`),
-      });
-    }
 
     if (settings.promptConfig?.roleplayMode === false) {
       const { recentTurns } = settings.memory;

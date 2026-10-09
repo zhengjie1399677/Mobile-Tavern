@@ -524,12 +524,12 @@ export function useSendMessage(p: SendMessageParams) {
       const providerMessages = projection.messages;
       await agentTurn?.recordDecision("media.projection", projection.decision);
 
-      // 审计快照以最终 Prompt 编排轨迹为准，只保留在当前聊天运行时。
+      // 审计快照只保留在当前聊天运行时，不写入会话。
       publishTurnMemoryAudit(
         { publishMemoryAudit: p.publishMemoryAudit, publishRecalledMemories: p.publishRecalledMemories,
           estimateTokens: (content) => p.promptService.estimateTokens(content) },
         { session: promptSession, query: isBisonConsecutive ? "" : textToSend, recalled: recalledMemories,
-          settings: effectiveSettings, traces: promptPayload.traces, contextContributions },
+          settings: effectiveSettings, contextContributions },
       );
 
       // 放置 AI 消息占位符

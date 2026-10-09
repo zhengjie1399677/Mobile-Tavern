@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AGENT_PROFILE_SETTINGS_DECISION_ID } from "../../src/application/runtimeProfiles/agentSettings";
 import { resolveAgentSessionSettings } from "../../src/application/useCases/resolveAgentSessionSettings";
 import type { AgentCompositionSnapshot } from "../../src/domain/agents/contracts";
-import { requirePresetBundleV2 } from "../../src/domain/presets/bundleMigration";
+import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
 import type { UserSettings } from "../../src/types";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 
@@ -60,7 +60,7 @@ describe("resolveAgentSessionSettings", () => {
       }],
     };
     // v1 字面量只作为存储边界的迁移输入，冻结行为预设本身以 v2 实体进入 savedPresets。
-    settings.savedPresets = [requirePresetBundleV2(behavior)];
+    settings.savedPresets = [requirePresetBundle(behavior)];
 
     const resolved = resolveAgentSessionSettings(settings, createSnapshot({
       characterId: "character-guide",

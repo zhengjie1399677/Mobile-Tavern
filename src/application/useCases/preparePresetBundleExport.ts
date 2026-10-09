@@ -3,7 +3,7 @@ import type {
   RegexScript,
   SamplerPreset,
 } from "../../types";
-import type { CompatibilityReport } from "../../domain/prompt-composition";
+import type { CompatibilityReport } from "../../domain/prompts/promptAssemblyTypes";
 import type { CompatibilityCodecDefinition } from "../compatibility/contracts";
 import {
   buildMobileTavernPresetExtension,
@@ -27,14 +27,8 @@ export function preparePresetBundleExport(
   options: PreparePresetBundleExportOptions,
 ): PreparedPresetBundleExport {
   const { preset, promptConfig } = options;
-  const requiresCompatibilityCodec = Boolean(
-    promptConfig.usePromptComposition && promptConfig.composition,
-  );
-  const compositionExport = promptConfig.usePromptComposition && promptConfig.composition
-    ? parseCodecExport(options.compatibilityCodec?.encode(promptConfig.composition))
-    : undefined;
   const traditionalPrompts = promptConfig.customPrompts ?? [];
-  const promptData = compositionExport?.data ?? {
+  const promptData = {
     prompts: traditionalPrompts.map((prompt) => ({
       ...prompt,
       // 展开之后再兜底，避免显式 `identifier: undefined/null` 覆盖回退值。
@@ -85,44 +79,6 @@ export function preparePresetBundleExport(
         [MOBILE_TAVERN_PRESET_EXTENSION_KEY]: buildMobileTavernPresetExtension(promptConfig),
       },
     },
-    report: compositionExport?.report ?? (requiresCompatibilityCodec
-      ? {
-          warnings: [],
-          errors: [{
-            level: "error",
-            code: "COMPATIBILITY_CODEC_UNAVAILABLE",
-            message: "当前 Profile 未启用 SillyTavern 兼容 Codec，不能导出自由编排。",
-          }],
-        }
-      : { warnings: [], errors: [] }),
-  };
-}
-
-function parseCodecExport(value: unknown): {
-  data: Record<string, unknown>;
-  report: CompatibilityReport;
-} | undefined {
-  if (value === undefined) return undefined;
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("COMPATIBILITY_CODEC_INVALID_EXPORT_RESULT");
-  }
-  const result = value as Record<string, unknown>;
-  if (
-    !result.data
-    || typeof result.data !== "object"
-    || Array.isArray(result.data)
-    || !result.report
-    || typeof result.report !== "object"
-    || Array.isArray(result.report)
-  ) {
-    throw new Error("COMPATIBILITY_CODEC_INVALID_EXPORT_RESULT");
-  }
-  const report = result.report as Record<string, unknown>;
-  if (!Array.isArray(report.warnings) || !Array.isArray(report.errors)) {
-    throw new Error("COMPATIBILITY_CODEC_INVALID_EXPORT_RESULT");
-  }
-  return {
-    data: result.data as Record<string, unknown>,
-    report: report as unknown as CompatibilityReport,
+    report: { warnings: [], errors: [] },
   };
 }

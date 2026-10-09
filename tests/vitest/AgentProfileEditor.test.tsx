@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import AgentProfileEditor from "../../src/components/plugins/AgentProfileEditor";
 import type { RuntimeProfileRecord } from "../../src/application/runtimeProfiles/contracts";
-import { requirePresetBundleV2 } from "../../src/domain/presets/bundleMigration";
+import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 
 const profile: RuntimeProfileRecord = {
@@ -43,7 +43,7 @@ describe("AgentProfileEditor", () => {
           first_mes: "你好",
           mes_example: "",
         }]}
-        promptPresets={[requirePresetBundleV2({
+        promptPresets={[requirePresetBundle({
           id: "preset-guide",
           preset: { ...DEFAULT_SETTINGS.preset, id: "sampler-guide", name: "向导行为" },
           promptConfig: DEFAULT_SETTINGS.promptConfig,

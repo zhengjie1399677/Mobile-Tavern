@@ -13,7 +13,7 @@
  */
 
 import type { UserSettings } from "../../../types";
-import type { PresetBundleV2 } from "../../../domain/presets/contracts";
+import type { PresetBundle } from "../../../domain/presets/contracts";
 import { readPresetBundleList } from "../../../domain/presets/bundleMigration";
 import { getDB } from "../idbConnection";
 import {
@@ -109,17 +109,14 @@ async function assembleSettings(
     if (large.postHistoryPrompt !== undefined) settings.promptConfig.postHistoryPrompt = large.postHistoryPrompt;
     if (large.reasoningGuidancePrompt !== undefined) settings.promptConfig.reasoningGuidancePrompt = large.reasoningGuidancePrompt;
     if (large.tableMemoryPrompt !== undefined) settings.promptConfig.tableMemoryPrompt = large.tableMemoryPrompt;
-    if (large.promptComposition !== undefined) settings.promptConfig.composition = large.promptComposition;
   } else {
     // 主记录 promptConfig 整体缺失（旧版数据/损坏）：从 largePrompts 还原全部字段，
-    // 必须包含 composition，否则用户配置的组合策略静默丢失。
     settings.promptConfig = {
       mainPrompt: large.mainPrompt || "",
       jailbreakPrompt: large.jailbreakPrompt || "",
       postHistoryPrompt: large.postHistoryPrompt || "",
       reasoningGuidancePrompt: large.reasoningGuidancePrompt || "",
       tableMemoryPrompt: large.tableMemoryPrompt || "",
-      composition: large.promptComposition,
       roleplayMode: true,
       useJailbreak: true,
       usePostHistory: true,
@@ -135,10 +132,6 @@ async function assembleSettings(
 
   if (large.bisonModePrompt !== undefined) settings.bisonModePrompt = large.bisonModePrompt;
   if (large.replySuggestionsPrompt !== undefined) settings.replySuggestionsPrompt = large.replySuggestionsPrompt;
-  if (large.promptCompositionTemplates !== undefined) {
-    settings.promptCompositionTemplates = large.promptCompositionTemplates;
-  }
-
   try {
     const key = await getOrCreateCryptoKey(db);
     if (settings.api && settings.api.apiKey) {
@@ -271,8 +264,6 @@ export async function prepareSettingsStorageRecords(
       postHistoryPrompt: clonedSettings.promptConfig?.postHistoryPrompt || "",
       reasoningGuidancePrompt: clonedSettings.promptConfig?.reasoningGuidancePrompt || "",
       tableMemoryPrompt: clonedSettings.promptConfig?.tableMemoryPrompt || "",
-      promptComposition: clonedSettings.promptConfig?.composition,
-      promptCompositionTemplates: clonedSettings.promptCompositionTemplates || [],
       bisonModePrompt: clonedSettings.bisonModePrompt || "",
       replySuggestionsPrompt: clonedSettings.replySuggestionsPrompt || "",
     };
@@ -285,13 +276,10 @@ export async function prepareSettingsStorageRecords(
         postHistoryPrompt: "",
         reasoningGuidancePrompt: "",
         tableMemoryPrompt: "",
-        composition: undefined,
       };
     }
     clonedSettings.bisonModePrompt = "";
     clonedSettings.replySuggestionsPrompt = "";
-    clonedSettings.promptCompositionTemplates = [];
-
   return { settings: clonedSettings, largePrompts };
 }
 
@@ -302,7 +290,7 @@ export async function prepareSettingsStorageRecords(
  * 因此一律经 `readPresetBundleList` 迁移：能读就不能失效，迁移与修复的结论由诊断返回，
  * 不对调用方抛错（`CHANGE-SAFE`）。
  */
-export async function getStoredSavedPresets(): Promise<PresetBundleV2[] | null> {
+export async function getStoredSavedPresets(): Promise<PresetBundle[] | null> {
   const db = await getDB();
   const raw = await new Promise<unknown>((resolve, reject) => {
     const transaction = db.transaction("settings", "readonly");
@@ -318,7 +306,7 @@ export async function getStoredSavedPresets(): Promise<PresetBundleV2[] | null> 
 }
 
 /** 写出预设实体列表；参数类型即 v2，历史形状无法写回。 */
-export async function saveStoredSavedPresets(presets: PresetBundleV2[], signal?: AbortSignal): Promise<void> {
+export async function saveStoredSavedPresets(presets: PresetBundle[], signal?: AbortSignal): Promise<void> {
   return enqueueWrite(async (ctx) => {
     const db = await getDB();
     return new Promise<void>((resolve, reject) => {

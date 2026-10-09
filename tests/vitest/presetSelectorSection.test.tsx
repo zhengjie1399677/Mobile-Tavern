@@ -5,7 +5,7 @@ import PresetSelectorSection from "../../src/components/presetForm/PresetSelecto
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import { toPresetPromptConfig } from "../../src/application/useCases/presetPromptConfig";
-import { requirePresetBundleV2 } from "../../src/domain/presets/bundleMigration";
+import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
 import type { UserSettings } from "../../src/types";
 
 const SAVE_LABEL = "保存修改到当前预设";
@@ -59,7 +59,7 @@ describe("PresetSelectorSection", () => {
   it("自定义预设存在未保存修改时展示标记并可写回当前预设", async () => {
     const user = userEvent.setup();
     const handlers = createHandlers();
-    const customBundle = requirePresetBundleV2({
+    const customBundle = requirePresetBundle({
       id: "bundle_custom",
       preset: { ...DEFAULT_SETTINGS.preset, id: "preset_custom", name: "自定义预设" },
       promptConfig: toPresetPromptConfig(DEFAULT_SETTINGS.promptConfig),
@@ -89,7 +89,7 @@ describe("PresetSelectorSection", () => {
   });
 
   it("没有未保存修改时不提供覆盖保存", () => {
-    const customBundle = requirePresetBundleV2({
+    const customBundle = requirePresetBundle({
       id: "bundle_clean",
       preset: { ...DEFAULT_SETTINGS.preset, id: "preset_clean", name: "干净预设" },
       promptConfig: toPresetPromptConfig(DEFAULT_SETTINGS.promptConfig),

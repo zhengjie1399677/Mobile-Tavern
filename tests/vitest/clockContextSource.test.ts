@@ -7,9 +7,6 @@ import { describe, expect, it } from "vitest";
 import { createClockContextSources } from "@/src/application/contextSources/clockContextSource";
 import { createContextSourceRegistry } from "@/src/application/contextSources/contextSourceRegistry";
 import { createContextSourceDefinition } from "@/src/domain/contextSources/contracts";
-import type { ContextContribution } from "@/src/domain/contextSources/contracts";
-import { buildPromptCompositionRuntimeData } from "@/src/application/services/prompt/PromptCompositionRuntimeAdapter";
-import type { CharacterCard, ChatSession, UserSettings } from "@/src/types";
 
 const fixedNow = () => new Date(2026, 9, 5, 14, 7, 9);
 const zhLocale = () => "zh-CN";
@@ -44,33 +41,5 @@ describe("日期/时间上下文来源", () => {
     for (const definition of definitions) {
       expect(createContextSourceDefinition(definition).determinism).toBe("volatile");
     }
-  });
-});
-
-describe("时间宏进入提示词数据源", () => {
-  it("白名单内的既有宏可被贡献写入（此前会漏字面量）", () => {
-    const character = { name: "角色", mes_example: "" } as unknown as CharacterCard;
-    const settings = { userName: "玩家", api: {}, promptConfig: {} } as unknown as UserSettings;
-    const chat = { id: "s", summaries: [], tableMemory: [], messages: [] } as unknown as ChatSession;
-    const contribution: ContextContribution = {
-      sourceId: "clock.isotime",
-      macroName: "isotime",
-      content: "14:07",
-      status: "ok",
-      characters: 5,
-    };
-
-    const runtime = buildPromptCompositionRuntimeData({
-      character,
-      chat,
-      userInput: "输入",
-      settings,
-      triggeredLorebook: [],
-      recalledMemories: [],
-      contextContributions: [contribution],
-    });
-
-    expect(runtime.values.isotime).toBe("14:07");
-    expect(runtime.values.char).toBe("角色");
   });
 });

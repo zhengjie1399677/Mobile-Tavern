@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from "react";
 import type { PromptConfig, UserSettings } from "../../types";
-import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import type { PresetBundle } from "../../domain/presets/contracts";
 import { useKernel } from "../../contexts/KernelContext";
 import type { IKernel, IPresetService, IRuntimeProfileService } from "@/src/application/serviceContracts";
 import { KernelServices } from "@/src/application/serviceContracts";
@@ -11,7 +11,6 @@ import {
 } from "../../application/useCases/compatibilityGenerationState";
 import {
   formatPresetOperationReport,
-  formatSillyTavernCompatibilityAnalysis,
   preparePresetBundleImport,
 } from "../../application/useCases/preparePresetBundleImport";
 import { preparePresetBundleExport } from "../../application/useCases/preparePresetBundleExport";
@@ -83,7 +82,7 @@ const listRuntimeProfilesSafely = (kernel: IKernel): RuntimeProfileRecord[] => {
 };
 
 /** 删除预设后的回退目标：必须与切换共用同一套激活规则，避免漏掉预设正则等字段。 */
-const resolveFallbackBundle = (remaining: PresetBundleV2[]): PresetBundleV2 => {
+const resolveFallbackBundle = (remaining: PresetBundle[]): PresetBundle => {
   const fallback = remaining[0];
   if (fallback) return fallback;
   return buildPresetBundleSnapshot(
@@ -92,7 +91,7 @@ const resolveFallbackBundle = (remaining: PresetBundleV2[]): PresetBundleV2 => {
       promptConfig: DEFAULT_PROMPT_CONFIG,
       presetRegexScripts: [],
     },
-    { id: "bundle_default_fallback", planSource: "mobile-tavern" },
+        { id: "bundle_default_fallback" },
   );
 };
 
@@ -104,14 +103,14 @@ const resolveFallbackBundle = (remaining: PresetBundleV2[]): PresetBundleV2 => {
  */
 const buildSettingsAfterRemoval = (
   prev: UserSettings,
-  nextSaved: PresetBundleV2[],
+  nextSaved: PresetBundle[],
   removedActive: boolean,
 ): UserSettings => {
   const base: UserSettings = { ...prev, savedPresets: nextSaved };
   if (!removedActive) return base;
   return {
     ...base,
-    ...projectPresetActivation(base.promptConfig, resolveFallbackBundle(nextSaved), DEFAULT_SETTINGS.preset),
+            ...projectPresetActivation(resolveFallbackBundle(nextSaved), DEFAULT_SETTINGS.preset),
   };
 };
 
@@ -124,7 +123,7 @@ export const usePresetBundles = ({
   showCustomConfirm,
 }: UsePresetBundlesDeps): UsePresetBundlesReturn => {
   const kernel = useKernel();
-  const presetService = kernel.getService<IPresetService<PresetBundleV2>>("preset");
+  const presetService = kernel.getService<IPresetService<PresetBundle>>("preset");
   const compatibilityCodec = getCompatibilityCodec(
     kernel,
     SILLY_TAVERN_PROMPT_PRESET_FORMAT,
@@ -182,29 +181,16 @@ export const usePresetBundles = ({
           neutralPromptConfig: DEFAULT_PROMPT_CONFIG,
           compatibilityCodec,
         });
-        const importedComposition = prepared.composition;
         const importReportText = formatPresetOperationReport(prepared.report);
         if (prepared.report.errors.length > 0) throw new Error("PRESET_IMPORT_REPORT_HAS_ERRORS");
 
-        // 统一收口为纯净直观的预设模式，编排快照作为只读对象随预设包保存（保证后续导出兼容），
-        // 运行期始终由用户可见的提示词配置统一驱动。
-        const importedBundle: PresetBundleV2 = {
-          ...prepared.bundle,
-          prompt: importedComposition
-            ? {
-                ...prepared.bundle.prompt,
-                mode: "legacy",
-                source: "sillytavern",
-                composition: importedComposition,
-              }
-            : prepared.bundle.prompt,
-        };
+        const importedBundle: PresetBundle = prepared.bundle;
         // DB 是 savedPresets 的单一事实来源，避免陈旧闭包回退已保存预设。
         const mutation = await catalog.mutate((current) => registerPresetBundle(current, importedBundle));
         updateSettings((prev) => {
           return {
             ...prev,
-            ...projectPresetActivation(prev.promptConfig, importedBundle, DEFAULT_SETTINGS.preset),
+            ...projectPresetActivation(importedBundle, DEFAULT_SETTINGS.preset),
             savedPresets: mutation.presets,
           };
         });
@@ -277,7 +263,7 @@ export const usePresetBundles = ({
         promptConfig: settings.promptConfig,
         presetRegexScripts: settings.presetRegexScripts,
       },
-      { id: "bundle_" + Math.random().toString(36).substring(2, 9), planSource: "native" },
+        { id: "bundle_" + Math.random().toString(36).substring(2, 9) },
     );
     try {
       // Preset Store 是保存列表的单一来源。设置页可能仍持有启动阶段的旧快照，
@@ -285,7 +271,7 @@ export const usePresetBundles = ({
       const mutation = await catalog.mutate((current) => savePresetBundleAsNew(current, newBundle));
       updateSettings((prev) => ({
         ...prev,
-        ...projectPresetActivation(prev.promptConfig, newBundle, DEFAULT_SETTINGS.preset),
+            ...projectPresetActivation(newBundle, DEFAULT_SETTINGS.preset),
         savedPresets: mutation.presets,
       }));
       await showCustomAlert(`成功保存新预设：${name}`);
@@ -304,7 +290,6 @@ export const usePresetBundles = ({
     const snapshot = buildPresetBundleSnapshot(settings, {
       id: activeBundle.id,
       // 覆盖写入当前预设时保留它自己的 Prompt 来源标记（v2 里来源直接存在 `prompt.source`）。
-      planSource: activeBundle.prompt.source,
     });
     try {
       const mutation = await catalog.mutate((current) => savePresetBundleAsNew(current, snapshot, {
@@ -312,7 +297,7 @@ export const usePresetBundles = ({
       }));
       updateSettings((prev) => ({
         ...prev,
-        ...projectPresetActivation(prev.promptConfig, snapshot, DEFAULT_SETTINGS.preset),
+            ...projectPresetActivation(snapshot, DEFAULT_SETTINGS.preset),
         savedPresets: mutation.presets,
       }));
       await showCustomAlert(`已将当前修改保存到预设「${snapshot.sampler.name}」。`);
@@ -336,7 +321,7 @@ export const usePresetBundles = ({
     // 会把上一个预设的 useMainPrompt / usePostHistory / reasoningGuidancePrompt 等残留下来。
     updateSettings((prev) => ({
       ...prev,
-      ...projectPresetActivation(prev.promptConfig, bundle, DEFAULT_SETTINGS.preset),
+            ...projectPresetActivation(bundle, DEFAULT_SETTINGS.preset),
     }));
   }, [settings, updateSettings, isActivePresetDirty, showCustomConfirm]);
 
@@ -348,7 +333,7 @@ export const usePresetBundles = ({
 
     const isActiveDeleted = bundle.id === activeBundle?.id;
     // 先落库再改内存状态：写库失败时保持界面与存储一致；删除基准是 Preset Store 的权威列表。
-    let nextSaved: PresetBundleV2[];
+    let nextSaved: PresetBundle[];
     try {
       nextSaved = (await catalog.mutate((current) => deletePresetBundle(current, bundleId))).presets;
     } catch (error: unknown) {
@@ -371,7 +356,7 @@ export const usePresetBundles = ({
 
     const isCurrentDeleted = Boolean(activeBundle && deletableIds.includes(activeBundle.id));
     // 批量删除同样以 Preset Store 的权威列表为基准，先落库再改内存状态。
-    let nextSaved: PresetBundleV2[];
+    let nextSaved: PresetBundle[];
     try {
       nextSaved = (await catalog.mutate((current) => deletePresetBundles(current, deletableIds))).presets;
     } catch (error: unknown) {

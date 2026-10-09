@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { UserSettings, CharacterCard, RegexScript, CustomPromptBlock } from "../../types";
 import { resolveActivePresetBundle } from "../../application/useCases/presetBundleLifecycle";
-import { applyLegacyPromptRemoval } from "../../application/useCases/promptSwitchSync";
+import { removePromptBlocksByIds } from "../../domain/prompts/promptBlockIdentity";
 import {
   regexScriptKey,
   removeRegexScriptByKey,
@@ -217,7 +217,10 @@ export function usePresetFormState({
     // 连带删除同源的编排区块：列表与编排是同一批条目的两种视图，删除必须两侧一致。
     updateSettings((prev) => ({
       ...prev,
-      promptConfig: applyLegacyPromptRemoval(prev.promptConfig, selectedPromptIds),
+      promptConfig: {
+        ...prev.promptConfig,
+        customPrompts: removePromptBlocksByIds(prev.promptConfig.customPrompts ?? [], selectedPromptIds),
+      },
     }));
     setSelectedPromptIds([]);
     setIsBatchDeletingPrompts(false);

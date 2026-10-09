@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { applyAgentProfilePresetBinding } from "../../src/application/useCases/agentProfilePresetBinding";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { UserSettings } from "../../src/types";
-import { requirePresetBundleV2 } from "../../src/domain/presets/bundleMigration";
-import type { PresetBundleV2 } from "../../src/domain/presets/contracts";
+import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
+import type { PresetBundle } from "../../src/domain/presets/contracts";
 
 const PRESET_DEFAULTS = DEFAULT_SETTINGS.preset;
 
@@ -11,9 +11,9 @@ function createSettings(): UserSettings {
   return structuredClone(DEFAULT_SETTINGS) as UserSettings;
 }
 
-function createBundle(id: string): PresetBundleV2 {
+function createBundle(id: string): PresetBundle {
   const base = createSettings();
-  return requirePresetBundleV2({
+  return requirePresetBundle({
     id,
     preset: {
       ...base.preset,

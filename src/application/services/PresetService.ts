@@ -1,5 +1,5 @@
 import { IPresetService, IKernel } from "../serviceContracts";
-import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import type { PresetBundle } from "../../domain/presets/contracts";
 import {
   getStoredSavedPresets as dbGetStoredSavedPresets,
   saveStoredSavedPresets as dbSaveStoredSavedPresets,
@@ -17,7 +17,7 @@ import {
  *   - 物理隔离：不侵入 Kernel，不污染通用的 DatabaseService（preset 是业务实体）
  *   - 资源回收：持有服务级 AbortController，destroy 时中止进行中的异步任务
  *
- * 实体版本：对外只有 `PresetBundleV2`。v1 记录在**存储读取边界**经
+ * 实体版本：对外只有 `PresetBundle`。v1 记录在**存储读取边界**经
  * `domain/presets/bundleMigration` 迁移（能读就不能失效），因此本服务不再做 v1 归一化，
  * 写入也永远只有 v2 形态。
  *
@@ -25,7 +25,7 @@ import {
  * 但逻辑上属于独立的 preset 业务域，故独立封装为 PresetService，
  * 遵循 `ARCH-FLOW` 的「分轨存储」精神。
  */
-export class PresetService implements IPresetService<PresetBundleV2> {
+export class PresetService implements IPresetService<PresetBundle> {
   name = "preset";
   isCritical = false;
   // 依赖 DatabaseService 先完成 IDB schema 就绪（getDB 触发 onupgradeneeded）
@@ -48,11 +48,11 @@ export class PresetService implements IPresetService<PresetBundleV2> {
     this.abortController = null;
   }
 
-  async getStoredSavedPresets(): Promise<PresetBundleV2[] | null> {
+  async getStoredSavedPresets(): Promise<PresetBundle[] | null> {
     return dbGetStoredSavedPresets();
   }
 
-  async saveStoredSavedPresets(presets: PresetBundleV2[]): Promise<void> {
+  async saveStoredSavedPresets(presets: PresetBundle[]): Promise<void> {
     return dbSaveStoredSavedPresets(presets);
   }
 }

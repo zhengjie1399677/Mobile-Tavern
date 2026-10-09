@@ -27,7 +27,7 @@ it.each([false, true])("传统 Prompt 在 roleplayMode=%s 时按历史深度筛�
   const prompt = new PromptService();
   prompt.init(kernel);
   const settings = structuredClone(DEFAULT_SETTINGS);
-  settings.promptConfig.usePromptComposition = false;
+  
   settings.promptConfig.roleplayMode = roleplayMode;
   settings.presetRegexScripts = [{
     id: "recent",

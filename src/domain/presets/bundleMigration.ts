@@ -1,29 +1,28 @@
-import type { CustomPromptBlock, RegexScript, SavedPresetBundle } from "../../types";
+import type { RegexScript, SavedPresetBundle } from "../../types";
 import {
   PRESET_BUNDLE_SCHEMA_VERSION,
-  presetBundleV2Schema,
+  presetBundleSchema,
   presetSamplerSchema,
-  type PresetBundleV2,
-  type PresetSamplerV2,
+  type PresetBundle,
+  type PresetSampler,
 } from "./contracts";
-import {
-  isRecord,
-  resolvePromptFromV1Fields,
-  toPromptSnapshotV2,
-} from "./promptSnapshot";
 
 /**
- * 预设实体 v1 → v2 读取迁移。
+ * 预设实体 v1/v2 → v3 读取迁移。
  *
  * 存储边界必须"能读就不能失效"：v1 记录、被改坏的记录、含未知字段的记录都要能读出来，
  * 并且**不得静默丢数据**（`CHANGE-SAFE`）。因此这里的策略是
  * 「构造候选 → 用实体 schema 校验 → 逐级降级修复 → 记录诊断」，而不是直接 `parse` 抛错。
  * 只有导入边界才允许 fail-closed，那由导入用例负责。
+ *
+ * v3 只保留传统 `promptConfig` 这一个 Prompt 权威：v1 的 `promptPlan`/`composition`/
+ * `usePromptComposition` 与 v2 的 `prompt` 编排快照在迁移时**整体丢弃**（编排路径已删除）。
  */
 
 export type PresetBundleDiagnosticCode =
   | "preset.bundle.v1-migrated"
-  | "preset.bundle.v2-repaired"
+  | "preset.bundle.v2-migrated"
+  | "preset.bundle.repaired"
   | "preset.bundle.invalid-record"
   | "preset.bundle.regex-script-dropped"
   | "preset.bundle.unknown-keys-preserved";
@@ -34,19 +33,19 @@ export interface PresetBundleDiagnostic {
 }
 
 export interface PresetBundleReadResult {
-  bundle: PresetBundleV2;
-  /** 记录由旧形态迁移或被修复，调用方应写回 v2 存储。 */
+  bundle: PresetBundle;
+  /** 记录由旧形态迁移或被修复，调用方应写回当前版本存储。 */
   migrated: boolean;
   diagnostics: readonly PresetBundleDiagnostic[];
 }
 
 export interface PresetBundleListReadResult {
-  bundles: PresetBundleV2[];
+  bundles: PresetBundle[];
   migrated: boolean;
   diagnostics: readonly PresetBundleDiagnostic[];
 }
 
-/** v1 记录中被 v2 识别的键；其余键进 `extensions` 保真保存。 */
+/** v1 记录中被 v3 识别的键；v1 的编排字段按"不保留"处理。 */
 const V1_KNOWN_KEYS: readonly string[] = [
   "id",
   "isBuiltin",
@@ -58,6 +57,7 @@ const V1_KNOWN_KEYS: readonly string[] = [
   "usePromptComposition",
 ];
 
+/** v2 记录中被 v3 识别的键；`prompt`／`legacyPromptConfig` 里的传统字段会被读出后降级。 */
 const V2_KNOWN_KEYS: readonly string[] = [
   "schemaVersion",
   "id",
@@ -65,6 +65,7 @@ const V2_KNOWN_KEYS: readonly string[] = [
   "sampler",
   "prompt",
   "regexScripts",
+  "promptConfig",
   "legacyPromptConfig",
   "extensions",
 ];
@@ -85,27 +86,29 @@ export function readPresetBundle(raw: unknown): PresetBundleReadResult | null {
   if (!isRecord(raw)) return null;
   const id = readNonEmptyString(raw.id);
   if (id === undefined) return null;
-  return raw.schemaVersion === PRESET_BUNDLE_SCHEMA_VERSION
-    ? readV2Record(raw, id)
-    : readV1Record(raw, id);
+
+  if (raw.schemaVersion === PRESET_BUNDLE_SCHEMA_VERSION) return readCurrentRecord(raw, id);
+  if (raw.schemaVersion === 2) return readV2Record(raw, id);
+  return readV1Record(raw, id);
 }
 
 /**
- * 严格迁移：把确定可用的记录（编译期内置预设常量、测试夹具）转换为 v2；不可用时抛错。
+ * 严格迁移：把确定可用的记录（编译期内置预设常量、测试夹具）转换为当前版本；不可用时抛错。
  *
  * 存储边界请用 `readPresetBundle`（可失效优先），本入口只用于"必须成功"的调用点。
  */
-export function requirePresetBundleV2(raw: unknown): PresetBundleV2 {
+export function requirePresetBundle(raw: unknown): PresetBundle {
   const read = readPresetBundle(raw);
   if (read === null) throw new Error("preset.bundle.invalid-record: 记录无法识别为预设");
   return read.bundle;
 }
 
-/** 读取预设列表；非记录与缺少 id 的条目会被丢弃并留下诊断。 */export function readPresetBundleList(raw: unknown): PresetBundleListReadResult {
+/** 读取预设列表；非记录与缺少 id 的条目会被丢弃并留下诊断。 */
+export function readPresetBundleList(raw: unknown): PresetBundleListReadResult {
   if (!Array.isArray(raw)) {
     return { bundles: [], migrated: false, diagnostics: [{ code: "preset.bundle.invalid-record", detail: "不是数组" }] };
   }
-  const bundles: PresetBundleV2[] = [];
+  const bundles: PresetBundle[] = [];
   const diagnostics: PresetBundleDiagnostic[] = [];
   let migrated = false;
 
@@ -122,19 +125,18 @@ export function requirePresetBundleV2(raw: unknown): PresetBundleV2 {
   return { bundles, migrated, diagnostics };
 }
 
-function readV2Record(raw: Record<string, unknown>, id: string): PresetBundleReadResult {
-  const parsed = presetBundleV2Schema.safeParse(raw);
+function readCurrentRecord(raw: Record<string, unknown>, id: string): PresetBundleReadResult {
+  const parsed = presetBundleSchema.safeParse(raw);
   if (parsed.success) {
     return { bundle: parsed.data, migrated: false, diagnostics: [] };
   }
-  // v2 记录被改坏：按同样的修复路径重建，并保留未知字段与诊断。
+  // 当前版本记录被改坏：按同样的修复路径重建，并保留未知字段与诊断。
   const repaired = buildBundle({
     id,
     isBuiltin: raw.isBuiltin === true,
     samplerSource: raw.sampler,
-    promptSource: raw.prompt,
     regexScriptsSource: raw.regexScripts,
-    legacyPromptConfig: isRecord(raw.legacyPromptConfig) ? raw.legacyPromptConfig : undefined,
+    promptConfig: isRecord(raw.promptConfig) ? raw.promptConfig : undefined,
     preserveFrom: raw,
     knownKeys: V2_KNOWN_KEYS,
   });
@@ -142,26 +144,41 @@ function readV2Record(raw: Record<string, unknown>, id: string): PresetBundleRea
     bundle: repaired.bundle,
     migrated: true,
     diagnostics: [
-      { code: "preset.bundle.v2-repaired", detail: parsed.error.issues.map((issue) => issue.path.join(".")).join(",") },
+      { code: "preset.bundle.repaired", detail: parsed.error.issues.map((issue) => issue.path.join(".")).join(",") },
       ...repaired.diagnostics,
     ],
   };
 }
 
+/** v2 → v3：丢弃 `prompt` 编排快照，只保留 `legacyPromptConfig` 里的传统 Prompt 字段。 */
+function readV2Record(raw: Record<string, unknown>, id: string): PresetBundleReadResult {
+  const traditionalSource = isRecord(raw.legacyPromptConfig)
+    ? raw.legacyPromptConfig
+    : isRecord(raw.promptConfig) ? raw.promptConfig : undefined;
+  const repaired = buildBundle({
+    id,
+    isBuiltin: raw.isBuiltin === true,
+    samplerSource: raw.sampler,
+    regexScriptsSource: raw.regexScripts,
+    promptConfig: traditionalSource,
+    preserveFrom: raw,
+    knownKeys: V2_KNOWN_KEYS,
+  });
+  return {
+    bundle: repaired.bundle,
+    migrated: true,
+    diagnostics: [{ code: "preset.bundle.v2-migrated" }, ...repaired.diagnostics],
+  };
+}
+
+/** v1 → v3：只取传统字段，`promptPlan`／`composition` 一并丢弃。 */
 function readV1Record(raw: Record<string, unknown>, id: string): PresetBundleReadResult {
-  const promptConfig = isRecord(raw.promptConfig) ? raw.promptConfig : undefined;
   const repaired = buildBundle({
     id,
     isBuiltin: raw.isBuiltin === true,
     samplerSource: raw.preset,
-    promptSource: toPromptSnapshotV2(resolvePromptFromV1Fields({
-      promptConfig: promptConfig as SavedPresetBundle["promptConfig"] | undefined,
-      promptPlan: raw.promptPlan,
-      composition: raw.composition,
-      usePromptComposition: raw.usePromptComposition,
-    })),
     regexScriptsSource: raw.presetRegexScripts,
-    legacyPromptConfig: promptConfig,
+    promptConfig: isRecord(raw.promptConfig) ? raw.promptConfig : undefined,
     preserveFrom: raw,
     knownKeys: V1_KNOWN_KEYS,
   });
@@ -176,24 +193,22 @@ interface BuildBundleInput {
   id: string;
   isBuiltin: boolean;
   samplerSource: unknown;
-  promptSource: unknown;
   regexScriptsSource: unknown;
-  legacyPromptConfig: Record<string, unknown> | undefined;
+  promptConfig: Record<string, unknown> | undefined;
   preserveFrom: Record<string, unknown>;
   knownKeys: readonly string[];
 }
 
-function buildBundle(input: BuildBundleInput): { bundle: PresetBundleV2; diagnostics: PresetBundleDiagnostic[] } {
+function buildBundle(input: BuildBundleInput): { bundle: PresetBundle; diagnostics: PresetBundleDiagnostic[] } {
   const diagnostics: PresetBundleDiagnostic[] = [];
   const candidate: Record<string, unknown> = {
     schemaVersion: PRESET_BUNDLE_SCHEMA_VERSION,
     id: input.id,
-    sampler: toSamplerV2(input.samplerSource, input.id),
-    prompt: toPromptSnapshot(input.promptSource),
+    sampler: toSampler(input.samplerSource, input.id),
+    promptConfig: input.promptConfig ?? {},
     regexScripts: toRegexScripts(input.regexScriptsSource, diagnostics),
   };
   if (input.isBuiltin) candidate.isBuiltin = true;
-  if (input.legacyPromptConfig) candidate.legacyPromptConfig = input.legacyPromptConfig;
 
   const preserved = collectUnknownKeys(input.preserveFrom, input.knownKeys);
   if (preserved) {
@@ -204,25 +219,24 @@ function buildBundle(input: BuildBundleInput): { bundle: PresetBundleV2; diagnos
     });
   }
 
-  const parsed = presetBundleV2Schema.safeParse(candidate);
+  const parsed = presetBundleSchema.safeParse(candidate);
   if (parsed.success) return { bundle: parsed.data, diagnostics };
 
-  // 最后一级降级：丢掉无法校验的 Prompt 快照与正则，保留可读的采样与兼容块。
-  diagnostics.push({ code: "preset.bundle.v2-repaired", detail: "候选未通过校验，已降级为 legacy 快照" });
+  // 最后一级降级：丢掉无法校验的正则，保留可读的采样参数与 Prompt 字段。
+  diagnostics.push({ code: "preset.bundle.repaired", detail: "候选未通过校验，已降级记录" });
   const fallback: Record<string, unknown> = {
     schemaVersion: PRESET_BUNDLE_SCHEMA_VERSION,
     id: input.id,
-    sampler: toSamplerV2(input.samplerSource, input.id),
-    prompt: toPromptSnapshotV2(resolvePromptFromV1Fields({ promptConfig: undefined })),
+    sampler: toSampler(input.samplerSource, input.id),
+    promptConfig: input.promptConfig ?? {},
     regexScripts: [],
   };
   if (input.isBuiltin) fallback.isBuiltin = true;
-  if (input.legacyPromptConfig) fallback.legacyPromptConfig = input.legacyPromptConfig;
   if (preserved) fallback.extensions = preserved;
-  return { bundle: presetBundleV2Schema.parse(fallback), diagnostics };
+  return { bundle: presetBundleSchema.parse(fallback), diagnostics };
 }
 
-function toSamplerV2(raw: unknown, fallbackId: string): PresetSamplerV2 {
+function toSampler(raw: unknown, fallbackId: string): PresetSampler {
   const record = isRecord(raw) ? raw : {};
   const id = readNonEmptyString(record.id) ?? fallbackId;
   const name = readString(record.name) ?? id;
@@ -236,18 +250,6 @@ function toSamplerV2(raw: unknown, fallbackId: string): PresetSamplerV2 {
   const parsed = presetSamplerSchema.safeParse(candidate);
   // 兜底：仅保留必然合法的身份字段，数值由运行期投影与出厂默认合并补齐。
   return parsed.success ? parsed.data : { id, name };
-}
-
-function toPromptSnapshot(raw: unknown): Record<string, unknown> {
-  if (isRecord(raw) && (raw.mode === "legacy" || raw.mode === "composition")) {
-    return {
-      version: PRESET_BUNDLE_SCHEMA_VERSION,
-      mode: raw.mode,
-      source: raw.source === "sillytavern" || raw.source === "native" ? raw.source : "mobile-tavern",
-      ...(raw.composition === undefined ? {} : { composition: raw.composition }),
-    };
-  }
-  return toPromptSnapshotV2(resolvePromptFromV1Fields({ promptConfig: undefined }));
 }
 
 function toRegexScripts(raw: unknown, diagnostics: PresetBundleDiagnostic[]): RegexScript[] {
@@ -301,8 +303,10 @@ function describeRecord(value: unknown): string {
   return typeof value;
 }
 
+/** 记录形状判定：预设读取面只接受普通对象，数组与 null 都按不可读处理。 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /** 供类型检查与调用方复用：v1 记录形状。 */
 export type PresetBundleV1Like = Partial<SavedPresetBundle> & { id: string };
-
-/** 传统 Prompt 区块在迁移中的来源；仅用于文档化 v1 的读取面。 */
-export type MigratedPromptBlocks = CustomPromptBlock[];

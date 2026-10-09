@@ -1,18 +1,16 @@
 import type {
-  PromptCompositionBudgetReport,
-  PromptCompositionDiagnostic,
-  PromptCompositionTrace,
   PromptMessage,
-} from "../../../domain/prompt-composition";
+  PromptAssemblyTrace,
+  PromptDiagnostic,
+} from "../../../domain/prompts/promptAssemblyTypes";
 import type { PromptRequestShapingReport } from "./PromptRequestShaper";
 
 /** Provider 投影前唯一权威的 Prompt 消息包。 */
 export interface PromptEnvelope {
   version: 1;
   messages: PromptMessage[];
-  diagnostics: PromptCompositionDiagnostic[];
-  traces: PromptCompositionTrace[];
-  budget?: PromptCompositionBudgetReport;
+  diagnostics: PromptDiagnostic[];
+  traces: PromptAssemblyTrace[];
   stopSequences?: string[];
   requestShaping: PromptRequestShapingReport;
 }
@@ -34,7 +32,6 @@ export interface PromptAssemblyResult {
   messages: PromptEnvelope["messages"];
   diagnostics: PromptEnvelope["diagnostics"];
   traces: PromptEnvelope["traces"];
-  budget?: PromptCompositionBudgetReport;
   stopSequences?: string[];
   requestShaping: PromptRequestShapingReport;
 }

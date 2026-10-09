@@ -1,7 +1,10 @@
 import type * as React from "react";
 import { useCallback } from "react";
 import { UserSettings } from "../../types";
-import { applyLegacyPromptRemoval, applyLegacyPromptSwitch } from "../../application/useCases/promptSwitchSync";
+import {
+  removePromptBlocksByIds,
+  setPromptBlockEnabledById,
+} from "../../domain/prompts/promptBlockIdentity";
 
 interface UseCustomPromptsDeps {
   settings: UserSettings;
@@ -44,7 +47,10 @@ export const useCustomPrompts = ({
   const handleToggleCustomPrompt = useCallback((id: string, enabled: boolean) => {
     updateSettings((prev) => ({
       ...prev,
-      promptConfig: applyLegacyPromptSwitch(prev.promptConfig, id, enabled),
+      promptConfig: {
+        ...prev.promptConfig,
+        customPrompts: setPromptBlockEnabledById(prev.promptConfig.customPrompts ?? [], id, enabled),
+      },
     }));
   }, [updateSettings]);
 
@@ -103,7 +109,10 @@ export const useCustomPrompts = ({
     if (!ok) return;
     updateSettings((prev) => ({
       ...prev,
-      promptConfig: applyLegacyPromptRemoval(prev.promptConfig, [id]),
+      promptConfig: {
+        ...prev.promptConfig,
+        customPrompts: removePromptBlocksByIds(prev.promptConfig.customPrompts ?? [], [id]),
+      },
     }));
   }, [showCustomConfirm, updateSettings]);
 

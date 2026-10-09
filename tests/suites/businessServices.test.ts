@@ -16,7 +16,7 @@
 import 'fake-indexeddb/auto';
 import { assert } from "./testUtils";
 import type { IKernel } from "@/src/application/serviceContracts";
-import type { PresetBundleV2 } from "../../src/domain/presets/contracts";
+import type { PresetBundle } from "../../src/domain/presets/contracts";
 import type { CharacterCard, LorebookEntry, CustomWorldbook, UserSettings } from "../../src/types";
 
 export async function testCharacterService() {
@@ -183,19 +183,41 @@ export async function testPresetService() {
   assert(initial === null, "Initial presets should be null");
 
   // 2. saveStoredSavedPresets → getStoredSavedPresets（v2 实体：采样参数位于 sampler 下）
-  const presets: PresetBundleV2[] = [
+  const presets: PresetBundle[] = [
     {
-      schemaVersion: 2,
+      schemaVersion: 3,
       id: "preset_1",
       sampler: { id: "preset_1", name: "预设A", temperature: 0.8 },
-      prompt: { version: 2, mode: "legacy", source: "native" },
+      promptConfig: {
+        mainPrompt: "",
+        jailbreakPrompt: "",
+        useJailbreak: false,
+        instructTemplate: "default",
+        systemPrefix: "",
+        systemSuffix: "",
+        userPrefix: "",
+        userSuffix: "",
+        assistantPrefix: "",
+        assistantSuffix: "",
+      },
       regexScripts: [],
     },
     {
-      schemaVersion: 2,
+      schemaVersion: 3,
       id: "preset_2",
       sampler: { id: "preset_2", name: "预设B", temperature: 1.0 },
-      prompt: { version: 2, mode: "legacy", source: "native" },
+      promptConfig: {
+        mainPrompt: "",
+        jailbreakPrompt: "",
+        useJailbreak: false,
+        instructTemplate: "default",
+        systemPrefix: "",
+        systemSuffix: "",
+        userPrefix: "",
+        userSuffix: "",
+        assistantPrefix: "",
+        assistantSuffix: "",
+      },
       regexScripts: [],
     },
   ];

@@ -1,19 +1,13 @@
 import type {
   PromptConfig,
-  PromptPresetPlanSource,
   RegexScript,
   SamplerPreset,
   SavedPresetBundle,
   UserSettings,
 } from "../../types";
-import { PRESET_BUNDLE_SCHEMA_VERSION, type PresetBundleV2 } from "../../domain/presets/contracts";
-import { toPromptSnapshotV2 } from "../../domain/presets/promptSnapshot";
+import { PRESET_BUNDLE_SCHEMA_VERSION, type PresetBundle } from "../../domain/presets/contracts";
 import type { RuntimeProfileRecord } from "../runtimeProfiles/contracts";
 import {
-  applyPresetCompositionToPromptConfig,
-  applyPresetPromptConfig,
-  createPromptPresetPlan,
-  resolvePromptPresetPlan,
   stableSerializePresetSnapshot,
   toPresetPromptConfig,
 } from "./presetPromptConfig";
@@ -33,10 +27,10 @@ export interface PresetBundleActivation {
   presetRegexScripts: RegexScript[];
 }
 
-/** 预设包中可参与激活的部分；旧数据缺少 promptPlan 时由 resolvePromptPresetPlan 兜底。 */
+/** 预设包中可参与激活的部分。 */
 export type PresetBundleSource = Pick<
   SavedPresetBundle,
-  "preset" | "promptConfig" | "promptPlan" | "composition" | "usePromptComposition" | "presetRegexScripts"
+  "preset" | "promptConfig" | "presetRegexScripts"
 >;
 
 /** 当前设置中属于预设包的字段。 */
@@ -48,8 +42,6 @@ export type PresetBundleSelection = Pick<
 export interface PresetBundleIdentity {
   id: string;
   isBuiltin?: boolean;
-  /** 保留原预设的来源标记；新建副本时由调用方显式指定。 */
-  planSource?: PromptPresetPlanSource;
 }
 
 export interface PresetBundleReferenceSummary {
@@ -61,7 +53,7 @@ export const BUILTIN_PRESET_BUNDLE_ID = "bundle_mobile_tavern_basic";
 export const BUILTIN_SAMPLER_PRESET_ID = "preset_mobile_tavern_basic";
 
 /** 判定预设是否具有内置标记（默认预设已降级为普通预设，无任何特权）。 */
-export function isBuiltinBundle(bundle: PresetBundleV2 | undefined): boolean {
+export function isBuiltinBundle(bundle: PresetBundle | undefined): boolean {
   if (!bundle) return false;
   return Boolean(bundle.isBuiltin);
 }
@@ -74,9 +66,9 @@ export function isBuiltinBundle(bundle: PresetBundleV2 | undefined): boolean {
  * 4. 兜底回落至首个预设
  */
 export function resolveActivePresetBundle(
-  savedPresets: readonly PresetBundleV2[] | undefined,
+  savedPresets: readonly PresetBundle[] | undefined,
   preset: Pick<SamplerPreset, "id" | "name"> | undefined,
-): PresetBundleV2 | undefined {
+): PresetBundle | undefined {
   if (!savedPresets || savedPresets.length === 0) return undefined;
   if (!preset) return savedPresets[0];
 
@@ -90,16 +82,12 @@ export function resolveActivePresetBundle(
 
 /** 计算激活预设包后的设置补丁；所有切换入口都必须经由此函数。 */
 export function resolvePresetBundleActivation(
-  currentPromptConfig: PromptConfig,
   bundle: PresetBundleSource,
   presetDefaults: SamplerPreset,
 ): PresetBundleActivation {
   return {
     preset: { ...presetDefaults, ...bundle.preset },
-    promptConfig: applyPresetCompositionToPromptConfig(
-      applyPresetPromptConfig(currentPromptConfig, bundle.promptConfig),
-      bundle,
-    ),
+    promptConfig: toPresetPromptConfig(bundle.promptConfig),
     presetRegexScripts: Array.isArray(bundle.presetRegexScripts)
       ? bundle.presetRegexScripts
       : [],
@@ -123,7 +111,7 @@ export function applyPresetBundleActivation(
 ): UserSettings {
   return {
     ...settings,
-    ...resolvePresetBundleActivation(settings.promptConfig, bundle, presetDefaults),
+    ...resolvePresetBundleActivation(bundle, presetDefaults),
   };
 }
 
@@ -131,20 +119,13 @@ export function applyPresetBundleActivation(
 export function buildPresetBundleSnapshot(
   selection: PresetBundleSelection,
   identity: PresetBundleIdentity,
-): PresetBundleV2 {
-  const plan = createPromptPresetPlan(selection.promptConfig, identity.planSource ?? "native");
+): PresetBundle {
   return {
     schemaVersion: PRESET_BUNDLE_SCHEMA_VERSION,
     id: identity.id,
     ...(identity.isBuiltin ? { isBuiltin: true } : {}),
     sampler: { ...selection.preset },
-    // 唯一 Prompt 权威：模式与编排快照来自当前设置；传统字段只进只读兼容块。
-    prompt: toPromptSnapshotV2({
-      mode: plan.mode,
-      source: plan.source,
-      composition: plan.composition,
-    }),
-    legacyPromptConfig: toPresetPromptConfig(selection.promptConfig),
+    promptConfig: toPresetPromptConfig(selection.promptConfig),
     regexScripts: [...(selection.presetRegexScripts ?? [])],
   };
 }
@@ -156,19 +137,13 @@ export function buildPresetBundleSnapshot(
  * 因此这些字段不计入脏状态，避免旧预设一加载就显示"未保存"。
  */
 export function isPresetBundleInSync(
-  bundle: PresetBundleV2,
+  bundle: PresetBundle,
   selection: PresetBundleSelection,
   presetDefaults?: SamplerPreset,
 ): boolean {
-  const liveMode = selection.promptConfig.usePromptComposition ? "composition" : "legacy";
-  if (liveMode !== bundle.prompt.mode) return false;
-  if (liveMode === "composition" && !isDeepEqual(selection.promptConfig.composition, bundle.prompt.composition)) {
-    return false;
-  }
-
   const livePromptConfig = toPresetPromptConfig(selection.promptConfig) as unknown as Record<string, unknown>;
-  const storedLegacy = (bundle.legacyPromptConfig ?? {}) as unknown as Record<string, unknown>;
-  if (!hasOwnedKeysEqual(livePromptConfig, storedLegacy)) {
+  const storedPromptConfig = (bundle.promptConfig ?? {}) as unknown as Record<string, unknown>;
+  if (!hasOwnedKeysEqual(livePromptConfig, storedPromptConfig)) {
     return false;
   }
 

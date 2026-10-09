@@ -1,5 +1,5 @@
 import type { PromptConfig } from "../../types";
-import type { PromptCompositionDiagnostic } from "../../domain/prompt-composition";
+import type { PromptDiagnostic } from "../../domain/prompts/promptAssemblyTypes";
 
 /**
  * 预设往返（导出 → 导入）的 MT 命名空间。
@@ -30,7 +30,7 @@ export type MobileTavernPromptRuntime = Partial<Pick<
 
 export interface ParsedMobileTavernPresetExtension {
   promptRuntime?: MobileTavernPromptRuntime;
-  diagnostics: PromptCompositionDiagnostic[];
+  diagnostics: PromptDiagnostic[];
 }
 
 /** 生成随预设一起导出的 MT 命名空间载荷。 */
@@ -112,7 +112,7 @@ function parsePromptRuntime(value: unknown): MobileTavernPromptRuntime | undefin
   return Object.keys(runtime).length > 0 ? runtime : undefined;
 }
 
-function unsupportedVersionDiagnostic(message: string): PromptCompositionDiagnostic {
+function unsupportedVersionDiagnostic(message: string): PromptDiagnostic {
   return {
     level: "warning",
     code: "MT_PRESET_EXTENSION_IGNORED",

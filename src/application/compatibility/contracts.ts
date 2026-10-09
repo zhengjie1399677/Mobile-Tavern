@@ -120,9 +120,6 @@ export interface CompatibilityCodecDefinition {
   readonly id: string;
   readonly version: string;
   readonly format: string;
-  canDecode(input: unknown): boolean;
-  analyze?(input: unknown): unknown;
-  decode(input: unknown): unknown;
   /**
    * 可选：把来源格式的私有 Prompt 候选列表收口为应用内部传统 Prompt 块。
    *
@@ -131,7 +128,6 @@ export interface CompatibilityCodecDefinition {
    * 未实现该能力的 Codec 必须让调用方安全降级为空列表。
    */
   readPresetPrompts?(input: unknown): readonly CustomPromptBlock[];
-  encode(input: unknown): unknown;
 }
 
 export interface CompatibilityBackgroundScript {

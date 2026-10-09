@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PresetBundleV2 } from "../../src/domain/presets/contracts";
+import type { PresetBundle } from "../../src/domain/presets/contracts";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import {
   createPresetCatalog,
@@ -16,7 +16,7 @@ import {
  */
 
 /** 以出厂内置预设为模板生成测试预设包，避免手写完整 PromptConfig。 */
-const makeBundle = (id: string, name = id): PresetBundleV2 => {
+const makeBundle = (id: string, name = id): PresetBundle => {
   const base = (DEFAULT_SETTINGS.savedPresets || [])[0];
   if (!base) throw new Error("DEFAULT_SETTINGS 缺少内置预设，测试模板不可用");
   return {
@@ -26,7 +26,7 @@ const makeBundle = (id: string, name = id): PresetBundleV2 => {
   };
 };
 
-const ids = (list: PresetBundleV2[] | null): string[] => (list ?? []).map((bundle) => bundle.id);
+const ids = (list: PresetBundle[] | null): string[] => (list ?? []).map((bundle) => bundle.id);
 
 describe("presetCatalog 纯变换", () => {
   it("registerPresetBundle 以 Store 列表为基追加，不改动入参", () => {
@@ -68,7 +68,7 @@ describe("presetCatalog 纯变换", () => {
 
 describe("presetCatalog 串行读-改-写", () => {
   it("并发变更按入队顺序执行，不丢更新", async () => {
-    let store: PresetBundleV2[] | null = [makeBundle("a")];
+    let store: PresetBundle[] | null = [makeBundle("a")];
     const writes: string[][] = [];
     const port: PresetCatalogPort = {
       read: async () => store,
@@ -89,7 +89,7 @@ describe("presetCatalog 串行读-改-写", () => {
   });
 
   it("Store 无记录时以空列表为基，写库失败不阻断后续变更", async () => {
-    let store: PresetBundleV2[] | null = null;
+    let store: PresetBundle[] | null = null;
     const port: PresetCatalogPort = {
       read: async () => store,
       write: async (presets) => {

@@ -1,8 +1,7 @@
 import type { CustomThemePackage } from "./utils/themePackage";
-import type { PromptComposition, PromptCompositionTemplateRecord } from "./domain/prompt-composition";
 import type { MessageContentPart } from "./domain/messages/messageContent";
 import type { AgentCompositionSnapshot } from "./domain/agents/contracts";
-import type { PresetBundleV2 } from "./domain/presets/contracts";
+import type { PresetBundle } from "./domain/presets/contracts";
 
 export interface LorebookEntry {
   id: string;
@@ -327,9 +326,6 @@ export interface PromptConfig {
   tableMemoryPrompt?: string;
   renderingFormat?: 'auto' | 'xml' | 'markdown';
   requestShaping?: PromptRequestShapingConfig;
-  /** 新一代自由编排；关闭时保留旧 PromptService 路径作为迁移期回退。 */
-  usePromptComposition?: boolean;
-  composition?: PromptComposition;
 }
 
 export interface ApiProfile {
@@ -352,38 +348,14 @@ export interface ApiProfile {
 }
 
 /** 预设包中的传统 Prompt 字段；用于旧 Mobile Tavern 路径与兼容导出。 */
-export type PresetPromptConfig = Omit<PromptConfig, "usePromptComposition" | "composition">;
-
-export type PromptPresetPlanMode = "legacy" | "composition";
-export type PromptPresetPlanSource = "mobile-tavern" | "sillytavern" | "native";
-
-/**
- * 预设拥有的版本化 Prompt 运行快照。
- *
- * `mode` 明确决定加载预设后使用传统路径还是自由编排，避免旧预设缺字段时
- * 继承另一个预设的运行模式。`composition` 在 legacy 模式下也可作为待启用快照保留。
- */
-export interface PromptPresetPlan {
-  version: 1;
-  mode: PromptPresetPlanMode;
-  source: PromptPresetPlanSource;
-  composition?: PromptComposition;
-}
+/** 预设包中的 Prompt 字段；与全局 PromptConfig 同形（预设切换整体替换这些字段）。 */
+export type PresetPromptConfig = PromptConfig;
 
 export interface SavedPresetBundle {
   id: string;
   preset: SamplerPreset;
   promptConfig: PresetPromptConfig;
   presetRegexScripts?: RegexScript[];
-  /** 新数据的权威 Prompt 快照；旧数据由应用层从下方兼容字段迁移。 */
-  promptPlan?: PromptPresetPlan;
-  /**
-   * @deprecated 旧版 Prompt 快照字段，仅用于无损读取历史数据。
-   * 新保存以 `promptPlan` 为准。
-   */
-  composition?: PromptComposition;
-  /** @deprecated 旧版运行模式字段，仅用于无损读取历史数据。 */
-  usePromptComposition?: boolean;
   /**
    * 是否为内置（随应用出厂）预设。内置预设由启动加载器强制重建，不可删除；
    * 导入或另存为副本的预设不带此标记。旧数据缺省视为非内置（导入/自定义）。
@@ -391,30 +363,6 @@ export interface SavedPresetBundle {
   isBuiltin?: boolean;
 }
 
-export type SillyTavernCompatibilityLevel = "full" | "core" | "recognize_only" | "invalid";
-
-/**
- * 外部预设导入前的只读兼容分析结果（唯一权威形状：由解释来源格式的 Compatibility Codec 产出）。
- *
- * 只描述可移植语义与降级风险，不承载作者提示词正文；通用用例与界面只消费该形状，
- * 不得据此反向识别来源生态字段（见 `COMPAT-DATA`）。
- */
-export interface SillyTavernPresetAnalysis {
-  level: SillyTavernCompatibilityLevel;
-  promptCount: number;
-  orderedPromptCount: number;
-  enabledPromptCount: number;
-  markerCount: number;
-  unknownMarkerCount: number;
-  inChatPromptCount: number;
-  attachmentPromptCount: number;
-  regexCount: number;
-  tavernHelperScriptCount: number;
-  enabledTavernHelperScriptCount: number;
-  remoteScriptCount: number;
-  tavernHelperScriptBytes: number;
-  diagnostics: string[];
-}
 
 export interface UserPersona {
   id: string;
@@ -431,7 +379,6 @@ export interface UserSettings {
   preset: SamplerPreset;
   memory: MemoryConfig;
   promptConfig: PromptConfig; // SillyTavern formatting controls
-  promptCompositionTemplates?: PromptCompositionTemplateRecord[];
   userName: string;
   userInfo?: string;
   userAvatar?: string;
@@ -440,10 +387,10 @@ export interface UserSettings {
   /**
    * 预设实体列表。
    *
-   * 自 v2 起这里是 `PresetBundleV2`（`prompt` 快照是唯一 Prompt 权威）；v1 记录（`SavedPresetBundle`）
-   * 只作为迁移输入存在，读取一律经 `domain/presets/bundleMigration`。
+   * 这里是 v3 预设实体（`promptConfig` 是唯一 Prompt 权威）；v1/v2 记录只作为迁移输入存在，
+   * 读取一律经 `domain/presets/bundleMigration`。
    */
-  savedPresets?: PresetBundleV2[];
+  savedPresets?: PresetBundle[];
   /**
    * 出厂内容修订标记（见 `useCases/presetBootstrap` 的 `CURRENT_PRESET_FACTORY_REVISION`）。
    *

@@ -2,10 +2,7 @@ import type { EffectDisposer, IKernelService } from "../kernel/types";
 export * from "../kernel/types";
 
 import type { ReasoningStrength } from "../types";
-import type {
-  PromptCompositionBudgetReport,
-  PromptCompositionTrace,
-} from "../domain/prompt-composition";
+import type { PromptAssemblyTrace } from "../domain/prompts/promptAssemblyTypes";
 import type { LocalResourceMetadata } from "../domain/resources/types";
 import type {
   AttachmentMetadata,
@@ -494,8 +491,7 @@ export interface IPromptService<TCharacter = unknown, TSession = unknown, TSetti
       blockId?: string;
       detail?: string;
     }>;
-    traces: PromptCompositionTrace[];
-    budget?: PromptCompositionBudgetReport;
+    traces: PromptAssemblyTrace[];
     stopSequences?: string[];
     requestShaping: {
       enabled: boolean;
@@ -870,9 +866,9 @@ export interface IDataMigrationService<TSettings = unknown, TPayload = unknown> 
 /**
  * 预设服务契约。
  *
- * 泛型参数（默认 unknown）：TPreset 为预设实体类型（当前为 `PresetBundleV2`）。
+ * 泛型参数（默认 unknown）：TPreset 为预设实体类型（当前为 `PresetBundle`）。
  * 实现方必须显式声明类型参数，例如：
- *   `class PresetService implements IPresetService<PresetBundleV2>`
+ *   `class PresetService implements IPresetService<PresetBundle>`
  */
 export interface IPresetService<TPreset = unknown> extends IKernelService {
   getStoredSavedPresets(): Promise<TPreset[] | null>;

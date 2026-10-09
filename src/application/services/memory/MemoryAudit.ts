@@ -1,5 +1,4 @@
 import type { ChatSession, UserSettings } from "../../../types";
-import type { PromptCompositionTrace } from "../../../domain/prompt-composition";
 import type {
   MemoryAuditSnapshot,
   MemoryPacketSourceAudit,
@@ -12,7 +11,6 @@ interface BuildMemoryAuditParams {
   query: string;
   recalled: RecalledMessage[];
   settings: UserSettings;
-  traces?: PromptCompositionTrace[];
   estimateTokens: (text: string) => number;
   /** 通用上下文贡献（记忆之外的来源）；未接入时为空数组，行为与泛化前一致。 */
   contextContributions?: readonly ContextContribution[];
@@ -48,12 +46,8 @@ export function buildMemoryAuditSnapshot(params: BuildMemoryAuditParams): Memory
     { key: "memory.tables", content: tables, count: enabledTables.length },
   ];
 
-  const usingComposition = params.settings.promptConfig?.usePromptComposition === true;
   const sources = sourceValues.map(({ key, content, count }): MemoryPacketSourceAudit => {
-    const matchingTraces = (params.traces ?? []).filter((trace) => trace.resolvedDataKeys.includes(key));
-    const included = usingComposition
-      ? matchingTraces.some((trace) => !trace.dropped)
-      : content.length > 0 && (key !== "memory.tables" || params.settings.enableTableMemory !== false);
+    const included = content.length > 0 && (key !== "memory.tables" || params.settings.enableTableMemory !== false);
     return {
       key,
       label: SOURCE_LABELS[key],
@@ -61,9 +55,6 @@ export function buildMemoryAuditSnapshot(params: BuildMemoryAuditParams): Memory
       count,
       characters: content.length,
       estimatedTokens: included ? params.estimateTokens(content) : 0,
-      dropped: usingComposition && matchingTraces.length > 0
-        ? matchingTraces.every((trace) => trace.dropped)
-        : undefined,
     };
   });
 
@@ -86,18 +77,11 @@ const BUILTIN_MEMORY_KEYS = new Set(["memory.summaries", "memory.recalled", "mem
  * 复用既有 UI 入口（记忆抽屉按 `sources` 渲染），无需为每个来源新建审计体系。
  */
 function buildContextSourceAudits(params: BuildMemoryAuditParams): MemoryPacketSourceAudit[] {
-  const usingComposition = params.settings.promptConfig?.usePromptComposition === true;
   return (params.contextContributions ?? [])
     .filter((item: ContextContribution) => !BUILTIN_MEMORY_KEYS.has(item.macroName))
     .map((item: ContextContribution): MemoryPacketSourceAudit => {
-      const matchingTraces = (params.traces ?? [])
-        .filter((trace) => trace.resolvedDataKeys.includes(item.macroName));
       const contributed = item.status === "ok" || item.status === "truncated";
-      const included = contributed
-        ? usingComposition
-          ? matchingTraces.some((trace) => !trace.dropped)
-          : true
-        : false;
+      const included = contributed;
       return {
         key: item.macroName,
         label: SOURCE_LABELS[item.macroName] ?? item.macroName,
@@ -105,9 +89,6 @@ function buildContextSourceAudits(params: BuildMemoryAuditParams): MemoryPacketS
         count: item.status === "empty" ? 0 : 1,
         characters: item.characters,
         estimatedTokens: included ? params.estimateTokens(item.content) : 0,
-        dropped: usingComposition && matchingTraces.length > 0
-          ? matchingTraces.every((trace) => trace.dropped)
-          : undefined,
       };
     })
     // 未纳入且无问题的来源不占审计版面（内建时钟来源每轮都有内容，否则会刷满记忆抽屉）；

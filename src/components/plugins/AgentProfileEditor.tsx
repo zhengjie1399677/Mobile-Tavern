@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Play, Save, SlidersHorizontal, Wrench } from "lucide-react";
 import type { CharacterCard, SamplerPreset } from "../../types";
-import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import type { PresetBundle } from "../../domain/presets/contracts";
 import { MAX_OUTPUT_TOKENS } from "../../domain/api/outputTokenLimits";
 import { projectSamplerPreset } from "../../application/useCases/presetProjection";
 import type {
@@ -15,7 +15,7 @@ interface AgentProfileEditorProps {
   readonly characters: readonly CharacterCard[];
   /** 档案未绑定角色时的预填值（通常是当前会话/当前角色），避免"1. 角色"空着无法保存。 */
   readonly defaultCharacterId?: string;
-  readonly promptPresets: readonly PresetBundleV2[];
+  readonly promptPresets: readonly PresetBundle[];
   readonly fallbackSampling: SamplerPreset;
   readonly tools: readonly RuntimeProfileToolMount[];
   readonly unavailableToolNames?: readonly string[];

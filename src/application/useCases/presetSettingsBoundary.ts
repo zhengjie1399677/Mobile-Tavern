@@ -1,4 +1,4 @@
-import type { PresetBundleV2 } from "../../domain/presets/contracts";
+import type { PresetBundle } from "../../domain/presets/contracts";
 
 /**
  * 预设拥有的设置字段边界。
@@ -18,11 +18,11 @@ export const PRESET_OWNED_SETTINGS_KEYS: readonly string[] = ["savedPresets"];
  * 参数与返回类型保持一致（`savedPresets` 本身是可选字段），调用方无需额外断言；
  * 底层只做浅拷贝 + 删除，不触碰其它字段。
  */
-export function withoutPresetOwnedSettings<T extends { savedPresets?: PresetBundleV2[] }>(
+export function withoutPresetOwnedSettings<T extends { savedPresets?: PresetBundle[] }>(
   settings: T,
 ): T {
   const next = { ...settings };
-  const mutable = next as { savedPresets?: PresetBundleV2[] };
+  const mutable = next as { savedPresets?: PresetBundle[] };
   for (const key of PRESET_OWNED_SETTINGS_KEYS) {
     delete mutable[key as keyof typeof mutable];
   }

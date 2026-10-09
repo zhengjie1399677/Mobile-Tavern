@@ -207,7 +207,6 @@ export async function testLocalDBSplitTrack() {
     assert(rawUserSettings !== undefined, "user_settings should be written");
     assert(rawUserSettings.promptConfig.mainPrompt === "", "mainPrompt in user_settings must be cleared");
     assert(rawUserSettings.promptConfig.reasoningGuidancePrompt === "", "reasoningGuidancePrompt in user_settings must be cleared");
-    assert(rawUserSettings.promptConfig.composition === undefined, "prompt composition in user_settings must be cleared");
     assert(rawUserSettings.bisonModePrompt === "", "bisonModePrompt in user_settings must be cleared");
     assert(rawUserSettings.otherOption === "enabled", "other fields must remain intact");
 
@@ -215,13 +214,12 @@ export async function testLocalDBSplitTrack() {
     assert(rawLargePrompts.mainPrompt === "SYSTEM: Hello World", "mainPrompt must be stored in large prompts");
     assert(rawLargePrompts.reasoningGuidancePrompt === "REASON: Think step-by-step", "reasoningGuidancePrompt must be stored in large prompts");
     assert(rawLargePrompts.bisonModePrompt === "BISON: Mode prompt", "bisonModePrompt must be stored in large prompts");
-    assert(rawLargePrompts.promptComposition?.id === "composition-storage-test", "prompt composition must be stored in large prompts");
 
     // 4. 执行读取（含解密 + 合并 largePrompts）
     const loadedSettings = await localDB.getStoredSettings() as unknown as {
-      promptConfig: { mainPrompt: string; reasoningGuidancePrompt: string; composition?: { id: string } };
       bisonModePrompt: string;
       otherOption: string;
+      promptConfig: { mainPrompt: string; reasoningGuidancePrompt: string };
     };
 
     assert(loadedSettings !== null, "getStoredSettings should return object");
@@ -229,7 +227,6 @@ export async function testLocalDBSplitTrack() {
     // 5. 验证读取合并后的内容是否与原 settings 一致
     assert(loadedSettings.promptConfig.mainPrompt === "SYSTEM: Hello World", "Merged mainPrompt matches");
     assert(loadedSettings.promptConfig.reasoningGuidancePrompt === "REASON: Think step-by-step", "Merged reasoningGuidancePrompt matches");
-    assert(loadedSettings.promptConfig.composition?.id === "composition-storage-test", "Merged prompt composition matches");
     assert(loadedSettings.bisonModePrompt === "BISON: Mode prompt", "Merged bisonModePrompt matches");
     assert(loadedSettings.otherOption === "enabled", "Merged otherOption matches");
 
