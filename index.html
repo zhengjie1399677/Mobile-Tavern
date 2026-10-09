@@ -10,9 +10,13 @@
     content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
   <title>Mobile-Tavern</title>
   <style>
-    /* 默认设为“荧光深海”主题的深蓝底色，防止任何初始化白屏 */
+    /* 引导底色：仅用于 React 挂载前避免白闪，必须让主题变量接管（`var(--background)`）。
+       此前这里是硬编码 `#0d1726 !important`，会把 index.css 的 `html,body{bg-background}`
+       永久压掉——任何"内容区没画上底色"的瞬间（面板 display:none、加载兜底、子树未挂载）
+       都会暴露成整块深蓝/近黑，而环境光晕照旧画在上面，现场看起来就是"整屏发黑"。
+       变量尚未定义时（首帧前）才回落到原来的深蓝。 */
     html, body {
-      background-color: #0d1726 !important;
+      background-color: var(--background, #0d1726);
       margin: 0;
       padding: 0;
       height: 100%;

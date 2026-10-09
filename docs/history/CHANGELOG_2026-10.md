@@ -3,6 +3,7 @@
 - 2026-10-09：**排查"部分 Android 机型整屏看不清 + 点不动"并加固现场取证；清理编排时代文档遗留；预设表单拆分与 8 语言文案补全。**
   1. **诊断盲区（确定缺陷，已修）**：主题/遮挡层自检此前只扫 `#root`，而 Base UI 弹层默认 portal 到 `<body>`（`dialog-overlay` 是 `fixed inset-0 bg-black/75`）——弹层遮罩压住屏幕时报告必然显示"无遮挡层"。扫描面改为 `document.body`，报告附 `data-slot` 与 `backdrop-filter` 取值，并新增两条用例。
   2. **渲染层取证**：新增运行期错误黑匣子（`src/utils/runtimeErrorLog.ts`，挂在既有唯一捕获点 `installGlobalErrorHandlers` 上，不重复注册监听），第 14 项报告列出最近 5 条；`index.html` 静态声明 `<meta name="color-scheme" content="dark light">`，防止 WebView 在应用接管主题前做"算法深色"；写入遮罩去掉 `backdrop-blur-[2px]`，并在卡住超过 10s 时先落日志（部分 WebView 会把大面积 `backdrop-filter` 合成成不透明黑，而该层正是故障时唯一还在显示的东西）。
+  2b. **底色缺陷（确定缺陷，已修）**：`index.html` 曾用 `background-color: #0d1726 !important` 写死 `html/body`，把 `index.css` 的 `html,body{bg-background}` 永久压掉——任何"内容区没画上底色"的瞬间都会暴露成整块深蓝/近黑，环境光晕照旧画在其上，现场即"整屏发黑"。改为 `var(--background, #0d1726)` 并去掉 `!important`（首帧前仍不白闪）。同时新增**文本度量与视口缩放探针**（第 14 项输出探针行盒比与 `visualViewport.scale`）："线条与文字重叠、字体看不清而计算样式全正常"的典型成因是系统字体缩放/字体回退改写了实际渲染尺寸，这类信息现在可被自检捕获。
   3. **文档清理**：`sillytavern_compat.md` 删除/重写 7 处编排时代条目（导入快照、`legacy` 编排草稿、双视图同步、撤销栈、连带删除提示、`PromptBundleV2.prompt` 权威、验收脚本输出列）；`module_contracts.md` 合并重复的迁移条目、补上"诊断由存储边界聚合落日志"、去掉"编排历史块"。
   4. **预设表单**：正则编辑 Modal 拆分为 `RegexEditorDialog.tsx`（`RegexManagementSection` 845 → 559 行，交互与 className 逐字保持），预设表单内 69 处硬编码中文转为 i18n 键并同步 8 个语言文件。
   5. **验证**：`tsc`、`check:i18n`（引用 1076 / 定义 1232 × 8 语言一致）、`npm test`（197 个 Vitest 文件 / 1371 例 + 86 个系统套件）全绿。**原始故障尚未复现**：等待反馈者截图与"底栏是否可点、故障前操作、滑动是否恢复"三项判别信息；若确认为 `backdrop-filter` 合成异常，再评估「显示兼容模式」开关。

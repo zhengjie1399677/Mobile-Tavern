@@ -510,5 +510,58 @@ export function collectThemeDiagnosticLines(
     lines.push(`WARNING: runtime error → ${formatRuntimeErrorEntry(entry)}`);
   }
 
+  lines.push(...probeTextMetrics(doc, view, viewport));
+
+  return lines;
+}
+
+/**
+ * 文本度量与视口缩放探针。
+ *
+ * "线条和字重叠、字体完全看不清，但计算样式一切正常"的典型成因是**实际渲染尺寸被改写**：
+ * 系统字体缩放（部分厂商 ROM 会放大 WebView 文字）、字体回退导致的行盒膨胀、
+ * 或 WebView 页面缩放。`getComputedStyle` 只会回报请求值（如 13.76px），
+ * 因此必须量一个探针元素的真实盒子才能看见这类问题。
+ */
+function probeTextMetrics(doc: Document, view: Window, viewport: ViewportSizeLike): string[] {
+  const container = doc.body ?? doc.documentElement;
+  if (!container) return [];
+  const lines: string[] = [];
+
+  const probe = doc.createElement("span");
+  probe.textContent = "Hg字";
+  probe.setAttribute(
+    "style",
+    "position:absolute;left:-9999px;top:0;font-size:100px;line-height:normal;white-space:nowrap;",
+  );
+  container.appendChild(probe);
+  let height = 0;
+  try {
+    height = probe.getBoundingClientRect().height;
+  } catch {
+    height = 0;
+  }
+  probe.remove();
+
+  const ratio = height > 0 ? height / 100 : 0;
+  lines.push(
+    `text metrics probe: 100px font renders ${height.toFixed(1)}px line box (ratio ${ratio.toFixed(2)})`,
+  );
+  // 正常字体行盒约 1.0–1.5 倍字号；明显越界说明被缩放/回退改写。
+  if (ratio >= 2 || (ratio > 0 && ratio < 0.5)) {
+    lines.push(
+      "WARNING: rendered text metrics far from requested font-size — 系统字体缩放或字体回退可能正在改写排版（文字溢出、与边框线条重叠）",
+    );
+  }
+
+  const visualScale = view.visualViewport?.scale;
+  const innerWidth = view.innerWidth;
+  const devicePixelRatio = view.devicePixelRatio;
+  lines.push(
+    `viewport scale: innerWidth=${innerWidth}px devicePixelRatio=${Number.isFinite(devicePixelRatio) ? devicePixelRatio : "?"} visualViewport.scale=${
+      typeof visualScale === "number" ? visualScale.toFixed(3) : "(unavailable)"
+    } probeViewport=${viewport.width}x${viewport.height}`,
+  );
+
   return lines;
 }
