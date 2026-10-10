@@ -176,6 +176,17 @@ export function useRerollMessage(p: RerollMessageParams) {
     const nextMsgsIdx = targetMsg.sender === "user" ? targetIdx + 1 : targetIdx;
     const nextMsgs = rawMessages.slice(0, nextMsgsIdx);
 
+    // 历史窗口边界（权威读取的绝对轮次边界，语义为"排除该消息及其之后"）：
+    //   - 目标是助手消息：排除它本身，让模型重新生成这一轮，前置用户消息仍在历史里；
+    //   - 目标是用户消息：必须把该用户消息留在历史里，否则组装出的消息包最后一条会落到
+    //     之前的助手消息上——与首次发送不一致，且要求"最后一条必须是 user"的中转站会直接拒绝。
+    //     因此边界改取"第一条被截断的消息"（targetIdx + 1）；目标本身已是最末条时不传边界，
+    //     与发送链路（不传 beforeMessageId）逐字节一致。
+    const firstRemovedMessageId = rawMessages[nextMsgsIdx]?.id;
+    const historyBoundaryMessageId = targetMsg.sender === "user"
+      ? firstRemovedMessageId
+      : targetMsg.id;
+
     const isRerollingLastAssistantMsg = targetIdx === rawMessages.length - 1 && targetMsg.sender === "assistant";
     // 只有重掷"末尾 AI 回复"才维护候选分支；其余重掷照旧替换原文。
     const existingCandidates = isRerollingLastAssistantMsg
@@ -297,18 +308,14 @@ export function useRerollMessage(p: RerollMessageParams) {
     );
 
     try {
+      // 世界书组合必须与 useSendMessage 的同名组合逐字一致：重发是对同一轮请求的重放，
+      // 若这里再给条目加来源前缀，同一份世界书在首次发送与重发时会产出不同正文。
       const otherCharGlobals = p.characters
         .filter((c) => c.isWorldbookGlobal && c.id !== p.activeCharacter!.id)
-        .flatMap((c) => (c.lorebookEntries || []).map((entry) => ({
-          ...entry,
-          content: `[来自世界书: ${c.name}]\n${entry.content}`,
-        })));
+        .flatMap((c) => c.lorebookEntries || []);
       const customWorldbookGlobals = (Object.values(p.customWorldbooks || {}) as CustomWorldbook[])
         .filter((wb) => wb.enabled)
-        .flatMap((wb) => (wb.entries || []).map((entry) => ({
-          ...entry,
-          content: `[来自世界书: ${wb.name}]\n${entry.content}`,
-        })));
+        .flatMap((wb) => wb.entries || []);
       const combinedGlobals = [...(p.globalLorebook || []), ...otherCharGlobals, ...customWorldbookGlobals];
 
       // 1. 异步执行记忆召回
@@ -323,7 +330,14 @@ export function useRerollMessage(p: RerollMessageParams) {
               lastUserText,
               {
                 topK: recallTopK,
-                currentTurnIndex: targetMsg.turnIndex ?? nextMsgsIdx,
+                // 召回视野必须与首次发送同一口径：
+                //   - 目标是助手消息：召回截止到该助手轮次本身，避免重生成时召回自己的旧回复；
+                //   - 目标是用户消息：重发等价于重放"以该用户消息结尾"的那次发送，而发送链路的
+                //     轮次由权威最新消息推导（turnIndex + 1）。turnIndex 未知时交给召回层自行推导，
+                //     与发送链路同源，避免用数组下标冒充绝对轮次。
+                currentTurnIndex: targetMsg.sender === "user"
+                  ? (typeof targetMsg.turnIndex === "number" ? targetMsg.turnIndex + 1 : undefined)
+                  : (targetMsg.turnIndex ?? nextMsgsIdx),
               }
             ),
             effectiveSettings.memory?.recallTimeoutMs,
@@ -346,7 +360,7 @@ export function useRerollMessage(p: RerollMessageParams) {
           p.kernel, recalledMemories,
           { sessionId: updatedSession.id, userInput: lastUserText, signal: controller.signal },
         ),
-        beforeMessageId: targetMsg.id,
+        beforeMessageId: historyBoundaryMessageId,
         signal: controller.signal,
         traceId,
       });
