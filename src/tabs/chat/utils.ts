@@ -30,6 +30,10 @@ export function resolveRenderedMessageList(
   return deferred.sessionId === raw.sessionId ? deferred.messages : raw.messages;
 }
 
+// 消息列表"贴底"判定阈值（px）：滚动引擎、虚拟列表与输入区高度补偿共用同一口径，
+// 避免三处各自硬编码导致"是否贴着底部"的判断漂移。
+export const CHAT_SCROLL_BOTTOM_THRESHOLD = 60;
+
 // 文件级全局可变状态容器，抗御任何组件的销毁重装，确保基准永不丢失
 // 使用对象封装以便跨模块读写（ES Module 的 let 导出无法被外部赋值）
 export const chatTabState = {

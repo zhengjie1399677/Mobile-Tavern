@@ -20,6 +20,7 @@ import MessageBubble from "./MessageBubble";
 import AgentToolActivity from "./message-bubble/AgentToolActivity";
 import type { Message } from "../../types";
 import {
+  CHAT_SCROLL_BOTTOM_THRESHOLD,
   resolveRenderedMessageList,
   type SessionMessageListPayload,
 } from "./utils";
@@ -163,7 +164,7 @@ const DialogueHistoryView = ({
     getItemKey: (index) => messagesToRender[index]?.id ?? index,
     anchorTo: isEditingAnyMessage ? undefined : "end",
     followOnAppend: isEditingAnyMessage ? false : "auto",
-    scrollEndThreshold: 60,
+    scrollEndThreshold: CHAT_SCROLL_BOTTOM_THRESHOLD,
     useAnimationFrameWithResizeObserver: true,
   });
 
@@ -398,7 +399,7 @@ const DialogueHistoryView = ({
         </button>
       )}
 
-      <ChatInputArea isKeyboardOpen={isKeyboardOpen} />
+      <ChatInputArea isKeyboardOpen={isKeyboardOpen} messageScrollerRef={scrollContainerRef} />
     </div>
   );
 };

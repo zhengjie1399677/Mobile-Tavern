@@ -1,0 +1,102 @@
+// 输入框"按键路径"上的两项本地化计算（与 useChatScroll / useChatVoiceInput 同级的兄弟 Hook）：
+// 1) textarea 自适应高度 + 消息列表同帧贴底补偿：高度在绘制前定稿，只有本来就贴着底部才动滚动位置；
+// 2) 快捷栏 token 预估所需的兼容变量：仅在快捷栏展开时按会话读取，避免每次按键深拷贝整张变量表。
+//
+// 抽离动机见 docs/agents/ui_webview_performance.md：按键不得触发整树重渲染、无谓滚动与可避免的同步重排。
+
+import React from "react";
+import type { ChatSession } from "../../types";
+import {
+  KernelServices,
+  type ICompatibilityRuntimeService,
+  type IKernelService,
+} from "../../application/serviceContracts";
+import { CHAT_SCROLL_BOTTOM_THRESHOLD } from "./utils";
+
+interface ComposerAutosizeOptions {
+  /** 待自适应的输入框 */
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  /** 当前输入文本（本地输入态，不经过全局 store） */
+  value: string;
+  /** 消息列表滚动容器；缺省时不做任何滚动干预 */
+  messageScrollerRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+/**
+ * 输入框自适应高度。
+ *
+ * - 在 useLayoutEffect 中完成：放在被动 effect 里，WebView 会先按塌缩高度提交一次布局，
+ *   表现为输入区"被顶一下"。
+ * - 文本变长时沿用当前固定高度直接读 scrollHeight，省掉一次样式失效与同步重排；
+ *   文本变短时内容可能收缩，必须先清零高度才能量到真实内容高度。
+ * - 高度真的变化时，只有列表原本就贴着底部才在同一帧内补回贴底位置；
+ *   用户正在翻看历史时一律不碰滚动位置（原先每按键一次都会延迟 100ms 强拽到底部）。
+ */
+export function useComposerAutosize({
+  textareaRef,
+  value,
+  messageScrollerRef,
+}: ComposerAutosizeOptions): void {
+  // 上一次写入的固定高度、上一次文本长度，用于判断是否需要重新测量以及是否真的发生高度变化
+  const lastHeightRef = React.useRef(0);
+  const lastLengthRef = React.useRef(-1);
+
+  React.useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const previousHeight = lastHeightRef.current;
+    const previousLength = lastLengthRef.current;
+    lastLengthRef.current = value.length;
+
+    const needsReset = previousHeight === 0 || value.length < previousLength;
+    if (needsReset) {
+      textarea.style.height = "auto";
+    }
+    const nextHeight = Math.max(38, Math.min(textarea.scrollHeight, 160));
+    const heightChanged = previousHeight > 0 && nextHeight !== previousHeight;
+    if (needsReset || heightChanged) {
+      textarea.style.height = `${nextHeight}px`;
+    }
+    lastHeightRef.current = nextHeight;
+
+    // 输入区高度变化会同步改变消息列表的可视高度，只有"贴底"场景才需要修正滚动位置。
+    if (!heightChanged) return;
+    const scroller = messageScrollerRef?.current;
+    if (!scroller) return;
+    const distanceToBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    if (distanceToBottom < CHAT_SCROLL_BOTTOM_THRESHOLD) {
+      // 与 useChatUI 的贴底口径一致：同一帧内直接落到列表底部，不使用平滑滚动
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" });
+    }
+  }, [messageScrollerRef, textareaRef, value]);
+}
+
+interface ComposerCompatibilityVariablesOptions {
+  /** 是否需要这份数据（快捷栏展开时才为 true） */
+  enabled: boolean;
+  session: ChatSession | null | undefined;
+  getKernelService: <T extends IKernelService>(name: string) => T;
+}
+
+/**
+ * 快捷栏 token 预估所需的兼容变量。
+ *
+ * readState 内部会对整个兼容状态做 structuredClone，而变量表体积与角色卡正相关；
+ * 放在渲染路径上会让每次按键都深拷贝一遍，因此这里按需读取并允许降级为空表。
+ */
+export function useComposerCompatibilityVariables({
+  enabled,
+  session,
+  getKernelService,
+}: ComposerCompatibilityVariablesOptions): Record<string, unknown> {
+  return React.useMemo<Record<string, unknown>>(() => {
+    if (!enabled || !session) return {};
+    try {
+      return getKernelService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
+        .readState(session);
+    } catch {
+      // 兼容运行时未注册或读取失败时退化为"不把兼容变量计入预估"，不影响输入框其余功能。
+      return {};
+    }
+  }, [enabled, getKernelService, session]);
+}

@@ -4,6 +4,7 @@
 
 import React from "react";
 import type { ChatMessageHydrationStatus } from "../../types";
+import { CHAT_SCROLL_BOTTOM_THRESHOLD } from "./utils";
 
 interface UseChatScrollDeps {
   activeSessionId: string | null;
@@ -64,7 +65,7 @@ export function useChatScroll(deps: UseChatScrollDeps) {
       if (!container) return;
       const { scrollTop, scrollHeight, clientHeight } = container;
       const distanceToBottom = scrollHeight - scrollTop - clientHeight;
-      isAtBottomRef.current = distanceToBottom < 60;
+      isAtBottomRef.current = distanceToBottom < CHAT_SCROLL_BOTTOM_THRESHOLD;
 
       const shouldShowScrollButton = distanceToBottom > 300;
       if (showScrollButtonRef.current !== shouldShowScrollButton) {

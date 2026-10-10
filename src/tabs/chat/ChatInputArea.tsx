@@ -17,11 +17,11 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { chatTabState } from "./utils";
+import { useComposerAutosize, useComposerCompatibilityVariables } from "./useComposerInputPath";
 import type { ChatSession, CustomPromptBlock, Message, ReplyChoice, SummaryCard } from "../../types";
 import {
   KernelServices,
   type IAttachmentService,
-  type ICompatibilityRuntimeService,
   type IComposerCommandService,
   type IExternalSourceRuntimeService,
 } from "@/src/application/serviceContracts";
@@ -65,7 +65,14 @@ function toMessageAttachmentPart(item: PendingAttachment): MessageContentPart {
   return { type: "file", assetId: metadata.id, displayName: metadata.originalName };
 }
 
-const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
+const ChatInputArea = ({
+  isKeyboardOpen,
+  messageScrollerRef,
+}: {
+  isKeyboardOpen: boolean;
+  /** 消息列表滚动容器：仅用于输入区高度变化时的同帧贴底补偿，缺省时不做任何滚动干预。 */
+  messageScrollerRef?: React.RefObject<HTMLDivElement | null>;
+}) => {
   const [showQuickActions, setShowQuickActions] = React.useState(false);
   const [mcpPopoverOpen, setMcpPopoverOpen] = React.useState(false);
   const [mcpSeedText, setMcpSeedText] = React.useState("");
@@ -124,11 +131,12 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
     showCustomConfirm: state.showCustomConfirm,
     setActiveTab: state.setActiveTab,
   }));
-  const compatibilityVariables = activeSession
-    ? getKernelService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
-      .readState(activeSession)
-    : {};
-
+  // 快捷栏 token 预估所需的兼容变量：按需读取 + 可降级，绝不在按键路径上深拷贝变量表。
+  const compatibilityVariables = useComposerCompatibilityVariables({
+    enabled: showQuickActions,
+    session: activeSession,
+    getKernelService,
+  });
 
   React.useEffect(() => {
     let scrollRafId: number | null = null;
@@ -260,17 +268,8 @@ const ChatInputArea = ({ isKeyboardOpen }: { isKeyboardOpen: boolean }) => {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = "auto";
-    textarea.style.height = `${Math.max(38, Math.min(textarea.scrollHeight, 160))}px`;
-
-    // 用户在输入长文本换行导致输入框高度改变时，若软键盘处于打开状态且聚焦，通过滚动消息历史确保最新可见，不顶起整个视口
-    if (isKeyboardOpen && document.activeElement === textarea) {
-      triggerScroll("auto");
-    }
-  }, [localInput, isKeyboardOpen, triggerScroll]);
+  // 自适应高度与"贴底才补偿"的滚动修正都收在按键路径 Hook 内（见 useComposerInputPath）。
+  useComposerAutosize({ textareaRef, value: localInput, messageScrollerRef });
 
   React.useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
