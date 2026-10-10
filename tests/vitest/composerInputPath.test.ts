@@ -2,7 +2,7 @@
 // 说明：绘制时序（useLayoutEffect 保证高度在绘制前定稿）与真机观感只能由 e2e 逐帧探针覆盖，
 // 此处用 spy 计数锁定"每个按键做了什么、绝不做什么"的可复现部分。
 import { describe, expect, it, vi } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import {
   useComposerAutosize,
   useComposerCompatibilityVariables,
@@ -182,6 +182,71 @@ describe("输入框自适应高度与贴底补偿", () => {
     textarea.state.contentHeight = 38;
     expect(() => rerender({ value: "第一行" })).not.toThrow();
     expect(textarea.state.heightWrites.at(-1)).toBe("38px");
+  });
+});
+
+describe("消息编辑框复用同一份自适应实现", () => {
+  // 编辑框的高度上下限由可视区现算（MessageBubble 的 resolveEditorBounds），
+  // 这里用可变基准模拟软键盘开合导致的视口变化。
+  function renderEditorAutosize(initialValue: string, contentHeight: number) {
+    const textarea = createFakeTextarea(contentHeight);
+    const textareaRef: MutableRef<HTMLTextAreaElement | null> = { current: textarea.element };
+    const maxHeightRef = { current: 120 };
+    const { rerender, result } = renderHook(
+      ({ value }: { value: string }) =>
+        useComposerAutosize({
+          textareaRef,
+          value,
+          resolveBounds: () => ({ minHeight: 42, maxHeight: maxHeightRef.current }),
+        }),
+      { initialProps: { value: initialValue } },
+    );
+    return { textarea, rerender, result, maxHeightRef };
+  }
+
+  it("挂载时只测一次并按上下限钳制，逐键不写行内高度", () => {
+    const { textarea, rerender } = renderEditorAutosize("第一行", 400);
+
+    // 挂载：归零一次 → 读数一次 → 写回被上限钳制的高度
+    expect(textarea.state.scrollHeightReads).toBe(1);
+    expect(textarea.state.heightWrites).toEqual(["auto", "120px"]);
+
+    for (const value of ["第一行a", "第一行ab", "第一行abc"]) {
+      rerender({ value });
+    }
+    // 逐键只读一次确认行数未变，不产生样式写入（编辑框因此不会逐键强制同步重排）
+    expect(textarea.state.scrollHeightReads).toBe(4);
+    expect(textarea.state.heightWrites).toEqual(["auto", "120px"]);
+  });
+
+  it("软键盘改变上下限后，remeasure 在文本不变时也能重新钳制高度", () => {
+    const { textarea, result, maxHeightRef } = renderEditorAutosize("第一行", 400);
+    expect(textarea.state.heightWrites).toEqual(["auto", "120px"]);
+
+    // 软键盘弹出：可视区变小，上限收紧 → 复用最近一次文本长度重测一次
+    maxHeightRef.current = 80;
+    act(() => {
+      result.current.remeasure();
+    });
+    expect(textarea.state.heightWrites).toEqual(["auto", "120px", "80px"]);
+
+    // 软键盘收起：上限放宽 → 恢复被钳制的高度
+    maxHeightRef.current = 280;
+    act(() => {
+      result.current.remeasure();
+    });
+    expect(textarea.state.heightWrites).toEqual(["auto", "120px", "80px", "280px"]);
+    // 编辑框不参与列表贴底补偿：文本不变时不会因 remeasure 产生额外读数以外的工作
+    expect(textarea.state.scrollHeightReads).toBe(3);
+  });
+
+  it("文本变长超过上限时不写入新的行内高度（避免无意义的样式失效）", () => {
+    const { textarea, rerender } = renderEditorAutosize("第一行", 400);
+    textarea.state.contentHeight = 900;
+    rerender({ value: "第一行很长很长" });
+    // 高度仍被钳制在 120px，与缓存一致 → 不写样式，只保留那次读数
+    expect(textarea.state.heightWrites).toEqual(["auto", "120px"]);
+    expect(textarea.state.scrollHeightReads).toBe(2);
   });
 });
 

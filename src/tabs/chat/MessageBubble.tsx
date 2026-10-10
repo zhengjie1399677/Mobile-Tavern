@@ -16,6 +16,7 @@ import {
 import { useUnifiedApp, unifiedAppStore } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
+import { useComposerAutosize } from "./useComposerInputPath";
 import { handleGenerateImageForMessage } from "./imageGenerationHandler";
 import GeneratingElapsed from "./message-bubble/GeneratingElapsed";
 import QuickDialogueOptions from "./QuickDialogueOptions";
@@ -129,6 +130,24 @@ const MessageBubble = ({
   const [isSpeakingThis, setIsSpeakingThis] = React.useState(false);
   const [isSavingEdit, setIsSavingEdit] = React.useState(false);
 
+  // --- 编辑草稿本地化 ---
+  // 编辑草稿只存在于本条气泡的组件内 state：每次按键写全局 store 会广播给全部
+  // useUnifiedApp 订阅者，其中订阅了该字段的虚拟列表内每条已挂载气泡都会重渲染
+  // （React.memo 拦不住组件自身订阅引起的重渲染）。
+  // 归属消息不一致（首次进入编辑 / 直接切到另一条消息）时回落到 store 中的初始文本：
+  // 长按菜单与快捷栏都在设置 editingMsgId 的同一次更新里写入该初值。
+  const [editorDraft, setEditorDraft] = React.useState<{ messageId: string; value: string } | null>(null);
+  const isEditingThisMessage = editingMsgId === message.id;
+  const editorValue =
+    isEditingThisMessage && editorDraft?.messageId === message.id
+      ? editorDraft.value
+      : editingMsgContent;
+
+  // 退出编辑态即丢弃草稿：同一条消息二次编辑必须重新以消息正文为初值，不能沿用上一轮输入
+  React.useEffect(() => {
+    if (!isEditingThisMessage) setEditorDraft(null);
+  }, [isEditingThisMessage]);
+
   const dragDirection = isUser ? 1 : -1;
   const SWIPE_MENU_WIDTH = 46;
   const SWIPE_LOCK_THRESHOLD = 18;
@@ -160,31 +179,37 @@ const MessageBubble = ({
     }
   }, [dragDirection]);
 
-  const resizeEditor = React.useCallback(() => {
-    const textarea = editorTextareaRef.current;
-    if (!textarea) return;
+  // 编辑框高度上下限按可视区现算：软键盘开合会改变可视区高度，不能缓存成常量
+  const resolveEditorBounds = React.useCallback(() => {
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-    // 移动端自适应：单行最小 42px，绝不强撑 220px 大片黑底空白
-    const minHeight = 42;
-    // 软键盘弹起时，最大高度控制在可视区域 45% 以内，避免撑爆小屏手机
-    const maxHeight = Math.max(120, Math.min(280, viewportHeight * 0.45));
-    textarea.style.height = "auto";
-    const naturalHeight = textarea.scrollHeight;
-    const finalHeight = Math.min(Math.max(naturalHeight, minHeight), maxHeight);
-    textarea.style.height = `${finalHeight}px`;
+    return {
+      // 移动端自适应：单行最小 42px，绝不强撑 220px 大片黑底空白
+      minHeight: 42,
+      // 软键盘弹起时，最大高度控制在可视区域 45% 以内，避免撑爆小屏手机
+      maxHeight: Math.max(120, Math.min(280, viewportHeight * 0.45)),
+    };
   }, []);
 
-  React.useLayoutEffect(() => {
-    if (editingMsgId !== message.id) return;
-    resizeEditor();
+  // 与普通输入框共用同一条按键路径实现：文本变长不写样式，高度没变不写样式，也不做任何滚动干预
+  const { remeasure: remeasureEditor } = useComposerAutosize({
+    textareaRef: editorTextareaRef,
+    value: editorValue,
+    resolveBounds: resolveEditorBounds,
+  });
+
+  // 监听器只在进入/退出编辑时挂载一次：原先把增删监听写进以编辑文本为依赖的 effect，
+  // 每次按键都要增删 4 个监听，并强制重排两次（height="auto" 写 → scrollHeight 读 → 高度写）。
+  React.useEffect(() => {
+    if (!isEditingThisMessage) return;
+    const handleViewportResize = () => remeasureEditor();
     const viewport = window.visualViewport;
-    viewport?.addEventListener("resize", resizeEditor);
-    window.addEventListener("resize", resizeEditor);
+    viewport?.addEventListener("resize", handleViewportResize);
+    window.addEventListener("resize", handleViewportResize);
     return () => {
-      viewport?.removeEventListener("resize", resizeEditor);
-      window.removeEventListener("resize", resizeEditor);
+      viewport?.removeEventListener("resize", handleViewportResize);
+      window.removeEventListener("resize", handleViewportResize);
     };
-  }, [editingMsgContent, editingMsgId, message.id, resizeEditor]);
+  }, [isEditingThisMessage, remeasureEditor]);
 
   // 当其他消息被滑动展开或选中关闭时，自动将本条消息重置并收回（修复1：Refs 已先行声明）
   React.useEffect(() => {
@@ -632,9 +657,10 @@ const MessageBubble = ({
           >
             <textarea
               ref={editorTextareaRef}
-              value={editingMsgContent}
+              value={editorValue}
               onChange={(e) =>
-                setEditingMsgContent(e.target.value)
+                // 只更新本条气泡的本地草稿：不写全局 store，避免逐键广播引发整列表重渲染
+                setEditorDraft({ messageId: message.id, value: e.target.value })
               }
               className="mb-2.5 block max-h-[48dvh] w-full resize-none overflow-y-auto rounded-xl border border-border/80 bg-background/90 p-3 text-sm font-normal leading-relaxed text-foreground outline-none focus:border-primary/55 focus:ring-2 focus:ring-primary/15 transition-all shadow-inner"
               style={{
@@ -661,7 +687,7 @@ const MessageBubble = ({
                     const nextMsgs = (currentSession.messages || []).map(
                       (currentMessage) =>
                         currentMessage.id === message.id
-                          ? { ...currentMessage, content: editingMsgContent }
+                          ? { ...currentMessage, content: editorValue }
                           : currentMessage,
                     );
                     const updated = {
@@ -676,6 +702,8 @@ const MessageBubble = ({
                         session.id === persistedSession.id ? persistedSession : session,
                       ),
                     );
+                    // 保存成功后才把最终文本写回全局字段（本轮按键从未写过它），保持既有语义
+                    setEditingMsgContent(editorValue);
                     setEditingMsgId(null);
                   } catch (error) {
                     console.error("Failed to save edited message:", error);

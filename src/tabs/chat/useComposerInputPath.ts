@@ -2,6 +2,10 @@
 // 1) textarea 自适应高度 + 消息列表同帧贴底补偿：高度在绘制前定稿，只有本来就贴着底部才动滚动位置；
 // 2) 快捷栏 token 预估所需的兼容变量：仅在快捷栏展开时按会话读取，避免每次按键深拷贝整张变量表。
 //
+// 两条消费路径共用同一份实现：
+// - 普通输入框 src/tabs/chat/ChatInputArea.tsx；
+// - 消息编辑框 src/tabs/chat/MessageBubble.tsx（高度上下限按可视区现算，且不参与列表贴底补偿）。
+//
 // 抽离动机见 docs/agents/ui_webview_performance.md：按键不得触发整树重渲染、无谓滚动与可避免的同步重排。
 
 import React from "react";
@@ -13,6 +17,12 @@ import {
 } from "../../application/serviceContracts";
 import { CHAT_SCROLL_BOTTOM_THRESHOLD } from "./utils";
 
+/** textarea 自适应高度的上下限（px） */
+export interface AutosizeBounds {
+  minHeight: number;
+  maxHeight: number;
+}
+
 interface ComposerAutosizeOptions {
   /** 待自适应的输入框 */
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -20,7 +30,20 @@ interface ComposerAutosizeOptions {
   value: string;
   /** 消息列表滚动容器；缺省时不做任何滚动干预 */
   messageScrollerRef?: React.RefObject<HTMLDivElement | null>;
+  /**
+   * 高度上下限；缺省为输入框的 38–160。
+   * 传入函数时在每次测量前现算：消息编辑框的上限取决于可视区高度，
+   * 软键盘开合会改变它，不能在 Hook 外面缓存成常量。
+   */
+  resolveBounds?: () => AutosizeBounds;
 }
+
+export interface ComposerAutosizeHandle {
+  /** 文本没变但基准尺寸变了（软键盘开合、旋转）时强制重测一次 */
+  remeasure: () => void;
+}
+
+const DEFAULT_AUTOSIZE_BOUNDS: AutosizeBounds = { minHeight: 38, maxHeight: 160 };
 
 /**
  * 输入框自适应高度。
@@ -36,31 +59,41 @@ export function useComposerAutosize({
   textareaRef,
   value,
   messageScrollerRef,
-}: ComposerAutosizeOptions): void {
+  resolveBounds,
+}: ComposerAutosizeOptions): ComposerAutosizeHandle {
   // 上一次写入的固定高度、上一次文本长度，用于判断是否需要重新测量以及是否真的发生高度变化
   const lastHeightRef = React.useRef(0);
   const lastLengthRef = React.useRef(-1);
 
-  React.useLayoutEffect(() => {
+  /** 按当前文本测量一次；返回高度是否真的变化 */
+  const measure = React.useCallback((textLength: number): boolean => {
     const textarea = textareaRef.current;
-    if (!textarea) return;
+    if (!textarea) return false;
+    const bounds = resolveBounds?.() ?? DEFAULT_AUTOSIZE_BOUNDS;
     const previousHeight = lastHeightRef.current;
     const previousLength = lastLengthRef.current;
-    lastLengthRef.current = value.length;
+    lastLengthRef.current = textLength;
 
-    const needsReset = previousHeight === 0 || value.length < previousLength;
+    // 行内高度为空 = textarea 刚挂载（每次进入消息编辑都是一次全新挂载）：
+    // 缓存高度描述的是已卸载的旧节点，必须重新测量。
+    const needsReset =
+      previousHeight === 0 || textarea.style.height === "" || textLength < previousLength;
     if (needsReset) {
       textarea.style.height = "auto";
     }
-    const nextHeight = Math.max(38, Math.min(textarea.scrollHeight, 160));
+    const nextHeight = Math.max(
+      bounds.minHeight,
+      Math.min(textarea.scrollHeight, bounds.maxHeight),
+    );
     const heightChanged = previousHeight > 0 && nextHeight !== previousHeight;
     if (needsReset || heightChanged) {
       textarea.style.height = `${nextHeight}px`;
     }
     lastHeightRef.current = nextHeight;
+    return heightChanged;
+  }, [resolveBounds, textareaRef]);
 
-    // 输入区高度变化会同步改变消息列表的可视高度，只有"贴底"场景才需要修正滚动位置。
-    if (!heightChanged) return;
+  const compensateBottom = React.useCallback(() => {
     const scroller = messageScrollerRef?.current;
     if (!scroller) return;
     const distanceToBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
@@ -68,7 +101,18 @@ export function useComposerAutosize({
       // 与 useChatUI 的贴底口径一致：同一帧内直接落到列表底部，不使用平滑滚动
       scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" });
     }
-  }, [messageScrollerRef, textareaRef, value]);
+  }, [messageScrollerRef]);
+
+  React.useLayoutEffect(() => {
+    if (measure(value.length)) compensateBottom();
+  }, [compensateBottom, measure, value]);
+
+  const remeasure = React.useCallback(() => {
+    // 基准尺寸变化与文本无关：复用最近一次文本长度，只重算被钳制的高度
+    if (measure(lastLengthRef.current)) compensateBottom();
+  }, [compensateBottom, measure]);
+
+  return React.useMemo(() => ({ remeasure }), [remeasure]);
 }
 
 interface ComposerCompatibilityVariablesOptions {
