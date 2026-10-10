@@ -12,6 +12,7 @@ import { ModelCapabilityRegistry } from "./llmCompatibility";
 import type { ICompatibilityRuntimeService } from "../compatibility/contracts";
 import { resolveTriggeredLorebookEntries } from "./prompt/LorebookResolver";
 import {
+  createPromptMacroVariableScope,
   replacePromptMacros,
   type PromptMacroParams,
 } from "./prompt/PromptMacroFormatter";
@@ -147,7 +148,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       ?? readRecalledMemoriesFromContributions(params.contextContributions)
       ?? [];
 
-    const macroParams = {
+    const macroParams: PromptMacroParams = {
       char: character.name,
       user: settings.userName || "user",
       description: character.description || "无",
@@ -159,6 +160,11 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
 
     // 必须早于其他编排路径，确保严格直连不受任何角色或全局设定影响。
     if (isDirectApiCharacter(character)) return buildDirectApiPromptAssembly(chat, userInput);
+
+    // 社区预设用 `{{setvar::名::正文}}` 写、`{{getvar::名}}` 读来做「选文风」这类跨模块取值。
+    // 作用域必须覆盖整份组装：前面的模块 set、后面的模块 get 才读得到。
+    // 变量宏属于兼容语义，这里只做一次组装用的工作集，播种自会话变量权威，不新增存储。
+    macroParams.variableScope = createPromptMacroVariableScope(this.getCompatibilityState(chat));
 
     if (settings.promptConfig?.roleplayMode === false) {
       const { recentTurns } = settings.memory;
@@ -296,6 +302,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
           hasVariableListEntry,
           userInput,
           triggeredLorebookEntries: activeEntries,
+          variableScope: macroParams.variableScope,
         })
           .filter((node) => node.id.startsWith("sillytavern_world_info_"))
           .map((node) => node.content)
@@ -329,6 +336,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         hasVariableListEntry,
         userInput,
         triggeredLorebookEntries: activeEntries,
+        variableScope: macroParams.variableScope,
       }) ?? [];
       const promptMessages = applyInChatPromptNodes(
         buildPromptRequestMessages(systemInstruction, chatHistory, settings.api.sendNames),
@@ -658,6 +666,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       hasVariableListEntry,
       userInput,
       triggeredLorebookEntries: activeEntries,
+      variableScope: macroParams.variableScope,
     }) ?? [];
     for (const node of compatibilityPromptNodes) {
       if (node.metadata?.position === "in_chat") continue;

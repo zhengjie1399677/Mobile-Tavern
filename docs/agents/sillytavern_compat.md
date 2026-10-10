@@ -50,6 +50,7 @@
 - Codec 未装载、或第三方 Codec 未实现可选能力 `readPresetPrompts` 时，SillyTavern 的 Prompt 候选只能降级为不入库（只导入通用预设字段）并产生 `COMPATIBILITY_CODEC_UNAVAILABLE` 警告；这是刻意的边界收窄，不再由通用用例兜底解析生态字段。预设样本验收脚本必须注入同一 Codec，否则分级与计数输出会失真。
 - `mobile-tavern.base` 必须在不装载兼容插件时继续提供基础 Agent、纯文本聊天、多模态附件和通用工具；兼容插件卸载时必须清理贡献、Bridge、iframe 运行态和生成标记。
 - 会话插件状态以 `runtimePluginState["mobile-tavern.sillytavern-compat"]` 为新权威位置。新写入不得再镜像至旧 `variables`；读取优先命名空间，缺失时读取旧字段。Bridge 需要旧形状时只能由 Compatibility Plugin 瞬时投影，并在 `setSessions`/`saveSession` 边界归一化回命名空间；不得批量改写旧会话或静默删除未知插件状态。
+- 预设的变量宏 `{{setvar::名::正文}}` / `{{getvar::名}}` 由宏层（`PromptMacroFormatter`）按 SillyTavern `variables.js` 的同形正则解释：`setvar` 写入后渲染为空串，`getvar` 取变量值、未设置时渲染空串，变量名 trim。解释只允许这一份实现，禁止在通用区块、世界书或插件里各写一套。宏作用域是「一份提示词组装」的工作集，按会话变量权威位置播种（命名空间优先、旧 `variables` 降级），用于让同一组装里前面的模块 set、后面的模块 get 读得到；组装期只读播种、不写回会话，跨轮保留属于待产品决策的开放项。
 - TavernHelper 全局对象只属于 Renderer/Bridge 实现细节，通用生产代码不得直接读写；状态同步、脚本库就绪检查和 iframe 构建必须经 Renderer 契约。
 - 阶段 5 的 Profile UI 可以关闭整个 SillyTavern Compatibility Runtime；关闭后七类贡献均不得注册，普通 Agent 聊天和多模态底座仍应工作。七类贡献为 Codec、Prompt Section、Context Source、Transform、State Reducer、World Info Resolver 和 Renderer。
 - 旧 `session.variables` 仅作为历史数据读取降级源，生产持久化入口不得重新双写；角色卡 Bridge 内部、消息级 swipe 快照和设置级全局变量不是会话权威状态，必须保持边界名称清晰。

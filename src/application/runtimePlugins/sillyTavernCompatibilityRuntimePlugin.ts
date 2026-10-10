@@ -262,6 +262,8 @@ export function buildSillyTavernInjectionPromptSections(
     userPersona: request.settings.userInfo || "无",
     mes_example: request.character.mes_example || "",
     variables,
+    // 深度提示词 / 作者注与预设区块共享同一份组装变量：前面模块 set、这里 get 要读得到。
+    variableScope: request.variableScope,
   };
   return injections.flatMap((item, index) => {
     const content = replacePromptMacros(item.content, macroParams);
@@ -500,7 +502,7 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
       scope.add(runtime.registerPromptSection({
         id: "compat.sillytavern.prompt.world-info",
         version: CONTRIBUTION_VERSION,
-        build({ character, chat, settings, triggeredLorebookEntries = [] }) {
+        build({ character, chat, settings, triggeredLorebookEntries = [], variableScope }) {
           if (triggeredLorebookEntries.length === 0) return [];
           const variables = readNamespacedState(chat);
           const macroParams = {
@@ -512,6 +514,8 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
             userPersona: settings.userInfo || "无",
             mes_example: character.mes_example || "",
             variables,
+            // 世界书条目与预设区块共享同一份组装变量，保持与 ST 单次替换一致的可见性。
+            variableScope,
           };
           const format = (entry: (typeof triggeredLorebookEntries)[number]): string => {
             const content = replacePromptMacros(entry.content, macroParams);

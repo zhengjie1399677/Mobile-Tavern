@@ -9,6 +9,7 @@ import type {
   UserSettings,
 } from "../../types";
 import type { PromptNode } from "../services/prompt/types";
+import type { PromptMacroVariableScope } from "../services/prompt/PromptMacroFormatter";
 
 export const SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID = "mobile-tavern.sillytavern-compat";
 
@@ -59,6 +60,11 @@ export interface CompatibilityPromptSectionRequest {
   readonly hasVariableListEntry: boolean;
   readonly userInput?: string;
   readonly triggeredLorebookEntries?: readonly LorebookEntry[];
+  /**
+   * 本次提示词组装的变量宏工作集，供 `{{setvar}}`/`{{getvar}}` 在兼容区块之间共享；
+   * 未提供时不解释变量宏。权威状态仍在会话变量命名空间，本对象不持久化。
+   */
+  readonly variableScope?: PromptMacroVariableScope;
 }
 
 export interface CompatibilityPromptSectionDefinition {
