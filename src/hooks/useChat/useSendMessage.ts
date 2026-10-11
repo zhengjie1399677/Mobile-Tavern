@@ -32,6 +32,7 @@ import {
   incrementTrialCount,
 } from "./helpers";
 import { extractThinkContent } from "./helpers";
+import { processTurnMediaParts } from "./helpers/processTurnMediaParts";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { MemoryAuditSnapshot } from "../../application/services/memory/types";
 import { Logger, generateTraceId } from "../../utils/logger";
@@ -44,6 +45,13 @@ import {
   projectMessagePartsForProvider,
   type OpenAiProviderMessage,
 } from "../../application/useCases/multimodalProviderProjection";
+import {
+  AUDIO_TRANSCRIPT_PREFIX,
+  describeMultimodalSendRefusal,
+  hasAudioTranscriptPart,
+  resolveMultimodalSendRefusal,
+} from "../../application/useCases/multimodalSendGuards";
+import { buildSendFailureAlert } from "../../application/useCases/sendFailureDiagnostics";
 import {
   executeOpenAiToolLoop,
   OpenAiToolCallAccumulator,
@@ -129,13 +137,18 @@ export function useSendMessage(p: SendMessageParams) {
   const sendThroughAgentRef = React.useRef<(
     textToSend: string,
     options?: SendMessageOptions,
-  ) => Promise<void>>(async () => undefined);
+  ) => Promise<unknown>>(async () => undefined);
 
+  /**
+   * 旧版发送链路。
+   * 返回 false 表示被前置校验/守卫拒绝（此时**不得**清空输入区的草稿与附件），
+   * 返回 true 表示用户消息已落库（哪怕随后 API 失败，界面也应清空以免重复发送）。
+   */
   const runLegacyTurn = useCallback(async (
     textToSend: string,
     options?: SendMessageOptions,
     agentTurn?: AgentTurnExecutionContext,
-  ) => {
+  ): Promise<boolean> => {
     const p = pRef.current;
     const isBisonConsecutive = !!options?.isBisonConsecutive;
     const skipAI = !!options?.skipAI;
@@ -163,15 +176,15 @@ export function useSendMessage(p: SendMessageParams) {
       if (
         !hasNewUserContent &&
         !hasUnsentUserMessages
-      ) return;
+      ) return false;
 
       // isSendingRef 是发送与重发共享的同步事务锁；React state 仅负责 UI 展示。
       // streamingMessageId 只覆盖流式阶段，不能用于推断提示词构建或持久化阶段是否空闲。
       if (p.isSendingRef.current) {
-        return;
+        return false;
       }
 
-      if (!p.activeCharacter || !p.activeSession) return;
+      if (!p.activeCharacter || !p.activeSession) return false;
 
       const latestQueuedUserMessage = hasUnsentUserMessages
         ? p.activeSession.messages[p.activeSession.messages.length - 1]
@@ -185,62 +198,37 @@ export function useSendMessage(p: SendMessageParams) {
         const attachmentAudioParts = pendingMultimodalParts.filter((part) =>
           part.type === "audio" && part.purpose !== "model-input",
         );
-        const modelAudioParts = pendingMultimodalParts.filter((part) =>
-          part.type === "audio" && part.purpose === "model-input",
-        );
         const canInspectMediaProcessors = typeof agentRuntime.listMediaProcessors === "function";
         const registeredMediaProcessors = canInspectMediaProcessors
           ? agentRuntime.listMediaProcessors().map((processor) => processor.id)
           : [];
-        if (
-          agentTurn
-          && canInspectMediaProcessors
-          && attachmentAudioParts.length > 0
-          && !registeredMediaProcessors.includes(AUDIO_ASR_PROCESSOR_ID)
-        ) {
-          await p.showCustomAlert("当前 Agent Profile 未启用音频 ASR 降级，无法把音频发送给当前 Provider。");
-          return;
-        }
-        if (
-          agentTurn
-          && canInspectMediaProcessors
-          && pendingMultimodalParts.some((part) => part.type === "video")
-          && !registeredMediaProcessors.includes(VIDEO_KEYFRAME_PROCESSOR_ID)
-        ) {
-          await p.showCustomAlert("当前 Agent Profile 未启用视频关键帧降级，无法把视频发送给当前 Provider。");
-          return;
-        }
-        if (
-          attachmentAudioParts.length > 0
-          && (!p.settings.asrConfig?.enabled || p.settings.asrConfig.provider !== "openai")
-        ) {
-          await p.showCustomAlert("发送音频前需要启用 OpenAI ASR 文件转写；Web Speech 仅支持实时麦克风输入。");
-          return;
-        }
-        if (modelAudioParts.length > 0 && p.settings.api.supportsAudioInput !== true) {
-          await p.showCustomAlert("当前 API 配置未启用模型原生语音输入，请先确认当前模型支持 input_audio。");
-          return;
-        }
-        const needsVision = pendingMultimodalParts.some(part =>
-          part.type === "image" || part.type === "video",
-        );
-        if (needsVision && p.settings.api.supportsVision !== true) {
-          await p.showCustomAlert("当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。");
-          return;
-        }
         const provider = agentTurn?.provider
           ?? agentRuntime.getProvider(resolveBuiltinProviderId(p.settings.api.type));
-        const unsupportedPart = pendingMultimodalParts.find(part => {
-          if (part.type === "audio") {
-            return part.purpose === "model-input"
-              && !provider.capabilities.inputModalities.includes("audio");
-          }
-          const requiredModality = part.type === "video" ? "image" : part.type;
-          return !provider.capabilities.inputModalities.includes(requiredModality);
+        const refusal = resolveMultimodalSendRefusal({
+          parts: pendingMultimodalParts,
+          // 转写要从未滤除文本的部件里找：新附件不可能有转写，队列里的旧消息可能有。
+          hasAudioTranscript: hasAudioTranscriptPart(
+            additionalParts.length > 0
+              ? additionalParts
+              : latestQueuedUserMessage?.parts ?? pendingMultimodalParts,
+          ),
+          providerCapabilities: provider.capabilities,
+          plainAudioProcessorMissing: !!agentTurn
+            && canInspectMediaProcessors
+            && attachmentAudioParts.length > 0
+            && !registeredMediaProcessors.includes(AUDIO_ASR_PROCESSOR_ID),
+          plainAudioTranscriptionDisabled: attachmentAudioParts.length > 0
+            && !(p.settings.asrConfig?.enabled === true && p.settings.asrConfig.provider === "openai"),
+          videoKeyframesMissing: !!agentTurn
+            && canInspectMediaProcessors
+            && pendingMultimodalParts.some((part) => part.type === "video")
+            && !registeredMediaProcessors.includes(VIDEO_KEYFRAME_PROCESSOR_ID),
+          visionUnsupported: p.settings.api.supportsVision !== true,
         });
-        if (unsupportedPart) {
-          await p.showCustomAlert(`当前 Provider 未声明 ${unsupportedPart.type} 输入能力，请切换 Provider 或配置媒体降级。`);
-          return;
+        // 必须在这里拦：消息一旦落库，投影阶段的异常会留下一轮永远发不出去的对话。
+        if (refusal) {
+          await p.showCustomAlert(describeMultimodalSendRefusal(refusal));
+          return false;
         }
       }
 
@@ -253,7 +241,7 @@ export function useSendMessage(p: SendMessageParams) {
         traceId,
       });
     } else {
-      if (!p.activeCharacter || !p.activeSession) return;
+      if (!p.activeCharacter || !p.activeSession) return false;
     }
 
     if (!isBisonConsecutive && p.activeSessionIdRef.current) {
@@ -277,7 +265,7 @@ export function useSendMessage(p: SendMessageParams) {
         }
       }
       p.triggerScroll("smooth");
-      return;
+      return true;
     }
 
     // API 参数解析（试用 / 正式 Key 选择）：收口到 resolveApiCredentials helper
@@ -287,18 +275,18 @@ export function useSendMessage(p: SendMessageParams) {
     } catch (e) {
       if (e instanceof TrialExhaustedError) {
         p.showCustomAlert("💡 您的 10 次公共免 Key 体验次数已用完，请前往\"设置 -> API配置\"中填写您自己的 API Key。");
-        return;
+        return false;
       }
       if (e instanceof ModelNotConfiguredError) {
         p.showCustomAlert("对话失败: 目前尚未配置具体的接口模型，请前往设置[接口]页面获取并选择。");
-        return;
+        return false;
       }
       throw e;
     }
     const { apiKey: finalApiKey, baseUrl: finalBaseUrl, model: finalModel, chatPath: finalChatPath, isTrial: isTrialMode } = creds;
 
     let currentSession = p.sessionsRef.current.find((s) => s.id === p.activeSessionIdRef.current) || p.activeSession;
-    if (!currentSession) return;
+    if (!currentSession) return false;
     if (!currentSession.compositionSnapshot && agentTurn) {
       const baseCompositionSnapshot = p.kernel
         .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
@@ -326,7 +314,7 @@ export function useSendMessage(p: SendMessageParams) {
       );
     } catch {
       await p.showCustomAlert("此会话的 Agent 行为快照无效，已停止发送以避免静默改用其他配置。");
-      return;
+      return false;
     }
     p.isSendingRef.current = true;
     p.setIsSending(true);
@@ -361,7 +349,7 @@ export function useSendMessage(p: SendMessageParams) {
           await p.showCustomAlert("附件消息保存失败，附件已保留在输入区，请重试。");
           throw err;
         }
-        return;
+        return false;
       }
       p.triggerScroll("smooth");
     }
@@ -418,63 +406,17 @@ export function useSendMessage(p: SendMessageParams) {
         { sessionId: updatedSession.id, userInput: isBisonConsecutive ? "" : textToSend, signal: controller.signal },
       );
 
-      const latestUserIndex = findLastUserMessageIndex(updatedSession.messages);
-      const latestUserMessage = latestUserIndex >= 0 ? updatedSession.messages[latestUserIndex] : undefined;
-      if (agentTurn && latestUserMessage?.parts) {
-        const processedParts: MessageContentPart[] = [];
-        let mediaChanged = false;
-        for (const part of latestUserMessage.parts) {
-          if (part.type === "audio") {
-            const hasTranscript = latestUserMessage.parts.some(candidate =>
-              candidate.type === "text" && candidate.text.startsWith("[音频转写]"),
-            );
-            processedParts.push(part);
-            if (part.purpose !== "model-input" && !hasTranscript) {
-              const result = await agentTurn.processMedia(AUDIO_ASR_PROCESSOR_ID, {
-                assetId: part.assetId,
-                kind: "audio",
-                options: effectiveSettings.asrConfig,
-              });
-              processedParts.push(...result.projectionParts);
-              mediaChanged = true;
-            }
-            continue;
-          }
-          if (part.type === "video" && (!part.frameAssetIds || part.frameAssetIds.length === 0)) {
-            const result = await agentTurn.processMedia(VIDEO_KEYFRAME_PROCESSOR_ID, {
-              assetId: part.assetId,
-              kind: "video",
-            });
-            processedParts.push(...result.projectionParts);
-            mediaChanged = true;
-            continue;
-          }
-          processedParts.push(part);
-        }
-        if (mediaChanged) {
-          const normalizedParts = normalizeMessageContentParts(processedParts);
-          const processedMessage: Message = {
-            ...latestUserMessage,
-            contentVersion: 2,
-            parts: normalizedParts,
-            content: getMessageContentText(normalizedParts),
-          };
-          await p.databaseService.updateSessionMessage(
-            updatedSession.id,
-            processedMessage,
-            {},
-            controller.signal,
-          );
-          updatedSession = {
-            ...updatedSession,
-            messages: updatedSession.messages.map((message, index) =>
-              index === latestUserIndex ? processedMessage : message,
-            ),
-          };
-          p.setSessionViews(previous => previous.map(session =>
-            session.id === updatedSession.id ? updatedSession : session,
-          ));
-        }
+      // 媒体降级（ASR 转写 / 视频关键帧）抽到 helper：只在这里被调用一次。
+      if (agentTurn) {
+        updatedSession = await processTurnMediaParts({
+          session: updatedSession,
+          agentTurn,
+          settings: effectiveSettings,
+          databaseService: p.databaseService,
+          setSessionViews: p.setSessionViews,
+          signal: controller.signal,
+          log,
+        });
       }
 
       const { promptSession, promptEnvelope: promptPayload } = await assembleAuthoritativePromptEnvelope({
@@ -661,7 +603,7 @@ export function useSendMessage(p: SendMessageParams) {
       __streamingMsgIdGuard(null);
 
       const latestSession = p.sessionsRef.current.find((s) => s.id === updatedSession.id);
-      if (!latestSession) { log.warn("Aborted save, session was deleted", { sessionId: updatedSession.id }); return; }
+      if (!latestSession) { log.warn("Aborted save, session was deleted", { sessionId: updatedSession.id }); return true; }
 
       // 关键修复：流式"正常完成"但 AI 返回空内容（API 返回空响应/网络中断未 throw 等场景）
       // 旧逻辑：buildFinalAiMessage 生成 content 为空的消息 → UI 显示"*(未生成任何内容)*"但无报错弹窗
@@ -677,7 +619,7 @@ export function useSendMessage(p: SendMessageParams) {
           p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
           p.showCustomAlert("发送失败：AI 未返回任何内容，请检查 API 配置、网络连接或模型是否可用。");
         }
-        return;
+        return true;
       }
 
       const { finalAiMsg, replyChoices } = buildFinalAiMessage({
@@ -783,7 +725,7 @@ export function useSendMessage(p: SendMessageParams) {
             p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
           }
         }
-        return;
+        return true;
       }
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
@@ -803,7 +745,7 @@ export function useSendMessage(p: SendMessageParams) {
           const nextSession = { ...latestSession, messages: latestSession.messages.filter((m) => m.id !== aiMsgId) };
           if (isStillActive) p.setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
         }
-        return;
+        return true;
       }
 
       if (isManualAbort) {
@@ -832,7 +774,8 @@ export function useSendMessage(p: SendMessageParams) {
             sessionId: updatedSession.id,
             traceId,
           });
-          p.showCustomAlert("发送失败，对话连接异常: " + getErrorMessage(err));
+          const rawMsg = String(getErrorMessage(err) || "未知错误");
+          p.showCustomAlert(buildSendFailureAlert(rawMsg));
         }
         if (responseText.trim().length > 0 && latestSession) {
           const parsed = extractThinkContent(responseText.trim(), undefined, false);
@@ -866,6 +809,7 @@ export function useSendMessage(p: SendMessageParams) {
         }
       }
     }
+    return true;
   }, []);
   React.useLayoutEffect(() => {
     runLegacyTurnRef.current = async (textToSend, options, context) => {
@@ -920,7 +864,7 @@ export function useSendMessage(p: SendMessageParams) {
   const handleSendMessage = useCallback(async (
     textToSend: string,
     options?: SendMessageOptions,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const current = pRef.current;
     const activeProfile = current.kernel
       .getService<IAgentRuntimeService>(KernelServices.AgentRuntime)
@@ -929,12 +873,11 @@ export function useSendMessage(p: SendMessageParams) {
       await current.showCustomAlert(
         `此会话固定使用 ${getSessionRuntimeProfileId(current.activeSession)} v${current.activeSession?.compositionSnapshot?.profileVersion ?? "legacy"}，当前运行时为 ${activeProfile ? `${activeProfile.profileId} v${activeProfile.profileVersion}` : "未装载"}。请在设置 → 插件与 Agent Profiles 中切换后再继续。`,
       );
-      return;
+      return false;
     }
     const handle = ensureAgentHandle();
     if (!handle) {
-      await runLegacyTurn(textToSend, options);
-      return;
+      return await runLegacyTurn(textToSend, options);
     }
     const agentAttachmentIds = options?.attachmentParts
       ? collectMessageAssetIds(options.attachmentParts)
@@ -946,6 +889,7 @@ export function useSendMessage(p: SendMessageParams) {
       skipModel: options?.skipAI,
       continuation: options?.isBisonConsecutive,
     });
+    return true;
   }, [ensureAgentHandle, runLegacyTurn]);
   React.useLayoutEffect(() => {
     sendThroughAgentRef.current = handleSendMessage;

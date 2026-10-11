@@ -1,6 +1,7 @@
 import type { AgentProviderCapabilities } from "../../domain/agents/contracts";
 import type { Message } from "../../types";
 import type { IAttachmentService } from "../serviceContracts";
+import { AUDIO_TRANSCRIPT_PREFIX } from "./multimodalSendGuards";
 
 interface TextProviderPart {
   type: "text";
@@ -14,6 +15,7 @@ interface ImageProviderPart {
 
 interface AudioProviderPart {
   type: "input_audio";
+  /** OpenAI 兼容方言的 `input_audio.format` 只接受 wav|mp3；收窄类型以阻止非法方言被构造出来。 */
   input_audio: { data: string; format: "wav" | "mp3" };
 }
 
@@ -83,7 +85,7 @@ export async function projectMessagePartsForProvider(
   let usedAudioTranscript = false;
   let usedVideoFrames = false;
   const hasAudioTranscript = message.parts.some(part =>
-    part.type === "text" && part.text.startsWith("[音频转写]"),
+    part.type === "text" && part.text.startsWith(AUDIO_TRANSCRIPT_PREFIX),
   );
 
   for (const part of message.parts) {
@@ -174,31 +176,6 @@ export async function projectMessagePartsForProvider(
   return { messages: projectedMessages, decision };
 }
 
-/** 迁移期 OpenAI-compatible 包装；新调用方应传入已解析 Provider 能力。 */
-export async function projectMessagePartsToOpenAi(
-  messages: readonly OpenAiProviderMessage[],
-  message: Message,
-  attachments: IAttachmentService,
-): Promise<OpenAiProviderMessage[]> {
-  const result = await projectMessagePartsForProvider(messages, message, attachments, {
-    providerId: "provider.openai-compatible",
-    capabilities: {
-      inputModalities: ["text", "image", "audio", "video", "file"],
-      supportedMimeTypes: [
-        "image/png",
-        "image/jpeg",
-        "image/gif",
-        "image/webp",
-        "audio/wav",
-        "audio/mpeg",
-      ],
-      supportsStreaming: true,
-      supportsTools: true,
-    },
-  });
-  return result.messages;
-}
-
 async function appendImagePart(
   parts: Array<TextProviderPart | ImageProviderPart | AudioProviderPart>,
   projectedAssetIds: string[],
@@ -244,7 +221,7 @@ async function appendAudioPart(
   const blob = await attachments.getBlob(assetId);
   const format = blob.type === "audio/wav"
     ? "wav"
-    : blob.type === "audio/mpeg"
+    : blob.type === "audio/mpeg" || blob.type === "audio/mp3"
       ? "mp3"
       : null;
   if (!format) throw new Error(`MULTIMODAL_AUDIO_FORMAT_UNSUPPORTED: ${blob.type || "unknown"}`);

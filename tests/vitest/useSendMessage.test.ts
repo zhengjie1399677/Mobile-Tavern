@@ -382,7 +382,7 @@ describe("useSendMessage 弱网与中止事务", () => {
     });
     harness.bisonChainTimerRef.current = setTimeout(() => undefined, 60_000);
     const { result } = renderHook(() => useSendMessage(harness.params));
-    let sendPromise!: Promise<void>;
+    let sendPromise!: Promise<boolean>;
 
     act(() => {
       sendPromise = result.current.handleSendMessage("需要停止");

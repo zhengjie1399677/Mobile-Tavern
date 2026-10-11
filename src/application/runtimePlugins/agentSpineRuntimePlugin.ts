@@ -9,6 +9,7 @@ import type {
 } from "../serviceContracts";
 import { KernelServices } from "../serviceContracts";
 import { extractVideoKeyframes } from "../../infrastructure/media/browserVideoFrameExtractor";
+import { AUDIO_TRANSCRIPT_PREFIX } from "../useCases/multimodalSendGuards";
 import { defineRuntimePlugin } from "./contracts";
 import {
   AGENT_DRIVER_CAPABILITY,
@@ -58,6 +59,9 @@ const openAiCompatibleProvider: AgentProviderDefinition = {
       "image/webp",
       "audio/wav",
       "audio/mpeg",
+      "audio/mp4",
+      "audio/m4a",
+      "audio/aac",
     ],
     maxAttachmentBytes: 20 * 1024 * 1024,
     maxAttachments: 4,
@@ -154,7 +158,7 @@ export const agentSpineRuntimePlugin = defineRuntimePlugin({
         if (!transcript) throw new Error("AUDIO_ASR_EMPTY_TRANSCRIPT");
         return {
           sourceAssetId: request.assetId,
-          projectionParts: [{ type: "text", text: `[音频转写]\n${transcript}` }],
+          projectionParts: [{ type: "text", text: `${AUDIO_TRANSCRIPT_PREFIX}\n${transcript}` }],
           derivedAssetIds: [],
           strategy: "audio-asr",
         };

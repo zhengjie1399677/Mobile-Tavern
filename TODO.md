@@ -11,6 +11,10 @@
 
 - [x] **自定义 Agent 闭环（P0，方向②）**：已把「定义 Agent = 选角色 + 挂工具 + 调行为」做成可存、可改、可文件级分享的最小闭环。`mobile-tavern.agent-profile` v1 提供严格导入导出、凭据隔离、依赖诊断和旧 Profile 降级；设置页已接入 Android/Web 文件入口与引导式表单，角色、Tool、行为和采样进入新会话不可变组合，缺失依赖与版本漂移 fail-closed。
 
+- [x] **语音输入（按住 说话）可用性修复与实时听写下线（P0）**：2026-10-12 完成。原生录音改为 `AudioRecord` 直录 16 kHz 单声道 WAV，修掉「原生录音被附件签名检测拒收」与「`input_audio.format` 只认 wav|mp3」两条断链；`stopCapture()` 幂等，松手发送与三分钟上限自动发送共用同一份录音；补上等待授权轮询、幂等非破坏停止、持握中切后台取消、上滑取消现算坐标等；实时听写（Web Speech）与 `IAsrService` 听写方法、8 份 locale 的相关键、设置页 provider 选项一并下线。真机验收（录音/上限/权限/切后台）待设备执行。
+
+- [x] **语音链路遗留债务（记录，未做）**：① 原生停止仍以同步 base64 回传（3 分钟约 5.76MB → 7.68M 字符）并在 WebView 线程 `atob`，深层改造需改走异步命令或传文件路径；② `detectIsoMedia` 的轨道探测覆盖 faststart 与 moov 置尾，moov 居中的非 faststart 文件仍回落到 brand 判定；③ 原生录音的合成 WAV 与权限流程只能在真机验证。三者都留到设备实测后再决定是否跟进。
+
 - [ ] **能力积木层扩充（P1，方向①）**：内置 Tool 从 2 个补齐联网、记忆写入、图像、TTS、日历等外部能力实例，media processor 从 2 个同步扩充；优先联网与记忆写入，其余按需。全部走 External Tool Plugin 框架，不进 Kernel。
   - 2026-09-02：已加入首个官方预置能力实例 `official.brave-search`。它通过 External Tool Plugin 的固定 HTTPS Origin、加密凭据注入、单次审批和流量配额提供网页搜索，默认未安装、未授权且未启用；下一步补 `memory.write`。
   - 2026-09-02：已加入 `official.memory`，通过 Manifest 白名单 Host Capability 把 `memory.write` 接到 `MemoryService`；每次写入均需高风险单次审批，并绑定当前会话来源消息，来源缺失时 fail-closed。联网与记忆写入两项优先能力已完成，其余能力按需继续。

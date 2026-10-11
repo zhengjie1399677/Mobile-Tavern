@@ -31,7 +31,8 @@ export interface CardRuntimeBridgeParams {
   saveCharacter: (character: CharacterCard) => Promise<void>;
   settings: UserSettings;
   updateSettings: (settings: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
-  handleSendMessage: (text: string) => Promise<void>;
+  /** 返回 false 表示被宿主前置校验拒绝（消息未落库）。 */
+  handleSendMessage: (text: string) => Promise<boolean>;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

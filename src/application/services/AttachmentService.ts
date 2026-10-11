@@ -27,6 +27,21 @@ const MAX_ATTACHMENT_BYTES: Record<AttachmentKind, number> = {
 };
 const MAX_TOTAL_ATTACHMENT_BYTES = 1024 * 1024 * 1024;
 
+/** major brand 已经是音频品牌的 ISO-BMFF 文件，不必再探测轨道。 */
+const ISO_BMFF_AUDIO_BRANDS = ["M4A ", "M4B ", "M4P "];
+/** 轨道探测窗口：头尾各读这么多字节找 hdlr。 */
+const HANDLER_PROBE_BYTES = 256 * 1024;
+/** 同一格式族的常见拼写差异，比较前统一归一化。 */
+const MIME_ALIASES: Record<string, string> = {
+  "audio/x-m4a": "audio/mp4",
+  "audio/m4a": "audio/mp4",
+  "audio/mp4a-latm": "audio/mp4",
+  "audio/x-wav": "audio/wav",
+  "audio/wave": "audio/wav",
+  "audio/mp3": "audio/mpeg",
+  "audio/x-mp3": "audio/mpeg",
+};
+
 type DetectedFile = { kind: AttachmentKind; mimeType: string };
 
 export class AttachmentService implements IAttachmentService {
@@ -274,13 +289,23 @@ export class AttachmentService implements IAttachmentService {
 
 async function detectFile(file: File): Promise<DetectedFile> {
   const bytes = new Uint8Array(await file.slice(0, 32).arrayBuffer());
-  const detected = detectSignature(bytes);
+  let detected = detectSignature(bytes);
   if (!detected) throw new Error("ATTACHMENT_SIGNATURE_INVALID");
-  const declaredMime = file.type.trim().toLowerCase();
+  // ISO-BMFF 的 brand 分不出音视频（ffmpeg/iTunes 的 .m4a 常见 brand 是 isom），
+  // 只有在 brand 不能直接定音的情况下才去探测轨道处理器。
+  if (ascii(bytes, 4, 4) === "ftyp" && !ISO_BMFF_AUDIO_BRANDS.includes(ascii(bytes, 8, 4))) {
+    detected = await probeIsoBmffKind(file) ?? detected;
+  }
+  const declaredMime = normalizeMimeAlias(file.type.trim().toLowerCase());
   if (declaredMime && declaredMime !== detected.mimeType) {
     throw new Error("ATTACHMENT_SIGNATURE_INVALID");
   }
   return detected;
+}
+
+/** 同一格式族的拼写差异不应被当成「类型不符」。 */
+function normalizeMimeAlias(mimeType: string): string {
+  return MIME_ALIASES[mimeType] ?? mimeType;
 }
 
 function detectSignature(bytes: Uint8Array): DetectedFile | null {
@@ -306,8 +331,46 @@ function detectSignature(bytes: Uint8Array): DetectedFile | null {
 
 function detectIsoMedia(bytes: Uint8Array): DetectedFile {
   const brand = ascii(bytes, 8, 4);
-  if (["M4A ", "M4B ", "M4P "].includes(brand)) return { kind: "audio", mimeType: "audio/mp4" };
+  if (ISO_BMFF_AUDIO_BRANDS.includes(brand)) return { kind: "audio", mimeType: "audio/mp4" };
   return { kind: "video", mimeType: "video/mp4" };
+}
+
+/**
+ * 探测 ISO-BMFF 容器的轨道类型：头尾各取一个有界窗口找 `hdlr` 的处理器类型，
+ * 出现 `vide` 判视频、仅 `soun` 判音频。
+ *
+ * 覆盖 faststart（moov 在前）与 moov 置尾两种常见布局；moov 居中的文件两处都探不到，
+ * 此时返回 null 由调用方回落到 brand 判定（已知残留）。
+ */
+async function probeIsoBmffKind(file: File): Promise<DetectedFile | null> {
+  const head = new Uint8Array(await file.slice(0, HANDLER_PROBE_BYTES).arrayBuffer());
+  if (containsAscii(head, "vide")) return { kind: "video", mimeType: "video/mp4" };
+  if (containsAscii(head, "soun")) return { kind: "audio", mimeType: "audio/mp4" };
+
+  const tailStart = Math.max(0, file.size - HANDLER_PROBE_BYTES);
+  if (tailStart > 0) {
+    const tail = new Uint8Array(await file.slice(tailStart).arrayBuffer());
+    if (containsAscii(tail, "vide")) return { kind: "video", mimeType: "video/mp4" };
+    if (containsAscii(tail, "soun")) return { kind: "audio", mimeType: "audio/mp4" };
+  }
+  return null;
+}
+
+function containsAscii(bytes: Uint8Array, needle: string): boolean {
+  const first = needle.charCodeAt(0);
+  const last = needle.length - 1;
+  for (let index = 0; index + last < bytes.length; index += 1) {
+    if (bytes[index] !== first) continue;
+    let matched = true;
+    for (let offset = 1; offset <= last; offset += 1) {
+      if (bytes[index + offset] !== needle.charCodeAt(offset)) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return true;
+  }
+  return false;
 }
 
 function hasPrefix(bytes: Uint8Array, prefix: readonly number[]): boolean {

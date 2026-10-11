@@ -95,7 +95,7 @@ async function runTests() {
     saveCharacter: async () => {},
     settings: { userName: "Bob" } as UserSettings,
     updateSettings: () => {},
-    handleSendMessage: async () => {},
+    handleSendMessage: async () => true,
   });
 
   // Access the parent window Mock properties exposed by the module

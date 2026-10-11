@@ -531,7 +531,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
   asrConfig: {
     enabled: false,
-    provider: "web-speech",
+    // 实时听写已下线，只剩 Whisper 文件转写；旧数据里的 web-speech 保持原样读取，不改写用户设置。
+    provider: "openai",
     language: "zh-CN",
     openaiApiKey: "",
     openaiBaseUrl: "https://api.openai.com/v1",

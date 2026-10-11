@@ -1324,6 +1324,8 @@ iframe[id^="TH-msg-iframe-"] {
     --color-purple-300: #dab2ff;
     --color-purple-400: #c07eff;
     --color-purple-500: #ac4bff;
+    --color-red-200: #ffc9c9;
+    --color-red-300: #ffa2a2;
     --color-red-400: #ff6467;
     --color-red-500: #fb2c36;
     --color-red-900: #82181a;

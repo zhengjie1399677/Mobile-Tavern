@@ -769,16 +769,11 @@ export interface AsrConfig {
   openaiModel?: string;
 }
 
+/**
+ * 语音识别服务：只保留**文件转写**能力。
+ * 实时听写（Web Speech）已下线，麦克风采集统一由 `IVoiceCaptureService` 负责。
+ */
 export interface IAsrService extends IKernelService {
-  isListening(): boolean;
-  startListening(
-    config: AsrConfig,
-    onResult: (text: string, isFinal: boolean) => void,
-    onError: (err: unknown) => void,
-    onEnd?: () => void
-  ): Promise<void>;
-  stopListening(): void;
-  cancelListening(): void;
   transcribeFile(
     blob: Blob,
     fileName: string,
@@ -789,15 +784,25 @@ export interface IAsrService extends IKernelService {
 
 export interface VoiceCaptureOptions {
   readonly maxDurationMs?: number;
+  /**
+   * 到达时长上限时的回调。录制此时已完成并缓存，随后调用 `stopCapture()` 会返回同一份 File，
+   * 因此「到点自动发送」与「松手发送」可以共用一条路径。
+   */
   readonly onLimitReached?: () => void;
 }
 
-/** 只负责采集供模型原生理解的 WAV 语音，不承担 ASR 或音频附件选择。 */
+/**
+ * 负责采集供模型原生理解的多模态语音（Android 走 Kotlin 原生 AudioRecord 直录 16 kHz 单声道 WAV，
+ * Web 端回退 Web Audio WAV），不承担客户端 ASR 转写或音频附件选择。
+ *
+ * `stopCapture()` 幂等：完成文件保留到 `cancelCapture()` 或下一次 `startCapture()`。
+ */
 export interface IVoiceCaptureService extends IKernelService {
   isCapturing(): boolean;
   startCapture(options?: VoiceCaptureOptions): Promise<void>;
   stopCapture(): Promise<File>;
   cancelCapture(): Promise<void>;
+  getAmplitude?(): number;
 }
 
 /**

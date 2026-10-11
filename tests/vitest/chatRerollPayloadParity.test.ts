@@ -513,7 +513,7 @@ describe("发送→停止→重发 的请求载荷一致性", () => {
     ]);
     const send = renderHook(() => useSendMessage(harness.sendParams));
 
-    let sendPromise!: Promise<void>;
+    let sendPromise!: Promise<boolean>;
     act(() => {
       sendPromise = send.result.current.handleSendMessage(NEW_USER_TEXT);
     });
@@ -575,7 +575,7 @@ describe("发送→停止→重发 的请求载荷一致性", () => {
     ]);
     const send = renderHook(() => useSendMessage(harness.sendParams));
 
-    let sendPromise!: Promise<void>;
+    let sendPromise!: Promise<boolean>;
     act(() => {
       sendPromise = send.result.current.handleSendMessage(NEW_USER_TEXT);
     });
@@ -618,7 +618,7 @@ describe("发送→停止→重发 的请求载荷一致性", () => {
     ]);
     const send = renderHook(() => useSendMessage(harness.sendParams));
 
-    let sendPromise!: Promise<void>;
+    let sendPromise!: Promise<boolean>;
     act(() => {
       sendPromise = send.result.current.handleSendMessage(NEW_USER_TEXT);
     });
@@ -668,7 +668,7 @@ describe("发送→停止→重发 的请求载荷一致性", () => {
     );
     const send = renderHook(() => useSendMessage(harness.sendParams));
 
-    let sendPromise!: Promise<void>;
+    let sendPromise!: Promise<boolean>;
     act(() => {
       sendPromise = send.result.current.handleSendMessage(NEW_USER_TEXT);
     });

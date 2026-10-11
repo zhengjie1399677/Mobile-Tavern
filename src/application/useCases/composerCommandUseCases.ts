@@ -113,7 +113,8 @@ export interface ExecuteBuiltinComposerCommandContext {
   argument: string;
   hasActiveSession: boolean;
   continueText: string;
-  handleSendMessage: (text: string) => Promise<void>;
+  /** 内置命令只关心是否已派发，发送结果由调用方决定。 */
+  handleSendMessage: (text: string) => Promise<unknown>;
   handleRerollLast: () => Promise<void>;
   handleStartNewSession: () => Promise<void>;
   createNewBranch: () => Promise<void>;

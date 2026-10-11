@@ -3,27 +3,14 @@
 // 通过 useUnifiedApp 选择器读取所需状态，接收 isKeyboardOpen 作为 prop
 
 import React from "react";
-import {
-  Send,
-  RefreshCw,
-  Cpu,
-  Square,
-  Mic,
-  Loader2,
-  Play,
-  AudioWaveform,
-  Terminal,
-} from "lucide-react";
+import { Send, Square } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { chatTabState } from "./utils";
-import { useComposerAutosize, useComposerCompatibilityVariables } from "./useComposerInputPath";
-import type { ChatSession, CustomPromptBlock, Message, ReplyChoice, SummaryCard } from "../../types";
+import { useComposerAutosize } from "./useComposerInputPath";
 import {
   KernelServices,
   type IAttachmentService,
   type IComposerCommandService,
-  type IExternalSourceRuntimeService,
 } from "@/src/application/serviceContracts";
 import { getSessionRuntimeProfileId } from "@/src/application/useCases/runtimeProfileSession";
 import {
@@ -33,8 +20,6 @@ import {
   resolveComposerCommandInvocation,
 } from "@/src/application/useCases/composerCommandUseCases";
 import type { ComposerCommandDescriptor } from "@/src/domain/composer/contracts";
-import type { RecalledMessage } from "@/src/application/services/memory/types";
-import type { AttachmentMetadata } from "../../domain/attachments/types";
 import type { MessageContentPart } from "../../domain/messages/messageContent";
 import { AttachmentPicker } from "./attachment-composer/AttachmentPicker";
 import {
@@ -42,14 +27,13 @@ import {
   type PendingAttachment,
 } from "./attachment-composer/PendingAttachmentStrip";
 import { ComposerCommandSuggestions } from "./ComposerCommandSuggestions";
+import { ComposerQuickActionBar } from "./composer-panels/ComposerQuickActionBar";
+import { ComposerReplySuggestions } from "./composer-panels/ComposerReplySuggestions";
 import { useChatVoiceInput } from "./useChatVoiceInput";
-import { McpChatPopover } from "../../components/externalTools/McpChatPopover";
-
-/**
- * 用于在事件 currentTarget 上标记 _touched 状态，
- * 以区分 touchstart 与 mousedown 事件，避免移动端重复触发。
- */
-type TouchTrackedElement = Element & { _touched?: boolean };
+import { VoiceDraftHint } from "./voice-composer/VoiceDraftHint";
+import { VoiceHoldButton } from "./voice-composer/VoiceHoldButton";
+import { VoiceHoldOverlay } from "./voice-composer/VoiceHoldOverlay";
+import { VoiceModeToggle } from "./voice-composer/VoiceModeToggle";
 
 function toMessageAttachmentPart(item: PendingAttachment): MessageContentPart {
   const { metadata } = item;
@@ -65,6 +49,8 @@ function toMessageAttachmentPart(item: PendingAttachment): MessageContentPart {
   return { type: "file", assetId: metadata.id, displayName: metadata.originalName };
 }
 
+const QUICK_ACTIONS_STORAGE_KEY = "mobile_tavern_show_quick_actions";
+
 const ChatInputArea = ({
   isKeyboardOpen,
   messageScrollerRef,
@@ -73,13 +59,29 @@ const ChatInputArea = ({
   /** 消息列表滚动容器：仅用于输入区高度变化时的同帧贴底补偿，缺省时不做任何滚动干预。 */
   messageScrollerRef?: React.RefObject<HTMLDivElement | null>;
 }) => {
-  const [showQuickActions, setShowQuickActions] = React.useState(false);
+  const [showQuickActions, setShowQuickActions] = React.useState<boolean>(() => {
+    try {
+      return localStorage.getItem(QUICK_ACTIONS_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleQuickActions = React.useCallback(() => {
+    setShowQuickActions((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(QUICK_ACTIONS_STORAGE_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
   const [mcpPopoverOpen, setMcpPopoverOpen] = React.useState(false);
   const [mcpSeedText, setMcpSeedText] = React.useState("");
   const { t } = useTranslation();
   const {
     isSending,
-    setIsSending,
     activeSession,
     settings,
     activeCharacter,
@@ -91,11 +93,8 @@ const ChatInputArea = ({
     safeAreas,
     userInputMessage,
     setUserInputMessage,
-    replySuggestions,
     setReplySuggestions,
-    updateSettings,
     isBisonLocking,
-    lastRecalledMemories,
     triggerScroll,
     getKernelService,
     messageHydrationStatus,
@@ -103,10 +102,8 @@ const ChatInputArea = ({
     createNewBranch,
     handleAutoSummaryCheck,
     showCustomConfirm,
-    setActiveTab,
   } = useUnifiedApp((state) => ({
     isSending: state.isSending,
-    setIsSending: state.setIsSending,
     activeSession: state.activeSession,
     settings: state.settings,
     activeCharacter: state.activeCharacter,
@@ -117,11 +114,8 @@ const ChatInputArea = ({
     safeAreas: state.safeAreas,
     userInputMessage: state.userInputMessage,
     setUserInputMessage: state.setUserInputMessage,
-    replySuggestions: state.replySuggestions,
     setReplySuggestions: state.setReplySuggestions,
-    updateSettings: state.updateSettings,
     isBisonLocking: state.isBisonLocking,
-    lastRecalledMemories: state.lastRecalledMemories,
     triggerScroll: state.triggerScroll,
     getKernelService: state.getKernelService,
     messageHydrationStatus: state.messageHydrationStatus,
@@ -129,14 +123,7 @@ const ChatInputArea = ({
     createNewBranch: state.createNewBranch,
     handleAutoSummaryCheck: state.handleAutoSummaryCheck,
     showCustomConfirm: state.showCustomConfirm,
-    setActiveTab: state.setActiveTab,
   }));
-  // 快捷栏 token 预估所需的兼容变量：按需读取 + 可降级，绝不在按键路径上深拷贝变量表。
-  const compatibilityVariables = useComposerCompatibilityVariables({
-    enabled: showQuickActions,
-    session: activeSession,
-    getKernelService,
-  });
 
   React.useEffect(() => {
     let scrollRafId: number | null = null;
@@ -180,46 +167,70 @@ const ChatInputArea = ({
     };
   }, []);
 
-  // 优先从全局闭包变量中读取以抗御组件销毁重装，否则继承 settings
-  const [clickMode, setClickMode] = React.useState<"send" | "fill">(
-    chatTabState.suggestionsClickMode || settings.replySuggestionsClickMode || "fill"
-  );
-  // Ref 始终同步最新 clickMode，供事件处理函数使用，彻底避免陈旧闭包
-  const clickModeRef = React.useRef<"send" | "fill">(clickMode);
-  React.useEffect(() => {
-    clickModeRef.current = clickMode;
-  }, [clickMode]);
-
-  React.useEffect(() => {
-    if (settings.replySuggestionsClickMode) {
-      if (chatTabState.suggestionsClickMode !== settings.replySuggestionsClickMode) {
-        chatTabState.suggestionsClickMode = settings.replySuggestionsClickMode;
-        setClickMode(settings.replySuggestionsClickMode);
-      }
-    }
-  }, [settings.replySuggestionsClickMode]);
-
   const [localInput, setLocalInput] = React.useState(userInputMessage);
   const [isExecutingComposerCommand, setIsExecutingComposerCommand] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingAttachment[]>([]);
 
+  const localInputRef = React.useRef(localInput);
+  React.useEffect(() => {
+    localInputRef.current = localInput;
+  }, [localInput]);
+
+  const pendingAttachmentsRef = React.useRef(pendingAttachments);
+  React.useEffect(() => {
+    pendingAttachmentsRef.current = pendingAttachments;
+  }, [pendingAttachments]);
+
+  const handleSendMessageRef = React.useRef(handleSendMessage);
+  React.useEffect(() => {
+    handleSendMessageRef.current = handleSendMessage;
+  }, [handleSendMessage]);
+
+  /** 发送成功后的统一收尾：单纯发送 / 合并发送 / 松手发送三条路径共用。 */
+  const clearComposerAfterSend = React.useCallback(() => {
+    setPendingAttachments([]);
+    setLocalInput("");
+    setUserInputMessage("");
+    setReplySuggestions([]);
+  }, [setLocalInput, setPendingAttachments, setReplySuggestions, setUserInputMessage]);
+
+  /**
+   * 语音收尾的唯一发送出口（松手发送与到点自动发送共用）。
+   * 发送被拒时不清空任何东西：录音是一次性的，不能被静默销毁。
+   */
+  const sendVoiceMessage = React.useCallback(async (attachment: PendingAttachment) => {
+    const all = [
+      ...pendingAttachmentsRef.current.filter((item) => item.metadata.id !== attachment.metadata.id),
+      attachment,
+    ];
+    const sent = await handleSendMessageRef.current(localInputRef.current.trim(), {
+      skipAI: false,
+      attachmentIds: all.map((item) => item.metadata.id),
+      attachmentParts: all.map(toMessageAttachmentPart),
+    });
+    if (!sent) return;
+    clearComposerAfterSend();
+  }, [setLocalInput, setPendingAttachments, setReplySuggestions, setUserInputMessage, clearComposerAfterSend]);
+
   const {
-    isAsrRecording,
-    isTranscribing,
-    isModelVoiceRecording,
-    supportsNativeAudioInput,
-    handleToggleAsr,
-    handleToggleModelVoice,
+    isVoiceMode,
+    setIsVoiceMode,
+    isHolding,
+    isCancelHovered,
+    holdDurationMs,
+    voiceAmplitude,
+    isLimitWarning,
+    startHoldRecord,
+    cancelHoldRecord,
+    finishHoldRecord,
+    voicePointerHandlers,
   } = useChatVoiceInput({
     activeSessionId: activeSession?.id,
-    settings,
-    localInput,
-    setLocalInput,
-    setUserInputMessage,
     pendingAttachments,
     setPendingAttachments,
     getKernelService,
     showCustomAlert,
+    sendVoiceMessage,
   });
 
   React.useEffect(() => {
@@ -254,16 +265,11 @@ const ChatInputArea = ({
     setLocalInput(userInputMessage);
   }, [userInputMessage]);
 
-  const localInputRef = React.useRef(localInput);
-  React.useEffect(() => {
-    localInputRef.current = localInput;
-  }, [localInput]);
-
   React.useEffect(() => {
     return () => {
       setUserInputMessage(localInputRef.current);
     };
-  }, [activeSession?.id]);
+  }, [activeSession?.id, setUserInputMessage]);
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -307,7 +313,8 @@ const ChatInputArea = ({
       }
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [isKeyboardOpen, triggerScroll]);
+    // isVoiceMode 参与依赖：语音模式会卸载 textarea，不重绑就会把监听留在已分离的节点上。
+  }, [isKeyboardOpen, isVoiceMode, triggerScroll]);
 
   const lastMsgIsUser = React.useMemo(() => {
     if (!activeSession || !Array.isArray(activeSession.messages) || activeSession.messages.length === 0) return false;
@@ -344,14 +351,6 @@ const ChatInputArea = ({
   React.useEffect(() => {
     setSelectedCommandIndex(0);
   }, [localInput]);
-
-  const getExternalSourceRuntime = React.useCallback((): IExternalSourceRuntimeService | null => {
-    try {
-      return getKernelService<IExternalSourceRuntimeService>(KernelServices.ExternalSources);
-    } catch {
-      return null;
-    }
-  }, [getKernelService]);
 
   const openMcpPopover = React.useCallback((seed: string) => {
     setMcpSeedText(seed);
@@ -476,21 +475,23 @@ const ChatInputArea = ({
   }, [composerCommands, executeComposerCommand, localInput]);
 
   const canSend = React.useMemo(() => {
-    if (!activeSession || messageHydrationStatus !== "ready" || isModelVoiceRecording || isExecutingComposerCommand) return false;
+    if (!activeSession || messageHydrationStatus !== "ready" || isHolding || isExecutingComposerCommand) return false;
     const hasInput = (localInput || "").trim() !== "";
     const hasAttachments = pendingAttachments.length > 0;
     if (settings.enableMultiMessageQueue) {
       return hasInput || hasAttachments || lastMsgIsUser;
     }
     return hasInput || hasAttachments;
-  }, [activeSession, isExecutingComposerCommand, isModelVoiceRecording, localInput, messageHydrationStatus, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
+  }, [activeSession, isExecutingComposerCommand, isHolding, localInput, messageHydrationStatus, pendingAttachments.length, settings.enableMultiMessageQueue, lastMsgIsUser]);
 
+  /** 发送成功后的统一收尾：文本、语音两条路径（单纯发送 / 合并发送 / 松手发送）共用。 */
   const onSendPure = React.useCallback(async () => {
     if (!localInput.trim() && pendingAttachments.length === 0) return;
     if (await executeComposerCommandIfPresent()) return;
     const msg = localInput;
+    let sent = false;
     try {
-      await handleSendMessage(msg, {
+      sent = await handleSendMessage(msg, {
         skipAI: true,
         attachmentIds: pendingAttachments.map(item => item.metadata.id),
         attachmentParts: pendingAttachments.map(toMessageAttachmentPart),
@@ -498,26 +499,23 @@ const ChatInputArea = ({
     } catch {
       return;
     }
-    setPendingAttachments([]);
-    setLocalInput("");
-    setUserInputMessage("");
-    setReplySuggestions([]);
+    // 发送被拒（Provider 未声明能力 / Profile 不匹配）时保留输入与附件，只清空已发出的内容。
+    if (!sent) return;
+    clearComposerAfterSend();
   }, [
     localInput,
     pendingAttachments,
     executeComposerCommandIfPresent,
     handleSendMessage,
-    setLocalInput,
-    setPendingAttachments,
-    setReplySuggestions,
-    setUserInputMessage,
+    clearComposerAfterSend,
   ]);
 
   const onSendMerged = React.useCallback(async () => {
     if (await executeComposerCommandIfPresent()) return;
     const msg = localInput.trim();
+    let sent = false;
     try {
-      await handleSendMessage(msg, {
+      sent = await handleSendMessage(msg, {
         skipAI: false,
         attachmentIds: pendingAttachments.map(item => item.metadata.id),
         attachmentParts: pendingAttachments.map(toMessageAttachmentPart),
@@ -525,19 +523,14 @@ const ChatInputArea = ({
     } catch {
       return;
     }
-    setPendingAttachments([]);
-    setLocalInput("");
-    setUserInputMessage("");
-    setReplySuggestions([]);
+    if (!sent) return;
+    clearComposerAfterSend();
   }, [
     localInput,
     pendingAttachments,
     executeComposerCommandIfPresent,
     handleSendMessage,
-    setLocalInput,
-    setPendingAttachments,
-    setReplySuggestions,
-    setUserInputMessage,
+    clearComposerAfterSend,
   ]);
 
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -558,7 +551,7 @@ const ChatInputArea = ({
     }, 500);
   }, [isSending, onSendMerged, settings.enableMultiMessageQueue]);
 
-  const handlePointerUp = React.useCallback((e: React.PointerEvent) => {
+  const handlePointerUp = React.useCallback((_e: React.PointerEvent) => {
     if (!settings.enableMultiMessageQueue) {
       void onSendMerged();
       return;
@@ -582,34 +575,6 @@ const ChatInputArea = ({
     hasTriggeredLongPress.current = false;
   }, []);
 
-  const handleSelectSuggestion = (e: React.MouseEvent | React.TouchEvent, suggestion: ReplyChoice) => {
-    if (e && e.cancelable) {
-      e.preventDefault();
-    }
-    if (e.type === "touchstart") {
-      (e.currentTarget as TouchTrackedElement)._touched = true;
-    } else if (e.type === "mousedown") {
-      if ((e.currentTarget as TouchTrackedElement)._touched) {
-        (e.currentTarget as TouchTrackedElement)._touched = false;
-        return;
-      }
-    }
-
-    // 优先读取同步更新的全局变量，再降级到 Ref，彻底消除 React 调度时序导致的陈旧读取
-    const currentMode = chatTabState.suggestionsClickMode ?? clickModeRef.current;
-    if (currentMode === "send") {
-      setLocalInput("");
-      setUserInputMessage("");
-      setReplySuggestions([]);
-      void handleSendMessage(suggestion.prompt).catch((err) => {
-        console.error("Failed to send suggestion prompt:", err);
-      });
-    } else {
-      setLocalInput(suggestion.prompt);
-      setUserInputMessage(suggestion.prompt);
-    }
-  };
-
   return (
     <div
       id="chat-input-area-container"
@@ -619,154 +584,20 @@ const ChatInputArea = ({
       }}
       className="chat-composer-shell z-10 flex shrink-0 flex-col items-center gap-2 px-3 pt-2.5"
     >
-      {showQuickActions && (
-        <div className="chat-composer-popover flex w-full max-w-3xl items-center justify-between rounded-xl px-2 py-1 animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => handleRerollLast()}
-              disabled={
-                isSending ||
-                !activeSession ||
-                !Array.isArray(activeSession.messages) ||
-                !activeSession.messages.some((m: Message) => m.sender === "assistant")
-              }
-              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
-              title="消除整条故事分支的最后一条AI回复并进行重新生成"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${isSending ? "animate-spin" : ""}`}
-              />
-              <span className="text-xs font-medium">{t("chat_input.reroll_last")}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSendMessage(t("chat_input.continue"))}
-              disabled={isSending || !activeSession}
-              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
-              title={`替用户发送"继续"以继续当前剧情`}
-            >
-              <Play className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">{t("chat_input.continue")}</span>
-            </button>
-            {/* MCP 能力：总开关打开时才出现在快捷栏（气泡锚定在此按钮上，默认关闭=不显示） */}
-            {settings.enableExternalCapabilities === true && (
-              <McpChatPopover
-                triggerVariant="bar"
-                triggerDisabled={isSending || !activeSession}
-                open={mcpPopoverOpen}
-                onOpenChange={(next) => {
-                  if (next) setMcpSeedText((localInput || "").trim());
-                  setMcpPopoverOpen(next);
-                }}
-                draftText={mcpSeedText}
-                getRuntime={getExternalSourceRuntime}
-                onInsertData={handleInsertToolData}
-                onOpenWorkbench={() => setActiveTab("workbench")}
-                showAlert={showCustomAlert}
-              />
-            )}
-          </div>
-
-          <div
-            aria-hidden="true"
-            className="flex items-center gap-1.5 pr-1 text-muted-foreground font-mono text-[9px] opacity-75"
-          >
-            <Cpu className="w-3 h-3" />
-            <span>
-              {t("chat_input.token_prediction")} ~
-              {Math.ceil(
-                (localInput || "").length * 1.5 +
-                ((Array.isArray(activeSession?.messages)
-                  ? activeSession.messages.slice(-settings.memory.recentTurns)
-                  : []
-                ).reduce(
-                  (acc: number, m: Message) => acc + (m.content || "").length,
-                  0,
-                ) || 0) *
-                1.5 +
-                ((activeCharacter?.description || "").length +
-                  (activeCharacter?.personality || "").length +
-                  (activeCharacter?.scenario || "").length +
-                  (activeCharacter?.system_prompt || "").length) *
-                1.5 +
-                (settings.promptConfig?.customPrompts || [])
-                  .filter((p: CustomPromptBlock) => p.enabled)
-                  .reduce(
-                    (acc: number, p: CustomPromptBlock) => acc + (p.content || "").length,
-                    0,
-                  ) *
-                1.5 +
-                (activeSession?.summaries || []).reduce(
-                  (acc: number, s: SummaryCard) => acc + (s.content || "").length,
-                  0,
-                ) *
-                1.5 +
-                (settings.memory?.enableRecall !== false && lastRecalledMemories || []).reduce(
-                  (acc: number, m: RecalledMessage) => acc + (m.content || "").length,
-                  0,
-                ) *
-                1.5 +
-                (settings.enableScriptExecution &&
-                  (() => {
-                    const ext = activeCharacter?.extensions || {};
-                    return (
-                      (Array.isArray(ext.tavern_helper?.scripts) && ext.tavern_helper.scripts.length > 0) ||
-                      !!(ext.mvu_settings || ext.mvu || ext.MVU)
-                    );
-                  })() &&
-                  Object.keys(compatibilityVariables).length > 0
-                  ? JSON.stringify(compatibilityVariables).length
-                  : 0) *
-                1.5,
-              )}{" "}
-              tok
-            </span>
-          </div>
-        </div>
-      )}
-      {settings.enableReplySuggestions && !isSending && composerCommandSuggestions.length === 0 && replySuggestions && replySuggestions.length > 0 && (
-        <div className="chat-composer-popover flex w-full max-w-3xl flex-col gap-1.5 rounded-2xl p-2 animate-fadeIn">
-          <div className="flex items-center justify-between text-xs text-muted-foreground font-medium px-1">
-            <span className="flex items-center gap-1">{t("chat_input.suggestions_label")}</span>
-            <button
-              onClick={() => {
-                const nextMode = clickMode === "send" ? "fill" : "send";
-                // 同步更新全局变量与 Ref，确保 handleSelectSuggestion 在本次事件循环内即可读到最新值
-                chatTabState.suggestionsClickMode = nextMode;
-                clickModeRef.current = nextMode;
-                setClickMode(nextMode);
-                updateSettings((prev) => ({
-                  ...prev,
-                  replySuggestionsClickMode: nextMode,
-                }));
-              }}
-              className="flex min-h-11 items-center gap-1 rounded border border-border bg-muted px-2 text-xs font-semibold transition hover:bg-muted/80 active:scale-95"
-            >
-              {t("chat_input.click_mode", { mode: clickMode === "send" ? t("chat_input.click_mode_send") : t("chat_input.click_mode_fill") })}
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5 py-1.5 px-0.5">
-            {replySuggestions.map((suggestion, idx) => (
-              <button
-                key={suggestion.id || idx}
-                onMouseDown={(e) => handleSelectSuggestion(e, suggestion)}
-                onTouchStart={(e) => handleSelectSuggestion(e, suggestion)}
-                onClick={(e) => {
-                  e.preventDefault();
-                }}
-                className="min-h-11 w-full rounded-lg border border-primary/15 bg-primary/5 px-3 py-2 text-left text-xs font-normal leading-normal text-foreground shadow-sm transition hover:border-primary/30 hover:bg-primary/10 active:scale-95"
-                title={suggestion.description || suggestion.prompt}
-              >
-                <span className="block truncate font-medium">{suggestion.label}</span>
-                {suggestion.description && (
-                  <span className="mt-0.5 block truncate text-[9px] text-muted-foreground">{suggestion.description}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <ComposerQuickActionBar
+        visible={showQuickActions}
+        draftText={localInput}
+        onInsertData={handleInsertToolData}
+        mcpPopoverOpen={mcpPopoverOpen}
+        onMcpPopoverOpenChange={(next) => {
+          if (next) setMcpSeedText((localInput || "").trim());
+          setMcpPopoverOpen(next);
+        }}
+        mcpSeedText={mcpSeedText}
+      />
+      <ComposerReplySuggestions
+        commandSuggestionsVisible={composerCommandSuggestions.length > 0}
+      />
       {!isSending && (
         <ComposerCommandSuggestions
           suggestions={composerCommandSuggestions}
@@ -792,127 +623,121 @@ const ChatInputArea = ({
           current.filter((candidate) => candidate.metadata.id !== assetId)
         ))}
       />
-      <div className="chat-composer-row relative flex w-full max-w-3xl items-end gap-1 rounded-2xl p-1">
+      {isHolding && (
+        <VoiceHoldOverlay
+          isCancelHovered={isCancelHovered}
+          isLimitWarning={isLimitWarning}
+          amplitude={voiceAmplitude}
+          holdDurationMs={holdDurationMs}
+        />
+      )}
+      {isVoiceMode && (
+        <VoiceDraftHint
+          draft={localInput}
+          onClear={() => {
+            setLocalInput("");
+            setUserInputMessage("");
+          }}
+        />
+      )}
+      <div className="chat-composer-row relative flex w-full max-w-3xl items-end gap-1.5 rounded-2xl p-1">
+        <VoiceModeToggle
+          isVoiceMode={isVoiceMode}
+          disabled={isSending || isBisonLocking || isHolding}
+          onToggle={() => setIsVoiceMode((prev) => !prev)}
+        />
+
+        {isVoiceMode ? (
+          <VoiceHoldButton
+            isHolding={isHolding}
+            isCancelHovered={isCancelHovered}
+            disabled={isSending || isBisonLocking || messageHydrationStatus !== "ready"}
+            pointerHandlers={voicePointerHandlers}
+            onHoldStart={() => void startHoldRecord()}
+            onHoldEnd={() => void finishHoldRecord("release")}
+            onHoldCancel={() => void cancelHoldRecord()}
+          />
+        ) : (
+          <textarea
+            ref={textareaRef}
+            value={localInput}
+            onChange={(e) => setLocalInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (composerCommandSuggestions.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setSelectedCommandIndex((prev) => (prev + 1) % composerCommandSuggestions.length);
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSelectedCommandIndex((prev) => (prev - 1 + composerCommandSuggestions.length) % composerCommandSuggestions.length);
+                  return;
+                }
+                if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                  const targetCmd = composerCommandSuggestions[selectedCommandIndex] || composerCommandSuggestions[0];
+                  if (targetCmd) {
+                    e.preventDefault();
+                    if (targetCmd.acceptsArgument) {
+                      const nextInput = `/${targetCmd.name} `;
+                      setLocalInput(nextInput);
+                      setUserInputMessage(nextInput);
+                      requestAnimationFrame(() => textareaRef.current?.focus());
+                    } else {
+                      void executeComposerCommand(targetCmd, "");
+                    }
+                    return;
+                  }
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setLocalInput("");
+                  setUserInputMessage("");
+                  return;
+                }
+              }
+
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (settings.enableMultiMessageQueue) {
+                  void onSendPure();
+                } else {
+                  void onSendMerged();
+                }
+              }
+            }}
+            disabled={isBisonLocking || isSending || messageHydrationStatus !== "ready"}
+            inputMode="text"
+            enterKeyHint="send"
+            placeholder={
+              isBisonLocking
+                ? t("chat_input.placeholder_bison", { name: activeCharacter?.name || "角色" })
+                : messageHydrationStatus !== "ready"
+                  ? "正在准备聊天记录…"
+                  : t("chat_input.placeholder_default", { name: activeCharacter?.name || "" })
+            }
+            aria-label={t("chat_input.aria_label", { name: activeCharacter?.name || "角色" })}
+            rows={1}
+            className={`chat-composer-input min-h-[38px] max-h-[160px] flex-1 resize-none overflow-y-auto rounded-xl bg-transparent pl-1 pr-2.5 py-[9px] text-sm font-normal leading-5 text-foreground placeholder:text-muted-foreground/55 focus:outline-none ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
+              }`}
+          />
+        )}
+
         <AttachmentPicker
-          disabled={isSending || isBisonLocking || isModelVoiceRecording}
+          disabled={isSending || isBisonLocking || isHolding}
           selectedCount={pendingAttachments.length}
           maxCount={4}
           quickActionsVisible={showQuickActions}
           onSelect={handleSelectAttachments}
-          onToggleQuickActions={() => setShowQuickActions((current) => !current)}
+          onToggleQuickActions={handleToggleQuickActions}
           onTriggerSlash={() => {
+            if (isVoiceMode) setIsVoiceMode(false);
             setLocalInput("/");
             setUserInputMessage("/");
             requestAnimationFrame(() => textareaRef.current?.focus());
           }}
         />
-        <textarea
-          ref={textareaRef}
-          value={localInput}
-          onChange={(e) => setLocalInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (composerCommandSuggestions.length > 0) {
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                setSelectedCommandIndex((prev) => (prev + 1) % composerCommandSuggestions.length);
-                return;
-              }
-              if (e.key === "ArrowUp") {
-                e.preventDefault();
-                setSelectedCommandIndex((prev) => (prev - 1 + composerCommandSuggestions.length) % composerCommandSuggestions.length);
-                return;
-              }
-              if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
-                const targetCmd = composerCommandSuggestions[selectedCommandIndex] || composerCommandSuggestions[0];
-                if (targetCmd) {
-                  e.preventDefault();
-                  if (targetCmd.acceptsArgument) {
-                    const nextInput = `/${targetCmd.name} `;
-                    setLocalInput(nextInput);
-                    setUserInputMessage(nextInput);
-                    requestAnimationFrame(() => textareaRef.current?.focus());
-                  } else {
-                    void executeComposerCommand(targetCmd, "");
-                  }
-                  return;
-                }
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setLocalInput("");
-                setUserInputMessage("");
-                return;
-              }
-            }
 
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              if (settings.enableMultiMessageQueue) {
-                void onSendPure();
-              } else {
-                void onSendMerged();
-              }
-            }
-          }}
-          disabled={isBisonLocking || isSending || messageHydrationStatus !== "ready"}
-          inputMode="text"
-          enterKeyHint="send"
-          placeholder={
-            isBisonLocking
-              ? t("chat_input.placeholder_bison", { name: activeCharacter?.name || "角色" })
-              : messageHydrationStatus !== "ready"
-                ? "正在准备聊天记录…"
-                : isModelVoiceRecording
-                  ? "正在录制给模型的语音…"
-                : isAsrRecording
-                ? t("chat_input.placeholder_recording")
-                : isTranscribing
-                  ? t("chat_input.placeholder_transcribing")
-                  : t("chat_input.placeholder_default", { name: activeCharacter?.name || "" })
-          }
-          aria-label={t("chat_input.aria_label", { name: activeCharacter?.name || "角色" })}
-          rows={1}
-          className={`chat-composer-input min-h-[38px] max-h-[160px] flex-1 resize-none overflow-y-auto rounded-xl bg-transparent pl-1 pr-2.5 py-[9px] text-sm font-normal leading-5 text-foreground placeholder:text-muted-foreground/55 focus:outline-none ${(isBisonLocking || isSending) ? "opacity-50 cursor-not-allowed text-muted-foreground" : ""
-            }`}
-        />
-        {supportsNativeAudioInput && (
-          <button
-            type="button"
-            aria-label={isModelVoiceRecording ? "停止模型语音录制" : "录制模型语音输入"}
-            onClick={() => { void handleToggleModelVoice(); }}
-            disabled={isSending || isBisonLocking || isAsrRecording || isTranscribing}
-            className={`flex size-[38px] shrink-0 items-center justify-center rounded-xl border transition-colors ${isModelVoiceRecording
-              ? "border-red-500/40 bg-red-500/15 text-red-500 animate-pulse"
-              : "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
-            } ${(isSending || isBisonLocking || isAsrRecording || isTranscribing) ? "cursor-not-allowed opacity-45" : "active:scale-95"}`}
-            title={isModelVoiceRecording ? "停止并附加这段语音" : "让当前模型直接听这段语音"}
-          >
-            <AudioWaveform className="size-4" aria-hidden="true" />
-          </button>
-        )}
-        {settings.asrConfig?.enabled && (
-          <button
-            type="button"
-            aria-label={isAsrRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_recognizing") : t("chat_input.asr_mic")}
-            onClick={handleToggleAsr}
-            disabled={isSending || isBisonLocking || isModelVoiceRecording}
-            className={`size-[38px] rounded-xl border transition-colors duration-200 shrink-0 flex items-center justify-center ${isAsrRecording
-                ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
-                : isTranscribing
-                  ? "bg-amber-500/20 border-amber-500/40 text-amber-500"
-                  : "bg-input/30 border-border/80 text-muted-foreground hover:bg-muted"
-              } ${(isSending || isBisonLocking || isModelVoiceRecording) ? "opacity-45 cursor-not-allowed" : "active:scale-95"}`}
-            title={isAsrRecording ? t("chat_input.asr_stop") : isTranscribing ? t("chat_input.asr_transcribing") : t("chat_input.asr_mic")}
-          >
-            {isTranscribing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : isAsrRecording ? (
-              <Mic className="w-4 h-4 animate-bounce" />
-            ) : (
-              <Mic className="w-4 h-4 opacity-70" />
-            )}
-          </button>
-        )}
         {isSending ? (
           <button
             onClick={() => handleStopGeneration()}

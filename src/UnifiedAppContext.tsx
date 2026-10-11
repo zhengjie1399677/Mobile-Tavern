@@ -172,7 +172,7 @@ export interface UnifiedAppContextProps {
     skipAI?: boolean;
     attachmentIds?: string[];
     attachmentParts?: import("./domain/messages/messageContent").MessageContentPart[];
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   handleStartNewSession: (customFirstMessage?: string) => Promise<void>;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
   showSessionManager: boolean;

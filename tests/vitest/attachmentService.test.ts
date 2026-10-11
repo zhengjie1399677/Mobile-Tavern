@@ -10,6 +10,44 @@ function pngFile(name = "scene.png"): File {
   ], name, { type: "image/png" });
 }
 
+function asciiBytes(text: string): Uint8Array {
+  const bytes = new Uint8Array(text.length);
+  for (let index = 0; index < text.length; index += 1) bytes[index] = text.charCodeAt(index);
+  return bytes;
+}
+
+/**
+ * 构造最小 ISO-BMFF 文件：ftyp 头 + 可选的 hdlr 处理器标记。
+ * `handler: null` 模拟 moov 居中（两个探测窗口都探不到轨道）。
+ */
+function isoBmffFile(options: {
+  brand: string;
+  handler: "soun" | "vide" | null;
+  name: string;
+  type: string;
+  tail?: boolean;
+}): File {
+  const header = new Uint8Array(24);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 24);
+  header.set(asciiBytes("ftyp"), 4);
+  header.set(asciiBytes(options.brand), 8);
+  view.setUint32(12, 512);
+  header.set(asciiBytes("isom"), 16);
+
+  const padding = new Uint8Array(4096);
+  if (options.handler === null) {
+    return new File([header, padding], options.name, { type: options.type });
+  }
+  const marker = new Uint8Array([
+    0, 0, 0, 33, ...asciiBytes("hdlr"), 0, 0, 0, 0, ...asciiBytes(options.handler),
+  ]);
+  const body = options.tail
+    ? [header, padding, marker]
+    : [header, marker, padding];
+  return new File(body, options.name, { type: options.type });
+}
+
 describe("消息附件服务", () => {
   beforeEach(async () => {
     await __attachmentStorageTest.reset();
@@ -186,6 +224,67 @@ describe("消息附件服务", () => {
     expect(await service.getMetadata(metadata.id)).not.toBeNull();
     expect(Array.from(new Uint8Array(await (await service.getBlob(metadata.id)).arrayBuffer())))
       .toEqual([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]);
+    await service.destroy();
+  });
+
+  it("ISO-BMFF：isom brand 的音频轨文件按声明识别为音频", async () => {
+    const service = new AttachmentService();
+    await service.init({} as IKernel);
+
+    const metadata = await service.stageFile(isoBmffFile({
+      brand: "isom", handler: "soun", name: "clip.m4a", type: "audio/mp4",
+    }));
+
+    expect(metadata).toMatchObject({ kind: "audio", mimeType: "audio/mp4" });
+    await service.destroy();
+  });
+
+  it("ISO-BMFF：含视频轨的 isom 文件仍判为视频，声明成音频会被拒", async () => {
+    const service = new AttachmentService();
+    await service.init({} as IKernel);
+
+    const video = await service.stageFile(isoBmffFile({
+      brand: "isom", handler: "vide", name: "movie.mp4", type: "video/mp4",
+    }));
+    expect(video).toMatchObject({ kind: "video", mimeType: "video/mp4" });
+
+    await expect(service.stageFile(isoBmffFile({
+      brand: "isom", handler: "vide", name: "movie.m4a", type: "audio/mp4",
+    }))).rejects.toThrow("ATTACHMENT_SIGNATURE_INVALID");
+    await service.destroy();
+  });
+
+  it("ISO-BMFF：moov 居中探不到轨道时回落到 brand 判定（已知残留）", async () => {
+    const service = new AttachmentService();
+    await service.init({} as IKernel);
+
+    await expect(service.stageFile(isoBmffFile({
+      brand: "isom", handler: null, name: "unknown.m4a", type: "audio/mp4",
+    }))).rejects.toThrow("ATTACHMENT_SIGNATURE_INVALID");
+    await service.destroy();
+  });
+
+  it("ISO-BMFF：尾部 moov 的音频文件同样能识别", async () => {
+    const service = new AttachmentService();
+    await service.init({} as IKernel);
+
+    const metadata = await service.stageFile(isoBmffFile({
+      brand: "mp42", handler: "soun", tail: true, name: "tail.m4a", type: "audio/mp4",
+    }));
+
+    expect(metadata).toMatchObject({ kind: "audio", mimeType: "audio/mp4" });
+    await service.destroy();
+  });
+
+  it("同一格式族的别名拼写不被当成类型不符", async () => {
+    const service = new AttachmentService();
+    await service.init({} as IKernel);
+
+    const metadata = await service.stageFile(isoBmffFile({
+      brand: "isom", handler: "soun", name: "alias.m4a", type: "audio/x-m4a",
+    }));
+
+    expect(metadata).toMatchObject({ kind: "audio", mimeType: "audio/mp4" });
     await service.destroy();
   });
 });

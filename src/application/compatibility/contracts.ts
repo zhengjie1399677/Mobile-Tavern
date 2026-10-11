@@ -155,7 +155,8 @@ export interface CompatibilityBridgeParams {
   saveCharacter(character: CharacterCard): Promise<void>;
   settings: UserSettings;
   updateSettings(update: CompatibilityStateUpdater<UserSettings>): void;
-  handleSendMessage(text: string): Promise<void>;
+  /** 返回 false 表示被前置校验拒绝（消息未落库）。 */
+  handleSendMessage(text: string): Promise<boolean>;
 }
 
 export interface CompatibilityGenerationState {

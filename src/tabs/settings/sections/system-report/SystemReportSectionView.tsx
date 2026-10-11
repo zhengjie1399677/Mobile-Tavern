@@ -272,7 +272,6 @@ export default function SystemReportSection({
       log(`TTS: UNKNOWN provider="${ttsProvider}"`);
     }
 
-    const hasASR = typeof w.SpeechRecognition === "function" || typeof w.webkitSpeechRecognition === "function";
     const asrEnabled = settings.asrConfig?.enabled;
     if (!asrEnabled) {
       log(`ASR: disabled (skip)`);
@@ -300,11 +299,8 @@ export default function SystemReportSection({
         }
       }
 
-      if (hasASR) {
-        log(`ASR: OK (WebSpeech available)`);
-      } else {
-        log(`ASR: ERROR (enabled but WebSpeech API unavailable in this WebView)`);
-      }
+      // 实时听写（Web Speech）已下线：这里只反映文件转写（Whisper）配置
+      log(`ASR: file transcription provider=openai model="${settings.asrConfig?.openaiModel || "whisper-1"}"`);
     }
     log(`Elapsed: ${Date.now() - speechStart}ms`);
 

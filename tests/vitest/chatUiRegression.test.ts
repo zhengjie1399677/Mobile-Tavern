@@ -9,7 +9,15 @@ const readSource = (relativePath: string): string => (
 
 describe("聊天界面回归守卫", () => {
   it("输入区与浮层共享居中的宽度边界", () => {
-    const source = readSource("src/tabs/chat/ChatInputArea.tsx");
+    // 输入区已按职责拆分：宽度边界要在整个组合区子树里保持一致，而不是只看主文件。
+    const sources = [
+      "src/tabs/chat/ChatInputArea.tsx",
+      "src/tabs/chat/composer-panels/ComposerQuickActionBar.tsx",
+      "src/tabs/chat/composer-panels/ComposerReplySuggestions.tsx",
+      "src/tabs/chat/voice-composer/VoiceDraftHint.tsx",
+    ].map(readSource);
+    const source = sources.join("\n");
+
     expect(source).toContain("flex w-full max-w-3xl items-end");
     expect(source.match(/w-full max-w-3xl/g)?.length).toBeGreaterThanOrEqual(3);
   });

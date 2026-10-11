@@ -1,6 +1,5 @@
 import { Mic } from "lucide-react";
 import { AccordionItem, AccordionTrigger, AccordionContent } from "../../../components/ui/accordion";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { Switch } from "../../../components/ui/switch";
 import { Input } from "../../../components/ui/input";
 import type { UserSettings } from "../../types";
@@ -15,7 +14,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
   const { t } = useTranslation();
   const asrConfig = settings.asrConfig || {
     enabled: false,
-    provider: "web-speech",
+    provider: "openai",
     language: "zh-CN",
     openaiApiKey: "",
     openaiBaseUrl: "https://api.openai.com/v1",
@@ -27,6 +26,9 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
       ...prev,
       asrConfig: {
         ...(prev.asrConfig || asrConfig),
+        // 实时听写（web-speech）已下线：文件转写只有 OpenAI 一条路，
+        // 旧数据里的 web-speech 会在用户下一次改动本区块时被就地归一化。
+        provider: "openai",
         ...fields,
       },
     }));
@@ -73,31 +75,6 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
 
         {asrConfig.enabled && (
           <div className="space-y-3 animate-in fade-in duration-300">
-            {/* Provider Selection */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground block">
-                {t("asr.engine")}
-              </label>
-              <Select
-                value={asrConfig.provider}
-                onValueChange={(val: "web-speech" | "openai") => updateAsr({ provider: val })}
-              >
-                <SelectTrigger aria-label={t("asr.engine")} className="w-full h-8.5 text-xs bg-background/80 border-border/70 rounded-xl shadow-2xs font-medium">
-                  <SelectValue placeholder={t("asr.engine")}>
-                    {asrConfig.provider === "openai" ? t("asr.engine_whisper") : t("asr.engine_system")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="bg-popover text-popover-foreground border border-border shadow-lg">
-                  <SelectItem value="web-speech" className="text-xs">
-                    {t("asr.engine_system")}
-                  </SelectItem>
-                  <SelectItem value="openai" className="text-xs">
-                    {t("asr.engine_whisper")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Language Field */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-muted-foreground">{t("asr.lang")}</label>
@@ -113,9 +90,8 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
               </p>
             </div>
 
-            {/* Whisper specific config */}
-            {asrConfig.provider === "openai" && (
-              <div className="space-y-3 border-t border-border/20 pt-2.5 animate-in fade-in duration-300">
+            {/* Whisper 文件转写配置（唯一引擎） */}
+            <div className="space-y-3 border-t border-border/20 pt-2.5 animate-in fade-in duration-300">
                 {/* Whisper API Key */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">API Key</label>
@@ -154,8 +130,7 @@ export default function AsrConfigSection({ settings, updateSettings }: AsrConfig
                     placeholder="whisper-1"
                   />
                 </div>
-              </div>
-            )}
+            </div>
           </div>
         )}
       </AccordionContent>

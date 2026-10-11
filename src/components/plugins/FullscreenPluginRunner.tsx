@@ -222,8 +222,8 @@ export default function FullscreenPluginRunner({
         params,
         { activeCharacter, activeSession },
         {
-          injectAction: (text) => handleSendMessage(text, { skipAI: true }),
-          sendMessage: (text) => handleSendMessage(text),
+          injectAction: async (text) => { await handleSendMessage(text, { skipAI: true }); },
+          sendMessage: async (text) => { await handleSendMessage(text); },
         },
       );
     }

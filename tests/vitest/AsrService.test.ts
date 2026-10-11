@@ -1,60 +1,6 @@
-/**
- * AsrService 单元测试
- *
- * 覆盖生命周期（init/destroy）、状态查询（isListening）、
- * web-speech provider 路径、stopListening/cancelListening
- * OpenAI Whisper 路径因依赖 MediaRecorder 仅测试错误降级
- */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AsrService } from "../../src/application/services/AsrService";
 import type { AsrConfig, IKernel } from "@/src/application/serviceContracts";
-
-/**
- * 测试专用 Mock 类型定义。
- * 这些类型仅在本测试文件内用于替代 `as any`，确保类型安全的同时保持运行时行为不变。
- */
-
-/** Mock 的 SpeechRecognition 实例类型（与 AsrService 内部 SpeechRecognitionLike 接口对齐）。 */
-interface MockSpeechRecognitionInstance {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: ((event: unknown) => void) | null;
-  onerror: ((event: unknown) => void) | null;
-  onend: (() => void) | null;
-  start: ReturnType<typeof vi.fn>;
-  stop: ReturnType<typeof vi.fn>;
-  abort: ReturnType<typeof vi.fn>;
-}
-
-/** Mock 的 SpeechRecognition 构造函数签名。 */
-interface MockSpeechRecognitionConstructor {
-  new (): MockSpeechRecognitionInstance;
-}
-
-/** 携带 SpeechRecognition 构造器的 window mock 类型。 */
-interface MockWindowWithSpeechRecognition extends Window {
-  SpeechRecognition?: MockSpeechRecognitionConstructor;
-  webkitSpeechRecognition?: MockSpeechRecognitionConstructor;
-}
-
-/** 以类型安全方式访问携带 SpeechRecognition 的 window（替代 `as any`）。 */
-function speechRecognitionWindow(): MockWindowWithSpeechRecognition {
-  return window as unknown as MockWindowWithSpeechRecognition;
-}
-
-/** 清除 window 上的语音识别全局，避免同文件用例相互污染。 */
-function clearSpeechRecognitionGlobals(): void {
-  const win = speechRecognitionWindow();
-  delete win.SpeechRecognition;
-  delete win.webkitSpeechRecognition;
-}
-
-/** 注入 Mock SpeechRecognition 构造器。 */
-function stubSpeechRecognition(mockRecognition: ReturnType<typeof vi.fn>): void {
-  speechRecognitionWindow().SpeechRecognition =
-    mockRecognition as unknown as MockSpeechRecognitionConstructor;
-}
 
 /**
  * 构造最小 IKernel mock。
@@ -65,206 +11,119 @@ function createMockKernel(): IKernel {
   return {} as unknown as IKernel;
 }
 
-/**
- * 构造测试用 AsrConfig。
- * `enabled` 字段在 AsrService.startListening 实现中未被读取，
- * 此处补全为 false 仅用于满足 AsrConfig 接口契约，不改变运行时行为。
- */
 function createMockAsrConfig(
-  provider: "web-speech" | "openai" = "web-speech",
-  language = "zh-CN"
+  provider: "web-speech" | "openai" = "openai",
+  overrides: Partial<AsrConfig> = {},
 ): AsrConfig {
   return {
-    enabled: false,
+    enabled: true,
     provider,
-    language,
+    language: "zh-CN",
+    openaiBaseUrl: "https://api.openai.com/v1",
+    openaiModel: "whisper-1",
+    ...overrides,
   };
 }
 
-/** 构造并返回 Mock SpeechRecognition 实例工厂（vi.fn 包装的构造器）。 */
-function createMockSpeechRecognitionConstructor(): ReturnType<typeof vi.fn> {
-  return vi.fn(function () {
-    return {
-      lang: "",
-      interimResults: false,
-      continuous: false,
-      onresult: null,
-      onerror: null,
-      onend: null,
-      start: vi.fn(),
-      stop: vi.fn(),
-      abort: vi.fn(),
-    };
-  });
+function audioBlob(type = "audio/wav"): Blob {
+  return new Blob([new Uint8Array([1, 2, 3, 4])], { type });
 }
 
-describe("AsrService tests", () => {
+describe("AsrService 文件转写", () => {
   let service: AsrService;
 
   beforeEach(() => {
     vi.restoreAllMocks();
     service = new AsrService();
-    clearSpeechRecognitionGlobals();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("初始化成功", async () => {
     await service.init(createMockKernel());
-    expect(service.isListening()).toBe(false);
+    expect(service.name).toBe("asr");
   });
 
   it("销毁后状态正确", async () => {
     await service.init(createMockKernel());
     await service.destroy(createMockKernel());
-    expect(service.isListening()).toBe(false);
+    expect(service.isCritical).toBe(false);
   });
 
   it("init 时传入已 abort 的 signal 立即生效", async () => {
     const controller = new AbortController();
     controller.abort();
     await service.init(createMockKernel(), controller.signal);
-    // 不应崩溃
+    expect(controller.signal.aborted).toBe(true);
   });
 
   it("init 时传入 signal 后再 abort 不崩溃", async () => {
     const controller = new AbortController();
     await service.init(createMockKernel(), controller.signal);
-    controller.abort();
-    // 不应崩溃
+    expect(() => controller.abort()).not.toThrow();
   });
 
-  it("cancelListening 重置状态", async () => {
+  it("拒绝非 OpenAI provider（实时听写已下线，只有文件转写一条路）", async () => {
     await service.init(createMockKernel());
-    service.cancelListening();
-    expect(service.isListening()).toBe(false);
-  });
-
-  it("stopListening 未开始时不崩溃", async () => {
-    await service.init(createMockKernel());
-    service.stopListening();
-    expect(service.isListening()).toBe(false);
-  });
-
-  it("web-speech provider 不支持时抛出错误", async () => {
-    await service.init(createMockKernel());
-    // 不提供 SpeechRecognition / webkitSpeechRecognition
     await expect(
-      service.startListening(
-        createMockAsrConfig("web-speech"),
-        vi.fn(),
-        vi.fn(),
-        vi.fn()
-      )
-    ).rejects.toThrow("Speech recognition is not supported");
+      service.transcribeFile(audioBlob(), "a.wav", createMockAsrConfig("web-speech")),
+    ).rejects.toThrow("ASR_FILE_PROVIDER_UNSUPPORTED");
   });
 
-  it("web-speech provider 支持时正确启动", async () => {
-    const mockRecognition = createMockSpeechRecognitionConstructor();
-
-    stubSpeechRecognition(mockRecognition);
-
+  it("拒绝空音频或非音频类型", async () => {
     await service.init(createMockKernel());
-    const onResult = vi.fn();
-    await service.startListening(
-      createMockAsrConfig("web-speech"),
-      onResult,
-      vi.fn(),
-      vi.fn()
-    );
-    expect(service.isListening()).toBe(true);
-
-    // 模拟识别结果
-    const instance = mockRecognition.mock.results[0].value as MockSpeechRecognitionInstance;
-    instance.onresult!({
-      resultIndex: 0,
-      results: [{ isFinal: true, 0: { transcript: "你好世界" } }],
-    });
-    expect(onResult).toHaveBeenCalledWith("你好世界", true);
-  });
-
-  it("web-speech 识别错误触发 onError", async () => {
-    const mockRecognition = createMockSpeechRecognitionConstructor();
-
-    stubSpeechRecognition(mockRecognition);
-
-    await service.init(createMockKernel());
-    const onError = vi.fn();
-    const onEnd = vi.fn();
-    await service.startListening(
-      createMockAsrConfig("web-speech"),
-      vi.fn(),
-      onError,
-      onEnd
-    );
-
-    const instance = mockRecognition.mock.results[0].value as MockSpeechRecognitionInstance;
-    instance.onerror!({ error: "network" });
-    expect(onError).toHaveBeenCalledWith(expect.any(Error));
-    expect(onEnd).toHaveBeenCalled();
-  });
-
-  it("startListening 时若已在监听则先取消", async () => {
-    const mockRecognition = createMockSpeechRecognitionConstructor();
-
-    stubSpeechRecognition(mockRecognition);
-
-    await service.init(createMockKernel());
-    await service.startListening(
-      createMockAsrConfig("web-speech"),
-      vi.fn(),
-      vi.fn(),
-      vi.fn()
-    );
-    // 再次启动应先取消旧的
-    await service.startListening(
-      createMockAsrConfig("web-speech"),
-      vi.fn(),
-      vi.fn(),
-      vi.fn()
-    );
-    expect(mockRecognition).toHaveBeenCalledTimes(2);
-    expect(service.isListening()).toBe(true);
-  });
-
-  it("stopListening 停止活跃的识别", async () => {
-    const mockStop = vi.fn();
-    const mockRecognition = vi.fn(function () {
-      return {
-        lang: "",
-        interimResults: false,
-        continuous: false,
-        onresult: null,
-        onerror: null,
-        onend: null,
-        start: vi.fn(),
-        stop: mockStop,
-        abort: vi.fn(),
-      };
-    });
-
-    stubSpeechRecognition(mockRecognition);
-
-    await service.init(createMockKernel());
-    await service.startListening(
-      createMockAsrConfig("web-speech"),
-      vi.fn(),
-      vi.fn(),
-      vi.fn()
-    );
-    service.stopListening();
-    expect(mockStop).toHaveBeenCalled();
-  });
-
-  it("openai provider 在无 mediaDevices 时抛出错误", async () => {
-    await service.init(createMockKernel());
-    vi.stubGlobal("navigator", {});
     await expect(
-      service.startListening(
-        createMockAsrConfig("openai"),
-        vi.fn(),
-        vi.fn(),
-        vi.fn()
-      )
-    ).rejects.toThrow("Microphone recording is not supported");
-    vi.unstubAllGlobals();
+      service.transcribeFile(new Blob([], { type: "audio/wav" }), "a.wav", createMockAsrConfig()),
+    ).rejects.toThrow("ASR_FILE_INVALID");
+    await expect(
+      service.transcribeFile(new Blob([new Uint8Array([1])], { type: "text/plain" }), "a.txt", createMockAsrConfig()),
+    ).rejects.toThrow("ASR_FILE_INVALID");
+  });
+
+  it("上传到 /audio/transcriptions 并返回转写文本", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ text: "你好世界" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await service.init(createMockKernel());
+
+    const transcript = await service.transcribeFile(
+      audioBlob(),
+      "voice-input.wav",
+      createMockAsrConfig("openai", { openaiApiKey: "sk-test" }),
+    );
+
+    expect(transcript).toBe("你好世界");
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.openai.com/v1/audio/transcriptions");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sk-test");
+    const body = init.body as FormData;
+    expect(body.get("model")).toBe("whisper-1");
+    expect(body.get("language")).toBe("zh-CN");
+  });
+
+  it("服务端非 2xx 时抛出带状态码的错误", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad", { status: 400 })));
+    await service.init(createMockKernel());
+
+    await expect(
+      service.transcribeFile(audioBlob(), "a.wav", createMockAsrConfig()),
+    ).rejects.toThrow(/status 400/);
+  });
+
+  it("响应缺少 text 字段时判定为响应无效", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })));
+    await service.init(createMockKernel());
+
+    await expect(
+      service.transcribeFile(audioBlob(), "a.wav", createMockAsrConfig()),
+    ).rejects.toThrow("ASR_RESPONSE_INVALID");
   });
 });

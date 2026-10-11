@@ -1,5 +1,5 @@
 import React from "react";
-import { AudioLines, ImageIcon, Video, Waves, X } from "lucide-react";
+import { AudioLines, ImageIcon, Pause, Play, Video, Waves, X } from "lucide-react";
 import type { AttachmentMetadata } from "../../../domain/attachments/types";
 
 export interface PendingAttachment {
@@ -48,6 +48,8 @@ function AttachmentPreview({
         <img src={item.previewUrl} alt={item.metadata.originalName} decoding="async" className="size-8 shrink-0 rounded-md object-cover" />
       ) : item.metadata.kind === "video" ? (
         <video src={item.previewUrl} muted preload="metadata" className="size-8 shrink-0 rounded-md object-cover" />
+      ) : item.metadata.kind === "audio" ? (
+        <AudioPreviewButton url={item.previewUrl} name={item.metadata.originalName} />
       ) : (
         <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${presentation.background}`}>
           <Icon className="size-4" />
@@ -70,6 +72,51 @@ function AttachmentPreview({
         <X className="size-3.5" />
       </button>
     </article>
+  );
+}
+
+/** 音频附件用试听按钮代替图标：预览 URL 只在这里被真正使用，顺带让用户发送前能确认录音内容。 */
+function AudioPreviewButton({ url, name }: { url: string; name: string }): React.JSX.Element {
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = React.useState(false);
+
+  React.useEffect(() => () => {
+    audioRef.current?.pause();
+  }, []);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={playing ? `暂停 ${name}` : `试听 ${name}`}
+        onClick={() => {
+          const audio = audioRef.current;
+          if (!audio || typeof audio.play !== "function") return;
+          if (!audio.paused) {
+            audio.pause();
+            setPlaying(false);
+            return;
+          }
+          try {
+            void Promise.resolve(audio.play())
+              .then(() => setPlaying(true))
+              .catch(() => setPlaying(false));
+          } catch {
+            setPlaying(false);
+          }
+        }}
+        className="flex size-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-500 transition-transform active:scale-90"
+      >
+        {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+      </button>
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        onEnded={() => setPlaying(false)}
+        className="hidden"
+      />
+    </>
   );
 }
 

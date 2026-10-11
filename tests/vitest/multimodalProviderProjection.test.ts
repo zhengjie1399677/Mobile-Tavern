@@ -1,10 +1,34 @@
 import { describe, expect, it } from "vitest";
 import {
   projectMessagePartsForProvider,
-  projectMessagePartsToOpenAi,
 } from "../../src/application/useCases/multimodalProviderProjection";
 import type { IAttachmentService } from "../../src/application/serviceContracts";
+import type { AgentProviderCapabilities } from "../../src/domain/agents/contracts";
 import type { Message } from "../../src/types";
+
+const OPENAI_COMPATIBLE_CAPABILITIES: AgentProviderCapabilities = {
+  inputModalities: ["text", "image", "audio"],
+  supportedMimeTypes: [
+    "image/png", "image/jpeg", "image/gif", "image/webp", "audio/wav", "audio/mpeg",
+  ],
+  supportsStreaming: true,
+  supportsTools: true,
+};
+
+/** 旧 projectMessagePartsToOpenAi 包装已删除，这里用显式能力复刻同等语义。 */
+async function projectMessagePartsToOpenAi(
+  messages: readonly { role: string; content: unknown }[],
+  message: Message,
+  attachments: IAttachmentService,
+) {
+  const result = await projectMessagePartsForProvider(
+    messages as Parameters<typeof projectMessagePartsForProvider>[0],
+    message,
+    attachments,
+    { providerId: "provider.openai-compatible", capabilities: OPENAI_COMPATIBLE_CAPABILITIES },
+  );
+  return result.messages;
+}
 
 function attachmentService(blob: Blob): IAttachmentService {
   return {

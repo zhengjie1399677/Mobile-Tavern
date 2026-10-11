@@ -163,9 +163,6 @@ asr.title	Speech Recognition (ASR)
 asr.subtitle	Enable microphone input and audio-to-text (WebSpeech or OpenAI Whisper)
 asr.enable	Enable Speech Input
 asr.enable_desc	Displays mic button next to chat input area to record and transcribe audio.
-asr.engine	Speech Recognition Provider
-asr.engine_system	System Native Web Speech API (Free / Live Streaming)
-asr.engine_whisper	OpenAI Whisper API (High Accuracy)
 asr.lang	Language
 asr.lang_placeholder	e.g. en-US, zh-CN, ja-JP
 asr.lang_desc	Language identifier required for Web Speech; Whisper can automatically detect if blank.
@@ -403,26 +400,12 @@ chat_input.click_mode	Click behavior: {mode}
 chat_input.click_mode_send	Send directly
 chat_input.click_mode_fill	Fill input box
 chat_input.placeholder_bison	{name} is continuing to speak...
-chat_input.placeholder_recording	Listening for voice input, please speak...
-chat_input.placeholder_transcribing	Transcribing speech to text...
 chat_input.placeholder_default	Send a message to {name} to begin...
 chat_input.aria_label	Message input for {name}
 chat_input.stop	Stop generation
-chat_input.asr_stop	Stop recording
-chat_input.asr_recognizing	Recognizing speech
-chat_input.asr_mic	Voice input
-chat_input.asr_transcribing	Transcribing...
 chat_input.send_title	Send message (long press to merge)
 chat_input.send	Send message
 chat_input.send_long_press	Tap to send, long press 500ms to merge with previous message
-chat_input.asr_permission_denied	Permission error
-chat_input.asr_permission_msg	Microphone permission denied. Please allow microphone access in system settings.
-chat_input.asr_no_speech	No speech detected
-chat_input.asr_no_speech_msg	No speech input detected, please try again.
-chat_input.asr_device_error	Device error
-chat_input.asr_device_error_msg	Audio device error: {error}
-chat_input.asr_error	Recognition error
-chat_input.asr_error_msg	Speech recognition unknown error: {error}
 chat_input.token_prediction	Prediction:
 chat_header.back_aria	Back to character list
 chat_header.view_char_detail	View character card details

@@ -34,6 +34,11 @@ import {
 } from "../../application/useCases/multimodalProviderProjection";
 import { preserveAssistantReasoning } from "../../application/services/llmCompatibility";
 import { resolveBuiltinProviderId } from "../../application/runtimePlugins/agentSpineRuntimePlugin";
+import type { AgentProviderCapabilities } from "../../domain/agents/contracts";
+import {
+  describeMultimodalSendRefusal,
+  resolveMultimodalSendRefusal,
+} from "../../application/useCases/multimodalSendGuards";
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 import { resolveAgentSessionSettings } from "../../application/useCases/resolveAgentSessionSettings";
@@ -42,6 +47,42 @@ import { appendSwipeCandidate, readSwipeCandidates } from "../../domain/chat/mes
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useRerollMessage");
+
+/**
+ * 重发生成时解析 Provider 能力（与发送链路同源）。
+ * 降级容器（未提供 `getProvider`）按同源声明回落，保证两条路径不会对同一份设置得出不同结论。
+ */
+function resolveRerollProvider(
+  p: RerollMessageParams,
+): { id: string; capabilities: AgentProviderCapabilities } {
+  const providerId = resolveBuiltinProviderId(p.settings.api.type);
+  const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
+  if (typeof runtime.getProvider === "function") {
+    const provider = runtime.getProvider(providerId);
+    return { id: provider.id, capabilities: provider.capabilities };
+  }
+  return {
+    id: providerId,
+    capabilities: {
+      inputModalities: [
+        "text",
+        ...(p.settings.api.supportsVision === true ? ["image" as const] : []),
+        ...(p.settings.api.supportsAudioInput === true ? ["audio" as const] : []),
+      ],
+      supportedMimeTypes: [
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "audio/wav",
+        "audio/mpeg",
+        "audio/mp3",
+      ],
+      supportsStreaming: true,
+      supportsTools: false,
+    },
+  };
+}
 
 interface RerollMessageParams {
   kernel: IKernel;
@@ -245,19 +286,19 @@ export function useRerollMessage(p: RerollMessageParams) {
     }
     const rerollParts = nextMsgs[lastUserIdx].parts ?? [];
     if (rerollParts.some(part => part.type !== "text")) {
-      const needsVision = rerollParts.some(part => part.type === "image" || part.type === "video");
-      const needsNativeAudio = rerollParts.some(part =>
-        part.type === "audio" && part.purpose === "model-input",
-      );
-      const reason = needsVision && p.settings.api.supportsVision !== true
-        ? "当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。"
-        : needsNativeAudio && p.settings.api.supportsAudioInput !== true
-          ? "当前 API 配置未启用模型原生语音输入，请先确认当前模型支持 input_audio。"
-        : p.settings.api.type === "anthropic" && (needsVision || needsNativeAudio)
-          ? "当前阶段尚未提供 Anthropic 原生多模态投影，请改用 OpenAI-compatible 接口。"
-          : null;
-      if (reason) {
-        await p.showCustomAlert(reason);
+      // 与发送链路共用同一条判定：两条路径对同一份设置必须给出一致的结论。
+      const refusal = resolveMultimodalSendRefusal({
+        parts: rerollParts,
+        providerCapabilities: resolveRerollProvider(p).capabilities,
+        plainAudioProcessorMissing: false,
+        // 重发不跑媒体降级：缺转写的音频只能靠「重新发送」补齐，
+        // 这里若提示「去设置开启 ASR」会误导（开关打开也补不出这份转写）。
+        plainAudioTranscriptionDisabled: false,
+        videoKeyframesMissing: false,
+        visionUnsupported: p.settings.api.supportsVision !== true,
+      });
+      if (refusal) {
+        await p.showCustomAlert(describeMultimodalSendRefusal(refusal));
         p.isSendingRef.current = false;
         p.setIsSending(false);
         setCompatibilityGenerationState(p.kernel, { isSending: false });
@@ -375,28 +416,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         .reverse()
         .find(message => message.sender === "user" && message.parts?.some(part => part.type !== "text"));
       const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
-      const provider = typeof runtime.getProvider === "function"
-        ? runtime.getProvider(resolveBuiltinProviderId(p.settings.api.type))
-        : {
-            id: resolveBuiltinProviderId(p.settings.api.type),
-            capabilities: {
-              inputModalities: [
-                "text" as const,
-                ...(p.settings.api.supportsVision === true ? ["image" as const] : []),
-                ...(p.settings.api.supportsAudioInput === true ? ["audio" as const] : []),
-              ],
-              supportedMimeTypes: [
-                "image/png",
-                "image/jpeg",
-                "image/gif",
-                "image/webp",
-                "audio/wav",
-                "audio/mpeg",
-              ],
-              supportsStreaming: true,
-              supportsTools: false,
-            },
-          };
+      const provider = resolveRerollProvider(p);
       const providerMessages = latestMultimodalUserMessage
         ? (await projectMessagePartsForProvider(
             baseProviderMessages,

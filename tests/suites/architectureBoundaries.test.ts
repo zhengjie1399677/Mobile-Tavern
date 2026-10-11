@@ -909,6 +909,13 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "src/tabs/chat/message-bubble/ReasoningBlock.tsx",
     "src/tabs/chat/message-bubble/GeneratedImageBlock.tsx",
     "src/tabs/chat/message-bubble/MessageTimestamp.tsx",
+    "src/tabs/chat/ChatInputArea.tsx",
+    "src/tabs/chat/voice-composer/VoiceHoldOverlay.tsx",
+    "src/tabs/chat/voice-composer/VoiceHoldButton.tsx",
+    "src/tabs/chat/voice-composer/VoiceModeToggle.tsx",
+    "src/tabs/chat/voice-composer/VoiceDraftHint.tsx",
+    "src/tabs/chat/composer-panels/ComposerQuickActionBar.tsx",
+    "src/tabs/chat/composer-panels/ComposerReplySuggestions.tsx",
   ]) {
     const lines = read(file).split(/\r?\n/).length;
     assert(lines <= 1000, `${file} 超过单文件 1000 行硬上限：${lines}`);
@@ -932,8 +939,10 @@ export async function testArchitectureBoundaries(): Promise<void> {
     read("src/components/FormattedText.tsx").includes("./formatted-text/renderingRuntime") &&
       read("src/tabs/settings/sections/system-report/SystemReportSectionView.tsx").includes("./SystemReportPanel") &&
       read("src/tabs/chat/MessageBubble.tsx").includes("./message-bubble/ReasoningBlock") &&
-      read("src/tabs/chat/MessageBubble.tsx").includes("./message-bubble/GeneratedImageBlock"),
-    "FormattedText、SystemReportSection 与 MessageBubble 必须保持职责拆分，不能重新合并为接近千行的单体组件"
+      read("src/tabs/chat/MessageBubble.tsx").includes("./message-bubble/GeneratedImageBlock") &&
+      read("src/tabs/chat/ChatInputArea.tsx").includes("./voice-composer/VoiceHoldButton") &&
+      read("src/tabs/chat/ChatInputArea.tsx").includes("./composer-panels/ComposerQuickActionBar"),
+    "FormattedText、SystemReportSection、MessageBubble 与 ChatInputArea 必须保持职责拆分，不能重新合并为接近千行的单体组件"
   );
 
   // 外部能力通道边界：MCP 只是第一个 Connector 实现，协议适配必须留在基础设施层。

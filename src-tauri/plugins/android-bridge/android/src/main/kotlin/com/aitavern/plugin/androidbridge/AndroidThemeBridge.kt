@@ -22,33 +22,33 @@ import android.webkit.WebView
 import android.widget.Toast
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
+import java.io.RandomAccessFile
 import java.lang.ref.WeakReference
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.Locale
 
 /**
- * Native bridge injected into the WebView as `window.AndroidThemeBridge`.
+ * 注入到 WebView 的 Android 原生桥接类 (`window.AndroidThemeBridge`)。
  *
- * The class is referenced from the frontend through
- * `(window as any).AndroidThemeBridge` and exposes synchronous
- * `@JavascriptInterface` methods. The call contract (method names, argument
- * order, return types) MUST stay backwards compatible with the existing
- * frontend code in `src/contexts/AppContext.tsx`, `src/hooks/useCharacters.ts`,
- * `src/hooks/useSettings.ts` and `src/tabs/GlobalWorldbookTab.tsx`.
- *
- * Fixes applied compared to the previous gen/android implementation:
- *  - CR-01: `saveFile` / `saveFileBase64` now use the `MediaStore.Downloads`
- *    API on Android 10+ (API 29+), which works under Scoped Storage without
- *    requiring `WRITE_EXTERNAL_STORAGE`. The legacy
- *    `Environment.getExternalStoragePublicDirectory()` path is kept only as a
- *    best-effort fallback for Android 9 and below (minSdk = 24).
- *  - `saveFile` / `saveFileBase64` now return a String path (or an `error:`
- *    prefixed message) instead of `void`, matching what the frontend expects.
- *  - `getSafeAreas` now also reports `left` / `right` insets in addition to
- *    `top` / `bottom`.
+ * 前端通过 `(window as any).AndroidThemeBridge` 调用暴露的 `@JavascriptInterface` 方法。
+ * 提供安全区域（Safe Area）计算、沉浸式状态栏与屏幕方向控制、系统 TTS 朗诵、原生 AudioRecord
+ * 16 kHz 单声道 WAV 语音录制与触觉振动反馈、Scoped Storage 文件导出、全盘角色卡扫描与安全读取等核心原生能力。
  */
 class AndroidThemeBridge(
     private val activity: Activity,
@@ -63,7 +63,7 @@ class AndroidThemeBridge(
     init {
         activeStorageBridge = WeakReference(this)
 
-        // Initialize TTS on the main thread
+        // 在主线程初始化系统 TTS 引擎
         activity.runOnUiThread {
             try {
                 tts = TextToSpeech(activity, this)
@@ -72,10 +72,11 @@ class AndroidThemeBridge(
             }
         }
 
-        // Register activity lifecycle callback to shutdown TTS and avoid memory leaks
+        // 注册 Activity 生命周期监听，在销毁时安全释放 TTS 与录音资源，杜绝内存泄漏
         activity.application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityDestroyed(act: Activity) {
                 if (act === activity) {
+                    discardPreviousRecord(joinWorker = false)
                     activity.runOnUiThread {
                         try {
                             tts?.shutdown()
@@ -119,6 +120,7 @@ class AndroidThemeBridge(
         }
     }
 
+    /** 调用系统 TTS 朗读文本。 */
     @JavascriptInterface
     fun speakNative(text: String, rate: Float, pitch: Float): Boolean {
         val currentTts = tts
@@ -144,6 +146,7 @@ class AndroidThemeBridge(
         return true
     }
 
+    /** 停止当前正在播放的原生 TTS 朗读。 */
     @JavascriptInterface
     fun stopNative() {
         activity.runOnUiThread {
@@ -155,6 +158,7 @@ class AndroidThemeBridge(
         }
     }
 
+    /** 查询原生 TTS 当前是否正在朗读。 */
     @JavascriptInterface
     fun isSpeakingNative(): Boolean {
         // TTS 引擎未成功初始化时直接返回 false，
@@ -163,19 +167,407 @@ class AndroidThemeBridge(
         return tts?.isSpeaking ?: false
     }
 
+    // ---------------------------------------------------------------------
+    // 原生音频录制（AudioRecord 直录 16 kHz 单声道 PCM16 WAV）与振动反馈
+    // ---------------------------------------------------------------------
+
+    private val recordLock = Any()
+    private var audioRecord: AudioRecord? = null
+    private var recordThread: Thread? = null
+    private var currentRecordFile: File? = null
+    private var recordMaxDataBytes = 0L
+    /** 完成结果缓存：使 stopRecordNative 幂等，并在下一次 start / cancel 时清除。 */
+    private var cachedRecordResult: String? = null
+    /** 每次采集自增：让仍在收尾的旧循环无法把结果写回新一次采集的状态。 */
+    private var recordGeneration = 0
+    @Volatile
+    private var isRecordingNative = false
+    @Volatile
+    private var stopRequested = false
+    @Volatile
+    private var recordAmplitude = 0
+
+    /** 触发短促触觉振动反馈（长按开始录音、松手结束提示）。 */
+    private fun triggerHapticFeedback() {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = activity.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vm?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                activity.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(35, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(35)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Haptic feedback ignored", e)
+        }
+    }
+
+    /** 检查应用是否已获得麦克风录音权限。 */
+    @JavascriptInterface
+    fun hasRecordAudioPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            activity,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /** 动态申请麦克风录音权限。 */
+    @JavascriptInterface
+    fun requestRecordAudioPermission() {
+        if (!hasRecordAudioPermission()) {
+            ActivityCompat.requestPermissions(
+                activity,
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                1002
+            )
+        }
+    }
+
+    /**
+     * 启动原生麦克风录制：AudioRecord 直录 16 kHz 单声道 PCM16，边录边写 WAV。
+     *
+     * 输出 `audio/wav` 是刻意的：它既能通过前端附件签名检测，又落在 OpenAI 兼容接口
+     * 的 `input_audio.format` 枚举（wav|mp3）内。最大时长受 maxDurationMs 限制（默认 180s）。
+     */
+    @JavascriptInterface
+    fun startRecordNative(maxDurationMs: Long): String {
+        if (!hasRecordAudioPermission()) {
+            requestRecordAudioPermission()
+            return "error:PERMISSION_DENIED"
+        }
+
+        discardPreviousRecord()
+
+        synchronized(recordLock) {
+            recordGeneration += 1
+            val generation = recordGeneration
+            stopRequested = false
+            recordAmplitude = 0
+
+            val minBuffer = AudioRecord.getMinBufferSize(
+                RECORD_SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            )
+            if (minBuffer <= 0) {
+                Log.e(TAG, "Unsupported AudioRecord format, minBuffer=$minBuffer")
+                return "error:UNSUPPORTED_AUDIO_FORMAT"
+            }
+
+            var releaseOnFailure: AudioRecord? = null
+            var closeOnFailure: FileOutputStream? = null
+            var deleteOnFailure: File? = null
+            try {
+                val activeRecorder = AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.MIC)
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(RECORD_SAMPLE_RATE)
+                            .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(maxOf(minBuffer * 2, RECORD_READ_BYTES * 4))
+                    .build()
+                releaseOnFailure = activeRecorder
+                if (activeRecorder.state != AudioRecord.STATE_INITIALIZED) {
+                    runCatching { activeRecorder.release() }
+                    return "error:AUDIO_RECORD_INIT_FAILED"
+                }
+
+                val file = File(activity.cacheDir, "tavern_voice_${System.currentTimeMillis()}.wav")
+                deleteOnFailure = file
+                val activeSink = FileOutputStream(file, false)
+                closeOnFailure = activeSink
+                activeSink.write(wavHeader(RECORD_SAMPLE_RATE, 0L))
+                activeSink.flush()
+
+                activeRecorder.startRecording()
+                if (activeRecorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    runCatching { activeSink.close() }
+                    runCatching { activeRecorder.release() }
+                    runCatching { if (file.exists()) file.delete() }
+                    return "error:AUDIO_RECORD_START_FAILED"
+                }
+
+                val durationMs = if (maxDurationMs in MIN_RECORD_MS..MAX_RECORD_MS) {
+                    maxDurationMs
+                } else {
+                    DEFAULT_RECORD_MS
+                }
+                recordMaxDataBytes = RECORD_SAMPLE_RATE.toLong() * RECORD_BYTES_PER_SAMPLE * durationMs / 1000L
+
+                audioRecord = activeRecorder
+                currentRecordFile = file
+                isRecordingNative = true
+                recordThread = Thread(
+                    { runRecordLoop(activeRecorder, activeSink, file, generation) },
+                    RECORD_THREAD_NAME
+                ).also { it.start() }
+                triggerHapticFeedback()
+                return "OK"
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start native audio recording", e)
+                runCatching { closeOnFailure?.close() }
+                runCatching { releaseOnFailure?.release() }
+                runCatching { deleteOnFailure?.let { if (it.exists()) it.delete() } }
+                audioRecord = null
+                currentRecordFile = null
+                isRecordingNative = false
+                return "error:${e.message ?: "UNKNOWN"}"
+            }
+        }
+    }
+
+    /**
+     * 停止录音并把结果打包成 Base64 JSON 返回。
+     *
+     * 幂等：重复调用返回同一份结果，直到下一次 start 或 cancel；停止失败**不会**删除已录到的音频。
+     * 三段式是为了避免死锁 —— 读取循环的收尾要拿同一把锁，持锁 join 会与它互等，
+     * 所以先在锁内决策、解锁后再停线程、最后在锁内读缓存。
+     */
+    @JavascriptInterface
+    fun stopRecordNative(): String {
+        val claimed = synchronized(recordLock) {
+            cachedRecordResult?.let { return it }
+            if (audioRecord == null && recordThread == null) return "error:NOT_RECORDING"
+            stopRequested = true
+            audioRecord to recordThread
+        }
+
+        runCatching { claimed.first?.stop() }
+        val stopTarget = claimed.second
+        if (stopTarget != null && stopTarget !== Thread.currentThread()) {
+            runCatching { stopTarget.join(RECORD_JOIN_TIMEOUT_MS) }
+        }
+
+        synchronized(recordLock) {
+            cachedRecordResult?.let { return it }
+            return "error:STOP_INCOMPLETE"
+        }
+    }
+
+    /** 取消录音：作废本次采集并删除临时文件，结果不会被复活。 */
+    @JavascriptInterface
+    fun cancelRecordNative(): Boolean {
+        discardPreviousRecord()
+        return true
+    }
+
+    /**
+     * 丢弃上一次录音的残留：作废旧循环、摘除状态、删除临时文件与缓存结果。
+     *
+     * **不得在持锁状态下调用 join** —— 读取循环的收尾也要拿同一把锁，持锁 join 会死锁；
+     * 因此这里分三段：锁内作废并摘除状态 → 解锁停线程 → 锁内清文件。
+     *
+     * @param joinWorker 宿主销毁时传 false：那是在主线程上调用，不值得为了等线程结束阻塞 UI。
+     *   此时循环已经看到 generation 失效，会自行删除自己的临时文件。
+     */
+    private fun discardPreviousRecord(joinWorker: Boolean = true) {
+        val discarded = synchronized(recordLock) {
+            recordGeneration += 1
+            stopRequested = true
+            val snapshot = audioRecord to recordThread
+            audioRecord = null
+            recordThread = null
+            isRecordingNative = false
+            recordAmplitude = 0
+            cachedRecordResult = null
+            snapshot
+        }
+
+        runCatching { discarded.first?.stop() }
+        val discardTarget = discarded.second
+        if (joinWorker && discardTarget != null && discardTarget !== Thread.currentThread()) {
+            runCatching { discardTarget.join(RECORD_JOIN_TIMEOUT_MS) }
+        }
+
+        synchronized(recordLock) {
+            currentRecordFile?.let { file -> runCatching { if (file.exists()) file.delete() } }
+            currentRecordFile = null
+        }
+    }
+
+    /**
+     * 读取循环：写 PCM、更新峰值振幅、到点自行收尾。
+     *
+     * 收尾（回填 WAV 头、打包 Base64、发布缓存）都在这里完成，`stopRecordNative` 只负责置位并等待。
+     */
+    private fun runRecordLoop(
+        recorder: AudioRecord,
+        sink: FileOutputStream,
+        outputFile: File,
+        generation: Int,
+    ) {
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO)
+        val buffer = ByteArray(RECORD_READ_BYTES)
+        var dataBytes = 0L
+        var zeroReads = 0
+        try {
+            while (!stopRequested && dataBytes < recordMaxDataBytes) {
+                val want = minOf(buffer.size.toLong(), recordMaxDataBytes - dataBytes).toInt()
+                val read = recorder.read(buffer, 0, want, AudioRecord.READ_BLOCKING)
+                if (read > 0) {
+                    zeroReads = 0
+                    sink.write(buffer, 0, read)
+                    dataBytes += read
+                    recordAmplitude = peakAmplitude(buffer, read)
+                } else if (read == AudioRecord.ERROR_INVALID_OPERATION || read == AudioRecord.ERROR_BAD_VALUE) {
+                    break
+                } else if (read == AudioRecord.ERROR_DEAD_OBJECT) {
+                    // 音频服务已死：保住已经录到的内容，不要连录音一起丢
+                    Log.w(TAG, "AudioRecord dead object, finalizing with captured audio")
+                    break
+                } else if (++zeroReads > MAX_ZERO_READS) {
+                    Log.w(TAG, "AudioRecord returned no data repeatedly, finalizing")
+                    break
+                }
+            }
+            sink.flush()
+        } catch (e: Exception) {
+            Log.e(TAG, "Native WAV record loop failed", e)
+        } finally {
+            runCatching { sink.close() }
+            runCatching { recorder.release() }
+            patchWavHeader(outputFile, RECORD_SAMPLE_RATE, dataBytes)
+
+            // 文件 I/O 放在锁外，避免拖住 stopRecordNative 的第三段。
+            val result = when {
+                dataBytes <= 0L -> "error:EMPTY_AUDIO"
+                else -> buildRecordResult(outputFile, dataBytes)
+            }
+
+            synchronized(recordLock) {
+                if (generation != recordGeneration) {
+                    // 已开始新一次采集（或已取消）：本次结果作废，只清理自己的临时文件。
+                    runCatching { if (outputFile.exists()) outputFile.delete() }
+                } else {
+                    isRecordingNative = false
+                    audioRecord = null
+                    recordThread = null
+                    recordAmplitude = 0
+                    if (currentRecordFile === outputFile) currentRecordFile = null
+                    cachedRecordResult = result
+                }
+            }
+            triggerHapticFeedback()
+        }
+    }
+
+    /** 读取临时文件并打包成前端约定的 JSON，随后删除临时文件。 */
+    private fun buildRecordResult(file: File, dataBytes: Long): String {
+        if (dataBytes > MAX_RECORD_BYTES) {
+            runCatching { if (file.exists()) file.delete() }
+            return "error:AUDIO_TOO_LARGE"
+        }
+        return try {
+            val bytes = file.readBytes()
+            runCatching { file.delete() }
+            val json = JSONObject().apply {
+                put("success", true)
+                put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                put("mimeType", "audio/wav")
+                put("format", "wav")
+                // 由实际字节数反算，保证与音频长度一致（循环可能略晚于 JS 定时器收尾）。
+                put("durationMs", dataBytes * 1000L / (RECORD_SAMPLE_RATE.toLong() * RECORD_BYTES_PER_SAMPLE))
+                put("sizeBytes", bytes.size)
+            }
+            json.toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to package native recording", e)
+            "error:${e.message ?: "UNKNOWN"}"
+        }
+    }
+
+    /** 读取当前录音峰值振幅（0..32767），用于驱动前端实时波形跳动动效。 */
+    @JavascriptInterface
+    fun getRecordAmplitudeNative(): Int {
+        if (!isRecordingNative) return 0
+        return recordAmplitude
+    }
+
+    /** 从 16-bit little-endian PCM 求峰值振幅，量纲与旧的 MediaRecorder.maxAmplitude 一致。 */
+    private fun peakAmplitude(buffer: ByteArray, length: Int): Int {
+        var peak = 0
+        var index = 0
+        while (index + 1 < length) {
+            val raw = (buffer[index].toInt() and 0xFF) or (buffer[index + 1].toInt() shl 8)
+            val magnitude = if (raw >= 0x8000) 0x10000 - raw else raw
+            if (magnitude > peak) peak = magnitude
+            index += RECORD_BYTES_PER_SAMPLE
+        }
+        return peak
+    }
+
+    /** 生成 44 字节 RIFF/WAVE 头，字段顺序与取值和前端 encodePcm16Wav 保持一致。 */
+    private fun wavHeader(sampleRate: Int, dataBytes: Long): ByteArray {
+        val header = ByteBuffer.allocate(WAV_HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray(Charsets.US_ASCII))
+        header.putInt((36L + dataBytes).toInt())
+        header.put("WAVE".toByteArray(Charsets.US_ASCII))
+        header.put("fmt ".toByteArray(Charsets.US_ASCII))
+        header.putInt(16)
+        header.putShort(1) // PCM
+        header.putShort(RECORD_CHANNELS.toShort())
+        header.putInt(sampleRate)
+        header.putInt(sampleRate * RECORD_BYTES_PER_SAMPLE)
+        header.putShort(RECORD_BYTES_PER_SAMPLE.toShort())
+        header.putShort(16) // bits per sample
+        header.put("data".toByteArray(Charsets.US_ASCII))
+        header.putInt(dataBytes.toInt())
+        return header.array()
+    }
+
+    /**
+     * 回填 RIFF/data 长度。失败时文件仍是 `dataBytes=0` 的合法空 WAV，
+     * 依然能被前端识别为 audio/wav，不会产生损坏文件。
+     */
+    private fun patchWavHeader(file: File, sampleRate: Int, dataBytes: Long) {
+        try {
+            RandomAccessFile(file, "rw").use { access ->
+                access.seek(0L)
+                access.write(wavHeader(sampleRate, dataBytes))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to patch WAV header", e)
+        }
+    }
+
     companion object {
         private const val TAG = "TavernThemeBridge"
         private const val MAX_SCAN_DEPTH = 12
         private const val MAX_SCANNED_FILES = 5_000
         private const val MAX_SCANNED_DIRECTORIES = 20_000
         private const val MAX_IMPORT_BYTES = 64L * 1024L * 1024L
+
+        // 原生语音录制：16 kHz 单声道 PCM16 直写 WAV。
+        private const val RECORD_SAMPLE_RATE = 16_000
+        private const val RECORD_CHANNELS = 1
+        private const val RECORD_BYTES_PER_SAMPLE = 2
+        private const val WAV_HEADER_BYTES = 44
+        /** 每次读取 100ms 音频，与前端振幅轮询节奏对齐。 */
+        private const val RECORD_READ_BYTES = 3_200
+        private const val DEFAULT_RECORD_MS = 180_000L
+        private const val MIN_RECORD_MS = 1_000L
+        private const val MAX_RECORD_MS = 600_000L
+        private const val RECORD_JOIN_TIMEOUT_MS = 1_500L
+        /** 3 分钟 16 kHz 单声道约 5.8MB；上限用于挡住异常时长导致的超大 base64。 */
+        private const val MAX_RECORD_BYTES = 24L * 1024L * 1024L
+        private const val MAX_ZERO_READS = 50
+        private const val RECORD_THREAD_NAME = "TavernVoiceRecord"
+
         private var activeStorageBridge: WeakReference<AndroidThemeBridge>? = null
 
         /**
-         * Public Download relative path used by the MediaStore. Files written
-         * through this collection appear in the user-visible
-         * `/Download/Mobile Tavern/` folder, which is consistent with the
-         * user-facing messages emitted by the frontend.
+         * MediaStore 公共 Download 相对子路径，与前端导出提示目录保持一致。
          */
         private const val DOWNLOAD_RELATIVE_SUBDIR = "Download/Mobile Tavern/"
 
@@ -187,28 +579,21 @@ class AndroidThemeBridge(
     }
 
     // ---------------------------------------------------------------------
-    // Safe areas
+    // 安全区域与视口内边距计算
     // ---------------------------------------------------------------------
 
     /**
-     * Return the current stable system-bar insets (status bar + navigation
-     * bar) in density-independent pixels as a JSON string of the shape:
+     * 以设备独立像素（dp）返回当前系统栏（状态栏与导航栏）安全区域内边距。
+     * 返回 JSON 格式：`{ "top": <dp>, "bottom": <dp>, "left": <dp>, "right": <dp> }`
      *
-     *   { "top": <dp>, "bottom": <dp>, "left": <dp>, "right": <dp> }
-     *
-     * The frontend parses this with `JSON.parse` and applies the values to
-     * CSS custom properties. `left` / `right` are added by this version of
-     * the bridge to support landscape / foldable layouts.
-     *
-     * The method is synchronous (called directly from JS), so it must not
-     * perform any long-running or blocking work.
+     * 前端解析后应用到 CSS 根变量。此方法为 JS 同步调用，不得执行任何长耗时或阻塞操作。
      */
     @JavascriptInterface
     fun getSafeAreas(): String {
         val json = JSONObject()
         val density = activity.resources.displayMetrics.density
         if (density <= 0f) {
-            // Defensive fallback: should never happen on a real device.
+            // 防御性兜底：密度异常时回退为全 0
             json.put("top", 0)
             json.put("bottom", 0)
             json.put("left", 0)
@@ -216,9 +601,7 @@ class AndroidThemeBridge(
             return json.toString()
         }
 
-        // 1. Status bar height via the official system resource. This is the
-        //    most reliable source on every API level and matches what the
-        //    previous implementation used.
+        // 1. 读取系统官方资源 dimen 获取状态栏高度
         val statusResourceId = activity.resources.getIdentifier(
             "status_bar_height", "dimen", "android"
         )
@@ -228,10 +611,7 @@ class AndroidThemeBridge(
             0
         }
 
-        // 2. Navigation bar / system gestures insets via WindowInsetsCompat.
-        //    We read from the root view's stable insets to avoid being
-        //    affected by the IME (keyboard) which is handled separately by
-        //    the WebView's adjustResize mode.
+        // 2. 通过 WindowInsetsCompat 获取导航栏与系统手势内边距
         var bottomPx = 0
         var leftPx = 0
         var rightPx = 0
@@ -256,9 +636,7 @@ class AndroidThemeBridge(
             insetsResolved = bottomPx != 0 || leftPx != 0 || rightPx != 0
         }
 
-        // 3. Fallback for the bottom inset on devices where the WindowInsets
-        //    are not yet available (very early in the layout pass). We compute
-        //    the difference between the real and usable display height.
+        // 3. 早期布局阶段 WindowInsets 尚未就绪时的底部安全区兜底计算
         //    注意：adjustResize 下这个差值正好等于输入法高度，键盘可见时绝不能
         //    把它当作底部安全区，否则底栏和固定底部操作会被整体顶起一个键盘高度。
         if (!insetsResolved && !imeVisible) {
@@ -292,10 +670,8 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Push the current safe-area insets into the frontend by dispatching a
-     * `androidSafeAreasChanged` CustomEvent on `window`. Called from the
-     * WebView's `OnApplyWindowInsetsListener` installed by
-     * [AndroidBridgePlugin].
+     * 将当前最新安全区内边距通过 CustomEvent ('androidSafeAreasChanged') 主动推送到前端。
+     * 由 WebView 容器的 OnApplyWindowInsetsListener 调用。
      */
     fun dispatchSafeAreasChanged(view: View, insets: android.view.WindowInsets) {
         val density = activity.resources.displayMetrics.density
@@ -330,10 +706,8 @@ class AndroidThemeBridge(
             "onApplyWindowInsets: topDp=$topDp, bottomDp=$bottomDp, leftDp=$leftDp, rightDp=$rightDp"
         )
 
-        // The WebView padding is left at zero: the host app already configures
-        // `android:windowSoftInputMode="adjustResize"` and applies its own
-        // CSS safe-area insets, so adding padding here would double-shrink
-        // the layout.
+        // WebView padding 保持为 0：宿主 App 已设置 adjustResize 并由前端 CSS 接管安全区，
+        // 设置 padding 会导致布局产生双重挤压。
         view.setPadding(0, 0, 0, 0)
 
         val js = (
@@ -432,14 +806,10 @@ class AndroidThemeBridge(
     // ---------------------------------------------------------------------
 
     /**
-     * Update the system status bar (and navigation bar) background colour and
-     * icon appearance.
+     * 更新系统状态栏与导航栏的背景色与图标明暗。
      *
-     * @param isDark when `true` the status bar icons are forced to be light
-     *     (white) so they remain visible on dark backgrounds; when `false` the
-     *     icons are forced to be dark (black).
-     * @param colorHex the desired status bar background colour, e.g.
-     *     `"#1a2040"`. Parsed via [Color.parseColor].
+     * @param isDark 为 true 时表示深色主题，使用浅色（白）图标；为 false 时使用深色（黑）图标。
+     * @param colorHex 目标背景色十六进制字符串，如 "#1a2040"。
      */
     @JavascriptInterface
     fun setStatusBarStyle(isDark: Boolean, colorHex: String) {
@@ -452,10 +822,8 @@ class AndroidThemeBridge(
 
                 val decorView = window.decorView
                 val wic = WindowInsetsControllerCompat(window, decorView)
-                // isAppearanceLightStatusBars = true  -> dark icons
-                // isAppearanceLightStatusBars = false -> light icons
-                // The frontend passes isDark = true for dark themes, which
-                // means we want LIGHT (white) icons, i.e. false here.
+                // isAppearanceLightStatusBars = true 表示深色图标；
+                // 前端传入 isDark = true 表示深色背景主题，因此需要浅色（白色）图标，取反传 false。
                 wic.isAppearanceLightStatusBars = !isDark
                 wic.isAppearanceLightNavigationBars = !isDark
             } catch (e: Exception) {
@@ -465,11 +833,10 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Lock the Activity to a sensor-aware landscape orientation, or return
-     * orientation control to the manifest and system auto-rotate setting.
+     * 设置 Activity 屏幕方向：锁定为传感器横屏，或恢复为系统自动旋转控制。
      *
-     * @return `false` when [mode] is unsupported; otherwise `true` once the
-     *     request has been accepted for dispatch on the Android UI thread.
+     * @param mode 模式："landscape" 锁定横屏，"auto" 自动旋转。
+     * @return 请求是否成功派发到 Android UI 线程。
      */
     @JavascriptInterface
     fun setScreenOrientation(mode: String): Boolean {
@@ -493,8 +860,7 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Enter or leave Android immersive mode for trusted host-owned full-screen surfaces.
-     * System bars remain temporarily revealable with an edge swipe.
+     * 进入或退出全屏沉浸模式（隐藏系统状态栏与导航栏，边缘滑动呼出）。
      */
     @JavascriptInterface
     fun setImmersiveMode(enabled: Boolean): Boolean {
@@ -516,13 +882,13 @@ class AndroidThemeBridge(
         return true
     }
 
-    /** Emits bounded host-side diagnostics for full-screen plugin troubleshooting. */
+    /** 输出全屏插件宿主侧诊断日志。 */
     @JavascriptInterface
     fun logPluginDiagnostic(message: String) {
         Log.i("TavernPlugin", message.take(500))
     }
 
-    /** Open the Android system share sheet with plain or JSON text content. */
+    /** 调用 Android 系统原生分享面板分享文本或 JSON 内容。 */
     @JavascriptInterface
     fun shareText(title: String, text: String, mimeType: String): Boolean {
         if (text.isBlank()) return false
@@ -541,9 +907,7 @@ class AndroidThemeBridge(
         return true
     }
 
-    /**
-     * Open a URL in the system default browser.
-     */
+    /** 在系统默认浏览器中打开指定链接。 */
     @JavascriptInterface
     fun openUrl(url: String) {
         activity.runOnUiThread {
@@ -560,18 +924,15 @@ class AndroidThemeBridge(
     }
 
     // ---------------------------------------------------------------------
-    // File saving (CR-01: MediaStore API)
+    // 文件保存与公共存储管理
     // ---------------------------------------------------------------------
 
     /**
-     * Persist a UTF-8 text file (e.g. JSON character card, preset profile or
-     * backup) into the public Download directory.
+     * 将 UTF-8 文本内容（如角色卡 JSON、预设配置或备份）保存到公共 Download 目录。
      *
-     * @param fileName target file name, e.g. `"Character_ST_Card.json"`.
-     * @param content  raw text content to write.
-     * @return the absolute display path of the saved file (e.g.
-     *     `"Download/Mobile Tavern/Character_ST_Card.json"`) on success, or a
-     *     string prefixed with `"error:"` describing the failure.
+     * @param fileName 目标文件名，如 "Character_ST_Card.json"。
+     * @param content 要写入的文本内容。
+     * @return 成功时返回保存路径（如 "Download/Mobile Tavern/Character_ST_Card.json"），失败返回以 "error:" 开头的错误信息。
      */
     @JavascriptInterface
     fun saveFile(fileName: String, content: String): String {
@@ -583,16 +944,12 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Persist a binary file (e.g. a PNG character card) into the public
-     * Download directory.
+     * 将二进制文件（如 PNG 角色卡）保存到公共 Download 目录。
      *
-     * @param fileName   target file name, e.g. `"Character_SillyTavern.png"`.
-     * @param base64Data  base64-encoded payload. A leading `data:...;base64,`
-     *     prefix is tolerated and stripped automatically.
-     * @param mimeType   MIME type for the MediaStore entry, e.g.
-     *     `"image/png"`.
-     * @return the absolute display path of the saved file on success, or a
-     *     string prefixed with `"error:"` describing the failure.
+     * @param fileName 目标文件名，如 "Character_SillyTavern.png"。
+     * @param base64Data Base64 编码数据（自动兼容并剥离 "data:...;base64," 前缀）。
+     * @param mimeType 媒体类型，如 "image/png"。
+     * @return 成功时返回保存路径，失败返回以 "error:" 开头的错误信息。
      */
     @JavascriptInterface
     fun saveFileBase64(fileName: String, base64Data: String, mimeType: String): String {
@@ -615,13 +972,7 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Verifies the native export IO path without leaving a diagnostic file in
-     * the user's Download directory.
-     *
-     * The public save methods intentionally return a user-facing relative
-     * path, which is not a valid input for [readLocalFile]. This dedicated
-     * probe keeps the MediaStore URI (or legacy File) internally, reads the
-     * exact bytes back, and removes the temporary entry before returning.
+     * 诊断测试导出 IO 链路的读写与校验能力，写入临时文件后读取比对并自动删除，不在 Download 目录残留冗余数据。
      */
     @JavascriptInterface
     fun verifyFileIo(): String {
@@ -691,14 +1042,10 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Shared implementation for [saveFile] / [saveFileBase64].
+     * [saveFile] 与 [saveFileBase64] 的统一写入入口。
      *
-     * On Android 10+ (API 29+) the file is written through
-     * `MediaStore.Downloads`, which is permitted under Scoped Storage
-     * without any storage permission. On Android 9 and below we fall back to
-     * the legacy public Downloads directory; if that fails (e.g. because the
-     * app does not hold `WRITE_EXTERNAL_STORAGE`) we surface a clear error
-     * string to the user.
+     * Android 10+ (API 29+) 走 MediaStore.Downloads（受 Scoped Storage 保护且无需外部存储写入权限）；
+     * Android 9 及以下回退到传统公共 Downloads 目录。
      */
     private fun writeBytesToDownloads(
         fileName: String,
@@ -718,10 +1065,7 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Android 10+ (API 29+) implementation using `MediaStore.Downloads`.
-     *
-     * No storage permission is required because the Download collection is
-     * explicitly exempted from the Scoped Storage write restrictions.
+     * Android 10+ (API 29+) 采用 MediaStore.Downloads 写入文件。
      */
     private fun saveViaMediaStore(
         fileName: String,
@@ -732,12 +1076,10 @@ class AndroidThemeBridge(
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-            // RELATIVE_PATH is only available on API 29+; we are already
-            // inside the Build.VERSION.SDK_INT >= Q branch.
+            // RELATIVE_PATH 仅在 API 29+ 可用
             put(MediaStore.MediaColumns.RELATIVE_PATH, DOWNLOAD_RELATIVE_SUBDIR)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Mark the file as pending so it is not visible to other apps
-                // until we finish writing it.
+                // 标记为正在写入（IS_PENDING=1），在写入完成前对其他应用隐藏
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
@@ -752,8 +1094,7 @@ class AndroidThemeBridge(
                 os.flush()
             } ?: return "error:Failed to open output stream for $fileName"
         } catch (e: Exception) {
-            // Best-effort cleanup of the half-written entry so we do not leave
-            // empty files behind in the user's Download folder.
+            // 尽最大努力清理半成品条目，避免在 Download 目录遗留空文件
             runCatching { resolver.delete(uri, null, null) }
             throw e
         }
@@ -770,13 +1111,7 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Android 9 and below (API 24-28) fallback using the legacy
-     * `Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)`.
-     *
-     * This path requires `WRITE_EXTERNAL_STORAGE` on API 23-28, which the host
-     * app does not declare. The call will therefore fail gracefully on those
-     * devices and surface an `error:` message to the user. This is acceptable
-     * because the production target audience is on Android 10+.
+     * Android 9 及以下（API 24-28）回退写入公共 Download 目录。
      */
     private fun saveViaLegacyPublicDirectory(fileName: String, bytes: ByteArray): String {
         @Suppress("DEPRECATION", "UNUSED_VARIABLE")
@@ -801,12 +1136,11 @@ class AndroidThemeBridge(
     }
 
     // ---------------------------------------------------------------------
-    // Helpers
+    // 内部辅助函数
     // ---------------------------------------------------------------------
 
     /**
-     * Strip path separators from [fileName] so a malicious or malformed name
-     * cannot escape the target Download subdirectory.
+     * 清理文件名中的路径分隔符，防止非法字符或目录穿越。
      */
     private fun sanitizeFileName(fileName: String): String {
         val trimmed = fileName.trim()
@@ -815,8 +1149,7 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Infer a reasonable MIME type from the file extension when the caller does
-     * not provide one (e.g. the text [saveFile] path).
+     * 当未显式指定时，根据扩展名推断合理的 MIME 类型。
      */
     private fun guessMimeType(fileName: String): String {
         val ext = fileName.substringAfterLast('.', "").lowercase()
@@ -833,9 +1166,7 @@ class AndroidThemeBridge(
     }
 
     /**
-     * Show a Toast confirming the save location. Mirrors the previous
-     * implementation's behaviour so users still get the on-device
-     * confirmation in addition to the in-app alert.
+     * 弹出系统 Toast 提示用户文件已保存到的相对路径。
      */
     private fun notifyUserSaved(displayPath: String) {
         activity.runOnUiThread {
@@ -848,7 +1179,7 @@ class AndroidThemeBridge(
     }
 
     // ---------------------------------------------------------------------
-    // Global Character Card Scanner & Reader
+    // 全盘角色卡扫描与安全读取
     // ---------------------------------------------------------------------
 
     private fun dispatchStoragePermissionResult(granted: Boolean) {
@@ -866,11 +1197,13 @@ class AndroidThemeBridge(
         dispatchStoragePermissionResult(hasStoragePermission())
     }
 
+    /** 检查是否具备全盘存储访问权限（MANAGE_EXTERNAL_STORAGE）。 */
     @JavascriptInterface
     fun hasStoragePermission(): Boolean {
         return Environment.isExternalStorageManager()
     }
 
+    /** 跳转系统设置页面申请全盘存储访问权限。 */
     @JavascriptInterface
     fun requestStoragePermission() {
         if (hasStoragePermission()) {
@@ -898,6 +1231,7 @@ class AndroidThemeBridge(
         }
     }
 
+    /** 扫描全盘受支持的角色卡文件（.json 与 .png），受深度与扫描预算上限保护。 */
     @JavascriptInterface
     fun scanGlobalCards(): String {
         val result = org.json.JSONArray()
@@ -986,6 +1320,10 @@ class AndroidThemeBridge(
         }
     }
 
+    /**
+     * 安全读取扫描到的本地角色卡文件内容（仅限受白名单保护目录内的 .json 或 .png 文件）。
+     * PNG 文件以 "data:image/png;base64,..." 格式返回，JSON 文件以 UTF-8 文本返回。
+     */
     @JavascriptInterface
     fun readLocalFile(path: String): String {
         return try {
