@@ -1,4 +1,4 @@
-﻿# 🛠️ Mobile Tavern 技术实现细节与架构设计 (Technical Specifications)
+# 🛠️ Mobile Tavern 技术实现细节与架构设计 (Technical Specifications)
 
 > 📌 **项目行为指导规范**：在理解或重构架构职责与数据流之前，必须首先阅读 [AGENTS.md](AGENTS.md) 中的核心行为准则。
 > 当前产品状态与路线以 [CURRENT_STATE.md](docs/agents/CURRENT_STATE.md) 和
@@ -23,17 +23,18 @@ Mobile-Tavern
 │   └── tauri.conf.json                       # 包名、系统权限及 Android 构建声明
 │
 ├── server.ts                                 # 本地开发 Express CORS 中转与代理服务端
-├── serverless/                               # 云端 Serverless 服务函数部署
-│   └── aliyun-fc-sts/
-│       ├── index.js                          # Aliyun FC 3.0 Node.js 临时 STS 凭证签发函数
-│       └── package.json
+├── cloud/                                    # 云端微服务架构 (Rust / Axum)
+│   ├── account-service/                      # 账号注册与 JWT 认证服务
+│   ├── community-service/                    # 社区市场、双哈希去重与角色卡分享服务
+│   ├── telemetry-service/                    # 遥测聚合与诊断服务
+│   └── shared/                               # 跨端单一来源数据契约
 │
 ├── src/                                      # 前端核心业务逻辑目录 (TypeScript)
 │   ├── components/                           # 核心 React 可复用 UI 视图组件
 │   │   ├── FloatingCat.tsx                   # 挂件客服助理小猫雪团 (包含状态机与吐槽气泡)
 │   │   ├── FormattedText.tsx                 # 前台 Markdown 及星号斜体柔和排版分色组件
 │   │   ├── TimelineModal.tsx                 # 剧情归档概要卡片垂直时间轴渲染器
-│   │   └── SessionManagerModal.tsx           # 对话分支平行宇宙克隆、删除操作模态框
+│   │   └── session-manager/SessionManagerPanel.tsx # 会话管理器全屏面板（全部/收藏/已归档三分类）
 │   │
 │   ├── hooks/                                # 高级自定义 React 状态钩子
 │   │   ├── useChat.tsx                       # SSE 字节切分、故事摘要与 APM 耗时监听
@@ -206,7 +207,6 @@ graph TB
 | 移动端 ↔ 云端后端 | HTTPS REST API | `cloud/` 目录代码物理隔离，不打入 APK |
 | 移动端 ↔ 第三方 LLM | `apiClient` 自适应（原生直连 / Express 代理） | SSE 流式 HTTP |
 | Tauri Rust ↔ 阿里云 SLS | STS 临时凭证 + HMAC-SHA1 签名 | HTTPS 批量上报 |
-| Tauri Rust ↔ Serverless STS | HTTPS 调用 aliyun-fc-sts | 长期 AK 签发短期 STS |
 
 ### 核心数据流摘要
 
@@ -217,17 +217,17 @@ graph TB
 5. **云端账号链路**：移动端 fetch HTTPS → `cloud/` 后端 axum 路由 → PostgreSQL（users / identities / refresh_tokens）+ Redis 会话。
 6. **热更新链路**：`UpdateCheckService` 周期校验 → `cloud/` 后端 `update_channels` / `update_assets` → 增量包下载与版本回滚。
 
-### 自由 Prompt 编排边界
+### 提示词预设体系（PresetBundle v3）与全局 Prompt 配置
 
-自由编排采用“中立领域模型—运行时数据投影—外部格式防腐”三层结构：
+根据最新产品与架构基线（见 [CURRENT_STATE.md](docs/agents/CURRENT_STATE.md)），**旧自由编排（Prompt 组装工作台）链路已整块彻底删除**（包括 `domain/prompt-composition`、运行时编排适配器/装配器、`promptPlan` 与 `PromptConfig.composition` 全部移除，不留兼容读取；v1/v2 旧记录由 `bundleMigration` 只保留传统字段）。
 
-1. `src/domain/prompt-composition/` 只定义消息角色、数据源区块、顺序、历史选择、历史深度、条件和纯编译规则，不理解角色卡、世界书或任何第三方格式。每个历史区块独立声明全部或最近若干条、是否保留首条助手消息；深度注入可指定目标历史区块。编译结果保持多条 `system` 消息原始边界，不合并相邻同角色消息。
-2. `PromptCompositionRuntimeAdapter.ts` 只把角色卡、人格、世界书、记忆、历史与当前输入投影为命名字符串数据源；它无权决定角色、顺序、包装文本或是否启用。
-3. `PromptService` 仅在 `usePromptComposition` 显式开启时走新路径。开关开启但编排缺失时按空编排处理，不回退并注入旧 Prompt；关闭时才保留旧路径作为迁移兼容。
-4. `infrastructure/compat/sillytavern/` 独占 SillyTavern identifier、`prompt_order` 与注入位置的转换。未知字段作为不透明元数据隔离保留，无法移植的条件和 Token 策略进入兼容报告。
-5. 编排只随用户设置独立持久化，大体积正文物理分轨至 `user_settings_large_prompts.promptComposition`，避免主设置记录膨胀；预设包不保存 `composition` 或 `usePromptComposition`，加载旧预设时也会忽略这两个遗留字段。自由编排可通过 `prompt.main`、`prompt.jailbreak`、`prompt.postHistory` 数据源显式调用当前预设内容，但预设导入、切换、删除和导出均无权改变编排状态。基础示例由 `createBasicPromptComposition()` 显式创建，可修改、可删除，空编排合法。
-6. 移动端视图只编辑领域字段，不自行拼接 Prompt。`PromptCompositionEditor.tsx` 负责模式选择、顺序和入口，`PromptBlockEditorDialog.tsx` 负责窄屏完整编辑与宏选择，`PromptBlockQuickEditor.tsx` 提供宽屏同步快速配置；`PromptCompositionWorkbench.tsx` 在 700px 以上常驻双栏右侧，在窄屏降级为底部面板。`PromptCompositionGraph.tsx` 是同一份 `PromptComposition` 的只读投影，节点点击只改变 UI 选择；最终预览仍由 `PromptService.assemblePrompt` 返回，图形层无权自行编译。`usePromptCompositionHistory.ts` 为同一领域对象提供 30 步内存历史，外部切换编排时清空历史，连续输入在 800ms 内合并；导入通过同一提交入口，因此可撤销。`promptCompositionTransfer.ts` 使用 `mobile-tavern.prompt-composition` 版本化信封导出，并兼容旧的裸 `PromptComposition`；所有导入仍经 `parsePromptComposition` 防腐校验，兼容元数据不会丢失。Android 原生环境通过能力检测显示横屏、文件保存和文本分享入口，不使用 User-Agent 判断且不向浏览器提供伪实现。
-7. `validator.ts` 在编辑期与运行期共同检查空模板、重复区块 ID、无效历史深度目标和不可用数据源。组合级 Token 预算默认取“模型上下文窗口减预留回复 Token”，也可自定义或关闭；编译器仅按优先级整块移除显式声明 `overflow: "drop"` 的区块，`keep` 内容不可隐式截断，仍超限时返回错误诊断。编译结果同时返回区块、数据键、最终消息索引和裁剪状态追踪，调试面板只消费该追踪，不自行推断注入链路。基础示例、用户模板与外部兼容模板分组管理，持久化至 `user_settings_large_prompts.promptCompositionTemplates`。设置编辑采用防抖写入状态机，页面隐藏时冲刷写入，确有未落盘内容时才注册离开确认。
+Prompt 架构全面收敛为传统的 `promptConfig` 与 `PresetBundle` v3 规范：
+
+1. **统一由 `promptConfig` 驱动**：SillyTavern `prompts + prompt_order` 经 Compatibility Codec 的 `readPresetPrompts` 收口为传统提示词列表，无顺序容器时按原序降级保留。
+2. **预设实体收敛为 `PresetBundle` v3**：采用严格 Zod 运行时校验，`promptConfig` 为唯一 Prompt 权威。存储读取经领域迁移入口接受旧版记录并逐级降级修复，运行期只经唯一投影 `projectPresetActivation` 消费。
+3. **全局行为预设**：行为预设（提示词 / 采样参数 / 预设正则）属于全局设置，切换后立即对包括 Agent 会话在内的所有会话生效，不再按会话冻结。
+4. **出厂预设与导入预设同权**：自带预设可直接覆盖保存或删除，仅在预设列表为空时初始化塞入，启动不再自动重建被删除的出厂预设；导入导出自包含并通过扩展保留 ST 无法表达的运行期开关。
+5. **通用上下文来源缝（C0-C4）接入**：记忆召回（`memory.recalled`）、SillyTavern 时间宏（`{{time}}`/`{{date}}`/`{{weekday}}` 等）均作为注册来源接入通用上下文缝，按黄金对比保证逐字节对齐。
 
 > 📌 各子系统的详细内部架构与时序图见下方对应章节：[🏗️ 模块架构与状态管理](#️-模块架构与状态管理-system-architecture)、[🧬 Tavern 角色卡解码机制](#-tavern-角色卡解码机制-tavern-png-card-binary-decoder)、[🛡️ 应用契约 zod 运行时校验层](#️-应用契约-zod-运行时校验层-l2-schema-validation)。
 
@@ -377,8 +377,9 @@ graph TB
     end
 
     subgraph Storage ["本地数据持久化"]
-        Hooks <--> DB[("IndexedDB: MobileTavernLiteDB")]
+        Services["Application Services / DatabaseService"] <--> DB[("IndexedDB: MobileTavernLiteDB")]
     end
+    Hooks <--> Services
 
     subgraph Client ["运行容器适配"]
         UI --> API_Client["apiClient.ts"]
@@ -638,10 +639,10 @@ erDiagram
 *   **`testAbortSignalPreAbortedLocalDB`**, **`testAbortSignalMidOperationLocalDB`**, **`testAbortSignalBeforeTransactionRegistration`**, **`testAbortSignalWriteQueueRecovery`**, **`testMvuParserAbortedCheckpoints`**, **`testMemoryStreamParserAbort`** (`abortSignalConduction.test.ts`)：全面测试并发写入管道中的事务超时挂载释放、异步流程终止后底层事务的回滚、以及在 `getDB()` 返回前先触发中止时的句柄自愈防御。
 *   **`testPublishSnapshotDuringConcurrentSubscribe`**, **`testDestroyWithMultipleActiveControllers`** (`kernelConcurrency.test.ts`)：验证在并发订阅时发布事件快照的机制，以及多活动 AbortController 下内核一键销毁时的防死锁和幂等清理。
 
-#### 🛡️ Zod 运行时与自由编排测试 (Kernel validation & Prompt Composition) - [新]
+#### 🛡️ Zod 运行时与预设包架构测试 (Kernel Validation & Preset Architecture)
 *   **`testKernelSchemaValidation`** (`kernelSchemaValidation.test.ts`)：对 P0/P1 服务分级 Schema、静态消息 Payload 格式、动态 topic `tavern_helper:*` 与 Proxy 契约标记进行全面运行时类型校验测试。
 *   **`testArchitectureBoundaries`** (`architectureBoundaries.test.ts`)：静态扫描依赖方向、Context 最小订阅 selector、瞬态召回隔离，保障微内核架构物理隔离。
-*   **`testPromptComposition`** (`promptComposition.test.ts`)：验证 Prompt 自由编排的 Token 预算计算、裁剪策略和多 System 块编译输出。模块)
+*   **`testPresetPromptAssembly`** (`presetPromptAssembly.test.ts` / `presetBundleLifecycle.test.ts`)：验证传统 Prompt 预设的装配编译、SillyTavern 兼容 Codec 映射、预设包实体 v3 校验与生命周期迁移。
 *   **实现位置**: [CharactersTab.tsx](src/tabs/CharactersTab.tsx)
 *   **核心逻辑**:
     管理卡片的交互陈列。支持多属性过滤、全文模糊搜索和 PNG 卡片解析。
@@ -673,12 +674,15 @@ erDiagram
 *   **故事线渲染设计**:
     在手机端渲染折叠的前情概要大纲（故事年表），帮助用户在超长对话中回忆历史场景。点击事件可以展开完整的剧情概要，为用户提供沉浸式小说阅读视角。
 
-### 15. `SessionManagerModal.tsx` (多会话剧情分支分叉管理)
-*   **实现位置**: [SessionManagerModal.tsx](src/components/SessionManagerModal.tsx)、[BranchUniverseDiagram.tsx](src/components/BranchUniverseDiagram.tsx)、[MemoryFragmentEditor.tsx](src/components/MemoryFragmentEditor.tsx)
-*   **核心逻辑**:
-    负责对指定角色卡开启多条独立剧情分支，并根据 `parentSessionId`、`parentMessageId` 和消息轮次生成 SVG 树状拓扑。画布支持拖拽、滚轮、按钮和移动端双指缩放。
-*   **多维度并发操作**:
-    分支克隆和回溯继续由 `DatabaseService` 持久化；图中每个轮次节点挂载对应 `memory_fragments`。界面只通过 `MemoryPersistencePort` 读取和写入，新增使用 `upsertFragment`，编辑使用 `supersedeFragment` 保留修订链，删除使用 `invalid` 逻辑失效，禁止直接绕过端口操作 IndexedDB。
+### 15. 会话管理器与分支平行宇宙 (`SessionManagerPanel.tsx`)
+*   **实现位置**: [SessionManagerPanel.tsx](src/components/session-manager/SessionManagerPanel.tsx)、[BranchUniverseDiagram.tsx](src/components/BranchUniverseDiagram.tsx)、[SessionManagementService.ts](src/application/services/SessionManagementService.ts)
+*   **三分类管理与删除安全缓冲**:
+    重构为“全部 / 收藏 / 已归档”三分类：
+    1. **全部**：仅展示尚未归档的原生会话；
+    2. **收藏**：展示收藏时生成的独立完整备份（包含消息、状态表、记忆与 Agent Journal 快照，带 SHA-256 校验与落后提示）；
+    3. **已归档**：普通会话严禁直接删除，必须先执行归档放入“已归档”分类，才允许执行不可逆的永久物理删除。
+*   **平行宇宙与分支操作**:
+    负责对指定角色卡开启多条独立剧情分支，并根据 `parentSessionId`、`parentMessageId` 和消息轮次生成 SVG 树状拓扑。画布支持拖拽、滚轮、按钮和移动端双指缩放。分支克隆和回溯由 `DatabaseService` 原子事务持久化。
 
 ### 16. `CustomConfirmDialog.tsx` (移动端风格交互对话框)
 *   **实现位置**: [CustomConfirmDialog.tsx](src/components/CustomConfirmDialog.tsx)
@@ -770,7 +774,7 @@ graph TD
 *   `PromptService` (prompt)：负责人设模版编译与流程编排；宏/MVU 格式化由 `PromptMacroFormatter` 承担，世界书三阶级联检索由 `LorebookResolver` 承担。
 *   `TelemetryService` (telemetry)：收集 App APM 耗时及崩溃事件并写入落盘队列，计算 STS 后台同步上报。
 *   `ScriptService` (script)：在独立沙盒内执行角色卡内嵌的扩展变量计算脚本。
-*   `AsrService` (asr)：处理用户麦克风语音录制与识别。兼容原生 Web Speech API 以及远程 OpenAI Whisper 接口，集成完整的 Web/Tauri 双层直连与 Abort 控制器资源释放机制。
+*   `AsrService` (asr)：处理用户麦克风语音录制与转写。输入框语音入口统一采用「按住 说话」模式（Android 走 Kotlin `AudioRecord` 直录 16 kHz 单声道 WAV，Web 回退 Web Audio WAV）；Web Speech 实时听写已彻底下线，服务保留 Whisper 文件转写（`transcribeFile`）能力与 Abort 控制器资源释放机制。
 *   `WorldbookService` (worldbook)：世界书与设定集管理，封装全局和自定义世界书读写，提供独立的服务级生命周期资源回收（AbortController）。
 *   `PresetService` (preset)：采样与大模型预设参数管理，维护不同模型的预设模板包。
 *   `SettingsService` (settings)：用户全局配置参数自动同步及持久化，采用防抖策略降低 IndexedDB 并发 IO 压力。
@@ -1115,21 +1119,18 @@ SillyTavern 兼容契约（`COMPAT-DATA`）要求 `tavern_helper:${event}` 这�
 * **客服小猫异常降级**：`runCatbotErrorTests`（云端 FC 限流、欠费等异常网络下的本地正则规则器健壮处理）。
 * **应用契约 zod L2 schema 校验**：`testKernelSchemaValidation`（10 项主断言 + 2 项边界：P0 服务完整 schema 通过/失败、P1 基础结构通过/失败、静态 topic payload 通过/失败、动态 topic `tavern_helper:*` 跳过 payload 校验、缺顶层字段失败、SafeProxy 标记跳过 P0 校验含交叉验证、真实 P0 服务通过、null/undefined 输入不抛错）。
 
-### 2. 集成测试层（规划中）
-* **建设目标**：验证多模块协作与 React 视图渲染正确性。
+### 2. 集成测试层（已建设）
+* **建设目标**：验证多模块协作、用例编排与 React 视图交互正确性。
 * **技术选型**：Vitest + React Testing Library + fake-indexeddb。
-* **核心用例**：
-  * *INT-CTX-01*：全局 AppProvider 主题切换与状态栏变色桥接的连通。
-  * *INT-CHAT-01*：发送消息、大模型流式响应、管道拦截及 UI 气泡渲染全流程。
-  * *INT-DB-01*：localDB 历史数据迁移与分轨物理存储校验。
+* **覆盖范围**：涵盖全局 Provider、主题与安全区联动、聊天流式响应、中断回滚事务、会话归档删除守卫、预设迁移与物理存储分轨。
 
-### 3. 端到端测试层（E2E，规划中）
-* **建设目标**：验证真机环境下的完整用户业务路径与 Tauri 原生交互。
-* **技术选型**：Tauri WebDriver + WebdriverIO。
-* **核心用例**：
-  * *E2E-01*：角色卡导入（从文件读取二进制 PNG）到对话房消息互通。
-  * *E2E-02*：大拇指交互触控与软键盘遮挡自适应。
-  * *E2E-03*：数据加密导出并安全写入手机公共 `/Download` 目录验证。
+### 3. 端到端测试层（E2E，已建设）
+* **建设目标**：验证桌面端与移动端真实环境下的用户完整路径、Tauri 原生桥接与 UI 性能指标。
+* **技术选型**：Playwright（`playwright.config.ts`、`tests/e2e/`、`tests/suites/`）。
+* **核心覆盖与验收矩阵**：
+  * **跨视口测试**：桌面 Chromium 与 Pixel 5 移动端（触屏触摸手势、Safe Area 动态恢复、软键盘弹出视口自适应）；
+  * **UI 性能与流畅度回归**：冷启动耗时、Tab 切换帧率、长消息虚拟列表底部锚定、图片异步解码与免重绘光晕；
+  * **原生桥接与数据链路**：角色卡二进制导入、Scoped Storage 文件导出、Android 状态栏与返回键栈行为。
 
 ### 4. 自动化 CI/CD 流程
 推荐的自动化测试流水线设计如下：

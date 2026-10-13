@@ -2,6 +2,8 @@
 
 > `.mtplugin` 用于独立全屏微应用，不是主应用主题，也不能访问主应用 DOM。需要修改主界面视觉、隐藏可选 Tab 或引用主题图片时，请先阅读[主题与界面扩展开发指南](Theme_Development_Guide.md)。
 >
+> 完整实战开发教程、Vite 打包脚手架、资源内联与调试全流程请参阅 [第三方插件开发指南](plugin-development-guide.md)。
+>
 > 版本说明：运行时宿主 API 已升级到 **V2**（`MobileTavernPlugin.version === 2`），但清单 `manifestVersion` 仍为 `1`。二者是两个独立维度，不要混淆；本文以源码 `src/domain/plugins/` 的实际契约为准。
 
 ## 1. 能力边界
