@@ -86,17 +86,35 @@ export default function ThemeEditorModal({
 }: ThemeEditorModalProps) {
   const [draft, setDraft] = React.useState<ThemeDocumentDraft>(() => createThemeDocumentDraft(themeToEdit));
   const [section, setSection] = React.useState<StudioSection>("overview");
+  const [sectionHistory, setSectionHistory] = React.useState<StudioSection[]>([]);
   const [saveState, setSaveState] = React.useState<SaveState>("editing");
   const closingRef = React.useRef(false);
   const dirty = isThemeDocumentDirty(draft);
+  const canGoBack = section !== "overview" || sectionHistory.length > 0;
 
   React.useEffect(() => {
     if (!isOpen) return;
     setDraft(createThemeDocumentDraft(themeToEdit));
     setSection("overview");
+    setSectionHistory([]);
     setSaveState("editing");
     closingRef.current = false;
   }, [isOpen, themeToEdit]);
+
+  const navigateToSection = React.useCallback((next: StudioSection) => {
+    if (next === section) return;
+    setSectionHistory(history => [...history, section]);
+    setSection(next);
+  }, [section]);
+
+  const goBack = React.useCallback(() => {
+    if (sectionHistory.length === 0) {
+      if (section !== "overview") setSection("overview");
+      return;
+    }
+    setSection(sectionHistory[sectionHistory.length - 1]);
+    setSectionHistory(sectionHistory.slice(0, -1));
+  }, [section, sectionHistory]);
 
   const updateTheme = React.useCallback((updater: (theme: CustomThemePackage) => CustomThemePackage) => {
     setDraft(current => {
@@ -128,8 +146,8 @@ export default function ThemeEditorModal({
   }, [draft, onClose, showCustomConfirm]);
 
   useMobileBackHandler(isOpen, () => {
-    if (section !== "overview") {
-      setSection("overview");
+    if (canGoBack) {
+      goBack();
       return true;
     }
     void requestClose();
@@ -183,9 +201,9 @@ export default function ThemeEditorModal({
       >
         <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3 pt-[max(0px,var(--safe-area-top))] sm:px-5">
           <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => {
-            if (section === "overview") void requestClose(); else setSection("overview");
-          }} aria-label={section === "overview" ? "关闭主题工作室" : "返回主题工作室"}>
-            {section === "overview" ? <X className="size-4" /> : <ArrowLeft className="size-4" />}
+            if (canGoBack) goBack(); else void requestClose();
+          }} aria-label={canGoBack ? "返回上一页" : "关闭主题工作室"}>
+            {canGoBack ? <ArrowLeft className="size-4" /> : <X className="size-4" />}
           </Button>
           <div className="min-w-0 flex-1">
             <DialogTitle className="truncate text-sm font-bold">{currentSectionTitle}</DialogTitle>
@@ -194,17 +212,17 @@ export default function ThemeEditorModal({
               <span className={saveState === "failed" ? "text-destructive" : dirty ? "text-primary" : "text-muted-foreground"}>{statusText}</span>
             </DialogDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs lg:hidden" onClick={() => setSection("preview")}>
+          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs lg:hidden" onClick={() => navigateToSection("preview")}>
             <Eye className="size-3.5" />预览
           </Button>
         </header>
 
         <div className="min-h-0 flex-1 lg:grid lg:grid-cols-[15rem_minmax(22rem,1fr)_minmax(24rem,0.95fr)]">
           <aside className="hidden min-h-0 border-r border-border bg-card/35 p-3 lg:block">
-            <StudioNavigation section={section} onSelect={setSection} />
+            <StudioNavigation section={section} onSelect={navigateToSection} />
           </aside>
           <main className="h-full min-h-0 overflow-y-auto p-3.5 custom-scrollbar sm:p-5">
-            {section === "overview" && <OverviewSection onSelect={setSection} />}
+            {section === "overview" && <OverviewSection onSelect={navigateToSection} />}
             {section === "appearance" && <AppearanceSection theme={draft.theme} updateTheme={updateTheme} updateVariable={updateVariable} />}
             {section === "colors" && <ColorsSection theme={draft.theme} updateVariable={updateVariable} />}
             {section === "css" && <CssSection value={draft.theme.customCss ?? ""} onChange={value => updateTheme(theme => ({ ...theme, customCss: value }))} />}

@@ -73,6 +73,20 @@ describe("主题工作室", () => {
     expect(onSave).toHaveBeenNthCalledWith(2, expect.any(Object), true);
   });
 
+  it("从颜色分区进入预览后，返回会回到颜色分区而不是工作室首页", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "颜色" }));
+    expect(screen.getByRole("dialog", { name: "颜色" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "预览" }));
+    expect(await screen.findByRole("dialog", { name: "预览当前草稿" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "返回上一页" }));
+    expect(await screen.findByRole("dialog", { name: "颜色" })).toBeInTheDocument();
+  });
+
   it("存在未保存修改时关闭会先确认", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -81,7 +95,7 @@ describe("主题工作室", () => {
 
     await user.click(screen.getByRole("button", { name: "外观" }));
     await user.type(screen.getByDisplayValue("测试主题"), "修改");
-    await user.click(screen.getByRole("button", { name: "返回主题工作室" }));
+    await user.click(screen.getByRole("button", { name: "返回上一页" }));
     await user.click(screen.getByRole("button", { name: "关闭主题工作室" }));
 
     await waitFor(() => expect(showCustomConfirm).toHaveBeenCalledTimes(1));
