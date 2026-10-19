@@ -40,6 +40,10 @@
 - 内置预设必须是常量：禁止模块级可变单例在启动时被外部文件就地改写（历史缺陷：`setMobileTavernBasicPresetBundle` 会让"导入顺序决定默认值"）。外部文件对内置预设的覆盖只能通过用例的显式返回值传递。
 - 预设落库判断必须与切换脏检查共用同一套稳定序列化比较；引导结果必须幂等——同一份数据第二次引导不产生任何写入。
 - 预设实体 `PresetBundle`（当前 `schemaVersion: 3`）的 `promptConfig` 是唯一 Prompt 权威：SillyTavern 来源的 Prompt 经 Compatibility Codec 收口为传统提示词块后只写入这里；未识别的来源字段只能进 `extensions` 保真保存，禁止通用代码解释。实体 schema 之外的键不得写进存储（编辑器自己的状态字段必须在落库前剥离）。
+- 预设采样参数 `top_a` 与 `seed` 属于通用采样字段：`seed < 0`（SillyTavern 的随机约定）不得写入请求；其余值按预设原样传递。
+- 预设的 `names_behavior`、`scenario_format`、`personality_format`、`wi_format` 与 `custom_prompt_post_processing` 只在通用 Prompt/请求整形层解释：`names_behavior` 控制消息 `name` 字段或内容前缀，三个 format 字段分别作用于性格、场景与世界书条目，`custom_prompt_post_processing` 只实现 `semi`/`strict` 的中段 system 降级与 `single` 的角色压平；`strict` 的占位提示词不得硬编码。
+- `prompts[].injection_position === 1` 的条目必须作为聊天历史注入处理（按 `injection_depth`、`injection_order` 与 `injection_trigger`），不得混入核心规则块；相对位置条目的 `role` 必须真正生效——system 进入核心规则，user/assistant 作为聊天历史之前的消息注入，不得一律拼进 system。
+- 预设级 `extensions.tavern_helper.scripts`、SPreset 条件脚本、`continue_prefill`、`assistant_impersonation`、`use_sysprompt`、`n > 1` 与 `openai_max_context` 属于动作、后端或第三方插件语义，通用兼容层不解释；未实现前不得假装生效。
 - 数据库附着、Agent Marker、TavernHelper/远程脚本和前端 DOM 生命周期不属于通用预设兼容范围，不得因样本流行度绕过边界。
 
 ### 5. Runtime Plugin 边界与旧数据降级

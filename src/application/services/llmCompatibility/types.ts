@@ -27,6 +27,8 @@ export interface ModelCapabilities {
 export interface LLMParams extends Record<string, unknown> {
   top_k?: number;
   top_p?: number;
+  top_a?: number;
+  seed?: number;
   temperature?: number;
   response_format?: unknown;
   functions?: unknown;

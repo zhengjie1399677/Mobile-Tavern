@@ -246,20 +246,59 @@ describe("ChatInputArea 微信语音交互与快捷栏持久化", () => {
     expect(mockStopCapture).toHaveBeenCalledTimes(1);
   });
 
-  it("上滑超过阈值后松手取消，不发送", async () => {
+  it("上滑超过取消阈值后松手取消，不发送", async () => {
     renderWithProviders(<ChatInputArea isKeyboardOpen={false} />);
     enterVoiceMode();
 
     await pointerDown(200);
     await act(async () => {
-      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 120 });
+      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 100 });
     });
     await act(async () => {
-      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 120 });
+      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 100 });
     });
 
     expect(mockCancelCapture).toHaveBeenCalled();
     expect(mockStopCapture).not.toHaveBeenCalled();
+    expect(mockHandleSendMessage).not.toHaveBeenCalled();
+  });
+
+  it("上滑距离不足时松手仍发送，不会因轻微上移误取消", async () => {
+    renderWithProviders(<ChatInputArea isKeyboardOpen={false} />);
+    enterVoiceMode();
+
+    await pointerDown(200);
+    holdClockOffset = 600;
+    // 挂载时的会话切换 effect 会安全取消一次录音，这里只关心松手后是否又取消。
+    const cancelCallsBeforeRelease = mockCancelCapture.mock.calls.length;
+    await act(async () => {
+      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 140 });
+    });
+    await act(async () => {
+      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 140 });
+    });
+
+    await waitFor(() => expect(mockHandleSendMessage).toHaveBeenCalledTimes(1));
+    expect(mockCancelCapture).toHaveBeenCalledTimes(cancelCallsBeforeRelease);
+  });
+
+  it("进入取消态后回退一点仍按取消处理（滞回），不会在阈值边界反复跳变", async () => {
+    renderWithProviders(<ChatInputArea isKeyboardOpen={false} />);
+    enterVoiceMode();
+
+    await pointerDown(200);
+    // 先上滑 100px 进入取消态，再回退到 70px：仍高于退出阈值 60px。
+    await act(async () => {
+      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 100 });
+    });
+    await act(async () => {
+      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 130 });
+    });
+    await act(async () => {
+      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 130 });
+    });
+
+    expect(mockCancelCapture).toHaveBeenCalled();
     expect(mockHandleSendMessage).not.toHaveBeenCalled();
   });
 
@@ -270,7 +309,7 @@ describe("ChatInputArea 微信语音交互与快捷栏持久化", () => {
     await pointerDown(200);
     // 只发 pointerup，坐标已经在阈值之外（模拟 pointermove 与 pointerup 同帧合并）
     await act(async () => {
-      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 120 });
+      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 100 });
     });
 
     expect(mockCancelCapture).toHaveBeenCalled();

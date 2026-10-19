@@ -229,6 +229,9 @@ export interface SamplerPreset {
   frequencyPenalty?: number; // Advanced SillyTavern field
   presencePenalty?: number; // Advanced SillyTavern field
   minP?: number; // Advanced SillyTavern field
+  topA?: number; // Advanced SillyTavern field
+  /** SillyTavern seed；-1 表示随机（不发送 seed 字段）。 */
+  seed?: number;
   maxTokens: number;
 }
 
@@ -288,6 +291,11 @@ export interface PromptRequestShapingConfig {
   /** 作为最后一条 assistant 消息发送的续写起始文本。 */
   assistantPrefill?: string;
   stopSequences?: string[];
+  /**
+   * SillyTavern `custom_prompt_post_processing` 的原值。
+   * `semi` / `strict` / `single` 会把中段 system 消息改写为 user，避免部分端点拒收。
+   */
+  customPromptPostProcessing?: string;
 }
 
 export interface PromptConfig {
@@ -301,6 +309,15 @@ export interface PromptConfig {
   storyString?: string; // SillyTavern STORY STRING context order templates
   customPrompts?: CustomPromptBlock[]; // SillyTavern customizable prompt block list
   useMainPrompt?: boolean;
+  /**
+   * SillyTavern `names_behavior`：-1 不加名，0 默认（单聊不加名），
+   * 1 通过消息 `name` 字段携带，2 直接把 `名字: ` 前缀写进内容。
+   */
+  namesBehavior?: -1 | 0 | 1 | 2;
+  /** SillyTavern 场景/性格/世界书条目的格式模板；缺省保持原有渲染。 */
+  scenarioFormat?: string;
+  personalityFormat?: string;
+  worldInfoFormat?: string;
   /**
    * 「系统提示词」伪条目的显示名。
    *

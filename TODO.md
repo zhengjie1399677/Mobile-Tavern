@@ -71,6 +71,7 @@
 - [ ] **iOS 适配与验收**：当前产品仅完成 Android 方向的开发和构建，iOS 尚未纳入实施计划。
 
 - [ ] **SillyTavern 词汇表补齐（P1，兼容）**：`{{setvar}}`/`{{getvar}}` 已支持（2026-10-10）；**其余变量宏先不补**（`{{addvar}}`/`{{incvar}}`/`{{decvar}}`/`{{getglobalvar}}`/`{{setglobalvar}}`/`{{.x}}` 简写），等真实预设出现用量再评估。
+  - 2026-10-18：预设参数补全已落地——`top_a` / `seed` 采样、`names_behavior`、`scenario_format` / `personality_format` / `wi_format`、`custom_prompt_post_processing`，以及 `injection_position: 1` 按 depth/order/trigger 注入聊天历史；已用 E 盘 13 个真实预设验收导入零告警。仍未接：预设级 `tavern_helper.scripts` / SPreset 条件脚本、`continue_prefill` / `assistant_impersonation` / `use_sysprompt` / `n > 1` / `openai_max_context`（动作、后端或第三方插件语义，通用层不解释）。
   - 待定（产品决策）：聊天变量**跨轮持久化**——ST 的 setvar/getvar 是聊天级持久变量，本应用现为「一次组装内共享」；若要做，写入必须经兼容运行时 `writeState` 命名空间、在**消息提交事务**里落库（绝不在组装期写），并处理重发/历史分支读「当时快照」与导出形态。
   - 闲时可做：产出「ST 词汇表 × 本应用」对照表（宏清单 / 槽位 markers / injection 位置与深度语义 / 正则三段 / 请求整形），并用 `D:Download` 的社区预设统计每个缺失词的用量，据此排优先级；已知渲染环境差异：卡片按 ST 宽度写 HTML/CSS，在手机气泡里会走形（候选修法：用满气泡宽度 + 溢出横向滚动）。
 

@@ -404,6 +404,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         beforeMessageId: historyBoundaryMessageId,
         signal: controller.signal,
         traceId,
+        generationType: "regenerate",
       });
       const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages;
       const baseProviderMessages = preserveAssistantReasoning(
@@ -465,11 +466,16 @@ export function useRerollMessage(p: RerollMessageParams) {
           temperature: effectiveSettings.preset.temperature,
           top_p: effectiveSettings.preset.topP,
           top_k: effectiveSettings.preset.topK,
+          top_a: effectiveSettings.preset.topA,
           min_p: effectiveSettings.preset.minP,
           max_tokens: effectiveSettings.preset.maxTokens,
           presence_penalty: effectiveSettings.preset.presencePenalty ?? 0.0,
           frequency_penalty: effectiveSettings.preset.frequencyPenalty ?? 0.0,
           repetition_penalty: effectiveSettings.preset.repetitionPenalty ?? 1.0,
+          // ST 约定 seed < 0 为随机；不发送才能让服务端每次重新采样。
+          ...(typeof effectiveSettings.preset.seed === "number" && effectiveSettings.preset.seed >= 0
+            ? { seed: effectiveSettings.preset.seed }
+            : {}),
         },
         signal: controller.signal,
         traceId,

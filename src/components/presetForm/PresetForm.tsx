@@ -4,24 +4,26 @@ import PresetSelectorSection from "./PresetSelectorSection";
 import SamplersSection from "./SamplersSection";
 import PromptsConfigSection from "./PromptsConfigSection";
 import RegexManagementSection from "./RegexManagementSection";
+import { CompatibilityPromptOptions } from "./CompatibilityPromptOptions";
 
 /**
  * 预设表单组合根：
  * 从全局 Context 取出 settings/handlers，交给 usePresetFormState 集中管理局部状态，
- * 再向下分发给四个核心 Section 子组件（预设选择、采样参数、提示词配置、正则脚本）。
+ * 再向下分发给各 Section 子组件（预设选择、采样参数、提示词配置、兼容参数、正则脚本）。
  */
-export type PresetFormSection = "preset" | "samplers" | "prompts" | "regex";
+export type PresetFormSection = "preset" | "samplers" | "prompts" | "compat" | "regex";
 
 interface PresetFormProps {
   sections?: PresetFormSection[];
 }
 
 export default function PresetForm({
-  sections = ["preset", "samplers", "prompts", "regex"],
+  sections = ["preset", "samplers", "prompts", "compat", "regex"],
 }: PresetFormProps) {
   const showPreset = sections.includes("preset");
   const showSamplers = sections.includes("samplers");
   const showPrompts = sections.includes("prompts");
+  const showCompat = sections.includes("compat");
   const showRegex = sections.includes("regex");
 
   const {
@@ -156,7 +158,15 @@ export default function PresetForm({
         />
       )}
 
-      {/* 4. 正则过滤脚本管理（全局 / 预设 / 角色只读 + 编辑 Modal） */}
+      {/* 4. SillyTavern 兼容参数（名字行为、格式模板、请求后处理） */}
+      {showCompat && (
+        <CompatibilityPromptOptions
+          settings={settings}
+          updateSettings={updateSettings}
+        />
+      )}
+
+      {/* 5. 正则过滤脚本管理（全局 / 预设 / 角色只读 + 编辑 Modal） */}
       {showRegex && (
         <RegexManagementSection
           settings={settings}

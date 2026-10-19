@@ -82,6 +82,8 @@ const SAMPLER_NUMERIC_KEYS = [
   "frequencyPenalty",
   "presencePenalty",
   "minP",
+  "topA",
+  "seed",
   "maxTokens",
 ] as const;
 

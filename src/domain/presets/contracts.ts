@@ -32,6 +32,9 @@ export const presetSamplerSchema = z.object({
   frequencyPenalty: z.number().finite().min(-2).max(2).optional(),
   presencePenalty: z.number().finite().min(-2).max(2).optional(),
   minP: z.number().finite().min(0).max(1).optional(),
+  topA: z.number().finite().min(0).max(1).optional(),
+  /** SillyTavern 约定 -1 为随机种子；正整数为固定种子。 */
+  seed: z.number().int().min(-1).max(2_147_483_647).optional(),
   maxTokens: z.number().int().positive().max(MAX_OUTPUT_TOKENS).optional(),
 }).strict();
 

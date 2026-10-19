@@ -67,6 +67,8 @@ export function preparePresetBundleImport(
     frequencyPenalty: readFirstNumber(data.frequency_penalty, data.frequencyPenalty) ?? 0,
     presencePenalty: readFirstNumber(data.presence_penalty, data.presencePenalty) ?? 0,
     minP: readFirstNumber(data.min_p, data.minP) ?? 0,
+    topA: readFirstNumber(data.top_a, data.topA),
+    seed: readFirstNumber(data.seed),
     maxTokens: readFirstNumber(data.max_tokens, data.openai_max_tokens, data.maxTokens) ?? 600,
   };
 
@@ -181,13 +183,24 @@ function preparePromptConfig(
     ?? readStringArray(data.stop_sequences)
     ?? [];
   const squashSystemMessages = data.squash_system_messages === true;
-  const mergeAdjacentMessages = data.merge_adjacent_messages === true;
+  const customPromptPostProcessing = readString(data.custom_prompt_post_processing);
+  const mergeAdjacentMessages = data.merge_adjacent_messages === true
+    || isMergingPostProcessing(customPromptPostProcessing);
   const roleWrappers = parseRoleWrappers(data.role_wrappers);
+  const namesBehavior = parseNamesBehavior(data.names_behavior);
+  const scenarioFormat = readString(data.scenario_format) ?? readString(data.scenarioFormat);
+  const personalityFormat = readString(data.personality_format) ?? readString(data.personalityFormat);
+  const worldInfoFormat = readString(data.wi_format) ?? readString(data.worldInfoFormat);
+  const hasPresetPromptSemantics = namesBehavior !== undefined
+    || scenarioFormat !== undefined
+    || personalityFormat !== undefined
+    || worldInfoFormat !== undefined;
   const hasRequestShaping = !!assistantPrefill
     || stopSequences.length > 0
     || squashSystemMessages
     || mergeAdjacentMessages
-    || roleWrappers !== undefined;
+    || roleWrappers !== undefined
+    || !!customPromptPostProcessing;
 
   // 传输结构层：序列包裹、Instruct 模板、Story 排列与请求整形属于宿主请求层，不是预设内容，
   // 文件未声明时沿用基底（否则导入后角色卡字段可能完全无法进入上下文）。
@@ -200,6 +213,12 @@ function preparePromptConfig(
     assistantPrefix: readString(data.assistant_sequence_start) ?? base.assistantPrefix,
     assistantSuffix: readString(data.assistant_sequence_end) ?? base.assistantSuffix,
     storyString: hasPromptFields ? storyString : base.storyString,
+    ...(hasPresetPromptSemantics ? {
+      namesBehavior,
+      scenarioFormat,
+      personalityFormat,
+      worldInfoFormat,
+    } : {}),
     requestShaping: hasRequestShaping
       ? {
           enabled: true,
@@ -208,6 +227,7 @@ function preparePromptConfig(
           roleWrappers,
           assistantPrefill,
           stopSequences,
+          customPromptPostProcessing,
         }
       : base.requestShaping,
   };
@@ -318,6 +338,23 @@ function regexWarning(index: number, message: string): PromptDiagnostic {
     code: "SKIPPED_INVALID_REGEX_SCRIPT",
     message: `第 ${index + 1} 个${message}`,
   };
+}
+
+/** ST 的 `names_behavior`：-1/0/1/2，其余值视为未声明。 */
+function parseNamesBehavior(value: unknown): PromptConfig["namesBehavior"] | undefined {
+  return value === -1 || value === 0 || value === 1 || value === 2 ? value : undefined;
+}
+
+/** `custom_prompt_post_processing` 中需要合并相邻同角色消息的模式。 */
+function isMergingPostProcessing(value: string | undefined): boolean {
+  return value === "merge"
+    || value === "claude"
+    || value === "merge_tools"
+    || value === "semi"
+    || value === "semi_tools"
+    || value === "strict"
+    || value === "strict_tools"
+    || value === "single";
 }
 
 function parseInstructTemplate(value: unknown): PromptConfig["instructTemplate"] | undefined {

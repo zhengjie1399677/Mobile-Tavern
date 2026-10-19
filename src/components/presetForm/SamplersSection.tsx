@@ -7,6 +7,7 @@ import {
   MAX_OUTPUT_TOKENS,
 } from "../../domain/api/outputTokenLimits";
 import type { UserSettings } from "../../types";
+import { AdvancedSamplers } from "./AdvancedSamplers";
 
 interface SamplersSectionProps {
   settings: UserSettings;
@@ -328,6 +329,8 @@ export default function SamplersSection({
                 })}
               </div>
             </div>
+
+            <AdvancedSamplers settings={settings} updateSettings={updateSettings} />
           </div>
         </CardContent>
       )}

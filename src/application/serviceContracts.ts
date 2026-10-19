@@ -477,6 +477,8 @@ export interface IPromptService<TCharacter = unknown, TSession = unknown, TSetti
     signal?: AbortSignal;
     /** traceId：用于关联一次用户操作的提示词编译日志与遥测事件 */
     traceId?: string;
+    /** ST 注入触发类型：normal / regenerate / continue 等；缺省 normal。 */
+    generationType?: string;
   }): {
     version: 1;
     systemInstruction: string;

@@ -68,11 +68,53 @@ export function selectActivePromptBlocks(
 ): CustomPromptBlock[] {
   return dedupeTopLevelPromptBlocks(
     [...blocks]
-      .filter((block) => block.enabled)
+      .filter((block) => block.enabled && !isInChatInjectionBlock(block))
       .sort((a, b) => (a.order ?? a.injection_order ?? 0) - (b.order ?? b.injection_order ?? 0)),
     {
       mainPrompt: config.useMainPrompt === false ? "" : config.mainPrompt,
       jailbreakPrompt: config.useJailbreak === false ? "" : config.jailbreakPrompt,
     },
   );
+}
+
+/** SillyTavern `injection_position: 1` 表示绝对位置（按 depth 注入聊天历史）。 */
+export function isInChatInjectionBlock(block: Pick<CustomPromptBlock, "injection_position">): boolean {
+  return block.injection_position === 1;
+}
+
+/**
+ * 选出要在聊天历史中按 depth 注入的提示词块。
+ *
+ * 排序对齐 SillyTavern：同一 depth 下 `injection_order` 从高到低，其次按
+ * system → user → assistant 聚合，最后保持来源顺序。
+ */
+export function selectInChatPromptBlocks(
+  blocks: readonly CustomPromptBlock[],
+  generationType: string,
+): CustomPromptBlock[] {
+  const roleRank: Record<CustomPromptBlock["role"], number> = {
+    system: 0,
+    user: 1,
+    assistant: 2,
+  };
+  return blocks
+    .map((block, index) => ({ block, index }))
+    .filter(({ block }) =>
+      block.enabled
+      && isInChatInjectionBlock(block)
+      && block.content.trim().length > 0
+      && matchesInjectionTrigger(block.injection_trigger, generationType))
+    .sort((left, right) =>
+      (right.block.injection_order ?? 100) - (left.block.injection_order ?? 100)
+      || roleRank[left.block.role] - roleRank[right.block.role]
+      || left.index - right.index)
+    .map(({ block }) => block);
+}
+
+function matchesInjectionTrigger(
+  triggers: readonly string[] | undefined,
+  generationType: string,
+): boolean {
+  if (!Array.isArray(triggers) || triggers.length === 0) return true;
+  return triggers.includes(generationType);
 }

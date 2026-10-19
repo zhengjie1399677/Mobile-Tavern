@@ -74,13 +74,22 @@ export function buildPromptRequestMessages(
     content: string;
   }>,
   sendNames: boolean | undefined,
+  namesBehavior?: -1 | 0 | 1 | 2,
 ): PromptMessage[] {
+  // SillyTavern names_behavior：1 = 通过消息 name 字段携带；2 = 直接写进内容；
+  // -1/0 在单聊中都不加名；未声明时沿用本应用既有的 sendNames 开关。
+  const includeNameField = namesBehavior === 1
+    ? true
+    : namesBehavior === undefined ? sendNames : false;
+  const prefixNameInContent = namesBehavior === 2;
   return [
     { role: "system", content: systemInstruction },
     ...history.map((message) => ({
       role: message.role === "model" ? "assistant" as const : message.role,
-      name: sendNames ? message.name : undefined,
-      content: message.content,
+      name: includeNameField ? message.name : undefined,
+      content: prefixNameInContent && message.name
+        ? `${message.name}: ${message.content}`
+        : message.content,
     })),
   ];
 }
@@ -112,6 +121,8 @@ export function shapePromptRequest(
     messages = result.messages;
     mergedMessageCount = result.mergedCount;
   }
+
+  messages = applyCustomPromptPostProcessing(messages, config.customPromptPostProcessing);
 
   const assistantPrefill = normalizeText(config.assistantPrefill);
   if (assistantPrefill) {
@@ -185,6 +196,39 @@ function squashSystemMessages(messages: PromptMessage[]): {
   const remaining = messages.filter((message) => message.role !== "system");
   remaining.splice(firstSystemIndex, 0, squashed);
   return { messages: remaining, squashedCount: systemMessages.length - 1 };
+}
+
+/**
+ * SillyTavern `custom_prompt_post_processing` 的通用部分。
+ *
+ * 只实现与 Chat Completions 消息角色有关的语义：`semi` / `strict` 把首条之后的
+ * system 消息降级为 user，`single` 把所有消息压成 user。`strict` 的占位消息属于
+ * 生态行为引导，不在通用代码里硬编码（`COMPAT-DATA`）。
+ */
+function applyCustomPromptPostProcessing(
+  messages: PromptMessage[],
+  mode: string | undefined,
+): PromptMessage[] {
+  const normalized = mode?.toLowerCase();
+  if (!normalized || normalized === "none" || normalized === "" || normalized === "claude" || normalized === "merge") {
+    return messages;
+  }
+  if (normalized === "single") {
+    return messages.map((message) => ({
+      role: "user" as const,
+      content: message.name ? `${message.name}: ${message.content}` : message.content,
+    }));
+  }
+  const strict = normalized === "semi"
+    || normalized === "semi_tools"
+    || normalized === "strict"
+    || normalized === "strict_tools";
+  if (!strict) return messages;
+  return messages.map((message, index) => (
+    index > 0 && message.role === "system"
+      ? { ...message, role: "user" as const }
+      : message
+  ));
 }
 
 function mergeAdjacentMessages(messages: PromptMessage[]): {

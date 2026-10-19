@@ -20,7 +20,11 @@ import {
   formatTableMemoryColumnConstraint,
   getTableMemoryColumnDefinitions,
 } from "../../domain/memory/tableMemorySchema";
-import { selectActivePromptBlocks } from "../../domain/prompts/promptSourceBlocks";
+import {
+  applyPresetFieldFormat,
+  buildPresetPromptPlan,
+  insertPresetRoleMessages,
+} from "./prompt/PresetPromptCompatibility";
 import type { PromptAssemblyResult } from "./prompt/PromptAssemblyResult";
 import type { ContextContribution } from "../../domain/contextSources/contracts";
 import { formatRecalledMemoriesSection } from "./prompt/PromptMemorySection";
@@ -138,8 +142,20 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     contextContributions?: readonly ContextContribution[];
     signal?: AbortSignal;
     traceId?: string;
+    /** ST 注入触发类型：normal / regenerate / continue 等；缺省 normal。 */
+    generationType?: string;
   }): PromptAssemblyResult {
-    const { character, chat, userInput, settings, globalLorebook = [], recalledMemories, signal, traceId } = params;
+    const {
+      character,
+      chat,
+      userInput,
+      settings,
+      globalLorebook = [],
+      recalledMemories,
+      signal,
+      traceId,
+      generationType = "normal",
+    } = params;
     const log = traceId ? logger.withTrace(traceId) : logger;
     checkPromptAssemblyAborted(signal, this.abortController?.signal);
     const operationSignal = signal ?? this.abortController?.signal;
@@ -165,6 +181,15 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     // 作用域必须覆盖整份组装：前面的模块 set、后面的模块 get 才读得到。
     // 变量宏属于兼容语义，这里只做一次组装用的工作集，播种自会话变量权威，不新增存储。
     macroParams.variableScope = createPromptMacroVariableScope(this.getCompatibilityState(chat));
+
+    // 预设条目按来源顺序整体求值一次，再分流为核心规则、角色消息与按 depth 注入的节点。
+    const presetPlan = buildPresetPromptPlan(
+      settings.promptConfig,
+      generationType,
+      replacePromptMacros,
+      macroParams,
+    );
+    const presetInjectionNodes = presetPlan.inChatNodes;
 
     if (settings.promptConfig?.roleplayMode === false) {
       const { recentTurns } = settings.memory;
@@ -339,8 +364,13 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         variableScope: macroParams.variableScope,
       }) ?? [];
       const promptMessages = applyInChatPromptNodes(
-        buildPromptRequestMessages(systemInstruction, chatHistory, settings.api.sendNames),
-        compatibilityNodes,
+        buildPromptRequestMessages(
+          systemInstruction,
+          chatHistory,
+          settings.api.sendNames,
+          settings.promptConfig?.namesBehavior,
+        ),
+        [...compatibilityNodes, ...presetInjectionNodes],
       );
       const shaped = shapePromptRequest(
         promptMessages,
@@ -389,21 +419,10 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     // ==================================================
     // 1. ENGINE 规则层（核心指令，固定不可变）
     // ==================================================
-    let mainPromptReplaced = "";
-    // 「底层扮演系统指令」子条目开关必须真正生效：关闭后不再注入 mainPrompt，
-    // 但仍保留已启用的自定义提示词条目（core_rules 退化为只含这些条目）。
-    const mainPromptEnabled = settings.promptConfig?.useMainPrompt !== false;
-    if (mainPromptEnabled && settings.promptConfig?.mainPrompt) {
-      mainPromptReplaced = this.replaceMacros(settings.promptConfig.mainPrompt, macroParams);
-    }
-    // 顶层 main/jailbreak 只在生效时参与去重；显式关闭时同源区块是该内容的唯一载体。
-    const activeCustomBlocks = settings.promptConfig?.customPrompts?.length
-      ? selectActivePromptBlocks(settings.promptConfig.customPrompts, settings.promptConfig)
-      : [];
-    if (activeCustomBlocks.length > 0) {
-      const compiledBlocks = activeCustomBlocks.map((block) => this.replaceMacros(block.content, macroParams)).join("\n\n");
-      mainPromptReplaced = mainPromptReplaced ? `${mainPromptReplaced}\n\n${compiledBlocks}` : compiledBlocks;
-    }
+    // 「底层扮演系统指令」关闭后不再注入 mainPrompt，但启用的 system 模块仍是唯一载体；
+    // user/assistant 模块保留角色并放在聊天历史之前（ST 预设大量用它们控制输出尾部）。
+    const mainPromptReplaced = presetPlan.systemPrompt;
+    const presetRoleMessages = presetPlan.roleMessages;
 
     builder.registerSection({
       id: "core_rules",
@@ -443,7 +462,14 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     });
 
     const descriptionVal = this.replaceMacros(character.description || "", macroParams);
-    const personalityVal = this.replaceMacros(character.personality || "", macroParams);
+    // SillyTavern 的 personality_format / scenario_format 可以整段替换字段渲染；
+    // 模板通过 {{personality}} / {{scenario}} 宏取回原文，未声明时保持现有行为。
+    const personalityVal = applyPresetFieldFormat(
+      character.personality || "",
+      settings.promptConfig?.personalityFormat,
+      (text, params) => this.replaceMacros(text, params),
+      macroParams,
+    );
     const charPersonaContent = [
       descriptionVal ? `=== Character Description ===\n${descriptionVal}` : "",
       personalityVal ? `=== Character Personality ===\n${personalityVal}` : ""
@@ -464,7 +490,12 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       }),
     });
 
-    const scenarioVal = this.replaceMacros(character.scenario || "", macroParams);
+    const scenarioVal = applyPresetFieldFormat(
+      character.scenario || "",
+      settings.promptConfig?.scenarioFormat,
+      (text, params) => this.replaceMacros(text, params),
+      macroParams,
+    );
     builder.registerSection({
       id: "char_scenario",
       phase: "Context",
@@ -519,6 +550,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       macroParams,
       (text, params) => this.replaceMacros(text, params),
       this.getCompatibilityState(chat),
+      settings.promptConfig?.worldInfoFormat,
     );
 
     builder.registerSection({
@@ -911,10 +943,20 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
       currentTurns--;
     }
 
+    // 相对位置的非 system 模块统一放在 system 之后、聊天历史之前，保持角色语义。
+    const requestMessages = insertPresetRoleMessages(
+      buildPromptRequestMessages(
+        compiledSystemPrompt,
+        chatHistory,
+        settings.api.sendNames,
+        settings.promptConfig?.namesBehavior,
+      ),
+      presetRoleMessages,
+    );
     const shaped = shapePromptRequest(
       applyInChatPromptNodes(
-        buildPromptRequestMessages(compiledSystemPrompt, chatHistory, settings.api.sendNames),
-        compatibilityPromptNodes,
+        requestMessages,
+        [...compatibilityPromptNodes, ...presetInjectionNodes],
       ),
       settings.promptConfig.requestShaping,
     );

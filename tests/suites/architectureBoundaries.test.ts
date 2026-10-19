@@ -686,7 +686,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "设置页必须使用现代聊天式设置壳，API 能力开关必须使用统一设置行"
   );
   assert(
-    /case\s+["']prompt["']:[\s\S]*sections=\{\[["']preset["'],\s*["']prompts["'],\s*["']regex["']\]\}/.test(settingsTab),
+    /case\s+["']prompt["']:[\s\S]*sections=\{\[["']preset["'],\s*["']prompts["'],\s*(?:["']compat["'],\s*)?["']regex["']\]\}/.test(settingsTab),
     "预设导入、切换与管理入口必须挂载在用户可见的“预设”分类中"
   );
   assert(

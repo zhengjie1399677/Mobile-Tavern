@@ -519,9 +519,14 @@ export const sillyTavernCompatibilityRuntimePlugin = defineRuntimePlugin({
           };
           const format = (entry: (typeof triggeredLorebookEntries)[number]): string => {
             const content = replacePromptMacros(entry.content, macroParams);
-            return entry.addMemo && entry.comment
-              ? `[设定及备注: ${entry.comment}]\n${content}`
+            // 预设声明的 wi_format 与通用世界书路径保持同一口径（{0} 承载条目正文）。
+            const worldInfoFormat = settings.promptConfig?.worldInfoFormat;
+            const formatted = worldInfoFormat && worldInfoFormat.trim()
+              ? worldInfoFormat.replace(/\{0\}/g, content)
               : content;
+            return entry.addMemo && entry.comment
+              ? `[设定及备注: ${entry.comment}]\n${formatted}`
+              : formatted;
           };
           return buildSillyTavernWorldInfoNodes(triggeredLorebookEntries, format);
         },

@@ -217,6 +217,7 @@ const ChatInputArea = ({
     setIsVoiceMode,
     isHolding,
     isCancelHovered,
+    cancelSwipeProgress,
     holdDurationMs,
     voiceAmplitude,
     isLimitWarning,
@@ -626,6 +627,7 @@ const ChatInputArea = ({
       {isHolding && (
         <VoiceHoldOverlay
           isCancelHovered={isCancelHovered}
+          cancelSwipeProgress={cancelSwipeProgress}
           isLimitWarning={isLimitWarning}
           amplitude={voiceAmplitude}
           holdDurationMs={holdDurationMs}

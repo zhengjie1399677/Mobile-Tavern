@@ -30,6 +30,8 @@ export function projectSamplerPreset(
     frequencyPenalty: sampler.frequencyPenalty ?? defaults.frequencyPenalty,
     presencePenalty: sampler.presencePenalty ?? defaults.presencePenalty,
     minP: sampler.minP ?? defaults.minP,
+    topA: sampler.topA ?? defaults.topA,
+    seed: sampler.seed ?? defaults.seed,
     maxTokens: sampler.maxTokens ?? defaults.maxTokens,
   };
 }

@@ -341,14 +341,15 @@ function buildReqBody(record: Record<string, unknown>, manifest: any, settings: 
     return {
       ...base,
       temperature: p.temperature, top_p: p.topP, top_k: p.topK, min_p: p.minP,
-      max_tokens: p.maxTokens, presence_penalty: p.presencePenalty ?? 0,
+      top_a: p.topA, max_tokens: p.maxTokens, presence_penalty: p.presencePenalty ?? 0,
       frequency_penalty: p.frequencyPenalty ?? 0, repetition_penalty: p.repetitionPenalty ?? 1,
+      ...(typeof p.seed === "number" && p.seed >= 0 ? { seed: p.seed } : {}),
     };
   }
   // syncPreset=false：合并插件自管采样参数（白名单字段）
   const sampling = record.sampling;
   if (sampling && typeof sampling === "object") {
-    const ALLOWED = ["temperature", "top_p", "top_k", "min_p", "max_tokens", "presence_penalty", "frequency_penalty"];
+    const ALLOWED = ["temperature", "top_p", "top_k", "top_a", "min_p", "seed", "max_tokens", "presence_penalty", "frequency_penalty"];
     for (const k of ALLOWED) {
       if (k in sampling) base[k] = (sampling as Record<string, unknown>)[k];
     }

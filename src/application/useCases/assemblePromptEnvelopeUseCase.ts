@@ -33,6 +33,8 @@ export interface AssemblePromptEnvelopeParams {
   beforeMessageId?: string;
   signal?: AbortSignal;
   traceId?: string;
+  /** 发送 = normal，重新生成 = regenerate；用于 SillyTavern injection_trigger。 */
+  generationType?: string;
 }
 
 export interface AuthoritativePromptEnvelope {
@@ -60,6 +62,7 @@ export async function assembleAuthoritativePromptEnvelope(
     ...(params.contextContributions ? { contextContributions: params.contextContributions } : {}),
     signal: params.signal,
     traceId: params.traceId,
+    ...(params.generationType ? { generationType: params.generationType } : {}),
   });
   return { promptSession, promptEnvelope };
 }

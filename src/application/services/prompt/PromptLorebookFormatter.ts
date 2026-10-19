@@ -8,6 +8,7 @@ export function formatTriggeredLorebookEntries(
   macroParams: PromptMacroParams,
   replaceMacros: PromptMacroReplacer,
   variables: Record<string, unknown>,
+  worldInfoFormat?: string,
 ): string {
   return [...entries]
     .sort((left, right) => {
@@ -18,9 +19,13 @@ export function formatTriggeredLorebookEntries(
     })
     .map((entry) => {
       const content = replaceMacros(entry.content, { ...macroParams, variables });
-      return entry.addMemo && entry.comment
-        ? `[设定及备注: ${entry.comment}]\n${content}`
+      // ST `wi_format` 用 {0} 承载条目正文；空模板等同于原样输出。
+      const formatted = worldInfoFormat && worldInfoFormat.trim()
+        ? worldInfoFormat.replace(/\{0\}/g, content)
         : content;
+      return entry.addMemo && entry.comment
+        ? `[设定及备注: ${entry.comment}]\n${formatted}`
+        : formatted;
     })
     .join("\n\n");
 }

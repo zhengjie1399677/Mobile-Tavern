@@ -23,8 +23,15 @@ const VOICE_MAX_DURATION_MS = 180_000;
 const VOICE_LIMIT_WARNING_MS = 165_000;
 const MIN_HOLD_MS = 500;
 const MAX_PENDING_ATTACHMENTS = 4;
-const CANCEL_SWIPE_THRESHOLD_PX = 50;
+/**
+ * 微信式取消：手指需要持续上滑一段距离才会进入取消态，而不是刚离开按钮就取消。
+ * 进入与退出使用不同阈值（滞回），避免手指在边界抖动时红/绿状态反复跳变。
+ */
+const CANCEL_SWIPE_ARM_THRESHOLD_PX = 80;
+const CANCEL_SWIPE_DISARM_THRESHOLD_PX = 60;
 const AMPLITUDE_POLL_INTERVAL_MS = 100;
+/** 进度只按 5% 步进提交，避免 pointermove 高频 setState 拖慢 WebView。 */
+const CANCEL_PROGRESS_STEPS = 20;
 
 const VOICE_ERROR_KEYS: Record<string, string> = {
   VOICE_CAPTURE_PERMISSION_DENIED: "chat_input.voice_error_permission",
@@ -64,6 +71,7 @@ export function useChatVoiceInput({
   // 按住状态与交互状态
   const [isHolding, setIsHolding] = React.useState(false);
   const [isCancelHovered, setIsCancelHovered] = React.useState(false);
+  const [cancelSwipeProgress, setCancelSwipeProgress] = React.useState(0);
   const [holdDurationMs, setHoldDurationMs] = React.useState(0);
   const [voiceAmplitude, setVoiceAmplitude] = React.useState(0);
 
@@ -71,6 +79,8 @@ export function useChatVoiceInput({
   /** 同步真值：`isHolding` 是渲染期事实，跨 await 不可靠（松手可能早于 startCapture 落地）。 */
   const holdActiveRef = React.useRef(false);
   const voiceStartYRef = React.useRef(0);
+  /** 取消态同步真值：松手时不能依赖 pointermove 的 setState 是否已提交。 */
+  const cancelArmedRef = React.useRef(false);
   const activePointerIdRef = React.useRef<number | null>(null);
   /** 在途的 startCapture：松手若早于它完成，收尾必须先等它落地。 */
   const startPromiseRef = React.useRef<Promise<unknown> | null>(null);
@@ -84,9 +94,11 @@ export function useChatVoiceInput({
   const resetHoldState = React.useCallback(() => {
     holdActiveRef.current = false;
     holdStartTimeRef.current = 0;
+    cancelArmedRef.current = false;
     activePointerIdRef.current = null;
     setIsHolding(false);
     setIsCancelHovered(false);
+    setCancelSwipeProgress(0);
     setHoldDurationMs(0);
     setVoiceAmplitude(0);
   }, []);
@@ -170,8 +182,10 @@ export function useChatVoiceInput({
     modelVoiceCaptureTokenRef.current = token;
     holdActiveRef.current = true;
     holdStartTimeRef.current = Date.now();
+    cancelArmedRef.current = false;
     setIsHolding(true);
     setIsCancelHovered(false);
+    setCancelSwipeProgress(0);
     setHoldDurationMs(0);
     setVoiceAmplitude(0);
 
@@ -284,7 +298,16 @@ export function useChatVoiceInput({
   const handlePointerMove = React.useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     if (!holdActiveRef.current) return;
     if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
-    setIsCancelHovered(voiceStartYRef.current - e.clientY > CANCEL_SWIPE_THRESHOLD_PX);
+    const swipeDistance = voiceStartYRef.current - e.clientY;
+    // 滞回：一旦进入取消态，要回退到更近的距离才退出，避免临界点反复跳色。
+    const armed = cancelArmedRef.current
+      ? swipeDistance > CANCEL_SWIPE_DISARM_THRESHOLD_PX
+      : swipeDistance > CANCEL_SWIPE_ARM_THRESHOLD_PX;
+    cancelArmedRef.current = armed;
+    setIsCancelHovered(armed);
+    const clamped = Math.max(0, Math.min(1, swipeDistance / CANCEL_SWIPE_ARM_THRESHOLD_PX));
+    const quantized = Math.round(clamped * CANCEL_PROGRESS_STEPS) / CANCEL_PROGRESS_STEPS;
+    setCancelSwipeProgress((current) => (current === quantized ? current : quantized));
   }, []);
 
   const handlePointerUp = React.useCallback(async (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -294,8 +317,13 @@ export function useChatVoiceInput({
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {}
     // 取消与否现算坐标：pointermove 的 setState 未必在本次 pointerup 前提交，
-    // 读渲染值会出现「遮罩已显示取消、实际却发送」。
-    if (voiceStartYRef.current - e.clientY > CANCEL_SWIPE_THRESHOLD_PX) {
+    // 读渲染值会出现「遮罩已显示取消、实际却发送」。已进入取消态时沿用退出阈值，
+    // 保证「上滑超过阈值后再回一点松手」仍然按取消处理。
+    const swipeDistance = voiceStartYRef.current - e.clientY;
+    const shouldCancel = cancelArmedRef.current
+      ? swipeDistance > CANCEL_SWIPE_DISARM_THRESHOLD_PX
+      : swipeDistance > CANCEL_SWIPE_ARM_THRESHOLD_PX;
+    if (shouldCancel) {
       await cancelHoldRecord();
       return;
     }
@@ -312,6 +340,7 @@ export function useChatVoiceInput({
     setIsVoiceMode,
     isHolding,
     isCancelHovered,
+    cancelSwipeProgress,
     holdDurationMs,
     voiceAmplitude,
     isLimitWarning: holdDurationMs >= VOICE_LIMIT_WARNING_MS,

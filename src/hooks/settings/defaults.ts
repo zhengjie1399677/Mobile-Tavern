@@ -169,6 +169,8 @@ export const MOBILE_TAVERN_BASIC_PRESET_BUNDLE_V1: SavedPresetBundle = {
     frequencyPenalty: 0.0,
     presencePenalty: 0.0,
     minP: 0.0,
+    topA: 0.0,
+    seed: -1,
     maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   },
   promptConfig: {

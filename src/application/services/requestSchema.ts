@@ -21,6 +21,7 @@ const REQUEST_FIELD_WHITELIST = new Set<string>([
   "temperature",
   "top_p",
   "top_k",
+  "top_a",
   "min_p",
   "max_tokens",
   "max_completion_tokens",
