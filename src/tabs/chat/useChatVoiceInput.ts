@@ -25,10 +25,12 @@ const MIN_HOLD_MS = 500;
 const MAX_PENDING_ATTACHMENTS = 4;
 /**
  * 微信式取消：手指需要持续上滑一段距离才会进入取消态，而不是刚离开按钮就取消。
+ * 阈值按视口高度计算（约六分之一屏），避免固定像素在不同尺寸手机上体感差异过大；
  * 进入与退出使用不同阈值（滞回），避免手指在边界抖动时红/绿状态反复跳变。
  */
-const CANCEL_SWIPE_ARM_THRESHOLD_PX = 80;
-const CANCEL_SWIPE_DISARM_THRESHOLD_PX = 60;
+const CANCEL_SWIPE_VIEWPORT_RATIO = 1 / 6;
+const CANCEL_SWIPE_MIN_THRESHOLD_PX = 72;
+const CANCEL_SWIPE_DISARM_RATIO = 0.75;
 const AMPLITUDE_POLL_INTERVAL_MS = 100;
 /** 进度只按 5% 步进提交，避免 pointermove 高频 setState 拖慢 WebView。 */
 const CANCEL_PROGRESS_STEPS = 20;
@@ -47,6 +49,13 @@ function resolveVoiceErrorKey(message: string): string {
   // Web Audio 回退链路的浏览器权限异常
   if (/NotAllowedError|not-allowed|permission/i.test(message)) return "chat_input.voice_error_permission";
   return "chat_input.voice_error_generic";
+}
+
+/** 每次按住时按当前视口高度取阈值，旋转屏幕或分屏后仍然保持「约六分之一屏」的体感。 */
+function resolveCancelSwipeThresholds(): { arm: number; disarm: number } {
+  const viewportHeight = typeof window === "undefined" ? 0 : window.innerHeight;
+  const arm = Math.max(CANCEL_SWIPE_MIN_THRESHOLD_PX, viewportHeight * CANCEL_SWIPE_VIEWPORT_RATIO);
+  return { arm, disarm: arm * CANCEL_SWIPE_DISARM_RATIO };
 }
 
 /**
@@ -81,6 +90,7 @@ export function useChatVoiceInput({
   const voiceStartYRef = React.useRef(0);
   /** 取消态同步真值：松手时不能依赖 pointermove 的 setState 是否已提交。 */
   const cancelArmedRef = React.useRef(false);
+  const cancelSwipeThresholdRef = React.useRef(resolveCancelSwipeThresholds());
   const activePointerIdRef = React.useRef<number | null>(null);
   /** 在途的 startCapture：松手若早于它完成，收尾必须先等它落地。 */
   const startPromiseRef = React.useRef<Promise<unknown> | null>(null);
@@ -289,6 +299,7 @@ export function useChatVoiceInput({
     if (holdActiveRef.current || activePointerIdRef.current !== null) return;
     activePointerIdRef.current = e.pointerId;
     voiceStartYRef.current = e.clientY;
+    cancelSwipeThresholdRef.current = resolveCancelSwipeThresholds();
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
@@ -299,13 +310,14 @@ export function useChatVoiceInput({
     if (!holdActiveRef.current) return;
     if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
     const swipeDistance = voiceStartYRef.current - e.clientY;
+    const { arm, disarm } = cancelSwipeThresholdRef.current;
     // 滞回：一旦进入取消态，要回退到更近的距离才退出，避免临界点反复跳色。
     const armed = cancelArmedRef.current
-      ? swipeDistance > CANCEL_SWIPE_DISARM_THRESHOLD_PX
-      : swipeDistance > CANCEL_SWIPE_ARM_THRESHOLD_PX;
+      ? swipeDistance > disarm
+      : swipeDistance > arm;
     cancelArmedRef.current = armed;
     setIsCancelHovered(armed);
-    const clamped = Math.max(0, Math.min(1, swipeDistance / CANCEL_SWIPE_ARM_THRESHOLD_PX));
+    const clamped = Math.max(0, Math.min(1, swipeDistance / arm));
     const quantized = Math.round(clamped * CANCEL_PROGRESS_STEPS) / CANCEL_PROGRESS_STEPS;
     setCancelSwipeProgress((current) => (current === quantized ? current : quantized));
   }, []);
@@ -320,9 +332,10 @@ export function useChatVoiceInput({
     // 读渲染值会出现「遮罩已显示取消、实际却发送」。已进入取消态时沿用退出阈值，
     // 保证「上滑超过阈值后再回一点松手」仍然按取消处理。
     const swipeDistance = voiceStartYRef.current - e.clientY;
+    const { arm, disarm } = cancelSwipeThresholdRef.current;
     const shouldCancel = cancelArmedRef.current
-      ? swipeDistance > CANCEL_SWIPE_DISARM_THRESHOLD_PX
-      : swipeDistance > CANCEL_SWIPE_ARM_THRESHOLD_PX;
+      ? swipeDistance > disarm
+      : swipeDistance > arm;
     if (shouldCancel) {
       await cancelHoldRecord();
       return;
