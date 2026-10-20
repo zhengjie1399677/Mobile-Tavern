@@ -231,7 +231,7 @@ export default function MainLayout() {
             aria-label="底栏导航页签"
             data-ui="main-tab-bar"
             style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
-            className="absolute left-2.5 right-2.5 h-12 rounded-2xl border border-white/12 flex items-center justify-around z-20 bg-card/45 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transition-all"
+            className="absolute left-2.5 right-2.5 h-12 rounded-2xl border border-white/12 flex items-center justify-around z-20 bg-card/25 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transition-all"
           >
             {bottomBarTabs.map((tab, index) => {
               const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as LucideIcon;

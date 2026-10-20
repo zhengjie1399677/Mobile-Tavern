@@ -340,6 +340,25 @@ describe("ChatInputArea 微信语音交互与快捷栏持久化", () => {
     expect(mockHandleSendMessage).not.toHaveBeenCalled();
   });
 
+  it("指针按住期间失焦不会取消录音（滑过快捷栏）", async () => {
+    renderWithProviders(<ChatInputArea isKeyboardOpen={false} />);
+    enterVoiceMode();
+
+    await pointerDown(200);
+    holdClockOffset = 600;
+    // 挂载时的会话切换 effect 会安全取消一次录音，这里只关心失焦是否又取消。
+    const cancelCallsBeforeBlur = mockCancelCapture.mock.calls.length;
+    await act(async () => {
+      fireEvent.blur(holdButton());
+    });
+    await act(async () => {
+      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 200 });
+    });
+
+    await waitFor(() => expect(mockHandleSendMessage).toHaveBeenCalledTimes(1));
+    expect(mockCancelCapture).toHaveBeenCalledTimes(cancelCallsBeforeBlur);
+  });
+
   it("第二根手指按下不会打断正在进行的录音", async () => {
     renderWithProviders(<ChatInputArea isKeyboardOpen={false} />);
     enterVoiceMode();

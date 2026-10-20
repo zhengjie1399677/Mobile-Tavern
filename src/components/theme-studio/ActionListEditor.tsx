@@ -11,6 +11,7 @@ import {
 } from "../../domain/themes/themeInteractionContract";
 import { DraftNumberInput } from "./DraftNumberInput";
 import { StateValueInput } from "./StateValueInput";
+import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 type ActionType = typeof THEME_INTERACTION_ACTION_TYPES[number];
 
@@ -139,6 +140,7 @@ export function ActionListEditor({
   onChange: (actions: ThemeInteractionAction[]) => void;
 }) {
   const { t } = useTranslation();
+  const labels = useThemeStudioTypeLabels();
   const canAdd = actions.length < THEME_INTERACTION_LIMITS.maxActionsPerRule;
 
   const addAction = () => {
@@ -198,7 +200,7 @@ export function ActionListEditor({
                     >
                       {THEME_INTERACTION_ACTION_TYPES.map(type => (
                         <option key={type} value={type} disabled={!createAction(type, config)}>
-                          {type}
+                          {labels.action(type)}
                         </option>
                       ))}
                     </select>
@@ -319,7 +321,7 @@ export function ActionListEditor({
                           })}
                           className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
                         >
-                          {THEME_MEDIA_SURFACES.map(surface => <option key={surface} value={surface}>{surface}</option>)}
+                          {THEME_MEDIA_SURFACES.map(surface => <option key={surface} value={surface}>{labels.surface(surface)}</option>)}
                         </select>
                       </label>
                       <label className="text-[10px] text-muted-foreground">
@@ -349,7 +351,7 @@ export function ActionListEditor({
                         })}
                         className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
                       >
-                        {THEME_MEDIA_SURFACES.map(surface => <option key={surface} value={surface}>{surface}</option>)}
+                        {THEME_MEDIA_SURFACES.map(surface => <option key={surface} value={surface}>{labels.surface(surface)}</option>)}
                       </select>
                     </label>
                   )}

@@ -9,6 +9,7 @@ import {
 } from "../../domain/themes/themeInteractionContract";
 import { createThemeStateKey } from "../../domain/themes/themeInteractionDraft";
 import { EnumValuesInput } from "./EnumValuesInput";
+import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 function stateToken(key: string, definition: ThemeStateDefinition): string {
   return `${key}-${definition.default}`;
@@ -40,6 +41,7 @@ export function StateEditor({
   onChange: (config: ThemeInteractionConfig) => void;
 }) {
   const { t } = useTranslation();
+  const labels = useThemeStudioTypeLabels();
   const [stateKey, setStateKey] = useState(() => createThemeStateKey(config));
   const [stateType, setStateType] = useState<"boolean" | "enum" | "counter">("boolean");
   const [booleanDefault, setBooleanDefault] = useState(false);
@@ -119,9 +121,9 @@ export function StateEditor({
             onChange={event => setStateType(event.target.value as "boolean" | "enum" | "counter")}
             className="mt-1 h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground"
           >
-            <option value="boolean">boolean</option>
-            <option value="enum">enum</option>
-            <option value="counter">counter</option>
+            <option value="boolean">{labels.stateType("boolean")}</option>
+            <option value="enum">{labels.stateType("enum")}</option>
+            <option value="counter">{labels.stateType("counter")}</option>
           </select>
         </label>
 
@@ -228,7 +230,7 @@ export function StateEditor({
                 <div className="min-w-0">
                   <p className="truncate font-mono text-[11px] font-semibold text-foreground">{key}</p>
                   <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    {definition.type} · {stateToken(key, definition)}
+                    {labels.stateType(definition.type)} · {stateToken(key, definition)}
                   </p>
                 </div>
                 <button

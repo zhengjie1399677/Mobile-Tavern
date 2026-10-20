@@ -3,6 +3,7 @@ import type { LocalResourceMetadata } from "../../domain/resources/types";
 import type { ThemeMediaDefinition } from "../../domain/themes/themeInteractionContract";
 import { DraftNumberInput } from "./DraftNumberInput";
 import { MediaManualPreview, resourceIdFromSrc } from "./MediaManualPreview";
+import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
 
 export function MediaEditorRow({
@@ -21,6 +22,7 @@ export function MediaEditorRow({
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  const labels = useThemeStudioTypeLabels();
   const resourceId = resourceIdFromSrc(definition.src);
   const resource = resources.find(item => item.id === resourceId);
   const sameKindResources = resources.filter(item => item.kind === definition.type);
@@ -88,9 +90,9 @@ export function MediaEditorRow({
             })}
             className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
           >
-            <option value="none">none</option>
-            <option value="metadata">metadata</option>
-            <option value="auto">auto</option>
+            <option value="none">{labels.preload("none")}</option>
+            <option value="metadata">{labels.preload("metadata")}</option>
+            <option value="auto">{labels.preload("auto")}</option>
           </select>
         </label>
         <label className="text-[10px] text-muted-foreground">
@@ -125,9 +127,9 @@ export function MediaEditorRow({
                 })}
                 className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
               >
-                <option value="cover">cover</option>
-                <option value="contain">contain</option>
-                <option value="fill">fill</option>
+                <option value="cover">{labels.fit("cover")}</option>
+                <option value="contain">{labels.fit("contain")}</option>
+                <option value="fill">{labels.fit("fill")}</option>
               </select>
             </label>
           </>

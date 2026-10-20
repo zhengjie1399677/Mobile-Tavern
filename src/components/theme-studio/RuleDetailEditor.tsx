@@ -11,6 +11,7 @@ import {
 import { ActionListEditor } from "./ActionListEditor";
 import { ConditionListEditor } from "./ConditionListEditor";
 import { DraftNumberInput } from "./DraftNumberInput";
+import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 function whenForEvent(
   event: ThemeInteractionEventType,
@@ -46,6 +47,7 @@ export function RuleDetailEditor({
   onBack: () => void;
 }) {
   const { t } = useTranslation();
+  const labels = useThemeStudioTypeLabels();
   const ruleIssues = issues.filter(issue => (
     issue.path[0] === "interactions" && issue.path[1] === ruleIndex
   ));
@@ -99,7 +101,7 @@ export function RuleDetailEditor({
               className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
             >
               {THEME_INTERACTION_EVENT_TYPES.map(event => (
-                <option key={event} value={event}>{event}</option>
+                <option key={event} value={event}>{labels.event(event)}</option>
               ))}
             </select>
           </label>
@@ -144,7 +146,7 @@ export function RuleDetailEditor({
                 className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
               >
                 {THEME_ORIENTATIONS.map(orientation => (
-                  <option key={orientation} value={orientation}>{orientation}</option>
+                  <option key={orientation} value={orientation}>{labels.orientation(orientation)}</option>
                 ))}
               </select>
             </label>

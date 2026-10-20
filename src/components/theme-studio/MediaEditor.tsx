@@ -9,6 +9,7 @@ import {
 } from "../../domain/themes/themeInteractionContract";
 import { createThemeMediaId } from "../../domain/themes/themeInteractionDraft";
 import { MediaEditorRow } from "./MediaEditorRow";
+import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
 
 export function MediaEditor({
@@ -27,6 +28,7 @@ export function MediaEditor({
   onImport?: (file: File) => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const labels = useThemeStudioTypeLabels();
   const [kind, setKind] = useState<"audio" | "video">("audio");
   const [resourceId, setResourceId] = useState("");
   const [mediaId, setMediaId] = useState(() => createThemeMediaId(config));
@@ -107,8 +109,8 @@ export function MediaEditor({
             }}
             className="mt-1 h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground"
           >
-            <option value="audio">{t("theme_studio.media.kind_audio")}</option>
-            <option value="video">{t("theme_studio.media.kind_video")}</option>
+            <option value="audio">{labels.mediaKind("audio")}</option>
+            <option value="video">{labels.mediaKind("video")}</option>
           </select>
         </label>
         <label className="text-[10px] text-muted-foreground">

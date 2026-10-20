@@ -585,17 +585,19 @@ const ChatInputArea = ({
       }}
       className="chat-composer-shell z-10 flex shrink-0 flex-col items-center gap-2 px-3 pt-2.5"
     >
-      <ComposerQuickActionBar
-        visible={showQuickActions}
-        draftText={localInput}
-        onInsertData={handleInsertToolData}
-        mcpPopoverOpen={mcpPopoverOpen}
-        onMcpPopoverOpenChange={(next) => {
-          if (next) setMcpSeedText((localInput || "").trim());
-          setMcpPopoverOpen(next);
-        }}
-        mcpSeedText={mcpSeedText}
-      />
+      <div className={isHolding ? "pointer-events-none" : undefined}>
+        <ComposerQuickActionBar
+          visible={showQuickActions}
+          draftText={localInput}
+          onInsertData={handleInsertToolData}
+          mcpPopoverOpen={mcpPopoverOpen}
+          onMcpPopoverOpenChange={(next) => {
+            if (next) setMcpSeedText((localInput || "").trim());
+            setMcpPopoverOpen(next);
+          }}
+          mcpSeedText={mcpSeedText}
+        />
+      </div>
       <ComposerReplySuggestions
         commandSuggestionsVisible={composerCommandSuggestions.length > 0}
       />

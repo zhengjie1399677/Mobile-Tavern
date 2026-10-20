@@ -8,6 +8,7 @@ import {
   type ThemeStateValue,
 } from "../../domain/themes/themeInteractionContract";
 import { StateValueInput } from "./StateValueInput";
+import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 type ConditionType = typeof THEME_INTERACTION_CONDITION_TYPES[number];
 
@@ -42,6 +43,7 @@ export function ConditionListEditor({
   onChange: (conditions: ThemeInteractionCondition[]) => void;
 }) {
   const { t } = useTranslation();
+  const labels = useThemeStudioTypeLabels();
   const canAdd = conditions.length < THEME_INTERACTION_LIMITS.maxConditionsPerRule;
 
   const addCondition = () => {
@@ -103,7 +105,7 @@ export function ConditionListEditor({
                         value={type}
                         disabled={type === "state.equals" && Object.keys(config.state).length === 0}
                       >
-                        {type}
+                        {labels.condition(type)}
                       </option>
                     ))}
                   </select>
@@ -155,8 +157,8 @@ export function ConditionListEditor({
                         })}
                         className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
                       >
-                        <option value="portrait">portrait</option>
-                        <option value="landscape">landscape</option>
+                        <option value="portrait">{labels.orientation("portrait")}</option>
+                        <option value="landscape">{labels.orientation("landscape")}</option>
                       </select>
                     </>
                   )}
@@ -168,8 +170,8 @@ export function ConditionListEditor({
                         onChange={event => updateCondition(index, { ...condition, value: event.target.value === "true" })}
                         className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
                       >
-                        <option value="true">true</option>
-                        <option value="false">false</option>
+                        <option value="true">{labels.booleanValue(true)}</option>
+                        <option value="false">{labels.booleanValue(false)}</option>
                       </select>
                     </>
                   )}
@@ -181,8 +183,8 @@ export function ConditionListEditor({
                         onChange={event => updateCondition(index, { ...condition, value: event.target.value === "true" })}
                         className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
                       >
-                        <option value="true">true</option>
-                        <option value="false">false</option>
+                        <option value="true">{labels.booleanValue(true)}</option>
+                        <option value="false">{labels.booleanValue(false)}</option>
                       </select>
                     </>
                   )}

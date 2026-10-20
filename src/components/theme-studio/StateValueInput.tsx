@@ -2,6 +2,7 @@ import type {
   ThemeStateDefinition,
   ThemeStateValue,
 } from "../../domain/themes/themeInteractionContract";
+import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 export function StateValueInput({
   definition,
@@ -14,6 +15,7 @@ export function StateValueInput({
   onChange: (value: ThemeStateValue) => void;
   ariaLabel?: string;
 }) {
+  const labels = useThemeStudioTypeLabels();
   if (!definition) return null;
 
   if (definition.type === "boolean") {
@@ -24,8 +26,8 @@ export function StateValueInput({
         onChange={event => onChange(event.target.value === "true")}
         className="h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
       >
-        <option value="true">true</option>
-        <option value="false">false</option>
+        <option value="true">{labels.booleanValue(true)}</option>
+        <option value="false">{labels.booleanValue(false)}</option>
       </select>
     );
   }

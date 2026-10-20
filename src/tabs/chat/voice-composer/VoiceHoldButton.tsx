@@ -68,8 +68,11 @@ export function VoiceHoldButton({
         }
       }}
       onBlur={() => {
+        // 指针按住的生命周期由 pointerup/pointercancel 管理；只有键盘按住
+        // 在失焦时必须取消，避免滑过快捷栏等元素时把正在进行的录音误断。
+        if (!keyboardHoldingRef.current) return;
         keyboardHoldingRef.current = false;
-        if (isHolding) onHoldCancel();
+        onHoldCancel();
       }}
       onClick={(event) => {
         // 键盘与指针路径已各自处理；这里只兜住读屏合成的 click。
