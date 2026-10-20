@@ -26,7 +26,7 @@ export const externalCapabilitySourceSchema = z
     id: z.string().regex(SOURCE_ID_PATTERN),
     kind: z.string().max(32).regex(KIND_PATTERN),
     displayName: z.string().trim().min(1).max(64),
-    endpoint: z.url().max(2048),
+    endpoint: z.string().url().max(2048),
     transport: z.string().max(32).regex(KIND_PATTERN),
     era: z.enum(["auto", "legacy", "modern"]).default("auto"),
     authRef: z.string().min(1).max(128).optional(),
