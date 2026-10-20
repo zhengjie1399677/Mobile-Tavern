@@ -1,4 +1,5 @@
 import React from "react";
+import { Mic, Radio, RotateCcw } from "lucide-react";
 import { useTranslation } from "../../../contexts/LanguageContext";
 
 interface VoiceHoldButtonProps {
@@ -77,15 +78,24 @@ export function VoiceHoldButton({
         else onHoldStart();
       }}
       disabled={disabled}
-      className={`min-h-[38px] flex-1 select-none rounded-xl border font-medium text-sm transition-all duration-150 flex items-center justify-center touch-none py-2 px-3 ${
+      className={`group min-h-[38px] flex-1 select-none rounded-xl border-0 font-medium text-sm transition-all duration-150 flex items-center justify-center touch-none py-2 px-3 ${
         isHolding
           ? isCancelHovered
-            ? "border-red-500/50 bg-red-500/20 text-red-400"
-            : "border-primary/50 bg-primary/20 text-primary shadow-inner scale-[0.99]"
-          : "border-border/80 bg-input/30 text-foreground hover:bg-muted active:scale-[0.99]"
+            ? "bg-red-500/15 text-red-400 font-semibold shadow-inner scale-[0.98]"
+            : "bg-primary/15 text-primary font-semibold shadow-inner scale-[0.98]"
+          : "bg-muted/40 text-foreground/90 hover:bg-muted/70 active:bg-muted/90 active:scale-[0.99]"
       } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
     >
-      {label}
+      {isHolding ? (
+        isCancelHovered ? (
+          <RotateCcw className="mr-1.5 size-4 animate-spin text-red-400" />
+        ) : (
+          <Radio className="mr-1.5 size-4 animate-pulse text-primary" />
+        )
+      ) : (
+        <Mic className="mr-1.5 size-4 opacity-60 transition-transform group-hover:scale-110" />
+      )}
+      <span>{label}</span>
     </button>
   );
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { AudioLines, FileText, ImageIcon, Video } from "lucide-react";
+import { AudioLines, FileText, ImageIcon, Pause, Play, Video } from "lucide-react";
 import type { IAttachmentService } from "../../../application/serviceContracts";
 import type { AttachmentMetadata } from "../../../domain/attachments/types";
 import type { MessageContentPart } from "../../../domain/messages/messageContent";
@@ -76,17 +76,13 @@ export function MessageAttachmentParts({ parts }: MessageAttachmentPartsProps): 
         if (part.type === "audio") {
           const isModelInput = part.purpose === "model-input";
           return (
-            <article key={`${part.assetId}-${index}`} className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
-              <div className="mb-2 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground"><AudioLines className="h-4 w-4" /></span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] font-bold text-muted-foreground">{isModelInput ? "语音输入" : "音频"}</p>
-                  <p className="truncate text-[10px] font-medium text-foreground">{name}</p>
-                </div>
-                {size && <span className="text-[8px] text-muted-foreground">{size}</span>}
-              </div>
-              <audio src={asset.url} controls preload="metadata" className="h-9 w-full" />
-            </article>
+            <AudioVoicePlayer
+              key={`${part.assetId}-${index}`}
+              url={asset.url}
+              name={name}
+              size={size}
+              isModelInput={isModelInput}
+            />
           );
         }
         return (
@@ -128,4 +124,126 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+interface AudioVoicePlayerProps {
+  url: string;
+  name: string;
+  size: string | null;
+  isModelInput: boolean;
+}
+
+const VOICE_WAVE_BARS = [6, 12, 18, 14, 10, 16, 22, 15, 8, 14, 20, 16, 10, 18, 12, 8, 14, 6];
+
+function AudioVoicePlayer({ url, name, size, isModelInput }: AudioVoicePlayerProps): React.JSX.Element {
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [duration, setDuration] = React.useState(0);
+  const [currentTime, setCurrentTime] = React.useState(0);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+    } else {
+      void audio.play();
+    }
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    audio.currentTime = ratio * duration;
+    setCurrentTime(audio.currentTime);
+  };
+
+  const progressRatio = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+
+  return (
+    <div className="flex w-full max-w-sm flex-col gap-1.5 rounded-2xl bg-muted/40 p-2.5 transition-all">
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        onTimeUpdate={() => {
+          if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+        }}
+        onLoadedMetadata={() => {
+          if (audioRef.current) setDuration(audioRef.current.duration);
+        }}
+        onDurationChange={() => {
+          if (audioRef.current) setDuration(audioRef.current.duration);
+        }}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        }}
+      />
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={togglePlay}
+          aria-label={isPlaying ? "暂停" : "播放"}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-transform active:scale-95 hover:brightness-105"
+        >
+          {isPlaying ? (
+            <Pause className="size-4 fill-current" />
+          ) : (
+            <Play className="ml-0.5 size-4 fill-current" />
+          )}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-1 text-[10px]">
+            <span className="font-semibold text-primary/90">
+              {isModelInput ? "语音输入" : "音频"}
+            </span>
+            <span className="font-mono text-muted-foreground/80">
+              {formatAudioDuration(isPlaying ? currentTime : duration || 0)}
+            </span>
+          </div>
+          {/* 可交互波形轨道（无内边框） */}
+          <div
+            className="flex h-6 w-full cursor-pointer items-center gap-0.5 py-1"
+            onClick={handleSeek}
+            title="点击快进/快退"
+          >
+            {VOICE_WAVE_BARS.map((h, i) => {
+              const barRatio = i / (VOICE_WAVE_BARS.length - 1);
+              const isPassed = barRatio <= progressRatio;
+              return (
+                <div
+                  key={i}
+                  className={`w-1 rounded-full transition-colors ${
+                    isPassed
+                      ? "bg-primary"
+                      : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                  }`}
+                  style={{ height: `${h}px` }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {(name || size) && (
+        <div className="flex items-center justify-between px-1 text-[9px] text-muted-foreground/70">
+          <span className="max-w-[180px] truncate">{name}</span>
+          {size && <span>{size}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatAudioDuration(seconds: number): string {
+  if (!seconds || Number.isNaN(seconds) || !Number.isFinite(seconds)) return "00:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }

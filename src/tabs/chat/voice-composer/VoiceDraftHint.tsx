@@ -17,7 +17,7 @@ export function VoiceDraftHint({ draft, onClear }: VoiceDraftHintProps) {
   if (!text) return null;
 
   return (
-    <div className="chat-composer-popover flex w-full max-w-3xl items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-muted-foreground">
+    <div className="flex w-full max-w-3xl items-center gap-2 rounded-xl bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-sm transition-all mb-1">
       <span className="shrink-0">{t("chat_input.voice_draft_label")}</span>
       <span className="min-w-0 flex-1 truncate text-foreground/85">{text}</span>
       <button

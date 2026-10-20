@@ -22,7 +22,7 @@ export function VoiceModeToggle({ isVoiceMode, disabled, onToggle }: VoiceModeTo
       aria-label={label}
       onClick={onToggle}
       disabled={disabled}
-      className="flex size-[38px] shrink-0 items-center justify-center rounded-xl border border-border/80 bg-input/30 text-muted-foreground transition-colors hover:bg-muted active:scale-95 disabled:opacity-45"
+      className="flex size-[38px] shrink-0 items-center justify-center rounded-xl border-0 text-muted-foreground transition-all duration-200 hover:bg-muted/70 hover:text-foreground active:scale-95 disabled:opacity-45"
       title={label}
     >
       {isVoiceMode ? <Keyboard className="size-4" /> : <Mic className="size-4" />}
