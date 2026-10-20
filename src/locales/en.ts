@@ -310,6 +310,7 @@ export default {
   "theme_studio.actions.add": "Add action",
   "theme_studio.actions.empty": "At least one action is required.",
   "theme_studio.actions.no_media": "Add media first",
+  "theme_studio.actions.no_state": "Add state first",
   "theme_studio.actions.type": "Action type",
   "theme_studio.actions.delay": "Delay (ms)",
   "theme_studio.actions.target": "Target media",

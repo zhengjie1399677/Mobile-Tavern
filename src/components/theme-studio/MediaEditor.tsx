@@ -9,6 +9,7 @@ import {
 } from "../../domain/themes/themeInteractionContract";
 import { createThemeMediaId } from "../../domain/themes/themeInteractionDraft";
 import { MediaEditorRow } from "./MediaEditorRow";
+import { ThemeStudioSelect } from "./ThemeStudioSelect";
 import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
 
@@ -101,17 +102,20 @@ export function MediaEditor({
       <div className="grid gap-2 rounded-lg border border-border bg-card p-2.5 sm:grid-cols-2">
         <label className="text-[10px] text-muted-foreground">
           {t("theme_studio.media.kind")}
-          <select
+          <ThemeStudioSelect
             value={kind}
-            onChange={event => {
-              setKind(event.target.value === "video" ? "video" : "audio");
+            options={[
+              { value: "audio", label: labels.mediaKind("audio") },
+              { value: "video", label: labels.mediaKind("video") },
+            ]}
+            onValueChange={value => {
+              setKind(value === "video" ? "video" : "audio");
               setResourceId("");
             }}
-            className="mt-1 h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground"
-          >
-            <option value="audio">{labels.mediaKind("audio")}</option>
-            <option value="video">{labels.mediaKind("video")}</option>
-          </select>
+            className="mt-1 w-full border-border bg-input text-xs"
+            ariaLabel={t("theme_studio.media.kind")}
+            size="default"
+          />
         </label>
         <label className="text-[10px] text-muted-foreground">
           {t("theme_studio.media.id")}
@@ -123,16 +127,19 @@ export function MediaEditor({
         </label>
         <label className="text-[10px] text-muted-foreground sm:col-span-2">
           {t("theme_studio.media.resource")}
-          <select
+          <ThemeStudioSelect
             value={resourceId}
-            onChange={event => setResourceId(event.target.value)}
-            className="mt-1 h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground"
-          >
-            <option value="">{t("theme_studio.media.choose_resource")}</option>
-            {availableResources.map(resource => (
-              <option key={resource.id} value={resource.id}>{resource.name}</option>
-            ))}
-          </select>
+            options={availableResources.map(resource => ({
+              value: resource.id,
+              label: resource.name,
+            }))}
+            onValueChange={setResourceId}
+            placeholder={t("theme_studio.media.choose_resource")}
+            className="mt-1 w-full border-border bg-input text-xs"
+            ariaLabel={t("theme_studio.media.resource")}
+            size="default"
+            disabled={availableResources.length === 0}
+          />
         </label>
         <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
           <button

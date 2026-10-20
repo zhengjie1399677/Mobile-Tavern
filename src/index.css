@@ -198,9 +198,9 @@
   border: 1px solid color-mix(in oklch, var(--border) 20%, transparent);
 }
 
-/* 设置页：使用聊天产品的轻量层级，不让偏好项呈现成工具控制台。 */
+/* 设置页：不额外铺不透明底色，让应用根背景/环境光晕像其他页签一样透出。 */
 .settings-shell {
-  background: var(--background);
+  background: transparent;
 }
 
 .settings-header {

@@ -154,7 +154,8 @@ describe("主题工作室", () => {
     const onSave = vi.fn(async (_pkg: CustomThemePackage, _applyAfterSave: boolean) => undefined);
     renderEditor({ themeToEdit: null, customThemes: [THEME], onSave });
 
-    await user.selectOptions(screen.getByLabelText("复制现有主题"), THEME.id ?? "");
+    await user.click(screen.getByRole("combobox", { name: "复制现有主题" }));
+    await user.click(await screen.findByRole("option", { name: "测试主题" }));
     expect(await screen.findByText("测试主题 副本")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "保存主题" }));

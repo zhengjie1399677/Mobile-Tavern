@@ -206,6 +206,12 @@ export default function SettingsTab() {
   const effectiveActiveSection = activeSection;
   const selectedSection = effectiveActiveSection ?? (isLandscape ? "connection" : null);
   const selectedMeta = SETTINGS_SECTIONS.find((section) => section.id === selectedSection);
+  /**
+   * 底部导航栏（48px）与安全区的让位由设置页自己的滚动内容承担。
+   * MainLayout 不再给设置页预留底栏空间，滚到底时设置卡片才会经过底栏下方，
+   * 让半透明毛玻璃有内容可透出，而不是压在一条纯色底上。
+   */
+  const bottomBarClearance = 54 + (safeAreas?.bottom ?? 0);
   const handleCheckUpdate = async () => {
     if (isCheckingUpdate) return;
     setIsCheckingUpdate(true);
@@ -545,19 +551,19 @@ export default function SettingsTab() {
 
       {isLandscape ? (
         <div className="flex-1 min-h-0 grid grid-cols-[minmax(220px,29%)_1fr] gap-3 pt-2">
-          <aside className="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+          <aside className="min-h-0 overflow-y-auto pr-1 custom-scrollbar" style={{ paddingBottom: bottomBarClearance }}>
             {renderSectionList(true)}
           </aside>
-          <section className="settings-content min-w-0 min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar">
+          <section className="settings-content min-w-0 min-h-0 overflow-y-auto pr-1 pb-2 custom-scrollbar" style={{ paddingBottom: bottomBarClearance }}>
             {selectedSection && renderLazySection(selectedSection)}
           </section>
         </div>
       ) : selectedSection ? (
-        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-2 pb-3 custom-scrollbar">
+        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-2 pb-3 custom-scrollbar" style={{ paddingBottom: bottomBarClearance }}>
           {renderLazySection(selectedSection)}
         </main>
       ) : (
-        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-2 pb-3 custom-scrollbar">
+        <main className="settings-content flex-1 min-h-0 overflow-y-auto pt-2 pb-3 custom-scrollbar" style={{ paddingBottom: bottomBarClearance }}>
           <p className="settings-category-heading">{t("settings_hub.categories")}</p>
           {renderSectionList(false)}
         </main>

@@ -3,6 +3,7 @@ import type { LocalResourceMetadata } from "../../domain/resources/types";
 import type { ThemeMediaDefinition } from "../../domain/themes/themeInteractionContract";
 import { DraftNumberInput } from "./DraftNumberInput";
 import { MediaManualPreview, resourceIdFromSrc } from "./MediaManualPreview";
+import { ThemeStudioSelect } from "./ThemeStudioSelect";
 import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
 
@@ -55,20 +56,20 @@ export function MediaEditorRow({
 
       <label className="block text-[10px] font-semibold text-muted-foreground">
         {t("theme_studio.media.resource")}
-        <select
+        <ThemeStudioSelect
           value={sameKindResources.some(item => item.id === resourceId) ? resourceId : ""}
-          onChange={event => {
-            const next = sameKindResources.find(item => item.id === event.target.value);
+          options={sameKindResources.map(item => ({ value: item.id, label: item.name }))}
+          onValueChange={value => {
+            const next = sameKindResources.find(item => item.id === value);
             if (!next || !resourcePort) return;
             onChange({ ...definition, src: resourcePort.getResourceReference(next.id) });
           }}
-          className="mt-1 h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">{t("theme_studio.media.choose_resource")}</option>
-          {sameKindResources.map(item => (
-            <option key={item.id} value={item.id}>{item.name}</option>
-          ))}
-        </select>
+          placeholder={t("theme_studio.media.choose_resource")}
+          className="mt-1 w-full border-border bg-input text-xs"
+          ariaLabel={t("theme_studio.media.resource")}
+          size="default"
+          disabled={sameKindResources.length === 0}
+        />
       </label>
 
       <div className="grid grid-cols-2 gap-2">
@@ -82,18 +83,21 @@ export function MediaEditorRow({
         </label>
         <label className="text-[10px] text-muted-foreground">
           {t("theme_studio.media.preload")}
-          <select
+          <ThemeStudioSelect
             value={definition.preload}
-            onChange={event => onChange({
+            options={[
+              { value: "none", label: labels.preload("none") },
+              { value: "metadata", label: labels.preload("metadata") },
+              { value: "auto", label: labels.preload("auto") },
+            ]}
+            onValueChange={value => onChange({
               ...definition,
-              preload: event.target.value as ThemeMediaDefinition["preload"],
+              preload: value as ThemeMediaDefinition["preload"],
             })}
-            className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-          >
-            <option value="none">{labels.preload("none")}</option>
-            <option value="metadata">{labels.preload("metadata")}</option>
-            <option value="auto">{labels.preload("auto")}</option>
-          </select>
+            className="mt-1 w-full border-border bg-input text-[10px]"
+            ariaLabel={t("theme_studio.media.preload")}
+            size="sm"
+          />
         </label>
         <label className="text-[10px] text-muted-foreground">
           {t("theme_studio.media.volume")}
@@ -119,18 +123,21 @@ export function MediaEditorRow({
             </label>
             <label className="text-[10px] text-muted-foreground">
               {t("theme_studio.media.fit")}
-              <select
+              <ThemeStudioSelect
                 value={definition.fit}
-                onChange={event => onChange({
+                options={[
+                  { value: "cover", label: labels.fit("cover") },
+                  { value: "contain", label: labels.fit("contain") },
+                  { value: "fill", label: labels.fit("fill") },
+                ]}
+                onValueChange={value => onChange({
                   ...definition,
-                  fit: event.target.value as "cover" | "contain" | "fill",
+                  fit: value as "cover" | "contain" | "fill",
                 })}
-                className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-              >
-                <option value="cover">{labels.fit("cover")}</option>
-                <option value="contain">{labels.fit("contain")}</option>
-                <option value="fill">{labels.fit("fill")}</option>
-              </select>
+                className="mt-1 w-full border-border bg-input text-[10px]"
+                ariaLabel={t("theme_studio.media.fit")}
+                size="sm"
+              />
             </label>
           </>
         ) : null}

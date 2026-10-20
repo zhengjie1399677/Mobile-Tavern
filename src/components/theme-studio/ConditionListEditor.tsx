@@ -8,6 +8,7 @@ import {
   type ThemeStateValue,
 } from "../../domain/themes/themeInteractionContract";
 import { StateValueInput } from "./StateValueInput";
+import { ThemeStudioSelect } from "./ThemeStudioSelect";
 import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 type ConditionType = typeof THEME_INTERACTION_CONDITION_TYPES[number];
@@ -91,34 +92,34 @@ export function ConditionListEditor({
               <div key={index} className="grid gap-1.5 rounded-lg border border-border bg-muted/20 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                 <label className="text-[10px] text-muted-foreground">
                   {t("theme_studio.conditions.type")}
-                  <select
+                  <ThemeStudioSelect
                     value={condition.condition}
-                    onChange={event => {
-                      const next = createCondition(event.target.value as ConditionType, config);
+                    options={THEME_INTERACTION_CONDITION_TYPES.map(type => ({
+                      value: type,
+                      label: labels.condition(type),
+                      disabled: type === "state.equals" && Object.keys(config.state).length === 0,
+                    }))}
+                    onValueChange={value => {
+                      const next = createCondition(value as ConditionType, config);
                       if (next) updateCondition(index, next);
                     }}
-                    className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                  >
-                    {THEME_INTERACTION_CONDITION_TYPES.map(type => (
-                      <option
-                        key={type}
-                        value={type}
-                        disabled={type === "state.equals" && Object.keys(config.state).length === 0}
-                      >
-                        {labels.condition(type)}
-                      </option>
-                    ))}
-                  </select>
+                    className="mt-1 w-full border-border bg-input text-[10px]"
+                    ariaLabel={t("theme_studio.conditions.type")}
+                    size="sm"
+                  />
                 </label>
 
                 <div className="text-[10px] text-muted-foreground">
                   {condition.condition === "state.equals" && (
                     <>
                       <span className="block">{t("theme_studio.conditions.state_key")}</span>
-                      <select
+                      <ThemeStudioSelect
                         value={condition.key}
-                        onChange={event => {
-                          const key = event.target.value;
+                        options={[
+                          ...Object.keys(config.state).map(key => ({ value: key, label: key })),
+                          ...(stateMissing ? [{ value: condition.key, label: condition.key }] : []),
+                        ]}
+                        onValueChange={key => {
                           const definition = config.state[key];
                           updateCondition(index, {
                             ...condition,
@@ -126,11 +127,10 @@ export function ConditionListEditor({
                             value: definition ? defaultStateValue(definition) : condition.value,
                           });
                         }}
-                        className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                      >
-                        {Object.keys(config.state).map(key => <option key={key} value={key}>{key}</option>)}
-                        {stateMissing && <option value={condition.key}>{condition.key}</option>}
-                      </select>
+                        className="mt-1 w-full border-border bg-input text-[10px]"
+                        ariaLabel={t("theme_studio.conditions.state_key")}
+                        size="sm"
+                      />
                       {stateMissing && (
                         <span className="mt-1 block text-destructive">{t("theme_studio.conditions.state_missing")}</span>
                       )}
@@ -149,43 +149,52 @@ export function ConditionListEditor({
                   {condition.condition === "orientation.is" && (
                     <>
                       <span className="block">{t("theme_studio.conditions.orientation")}</span>
-                      <select
+                      <ThemeStudioSelect
                         value={condition.value}
-                        onChange={event => updateCondition(index, {
+                        options={[
+                          { value: "portrait", label: labels.orientation("portrait") },
+                          { value: "landscape", label: labels.orientation("landscape") },
+                        ]}
+                        onValueChange={value => updateCondition(index, {
                           ...condition,
-                          value: event.target.value as "portrait" | "landscape",
+                          value: value as "portrait" | "landscape",
                         })}
-                        className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                      >
-                        <option value="portrait">{labels.orientation("portrait")}</option>
-                        <option value="landscape">{labels.orientation("landscape")}</option>
-                      </select>
+                        className="mt-1 w-full border-border bg-input text-[10px]"
+                        ariaLabel={t("theme_studio.conditions.orientation")}
+                        size="sm"
+                      />
                     </>
                   )}
                   {condition.condition === "media.enabled" && (
                     <>
                       <span className="block">{t("theme_studio.conditions.media_enabled")}</span>
-                      <select
+                      <ThemeStudioSelect
                         value={String(condition.value)}
-                        onChange={event => updateCondition(index, { ...condition, value: event.target.value === "true" })}
-                        className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                      >
-                        <option value="true">{labels.booleanValue(true)}</option>
-                        <option value="false">{labels.booleanValue(false)}</option>
-                      </select>
+                        options={[
+                          { value: "true", label: labels.booleanValue(true) },
+                          { value: "false", label: labels.booleanValue(false) },
+                        ]}
+                        onValueChange={value => updateCondition(index, { ...condition, value: value === "true" })}
+                        className="mt-1 w-full border-border bg-input text-[10px]"
+                        ariaLabel={t("theme_studio.conditions.media_enabled")}
+                        size="sm"
+                      />
                     </>
                   )}
                   {condition.condition === "accessibility.reducedMotion" && (
                     <>
                       <span className="block">{t("theme_studio.conditions.reduced_motion")}</span>
-                      <select
+                      <ThemeStudioSelect
                         value={String(condition.value)}
-                        onChange={event => updateCondition(index, { ...condition, value: event.target.value === "true" })}
-                        className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                      >
-                        <option value="true">{labels.booleanValue(true)}</option>
-                        <option value="false">{labels.booleanValue(false)}</option>
-                      </select>
+                        options={[
+                          { value: "true", label: labels.booleanValue(true) },
+                          { value: "false", label: labels.booleanValue(false) },
+                        ]}
+                        onValueChange={value => updateCondition(index, { ...condition, value: value === "true" })}
+                        className="mt-1 w-full border-border bg-input text-[10px]"
+                        ariaLabel={t("theme_studio.conditions.reduced_motion")}
+                        size="sm"
+                      />
                     </>
                   )}
                 </div>

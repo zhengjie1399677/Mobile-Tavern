@@ -9,6 +9,7 @@ import {
 } from "../../domain/themes/themeInteractionContract";
 import { createThemeStateKey } from "../../domain/themes/themeInteractionDraft";
 import { EnumValuesInput } from "./EnumValuesInput";
+import { ThemeStudioSelect } from "./ThemeStudioSelect";
 import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 function stateToken(key: string, definition: ThemeStateDefinition): string {
@@ -116,15 +117,18 @@ export function StateEditor({
         </label>
         <label className="text-[10px] text-muted-foreground">
           {t("theme_studio.state.type")}
-          <select
+          <ThemeStudioSelect
             value={stateType}
-            onChange={event => setStateType(event.target.value as "boolean" | "enum" | "counter")}
-            className="mt-1 h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground"
-          >
-            <option value="boolean">{labels.stateType("boolean")}</option>
-            <option value="enum">{labels.stateType("enum")}</option>
-            <option value="counter">{labels.stateType("counter")}</option>
-          </select>
+            options={[
+              { value: "boolean", label: labels.stateType("boolean") },
+              { value: "enum", label: labels.stateType("enum") },
+              { value: "counter", label: labels.stateType("counter") },
+            ]}
+            onValueChange={value => setStateType(value as "boolean" | "enum" | "counter")}
+            className="mt-1 w-full border-border bg-input text-xs"
+            ariaLabel={t("theme_studio.state.type")}
+            size="default"
+          />
         </label>
 
         {stateType === "boolean" && (
@@ -151,13 +155,14 @@ export function StateEditor({
             </label>
             <label className="text-[10px] text-muted-foreground">
               {t("theme_studio.state.default")}
-              <select
+              <ThemeStudioSelect
                 value={enumDefault}
-                onChange={event => setEnumDefault(event.target.value)}
-                className="mt-1 h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground"
-              >
-                {parsedEnumValues.map(value => <option key={value} value={value}>{value}</option>)}
-              </select>
+                options={parsedEnumValues.map(value => ({ value, label: value }))}
+                onValueChange={setEnumDefault}
+                className="mt-1 w-full border-border bg-input text-xs"
+                ariaLabel={t("theme_studio.state.default")}
+                size="default"
+              />
             </label>
           </>
         )}
@@ -268,13 +273,14 @@ export function StateEditor({
                   </label>
                   <label className="text-[10px] text-muted-foreground">
                     {t("theme_studio.state.default")}
-                    <select
+                    <ThemeStudioSelect
                       value={definition.default}
-                      onChange={event => updateState(key, { ...definition, default: event.target.value })}
-                      className="mt-1 h-7 w-full rounded-lg border border-border bg-input px-1.5 text-[10px] text-foreground"
-                    >
-                      {definition.values.map(value => <option key={value} value={value}>{value}</option>)}
-                    </select>
+                      options={definition.values.map(value => ({ value, label: value }))}
+                      onValueChange={value => updateState(key, { ...definition, default: value })}
+                      className="mt-1 w-full border-border bg-input text-[10px]"
+                      ariaLabel={t("theme_studio.state.default")}
+                      size="sm"
+                    />
                   </label>
                   {(definition.values.length > 16 || definition.values.some(value => !isValidThemeStyleToken(value))) && (
                     <p className="text-[10px] text-destructive sm:col-span-2">

@@ -11,6 +11,7 @@ import {
 import { ActionListEditor } from "./ActionListEditor";
 import { ConditionListEditor } from "./ConditionListEditor";
 import { DraftNumberInput } from "./DraftNumberInput";
+import { ThemeStudioSelect } from "./ThemeStudioSelect";
 import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 function whenForEvent(
@@ -92,18 +93,20 @@ export function RuleDetailEditor({
           </label>
           <label className="text-[10px] text-muted-foreground">
             {t("theme_studio.rules.event")}
-            <select
+            <ThemeStudioSelect
               value={rule.when.event}
-              onChange={event => onChange({
+              options={THEME_INTERACTION_EVENT_TYPES.map(event => ({
+                value: event,
+                label: labels.event(event),
+              }))}
+              onValueChange={value => onChange({
                 ...rule,
-                when: whenForEvent(event.target.value as ThemeInteractionEventType, rule, config),
+                when: whenForEvent(value as ThemeInteractionEventType, rule, config),
               })}
-              className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-            >
-              {THEME_INTERACTION_EVENT_TYPES.map(event => (
-                <option key={event} value={event}>{labels.event(event)}</option>
-              ))}
-            </select>
+              className="mt-1 w-full border-border bg-input text-[10px]"
+              ariaLabel={t("theme_studio.rules.event")}
+              size="sm"
+            />
           </label>
 
           {rule.when.event === "ui.tap" && (
@@ -137,37 +140,40 @@ export function RuleDetailEditor({
           {rule.when.event === "orientation.change" && (
             <label className="text-[10px] text-muted-foreground">
               {t("theme_studio.rules.orientation")}
-              <select
+              <ThemeStudioSelect
                 value={rule.when.orientation ?? "portrait"}
-                onChange={event => onChange({
+                options={THEME_ORIENTATIONS.map(orientation => ({
+                  value: orientation,
+                  label: labels.orientation(orientation),
+                }))}
+                onValueChange={value => onChange({
                   ...rule,
-                  when: { ...rule.when, orientation: event.target.value as "portrait" | "landscape" },
+                  when: { ...rule.when, orientation: value as "portrait" | "landscape" },
                 })}
-                className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-              >
-                {THEME_ORIENTATIONS.map(orientation => (
-                  <option key={orientation} value={orientation}>{labels.orientation(orientation)}</option>
-                ))}
-              </select>
+                className="mt-1 w-full border-border bg-input text-[10px]"
+                ariaLabel={t("theme_studio.rules.orientation")}
+                size="sm"
+              />
             </label>
           )}
 
           {rule.when.event === "media.ended" && (
             <label className="text-[10px] text-muted-foreground">
               {t("theme_studio.rules.media_id")}
-              <select
-                value={rule.when.mediaId ?? ""}
-                onChange={event => onChange({
+              <ThemeStudioSelect
+                value={rule.when.mediaId ?? "__any__"}
+                options={[
+                  { value: "__any__", label: t("theme_studio.rules.any_media") },
+                  ...Object.keys(config.media).map(mediaId => ({ value: mediaId, label: mediaId })),
+                ]}
+                onValueChange={value => onChange({
                   ...rule,
-                  when: { ...rule.when, mediaId: event.target.value || undefined },
+                  when: { ...rule.when, mediaId: value === "__any__" ? undefined : value },
                 })}
-                className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-              >
-                <option value="">{t("theme_studio.rules.any_media")}</option>
-                {Object.keys(config.media).map(mediaId => (
-                  <option key={mediaId} value={mediaId}>{mediaId}</option>
-                ))}
-              </select>
+                className="mt-1 w-full border-border bg-input text-[10px]"
+                ariaLabel={t("theme_studio.rules.media_id")}
+                size="sm"
+              />
             </label>
           )}
 

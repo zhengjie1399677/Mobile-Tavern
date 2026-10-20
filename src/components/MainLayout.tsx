@@ -286,7 +286,9 @@ export default function MainLayout() {
                 aria-hidden={!isCurrent}
                 style={{
                   display: isCurrent ? undefined : "none",
-                  paddingBottom: !isFullScreenTab && activeTab !== "chat" && activeTab !== "playground"
+                  // 设置页把底栏让位改由自身滚动内容承担，内容才会滚到底栏下方，
+                  // 与其它页签一样让毛玻璃有可透出的内容，而不是压住一条纯色底。
+                  paddingBottom: !isFullScreenTab && activeTab !== "settings" && activeTab !== "chat" && activeTab !== "playground"
                     ? `${54 + (safeAreas?.bottom ?? 0)}px`
                     : undefined,
                 }}

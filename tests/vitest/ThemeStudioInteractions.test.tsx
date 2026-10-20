@@ -98,8 +98,11 @@ describe("主题工作室 Theme 1.1 可视化编辑", () => {
     await waitFor(() => expect(screen.getAllByText(/state-false/).length).toBeGreaterThan(0));
     expect(screen.getByText("Theme 1.1")).toBeInTheDocument();
 
-    await waitFor(() => expect(screen.getByRole("option", { name: "rain.mp3" })).toBeInTheDocument());
-    await user.selectOptions(screen.getByLabelText("本地资源"), RESOURCE.id);
+    // 触发器外层还有一圈字段 <label>，可访问名会包含重复的标签文本，因此用模糊匹配。
+    const resourceSelect = screen.getByRole("combobox", { name: /本地资源/ });
+    await waitFor(() => expect(resourceSelect).not.toBeDisabled());
+    await user.click(resourceSelect);
+    await user.click(await screen.findByRole("option", { name: "rain.mp3" }));
     await user.click(screen.getByRole("button", { name: "添加媒体" }));
     expect(await screen.findByText("media")).toBeInTheDocument();
 

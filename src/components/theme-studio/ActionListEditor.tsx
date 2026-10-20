@@ -11,6 +11,7 @@ import {
 } from "../../domain/themes/themeInteractionContract";
 import { DraftNumberInput } from "./DraftNumberInput";
 import { StateValueInput } from "./StateValueInput";
+import { ThemeStudioSelect } from "./ThemeStudioSelect";
 import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 type ActionType = typeof THEME_INTERACTION_ACTION_TYPES[number];
@@ -190,20 +191,21 @@ export function ActionListEditor({
                 <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                   <label className="text-[10px] text-muted-foreground">
                     {t("theme_studio.actions.type")}
-                    <select
+                    <ThemeStudioSelect
                       value={action.action}
-                      onChange={event => {
-                        const next = createAction(event.target.value as ActionType, config);
+                      options={THEME_INTERACTION_ACTION_TYPES.map(type => ({
+                        value: type,
+                        label: labels.action(type),
+                        disabled: !createAction(type, config),
+                      }))}
+                      onValueChange={value => {
+                        const next = createAction(value as ActionType, config);
                         if (next) updateAction(index, mergeActionChange(action, next, config));
                       }}
-                      className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                    >
-                      {THEME_INTERACTION_ACTION_TYPES.map(type => (
-                        <option key={type} value={type} disabled={!createAction(type, config)}>
-                          {labels.action(type)}
-                        </option>
-                      ))}
-                    </select>
+                      className="mt-1 w-full border-border bg-input text-[10px]"
+                      ariaLabel={t("theme_studio.actions.type")}
+                      size="sm"
+                    />
                   </label>
 
                   <label className="text-[10px] text-muted-foreground">
@@ -234,19 +236,21 @@ export function ActionListEditor({
                     action.action === "media.stop" ? (
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.target")}
-                        <select
+                        <ThemeStudioSelect
                           value={action.target}
-                          onChange={event => updateAction(index, { ...action, target: event.target.value })}
-                          className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                        >
-                          {mediaTargets.map(target => <option key={target} value={target}>{target}</option>)}
-                          {action.target && !mediaTargets.includes(action.target) && (
-                            <option value={action.target}>{action.target}</option>
-                          )}
-                          {mediaTargets.length === 0 && (
-                            <option value="">{t("theme_studio.actions.no_media")}</option>
-                          )}
-                        </select>
+                          options={[
+                            ...mediaTargets.map(target => ({ value: target, label: target })),
+                            ...(action.target && !mediaTargets.includes(action.target)
+                              ? [{ value: action.target, label: action.target }]
+                              : []),
+                          ]}
+                          onValueChange={value => updateAction(index, { ...action, target: value })}
+                          placeholder={t("theme_studio.actions.no_media")}
+                          className="mt-1 w-full border-border bg-input text-[10px]"
+                          ariaLabel={t("theme_studio.actions.target")}
+                          size="sm"
+                          disabled={mediaTargets.length === 0 && !action.target}
+                        />
                       </label>
                     ) : null}
 
@@ -254,19 +258,21 @@ export function ActionListEditor({
                     <>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.target")}
-                        <select
+                        <ThemeStudioSelect
                           value={action.target}
-                          onChange={event => updateAction(index, { ...action, target: event.target.value })}
-                          className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                        >
-                          {mediaTargets.map(target => <option key={target} value={target}>{target}</option>)}
-                          {action.target && !mediaTargets.includes(action.target) && (
-                            <option value={action.target}>{action.target}</option>
-                          )}
-                          {mediaTargets.length === 0 && (
-                            <option value="">{t("theme_studio.actions.no_media")}</option>
-                          )}
-                        </select>
+                          options={[
+                            ...mediaTargets.map(target => ({ value: target, label: target })),
+                            ...(action.target && !mediaTargets.includes(action.target)
+                              ? [{ value: action.target, label: action.target }]
+                              : []),
+                          ]}
+                          onValueChange={value => updateAction(index, { ...action, target: value })}
+                          placeholder={t("theme_studio.actions.no_media")}
+                          className="mt-1 w-full border-border bg-input text-[10px]"
+                          ariaLabel={t("theme_studio.actions.target")}
+                          size="sm"
+                          disabled={mediaTargets.length === 0 && !action.target}
+                        />
                       </label>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.volume")}
@@ -287,16 +293,21 @@ export function ActionListEditor({
                     <>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.target")}
-                        <select
+                        <ThemeStudioSelect
                           value={action.target}
-                          onChange={event => updateAction(index, { ...action, target: event.target.value })}
-                          className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                        >
-                          {videoTargets.map(target => <option key={target} value={target}>{target}</option>)}
-                          {!videoTargets.includes(action.target) && (
-                            <option value={action.target}>{action.target}</option>
-                          )}
-                        </select>
+                          options={[
+                            ...videoTargets.map(target => ({ value: target, label: target })),
+                            ...(!videoTargets.includes(action.target) && action.target
+                              ? [{ value: action.target, label: action.target }]
+                              : []),
+                          ]}
+                          onValueChange={value => updateAction(index, { ...action, target: value })}
+                          placeholder={t("theme_studio.actions.no_media")}
+                          className="mt-1 w-full border-border bg-input text-[10px]"
+                          ariaLabel={t("theme_studio.actions.target")}
+                          size="sm"
+                          disabled={videoTargets.length === 0 && !action.target}
+                        />
                       </label>
                       <label className="flex items-center gap-1.5 self-end text-[10px] text-muted-foreground">
                         <input
@@ -313,29 +324,38 @@ export function ActionListEditor({
                     <>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.surface")}
-                        <select
+                        <ThemeStudioSelect
                           value={action.target}
-                          onChange={event => updateAction(index, {
+                          options={THEME_MEDIA_SURFACES.map(surface => ({
+                            value: surface,
+                            label: labels.surface(surface),
+                          }))}
+                          onValueChange={value => updateAction(index, {
                             ...action,
-                            target: event.target.value as typeof THEME_MEDIA_SURFACES[number],
+                            target: value as typeof THEME_MEDIA_SURFACES[number],
                           })}
-                          className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                        >
-                          {THEME_MEDIA_SURFACES.map(surface => <option key={surface} value={surface}>{labels.surface(surface)}</option>)}
-                        </select>
+                          className="mt-1 w-full border-border bg-input text-[10px]"
+                          ariaLabel={t("theme_studio.actions.surface")}
+                          size="sm"
+                        />
                       </label>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.media")}
-                        <select
+                        <ThemeStudioSelect
                           value={action.mediaId}
-                          onChange={event => updateAction(index, { ...action, mediaId: event.target.value })}
-                          className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                        >
-                          {videoTargets.map(target => <option key={target} value={target}>{target}</option>)}
-                          {!videoTargets.includes(action.mediaId) && (
-                            <option value={action.mediaId}>{action.mediaId}</option>
-                          )}
-                        </select>
+                          options={[
+                            ...videoTargets.map(target => ({ value: target, label: target })),
+                            ...(!videoTargets.includes(action.mediaId) && action.mediaId
+                              ? [{ value: action.mediaId, label: action.mediaId }]
+                              : []),
+                          ]}
+                          onValueChange={value => updateAction(index, { ...action, mediaId: value })}
+                          placeholder={t("theme_studio.actions.no_media")}
+                          className="mt-1 w-full border-border bg-input text-[10px]"
+                          ariaLabel={t("theme_studio.actions.media")}
+                          size="sm"
+                          disabled={videoTargets.length === 0 && !action.mediaId}
+                        />
                       </label>
                     </>
                   )}
@@ -343,16 +363,20 @@ export function ActionListEditor({
                   {action.action === "surface.hide" && (
                     <label className="text-[10px] text-muted-foreground">
                       {t("theme_studio.actions.surface")}
-                      <select
+                      <ThemeStudioSelect
                         value={action.target}
-                        onChange={event => updateAction(index, {
+                        options={THEME_MEDIA_SURFACES.map(surface => ({
+                          value: surface,
+                          label: labels.surface(surface),
+                        }))}
+                        onValueChange={value => updateAction(index, {
                           ...action,
-                          target: event.target.value as typeof THEME_MEDIA_SURFACES[number],
+                          target: value as typeof THEME_MEDIA_SURFACES[number],
                         })}
-                        className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                      >
-                        {THEME_MEDIA_SURFACES.map(surface => <option key={surface} value={surface}>{labels.surface(surface)}</option>)}
-                      </select>
+                        className="mt-1 w-full border-border bg-input text-[10px]"
+                        ariaLabel={t("theme_studio.actions.surface")}
+                        size="sm"
+                      />
                     </label>
                   )}
 
@@ -360,21 +384,28 @@ export function ActionListEditor({
                     <>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.state_key")}
-                        <select
+                        <ThemeStudioSelect
                           value={action.key}
-                          onChange={event => {
-                            const definition = config.state[event.target.value];
+                          options={[
+                            ...Object.keys(config.state).map(key => ({ value: key, label: key })),
+                            ...(!stateDefinition && action.key
+                              ? [{ value: action.key, label: action.key }]
+                              : []),
+                          ]}
+                          onValueChange={key => {
+                            const definition = config.state[key];
                             updateAction(index, {
                               ...action,
-                              key: event.target.value,
+                              key,
                               value: definition ? defaultStateValue(definition) : action.value,
                             });
                           }}
-                          className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                        >
-                          {Object.keys(config.state).map(key => <option key={key} value={key}>{key}</option>)}
-                          {!stateDefinition && <option value={action.key}>{action.key}</option>}
-                        </select>
+                          placeholder={t("theme_studio.actions.no_state")}
+                          className="mt-1 w-full border-border bg-input text-[10px]"
+                          ariaLabel={t("theme_studio.actions.state_key")}
+                          size="sm"
+                          disabled={Object.keys(config.state).length === 0 && !action.key}
+                        />
                       </label>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.value")}
@@ -393,14 +424,21 @@ export function ActionListEditor({
                   {action.action === "state.toggle" && (
                     <label className="text-[10px] text-muted-foreground">
                       {t("theme_studio.actions.state_key")}
-                      <select
+                      <ThemeStudioSelect
                         value={action.key}
-                        onChange={event => updateAction(index, { ...action, key: event.target.value })}
-                        className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                      >
-                        {booleanStates.map(key => <option key={key} value={key}>{key}</option>)}
-                        {!booleanStates.includes(action.key) && <option value={action.key}>{action.key}</option>}
-                      </select>
+                        options={[
+                          ...booleanStates.map(key => ({ value: key, label: key })),
+                          ...(!booleanStates.includes(action.key) && action.key
+                            ? [{ value: action.key, label: action.key }]
+                            : []),
+                        ]}
+                        onValueChange={value => updateAction(index, { ...action, key: value })}
+                        placeholder={t("theme_studio.actions.no_state")}
+                        className="mt-1 w-full border-border bg-input text-[10px]"
+                        ariaLabel={t("theme_studio.actions.state_key")}
+                        size="sm"
+                        disabled={booleanStates.length === 0 && !action.key}
+                      />
                     </label>
                   )}
 
@@ -408,14 +446,21 @@ export function ActionListEditor({
                     <>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.state_key")}
-                        <select
+                        <ThemeStudioSelect
                           value={action.key}
-                          onChange={event => updateAction(index, { ...action, key: event.target.value })}
-                          className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-                        >
-                          {counterStates.map(key => <option key={key} value={key}>{key}</option>)}
-                          {!counterStates.includes(action.key) && <option value={action.key}>{action.key}</option>}
-                        </select>
+                          options={[
+                            ...counterStates.map(key => ({ value: key, label: key })),
+                            ...(!counterStates.includes(action.key) && action.key
+                              ? [{ value: action.key, label: action.key }]
+                              : []),
+                          ]}
+                          onValueChange={value => updateAction(index, { ...action, key: value })}
+                          placeholder={t("theme_studio.actions.no_state")}
+                          className="mt-1 w-full border-border bg-input text-[10px]"
+                          ariaLabel={t("theme_studio.actions.state_key")}
+                          size="sm"
+                          disabled={counterStates.length === 0 && !action.key}
+                        />
                       </label>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.amount")}

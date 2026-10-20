@@ -2,6 +2,7 @@ import type {
   ThemeStateDefinition,
   ThemeStateValue,
 } from "../../domain/themes/themeInteractionContract";
+import { ThemeStudioSelect } from "./ThemeStudioSelect";
 import { useThemeStudioTypeLabels } from "./themeStudioTypeLabels";
 
 export function StateValueInput({
@@ -20,28 +21,30 @@ export function StateValueInput({
 
   if (definition.type === "boolean") {
     return (
-      <select
-        aria-label={ariaLabel}
+      <ThemeStudioSelect
         value={String(value)}
-        onChange={event => onChange(event.target.value === "true")}
-        className="h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-      >
-        <option value="true">{labels.booleanValue(true)}</option>
-        <option value="false">{labels.booleanValue(false)}</option>
-      </select>
+        options={[
+          { value: "true", label: labels.booleanValue(true) },
+          { value: "false", label: labels.booleanValue(false) },
+        ]}
+        onValueChange={next => onChange(next === "true")}
+        className="w-full border-border bg-input text-[10px]"
+        ariaLabel={ariaLabel}
+        size="sm"
+      />
     );
   }
 
   if (definition.type === "enum") {
     return (
-      <select
-        aria-label={ariaLabel}
+      <ThemeStudioSelect
         value={typeof value === "string" ? value : definition.default}
-        onChange={event => onChange(event.target.value)}
-        className="h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
-      >
-        {definition.values.map(option => <option key={option} value={option}>{option}</option>)}
-      </select>
+        options={definition.values.map(option => ({ value: option, label: option }))}
+        onValueChange={onChange}
+        className="w-full border-border bg-input text-[10px]"
+        ariaLabel={ariaLabel}
+        size="sm"
+      />
     );
   }
 

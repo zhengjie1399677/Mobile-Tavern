@@ -310,6 +310,7 @@ export default {
   "theme_studio.actions.add": "添加动作",
   "theme_studio.actions.empty": "至少需要一个动作。",
   "theme_studio.actions.no_media": "先添加媒体",
+  "theme_studio.actions.no_state": "先添加状态",
   "theme_studio.actions.type": "动作类型",
   "theme_studio.actions.delay": "延迟（毫秒）",
   "theme_studio.actions.target": "目标媒体",

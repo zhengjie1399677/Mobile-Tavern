@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { useTranslation } from "../../contexts/LanguageContext";
 import {
@@ -6,6 +7,7 @@ import {
   type ThemeStartPointKind,
 } from "../../domain/themes/themeStartPoints";
 import type { CustomThemePackage } from "../../utils/themePackage";
+import { ThemeStudioSelect } from "./ThemeStudioSelect";
 
 interface StartPointSectionProps {
   startPointKind: ThemeStartPointKind | null;
@@ -33,7 +35,9 @@ export function StartPointSection({
   onSelectStartPoint,
 }: StartPointSectionProps) {
   const { t } = useTranslation();
+  const [selectedCloneId, setSelectedCloneId] = useState("");
   const existingNames = customThemes.map(theme => theme.name);
+  const cloneableThemes = customThemes.filter(theme => theme.id);
 
   const chooseBlank = (kind: "blank-dark" | "blank-light") => {
     const template = getBlankThemeTemplate(kind);
@@ -84,25 +88,25 @@ export function StartPointSection({
         <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
           {t("theme_studio.start.clone_hint")}
         </p>
-        <select
-          aria-label={t("theme_studio.start.clone_title")}
-          defaultValue=""
-          onChange={event => {
-            const theme = customThemes.find(item => item.id === event.target.value);
+        <ThemeStudioSelect
+          value={selectedCloneId}
+          options={cloneableThemes.map(theme => ({
+            value: theme.id as string,
+            label: theme.name,
+          }))}
+          onValueChange={id => {
+            setSelectedCloneId("");
+            const theme = cloneableThemes.find(item => item.id === id);
             if (!theme) return;
             const name = createUniqueThemeCopyName(theme.name, existingNames);
             void onSelectStartPoint("clone", theme, name);
-            event.target.value = "";
           }}
-          className="mt-2 h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">{t("theme_studio.start.clone_placeholder")}</option>
-          {customThemes.map(theme => (
-            <option key={theme.id ?? theme.name} value={theme.id ?? ""}>
-              {theme.name}
-            </option>
-          ))}
-        </select>
+          placeholder={t("theme_studio.start.clone_placeholder")}
+          className="mt-2 w-full border-border bg-input text-xs"
+          ariaLabel={t("theme_studio.start.clone_title")}
+          size="default"
+          disabled={cloneableThemes.length === 0}
+        />
         {startPointKind === "clone" && (
           <Button
             type="button"
