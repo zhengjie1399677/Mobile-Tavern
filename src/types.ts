@@ -212,8 +212,6 @@ export interface ApiConfig {
   /** 统一推理强度；缺省 auto，表示不向 API 注入强度参数。 */
   reasoningStrength?: ReasoningStrength;
   forceBasicParams?: boolean;
-  /** 用户确认当前模型/接口支持 OpenAI-compatible 图片输入；缺省按不支持处理。 */
-  supportsVision?: boolean;
   /** 用户确认当前模型/接口支持 OpenAI-compatible input_audio；缺省按不支持处理。 */
   supportsAudioInput?: boolean;
   contextLimit?: number;
@@ -360,7 +358,6 @@ export interface ApiProfile {
   /** 统一推理强度；缺省 auto，表示不向 API 注入强度参数。 */
   reasoningStrength?: ReasoningStrength;
   forceBasicParams?: boolean;
-  supportsVision?: boolean;
   supportsAudioInput?: boolean;
 }
 

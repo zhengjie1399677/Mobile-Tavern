@@ -66,7 +66,7 @@ function resolveRerollProvider(
     capabilities: {
       inputModalities: [
         "text",
-        ...(p.settings.api.supportsVision === true ? ["image" as const] : []),
+        "image",
         ...(p.settings.api.supportsAudioInput === true ? ["audio" as const] : []),
       ],
       supportedMimeTypes: [
@@ -295,7 +295,6 @@ export function useRerollMessage(p: RerollMessageParams) {
         // 这里若提示「去设置开启 ASR」会误导（开关打开也补不出这份转写）。
         plainAudioTranscriptionDisabled: false,
         videoKeyframesMissing: false,
-        visionUnsupported: p.settings.api.supportsVision !== true,
       });
       if (refusal) {
         await p.showCustomAlert(describeMultimodalSendRefusal(refusal));

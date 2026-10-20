@@ -12,7 +12,6 @@ export type MultimodalSendRefusal =
   | { kind: "audio-processor-missing" }
   | { kind: "audio-transcription-disabled" }
   | { kind: "video-fallback-missing" }
-  | { kind: "vision-unsupported" }
   | { kind: "modality-unsupported"; partType: string };
 
 export interface MultimodalSendGuardInput {
@@ -31,8 +30,6 @@ export interface MultimodalSendGuardInput {
   plainAudioTranscriptionDisabled: boolean;
   /** Agent Profile 未启用视频关键帧处理器。 */
   videoKeyframesMissing: boolean;
-  /** API 配置未声明视觉输入能力。 */
-  visionUnsupported: boolean;
 }
 
 /**
@@ -58,9 +55,6 @@ export function resolveMultimodalSendRefusal(
   const hasVideo = parts.some((part) => part.type === "video");
   if (hasVideo && input.videoKeyframesMissing) return { kind: "video-fallback-missing" };
 
-  const needsVision = parts.some((part) => part.type === "image" || part.type === "video");
-  if (needsVision && input.visionUnsupported) return { kind: "vision-unsupported" };
-
   const unsupportedPart = parts.find((part) => {
     if (part.type === "audio") {
       return part.purpose === "model-input"
@@ -82,8 +76,6 @@ export function describeMultimodalSendRefusal(refusal: MultimodalSendRefusal): s
       return "发送音频前需要启用 OpenAI ASR 文件转写。请在 设置 → 语音 中启用后再发送。";
     case "video-fallback-missing":
       return "当前 Agent Profile 未启用视频关键帧降级，无法把视频发送给当前 Provider。";
-    case "vision-unsupported":
-      return "当前 API 配置未启用图片输入能力，请先在 API 配置中确认模型支持视觉输入。";
     case "modality-unsupported":
       return `当前 Provider 未声明 ${refusal.partType} 输入能力，请切换 Provider 或配置媒体降级。`;
     default:

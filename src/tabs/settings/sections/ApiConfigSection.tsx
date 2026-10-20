@@ -641,18 +641,6 @@ export default function ApiConfigSection({
                 />
 
                 <SettingsToggleRow
-                  label="图片输入能力"
-                  description="仅在当前模型明确支持视觉输入时启用；缺省关闭"
-                  checked={settings.api.supportsVision === true}
-                  onCheckedChange={(checked) =>
-                    updateSettings((prev) => ({
-                      ...prev,
-                      api: { ...prev.api, supportsVision: checked },
-                    }))
-                  }
-                />
-
-                <SettingsToggleRow
                   label={t("api.fallback_title")}
                   description={t("api.fallback_desc")}
                   checked={settings.api.forceBasicParams || false}

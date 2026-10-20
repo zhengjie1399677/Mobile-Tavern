@@ -26,7 +26,6 @@ export const API_PROFILE_FIELDS = [
   "disableReasoning",
   "reasoningStrength",
   "forceBasicParams",
-  "supportsVision",
   "supportsAudioInput",
 ] as const;
 
@@ -56,7 +55,6 @@ export function pickApiProfileFields(source: ApiConfig | ApiProfile): ApiProfile
     disableReasoning: source.disableReasoning,
     reasoningStrength: source.reasoningStrength,
     forceBasicParams: source.forceBasicParams,
-    supportsVision: source.supportsVision,
     supportsAudioInput: source.supportsAudioInput,
   };
 }

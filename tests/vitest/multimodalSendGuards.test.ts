@@ -30,7 +30,6 @@ function guard(overrides: Partial<MultimodalSendGuardInput> = {}): MultimodalSen
     plainAudioProcessorMissing: false,
     plainAudioTranscriptionDisabled: false,
     videoKeyframesMissing: false,
-    visionUnsupported: false,
     ...overrides,
   };
 }
@@ -86,10 +85,14 @@ describe("多模态发送前预检", () => {
     }))).toBeNull();
   });
 
-  it("图片与视频受视觉能力与关键帧降级约束", () => {
+  it("图片默认放行，仍受 Provider 输入模态约束", () => {
     const image: MessageContentPart = { type: "image", assetId: "att_3" };
-    expect(resolveMultimodalSendRefusal(guard({ parts: [image], visionUnsupported: true })))
-      .toEqual({ kind: "vision-unsupported" });
+    expect(resolveMultimodalSendRefusal(guard({ parts: [image] }))).toBeNull();
+    expect(resolveMultimodalSendRefusal(guard({
+      parts: [image],
+      providerCapabilities: TEXT_ONLY_PROVIDER,
+    }))).toEqual({ kind: "modality-unsupported", partType: "image" });
+
     const video: MessageContentPart = { type: "video", assetId: "att_4" };
     expect(resolveMultimodalSendRefusal(guard({ parts: [video], videoKeyframesMissing: true })))
       .toEqual({ kind: "video-fallback-missing" });
@@ -104,7 +107,6 @@ describe("多模态发送前预检", () => {
       "audio-processor-missing",
       "audio-transcription-disabled",
       "video-fallback-missing",
-      "vision-unsupported",
     ] as const;
     for (const kind of kinds) {
       expect(describeMultimodalSendRefusal({ kind }).length).toBeGreaterThan(8);

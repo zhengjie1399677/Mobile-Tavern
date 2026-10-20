@@ -426,7 +426,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
     disableReasoning: false,
     reasoningStrength: "auto",
     forceBasicParams: false,
-    supportsVision: false,
     supportsAudioInput: false,
   },
   preset: requireCompleteSampler(MOBILE_TAVERN_BASIC_PRESET_BUNDLE.sampler),

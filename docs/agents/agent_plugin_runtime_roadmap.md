@@ -315,7 +315,7 @@ file  → text extraction / unsupported
 
 完成条件：图片消息可以保存、重启恢复、重生成、分支、备份恢复；不支持图片的模型会明确拒绝或降级，不会静默丢失。
 
-当前进度（2026-08-24）：阶段 2 已完成。`messages` Store 支持 V1 文本记录与 V2 Content Parts 联合读取，运行态继续提供兼容文本投影；消息附件使用独立 `MobileTavernAttachmentDB`，元数据与字节分 Store 保存，并具备魔数校验、`staging/committed/orphaned`、引用重建、垃圾回收和 Blob URL 回收。聊天端已接入最多四张图片的选择、预览、V2 落盘和气泡展示；OpenAI-compatible 图片输入只在用户明确启用模型视觉能力后投影，Anthropic 原生方言及音视频 Provider 投影会明确拒绝。统一备份携带所引用附件字节，恢复使用安全快照和跨数据库补偿。音视频文件的领域类型、存储与展示已进入同一 Content Parts/Attachment Data Plane；ASR、视频关键帧和声明式 Provider 能力协商由阶段 3 的 Runtime Plugin 接续实现。
+当前进度（2026-08-24）：阶段 2 已完成。`messages` Store 支持 V1 文本记录与 V2 Content Parts 联合读取，运行态继续提供兼容文本投影；消息附件使用独立 `MobileTavernAttachmentDB`，元数据与字节分 Store 保存，并具备魔数校验、`staging/committed/orphaned`、引用重建、垃圾回收和 Blob URL 回收。聊天端已接入最多四张图片的选择、预览、V2 落盘和气泡展示；OpenAI-compatible 图片输入按 Provider 声明的输入模态投影（2026-10-20 起移除独立的“图片输入能力”开关，主流多模态模型默认放行），Anthropic 原生方言及音视频 Provider 投影会明确拒绝。统一备份携带所引用附件字节，恢复使用安全快照和跨数据库补偿。音视频文件的领域类型、存储与展示已进入同一 Content Parts/Attachment Data Plane；ASR、视频关键帧和声明式 Provider 能力协商由阶段 3 的 Runtime Plugin 接续实现。
 
 ### 阶段 3：Agent Spine、Tool Registry 与 Provider Seam
 

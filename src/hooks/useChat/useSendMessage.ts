@@ -223,7 +223,6 @@ export function useSendMessage(p: SendMessageParams) {
             && canInspectMediaProcessors
             && pendingMultimodalParts.some((part) => part.type === "video")
             && !registeredMediaProcessors.includes(VIDEO_KEYFRAME_PROCESSOR_ID),
-          visionUnsupported: p.settings.api.supportsVision !== true,
         });
         // 必须在这里拦：消息一旦落库，投影阶段的异常会留下一轮永远发不出去的对话。
         if (refusal) {

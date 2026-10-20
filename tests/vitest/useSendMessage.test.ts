@@ -402,7 +402,7 @@ describe("useSendMessage 弱网与中止事务", () => {
     expect(harness.isSendingRef.current).toBe(false);
   });
 
-  it("显式启用视觉能力后把 V2 图片消息投影到 Provider 请求", async () => {
+  it("图片消息默认投影到 Provider 请求", async () => {
     silenceConsole();
     const harness = createHarness(async function* () {
       yield { choices: [{ delta: { content: "看到了" } }] };
@@ -410,7 +410,6 @@ describe("useSendMessage 弱网与中止事务", () => {
     harness.params.settings.api = {
       ...harness.params.settings.api,
       type: "openai-compat",
-      supportsVision: true,
     };
     harness.params.promptService.assemblePrompt = vi.fn(() => ({
       version: 1 as const,
@@ -444,7 +443,6 @@ describe("useSendMessage 弱网与中止事务", () => {
     harness.params.settings.api = {
       ...harness.params.settings.api,
       type: "anthropic",
-      supportsVision: true,
     };
     const { result } = renderHook(() => useSendMessage(harness.params));
 

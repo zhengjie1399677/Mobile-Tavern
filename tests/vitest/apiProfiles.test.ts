@@ -40,7 +40,6 @@ const profile: ApiProfile = {
   modelsPath: "/models",
   bypassProxy: false,
   reasoningStrength: "high",
-  supportsVision: true,
 };
 
 describe("API 通道档案投影", () => {
@@ -54,7 +53,6 @@ describe("API 通道档案投影", () => {
     expect(next.apiKey).toBe("sk-profile");
     expect(next.modelName).toBe("deepseek-reasoner");
     expect(next.reasoningStrength).toBe("high");
-    expect(next.supportsVision).toBe(true);
     // 表单专属字段不得被档案清空或覆盖
     expect(next.savedUrls).toEqual(baseApi.savedUrls);
     expect(next.contextLimit).toBe(64000);
