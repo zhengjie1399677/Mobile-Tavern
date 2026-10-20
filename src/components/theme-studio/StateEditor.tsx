@@ -8,19 +8,28 @@ import {
   type ThemeStateDefinition,
 } from "../../domain/themes/themeInteractionContract";
 import { createThemeStateKey } from "../../domain/themes/themeInteractionDraft";
+import { EnumValuesInput } from "./EnumValuesInput";
 
 function stateToken(key: string, definition: ThemeStateDefinition): string {
   return `${key}-${definition.default}`;
 }
 
-function createStateDefinition(type: "boolean" | "enum" | "counter"): ThemeStateDefinition {
-  if (type === "boolean") return { type: "boolean", default: false };
-  if (type === "enum") return { type: "enum", values: ["value-1"], default: "value-1" };
-  return { type: "counter", default: 0, min: 0, max: 10 };
-}
-
 function parseEnumValues(raw: string): string[] {
   return [...new Set(raw.split(",").map(item => item.trim()).filter(Boolean))];
+}
+
+/** 先截到契约上限 16 个，再决定默认值，避免默认值落在被截掉的位置。 */
+function buildEnumDefinition(
+  values: string[],
+  preferredDefault: string,
+): ThemeStateDefinition | null {
+  const limited = values.slice(0, 16);
+  if (limited.length === 0 || !limited.every(isValidThemeStyleToken)) return null;
+  return {
+    type: "enum",
+    values: limited,
+    default: limited.includes(preferredDefault) ? preferredDefault : limited[0],
+  };
 }
 
 export function StateEditor({
@@ -45,13 +54,7 @@ export function StateEditor({
   const newDefinition: ThemeStateDefinition | null = stateType === "boolean"
     ? { type: "boolean", default: booleanDefault }
     : stateType === "enum"
-      ? (parsedEnumValues.length > 0 && parsedEnumValues.every(isValidThemeStyleToken)
-        ? {
-            type: "enum",
-            values: parsedEnumValues.slice(0, 16),
-            default: parsedEnumValues.includes(enumDefault) ? enumDefault : parsedEnumValues[0],
-          }
-        : null)
+      ? buildEnumDefinition(parsedEnumValues, enumDefault)
       : (counterMin <= counterMax
         ? {
             type: "counter",
@@ -204,6 +207,9 @@ export function StateEditor({
           {stateType === "enum" && parsedEnumValues.length === 0 && (
             <span className="text-[10px] text-destructive">{t("theme_studio.state.enum_invalid")}</span>
           )}
+          {stateType === "enum" && parsedEnumValues.some(value => !isValidThemeStyleToken(value)) && (
+            <span className="text-[10px] text-destructive">{t("theme_studio.state.enum_token_invalid")}</span>
+          )}
           {stateType === "counter" && counterMin > counterMax && (
             <span className="text-[10px] text-destructive">{t("theme_studio.state.counter_invalid")}</span>
           )}
@@ -247,17 +253,14 @@ export function StateEditor({
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="text-[10px] text-muted-foreground">
                     {t("theme_studio.state.enum_values")}
-                    <input
-                      value={definition.values.join(", ")}
-                      onChange={event => {
-                        const values = parseEnumValues(event.target.value);
-                        if (values.length === 0) return;
-                        updateState(key, {
-                          ...definition,
-                          values,
-                          default: values.includes(definition.default) ? definition.default : values[0],
-                        });
-                      }}
+                    <EnumValuesInput
+                      values={definition.values}
+                      ariaLabel={t("theme_studio.state.enum_values")}
+                      onChange={values => updateState(key, {
+                        ...definition,
+                        values,
+                        default: values.includes(definition.default) ? definition.default : (values[0] ?? ""),
+                      })}
                       className="mt-1 h-7 w-full rounded-lg border border-border bg-input px-1.5 font-mono text-[10px] text-foreground"
                     />
                   </label>
@@ -271,6 +274,13 @@ export function StateEditor({
                       {definition.values.map(value => <option key={value} value={value}>{value}</option>)}
                     </select>
                   </label>
+                  {(definition.values.length > 16 || definition.values.some(value => !isValidThemeStyleToken(value))) && (
+                    <p className="text-[10px] text-destructive sm:col-span-2">
+                      {definition.values.length > 16
+                        ? t("theme_studio.state.enum_count_invalid")
+                        : t("theme_studio.state.enum_token_invalid")}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-3">

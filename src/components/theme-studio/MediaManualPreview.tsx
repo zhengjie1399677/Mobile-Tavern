@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { ThemeMediaDefinition } from "../../domain/themes/themeInteractionContract";
 import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
@@ -18,6 +18,11 @@ export function MediaManualPreview({
   const { t } = useTranslation();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setObjectUrl(null);
+    setFailed(false);
+  }, [definition.src]);
 
   const load = async () => {
     if (!resourcePort) return;

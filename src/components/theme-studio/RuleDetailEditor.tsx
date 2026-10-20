@@ -10,6 +10,7 @@ import {
 } from "../../domain/themes/themeInteractionContract";
 import { ActionListEditor } from "./ActionListEditor";
 import { ConditionListEditor } from "./ConditionListEditor";
+import { DraftNumberInput } from "./DraftNumberInput";
 
 function whenForEvent(
   event: ThemeInteractionEventType,
@@ -170,17 +171,15 @@ export function RuleDetailEditor({
 
           <label className="text-[10px] text-muted-foreground">
             {t("theme_studio.rules.cooldown")}
-            <input
-              type="number"
+            <DraftNumberInput
+              value={rule.cooldownMs}
               min={100}
               max={60000}
               step={100}
-              value={rule.cooldownMs}
-              onChange={event => onChange({
-                ...rule,
-                cooldownMs: Math.min(60000, Math.max(100, Number.parseInt(event.target.value, 10) || 100)),
-              })}
+              integer
+              onCommit={value => onChange({ ...rule, cooldownMs: value })}
               className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
+              ariaLabel={t("theme_studio.rules.cooldown")}
             />
           </label>
           <label className="flex items-center gap-1.5 self-end text-[10px] text-muted-foreground">

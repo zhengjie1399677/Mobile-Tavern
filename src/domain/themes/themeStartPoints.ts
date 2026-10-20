@@ -60,14 +60,25 @@ export function createUniqueThemeCopyName(
 
   const build = (index: number): string => {
     const tail = index > 1 ? ` ${index}` : "";
-    return `${base}${suffixText}${tail}`.slice(0, MAX_THEME_NAME_LENGTH);
+    // 先给后缀和序号留位置，避免长名称把“副本”截掉后与源主题重名。
+    const reserved = suffixText.length + tail.length;
+    const basePart = base.slice(0, Math.max(1, MAX_THEME_NAME_LENGTH - reserved));
+    return `${basePart}${suffixText}${tail}`.slice(0, MAX_THEME_NAME_LENGTH);
   };
 
-  for (let index = 1; index < 1000; index += 1) {
+  for (let index = 1; index < 10_000; index += 1) {
     const candidate = build(index);
     if (!taken.has(candidate.toLocaleLowerCase())) return candidate;
   }
-  return `${base.slice(0, MAX_THEME_NAME_LENGTH - 6)} ${Date.now()}`.slice(0, MAX_THEME_NAME_LENGTH);
+
+  // 极端情况下用毫秒级 base36 时间戳兜底；仍冲突则追加随机串。
+  const stamp = ` ${Date.now().toString(36).slice(-6)}`;
+  const fallbackBase = base.slice(0, Math.max(1, MAX_THEME_NAME_LENGTH - suffixText.length - stamp.length));
+  const fallback = `${fallbackBase}${suffixText}${stamp}`.slice(0, MAX_THEME_NAME_LENGTH);
+  if (!taken.has(fallback.toLocaleLowerCase())) return fallback;
+  const randomTail = ` ${Math.random().toString(36).slice(2, 6)}`;
+  const randomBase = base.slice(0, Math.max(1, MAX_THEME_NAME_LENGTH - suffixText.length - randomTail.length));
+  return `${randomBase}${suffixText}${randomTail}`.slice(0, MAX_THEME_NAME_LENGTH);
 }
 
 /** 从模板创建新草稿：剥离运行时标识，基线即模板本身，因此新草稿不脏。 */

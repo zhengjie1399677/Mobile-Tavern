@@ -46,7 +46,17 @@ describe("主题起点模板", () => {
     const name = createUniqueThemeCopyName("源主题", ["源主题 副本", "源主题 副本 2"]);
     expect(name).toBe("源主题 副本 3");
 
-    const longName = createUniqueThemeCopyName("很长的主题名称".repeat(10), []);
+    const longBase = "很长的主题名称".repeat(10);
+    const longName = createUniqueThemeCopyName(longBase, []);
     expect(longName.length).toBeLessThanOrEqual(40);
+    expect(longName).toContain("副本");
+    expect(longName).not.toBe(longBase.slice(0, 40));
+
+    const maxBase = "x".repeat(40);
+    const first = createUniqueThemeCopyName(maxBase, []);
+    const second = createUniqueThemeCopyName(maxBase, [first]);
+    expect(first.length).toBeLessThanOrEqual(40);
+    expect(first).toContain("副本");
+    expect(second).not.toBe(first);
   });
 });

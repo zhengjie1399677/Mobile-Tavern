@@ -31,15 +31,22 @@ export function RulesEditor({
   onChange: (config: ThemeInteractionConfig) => void;
 }) {
   const { t } = useTranslation();
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const editingIndex = config.interactions.findIndex(rule => rule.id === editingRuleId);
+  // 用列表下标锁定正在编辑的规则，规则 ID 本身可自由重命名。
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const activeIndex = editingIndex !== null &&
+    editingIndex >= 0 &&
+    editingIndex < config.interactions.length
+    ? editingIndex
+    : null;
 
   useEffect(() => {
-    if (editingRuleId && editingIndex < 0) setEditingRuleId(null);
-  }, [editingRuleId, editingIndex]);
+    if (editingIndex !== null && editingIndex >= config.interactions.length) {
+      setEditingIndex(null);
+    }
+  }, [editingIndex, config.interactions.length]);
 
-  useMobileBackHandler(Boolean(editingRuleId), () => {
-    setEditingRuleId(null);
+  useMobileBackHandler(activeIndex !== null, () => {
+    setEditingIndex(null);
     return true;
   }, 860);
 
@@ -53,7 +60,7 @@ export function RulesEditor({
     if (config.interactions.length >= THEME_INTERACTION_LIMITS.maxRules) return;
     const rule = createRule(config);
     onChange({ ...config, interactions: [...config.interactions, rule] });
-    setEditingRuleId(rule.id);
+    setEditingIndex(config.interactions.length);
   };
 
   const duplicateRule = (index: number) => {
@@ -69,13 +76,16 @@ export function RulesEditor({
     const next = [...config.interactions];
     next.splice(index + 1, 0, copy);
     onChange({ ...config, interactions: next });
-    setEditingRuleId(copy.id);
+    setEditingIndex(index + 1);
   };
 
   const removeRule = (index: number) => {
     const next = config.interactions.filter((_, itemIndex) => itemIndex !== index);
     onChange({ ...config, interactions: next });
-    if (config.interactions[index]?.id === editingRuleId) setEditingRuleId(null);
+    if (editingIndex !== null) {
+      if (editingIndex === index) setEditingIndex(null);
+      else if (editingIndex > index) setEditingIndex(editingIndex - 1);
+    }
   };
 
   const moveRule = (index: number, direction: -1 | 1) => {
@@ -86,16 +96,16 @@ export function RulesEditor({
     onChange({ ...config, interactions: next });
   };
 
-  if (editingIndex >= 0) {
-    const rule = config.interactions[editingIndex];
+  if (activeIndex !== null) {
+    const rule = config.interactions[activeIndex];
     return (
       <RuleDetailEditor
         rule={rule}
-        ruleIndex={editingIndex}
+        ruleIndex={activeIndex}
         config={config}
         issues={issues}
-        onChange={next => updateRule(editingIndex, next)}
-        onBack={() => setEditingRuleId(null)}
+        onChange={next => updateRule(activeIndex, next)}
+        onBack={() => setEditingIndex(null)}
       />
     );
   }
@@ -144,7 +154,7 @@ export function RulesEditor({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setEditingRuleId(rule.id)}
+                  onClick={() => setEditingIndex(index)}
                   className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-foreground"
                 >
                   {t("theme_studio.rules.edit")}

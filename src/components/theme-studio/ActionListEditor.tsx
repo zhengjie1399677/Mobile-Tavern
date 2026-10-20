@@ -9,6 +9,7 @@ import {
   type ThemeStateDefinition,
   type ThemeStateValue,
 } from "../../domain/themes/themeInteractionContract";
+import { DraftNumberInput } from "./DraftNumberInput";
 import { StateValueInput } from "./StateValueInput";
 
 type ActionType = typeof THEME_INTERACTION_ACTION_TYPES[number];
@@ -79,6 +80,55 @@ function createAction(
   return { action: type, group: "state", value: "state-active", delayMs: 0 };
 }
 
+/** 切换动作类型时保留仍然有效的延迟、目标与状态键，避免静默丢配置。 */
+function mergeActionChange(
+  previous: ThemeInteractionAction,
+  next: ThemeInteractionAction,
+  config: ThemeInteractionConfig,
+): ThemeInteractionAction {
+  const merged: ThemeInteractionAction = { ...next, delayMs: previous.delayMs };
+
+  if (
+    (next.action === "surface.show" || next.action === "surface.hide") &&
+    (previous.action === "surface.show" || previous.action === "surface.hide")
+  ) {
+    const withSurface = { ...merged, target: previous.target } as ThemeInteractionAction;
+    if (next.action === "surface.show" && previous.action === "surface.show") {
+      if (config.media[previous.mediaId]?.type === "video") {
+        return { ...withSurface, mediaId: previous.mediaId } as ThemeInteractionAction;
+      }
+    }
+    return withSurface;
+  }
+
+  if ("target" in next && "target" in previous && next.action.startsWith("media.")) {
+    const target = previous.target;
+    if (
+      config.media[target] &&
+      (next.action !== "media.setMuted" || config.media[target].type === "video")
+    ) {
+      return { ...merged, target } as ThemeInteractionAction;
+    }
+  }
+
+  if ("key" in next && "key" in previous) {
+    const definition = config.state[previous.key];
+    if (definition) {
+      if (next.action === "state.toggle" && definition.type === "boolean") {
+        return { ...merged, key: previous.key } as ThemeInteractionAction;
+      }
+      if (next.action === "state.increment" && definition.type === "counter") {
+        return { ...merged, key: previous.key } as ThemeInteractionAction;
+      }
+      if (next.action === "state.set") {
+        return { ...merged, key: previous.key } as ThemeInteractionAction;
+      }
+    }
+  }
+
+  return merged;
+}
+
 export function ActionListEditor({
   config,
   actions,
@@ -142,7 +192,7 @@ export function ActionListEditor({
                       value={action.action}
                       onChange={event => {
                         const next = createAction(event.target.value as ActionType, config);
-                        if (next) updateAction(index, next);
+                        if (next) updateAction(index, mergeActionChange(action, next, config));
                       }}
                       className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
                     >
@@ -156,20 +206,15 @@ export function ActionListEditor({
 
                   <label className="text-[10px] text-muted-foreground">
                     {t("theme_studio.actions.delay")}
-                    <input
-                      type="number"
+                    <DraftNumberInput
+                      value={action.delayMs}
                       min={0}
                       max={THEME_INTERACTION_LIMITS.maxDelayMs}
                       step={100}
-                      value={action.delayMs}
-                      onChange={event => updateAction(index, {
-                        ...action,
-                        delayMs: Math.min(
-                          THEME_INTERACTION_LIMITS.maxDelayMs,
-                          Math.max(0, Number.parseInt(event.target.value, 10) || 0),
-                        ),
-                      })}
+                      integer
+                      onCommit={value => updateAction(index, { ...action, delayMs: value })}
                       className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
+                      ariaLabel={t("theme_studio.actions.delay")}
                     />
                   </label>
 
@@ -193,6 +238,12 @@ export function ActionListEditor({
                           className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
                         >
                           {mediaTargets.map(target => <option key={target} value={target}>{target}</option>)}
+                          {action.target && !mediaTargets.includes(action.target) && (
+                            <option value={action.target}>{action.target}</option>
+                          )}
+                          {mediaTargets.length === 0 && (
+                            <option value="">{t("theme_studio.actions.no_media")}</option>
+                          )}
                         </select>
                       </label>
                     ) : null}
@@ -207,21 +258,24 @@ export function ActionListEditor({
                           className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
                         >
                           {mediaTargets.map(target => <option key={target} value={target}>{target}</option>)}
+                          {action.target && !mediaTargets.includes(action.target) && (
+                            <option value={action.target}>{action.target}</option>
+                          )}
+                          {mediaTargets.length === 0 && (
+                            <option value="">{t("theme_studio.actions.no_media")}</option>
+                          )}
                         </select>
                       </label>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.volume")}
-                        <input
-                          type="number"
+                        <DraftNumberInput
+                          value={action.volume}
                           min={0}
                           max={1}
                           step={0.05}
-                          value={action.volume}
-                          onChange={event => updateAction(index, {
-                            ...action,
-                            volume: Math.min(1, Math.max(0, Number.parseFloat(event.target.value) || 0)),
-                          })}
+                          onCommit={value => updateAction(index, { ...action, volume: value })}
                           className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
+                          ariaLabel={t("theme_studio.actions.volume")}
                         />
                       </label>
                     </>
@@ -363,16 +417,14 @@ export function ActionListEditor({
                       </label>
                       <label className="text-[10px] text-muted-foreground">
                         {t("theme_studio.actions.amount")}
-                        <input
-                          type="number"
+                        <DraftNumberInput
+                          value={action.amount}
                           min={-100}
                           max={100}
-                          value={action.amount}
-                          onChange={event => updateAction(index, {
-                            ...action,
-                            amount: Math.min(100, Math.max(-100, Number.parseInt(event.target.value, 10) || 0)),
-                          })}
+                          integer
+                          onCommit={value => updateAction(index, { ...action, amount: value })}
                           className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
+                          ariaLabel={t("theme_studio.actions.amount")}
                         />
                       </label>
                     </>

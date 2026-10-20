@@ -1,5 +1,5 @@
 import React from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ThemeEditorModal from "../../src/components/ThemeEditorModal";
@@ -118,7 +118,7 @@ describe("主题工作室 Theme 1.1 可视化编辑", () => {
     expect(onSave.mock.calls[0][1]).toBe(false);
   });
 
-  it("非法交互 JSON 会暂停可视化编辑，并支持显式丢弃", async () => {
+  it("初始非法 JSON 不会提供清空数据的丢弃按钮", async () => {
     const user = userEvent.setup();
     const brokenTheme: CustomThemePackage = {
       ...THEME,
@@ -129,10 +129,63 @@ describe("主题工作室 Theme 1.1 可视化编辑", () => {
     await openInteractions();
 
     expect(await screen.findByText(/当前 JSON 无法解析/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "丢弃非法 JSON，继续可视化编辑" })).not.toBeInTheDocument();
+    expect(screen.getByText(/没有可恢复的上次有效状态/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "去修复 JSON" }));
+    expect(await screen.findByLabelText("主题受限交互 JSON")).toBeInTheDocument();
+  });
+
+  it("同一会话内改坏 JSON 后丢弃会恢复上次可视化配置", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await openInteractions();
+
+    await user.click(screen.getByRole("button", { name: "添加状态" }));
+    await waitFor(() => expect(screen.getAllByText(/state-false/).length).toBeGreaterThan(0));
+
+    await user.click(screen.getByRole("tab", { name: "高级 JSON" }));
+    const textarea = screen.getByLabelText("主题受限交互 JSON");
+    fireEvent.change(textarea, {
+      target: { value: '{"media":{},"state":{},"interactions":[{"id":"bad"}]}' },
+    });
+    await user.click(screen.getByRole("tab", { name: "可视化" }));
+
+    expect(await screen.findByText(/当前 JSON 无法解析/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "丢弃非法 JSON，继续可视化编辑" }));
 
     await waitFor(() => expect(screen.queryByText(/当前 JSON 无法解析/)).not.toBeInTheDocument());
-    expect(screen.getAllByText("媒体").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/state-false/).length).toBeGreaterThan(0);
+  });
+
+  it("规则 ID 重命名时仍停留在同一条规则", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await openInteractions();
+
+    await user.click(screen.getByRole("button", { name: "添加规则" }));
+    expect(await screen.findByText("编辑规则")).toBeInTheDocument();
+
+    const idInput = screen.getByLabelText("规则 ID");
+    await user.clear(idInput);
+    await user.type(idInput, "renamed-rule");
+    expect(screen.getByText("编辑规则")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "返回规则列表" }));
+    expect(await screen.findByText("renamed-rule")).toBeInTheDocument();
+  });
+
+  it("冷却输入可以正常输入多位数", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await openInteractions();
+
+    await user.click(screen.getByRole("button", { name: "添加规则" }));
+    const cooldown = screen.getByLabelText("冷却（毫秒）");
+    await user.clear(cooldown);
+    await user.type(cooldown, "500");
+    await user.tab();
+    expect(cooldown).toHaveValue(500);
   });
 
   it("规则详情的返回优先于工作室分区返回", async () => {

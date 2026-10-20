@@ -74,6 +74,12 @@ describe("主题 CSS 只读诊断", () => {
       .toEqual(["forbidden-safe-area"]);
   });
 
+  it("scroll-behavior 是合法属性，不误报为 behavior", () => {
+    expect(analyzeThemeCss(".a { scroll-behavior: smooth; }")).toEqual([]);
+    expect(analyzeThemeCss(".a { behavior: url(x); }").map(item => item.code))
+      .toEqual(expect.arrayContaining(["forbidden-behavior"]));
+  });
+
   it("注释与字符串中的禁用文本不误报", () => {
     expect(analyzeThemeCss("/* @import url(http://x) */ a { color: red; }")).toEqual([]);
     expect(analyzeThemeCss('a { content: "@import url(http://x)"; }')).toEqual([]);

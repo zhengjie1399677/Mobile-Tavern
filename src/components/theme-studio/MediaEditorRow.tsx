@@ -1,6 +1,7 @@
 import { useTranslation } from "../../contexts/LanguageContext";
 import type { LocalResourceMetadata } from "../../domain/resources/types";
 import type { ThemeMediaDefinition } from "../../domain/themes/themeInteractionContract";
+import { DraftNumberInput } from "./DraftNumberInput";
 import { MediaManualPreview, resourceIdFromSrc } from "./MediaManualPreview";
 import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
 
@@ -94,17 +95,14 @@ export function MediaEditorRow({
         </label>
         <label className="text-[10px] text-muted-foreground">
           {t("theme_studio.media.volume")}
-          <input
-            type="number"
+          <DraftNumberInput
+            value={definition.volume}
             min={0}
             max={1}
             step={0.05}
-            value={definition.volume}
-            onChange={event => onChange({
-              ...definition,
-              volume: Math.min(1, Math.max(0, Number.parseFloat(event.target.value) || 0)),
-            })}
+            onCommit={value => onChange({ ...definition, volume: value })}
             className="mt-1 h-7 w-full rounded-md border border-border bg-input px-1.5 text-[10px] text-foreground"
+            ariaLabel={t("theme_studio.media.volume")}
           />
         </label>
         {definition.type === "video" ? (

@@ -21,6 +21,12 @@ import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
 
 type InteractionEditorMode = "visual" | "json";
 
+function countObjectKeys(value: unknown): number {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? Object.keys(value).length
+    : 0;
+}
+
 export function InteractionsSection({
   value,
   onChange,
@@ -40,6 +46,9 @@ export function InteractionsSection({
   });
   const [resourceError, setResourceError] = useState<string | null>(null);
   const [lastEmittedSource, setLastEmittedSource] = useState<string | null>(null);
+  const [hasUsableVisualConfig, setHasUsableVisualConfig] = useState(
+    () => parseThemeInteractionSource(value).success,
+  );
 
   const parsedValue = useMemo(() => parseThemeInteractionSource(value), [value]);
   const sourceFromVisual = lastEmittedSource === value;
@@ -49,19 +58,49 @@ export function InteractionsSection({
   useEffect(() => {
     if (value === lastEmittedSource) return;
     const parsed = parseThemeInteractionSource(value);
-    if (parsed.success && parsed.config) setVisualConfig(parsed.config);
+    if (parsed.success && parsed.config) {
+      setVisualConfig(parsed.config);
+      setHasUsableVisualConfig(true);
+    }
   }, [value, lastEmittedSource]);
 
   const commitConfig = (next: ThemeInteractionConfig) => {
     const source = serializeThemeInteractionSource(next);
     setLastEmittedSource(source);
     setVisualConfig(next);
+    setHasUsableVisualConfig(true);
     onChange(source);
   };
 
   const detailed = useMemo(() => parseThemeInteractionConfigDetailed(visualConfig), [visualConfig]);
-  const schemaVersion = deriveThemeInteractionSchemaVersion(visualConfig);
   const resourcesState = useThemeStudioResources(resourcePort);
+
+  const rawObject = useMemo<Record<string, unknown> | null>(() => {
+    if (mode !== "json") return null;
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : null;
+    } catch {
+      return null;
+    }
+  }, [mode, value]);
+  const rawDetailed = useMemo(
+    () => (rawObject ? parseThemeInteractionConfigDetailed(rawObject) : null),
+    [rawObject],
+  );
+  const rawHasInteractions = countObjectKeys(rawObject?.media) > 0 ||
+    countObjectKeys(rawObject?.state) > 0 ||
+    (Array.isArray(rawObject?.interactions) && rawObject.interactions.length > 0);
+  const summarySchemaVersion = mode === "json" && rawObject
+    ? (rawHasInteractions ? "1.1" : "1.0")
+    : deriveThemeInteractionSchemaVersion(visualConfig);
+  const summaryIssues = mode === "json"
+    ? (rawDetailed
+      ? rawDetailed.issues
+      : parsedValue.errors.map(message => ({ path: [], message })))
+    : detailed.issues;
 
   const handleRawChange = (next: string) => {
     setLastEmittedSource(null);
@@ -87,8 +126,8 @@ export function InteractionsSection({
       </div>
 
       <InteractionValidationSummary
-        schemaVersion={schemaVersion}
-        issues={detailed.issues}
+        schemaVersion={summarySchemaVersion}
+        issues={summaryIssues}
         mediaPermissionEnabled={mediaPermissionEnabled}
       />
 
@@ -97,9 +136,7 @@ export function InteractionsSection({
           type="button"
           role="tab"
           aria-selected={mode === "visual"}
-          onClick={() => {
-            if (!rawJsonInvalid) setMode("visual");
-          }}
+          onClick={() => setMode("visual")}
           className={`min-h-8 flex-1 rounded-md px-3 text-[11px] font-semibold ${
             mode === "visual" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
           }`}
@@ -127,17 +164,23 @@ export function InteractionsSection({
               <li key={index} className="text-[10px] leading-relaxed text-destructive">{error}</li>
             ))}
           </ul>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                commitConfig(visualConfig);
-                setMode("visual");
-              }}
-              className="rounded-md bg-destructive px-2.5 py-1 text-[10px] font-semibold text-destructive-foreground"
-            >
-              {t("theme_studio.interactions.discard_raw")}
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {hasUsableVisualConfig ? (
+              <button
+                type="button"
+                onClick={() => {
+                  commitConfig(visualConfig);
+                  setMode("visual");
+                }}
+                className="rounded-md bg-destructive px-2.5 py-1 text-[10px] font-semibold text-destructive-foreground"
+              >
+                {t("theme_studio.interactions.discard_raw")}
+              </button>
+            ) : (
+              <p className="text-[10px] leading-relaxed text-muted-foreground">
+                {t("theme_studio.interactions.raw_invalid_no_visual")}
+              </p>
+            )}
             <button
               type="button"
               onClick={() => setMode("json")}

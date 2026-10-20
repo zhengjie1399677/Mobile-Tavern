@@ -15,6 +15,7 @@ export function CssSection({
 }) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLPreElement>(null);
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
   const diagnostics = useMemo(() => analyzeThemeCss(value), [value]);
   const navigationRisks = useMemo(() => detectCriticalNavigationHiding(value), [value]);
@@ -58,8 +59,9 @@ export function CssSection({
       </div>
       <div className="flex min-h-[22rem] flex-1 overflow-hidden rounded-xl border border-border bg-input">
         <pre
+          ref={gutterRef}
           aria-hidden="true"
-          className="select-none border-r border-border bg-muted/60 px-2 py-2.5 text-right font-mono text-xs leading-5 text-muted-foreground"
+          className="select-none overflow-hidden border-r border-border bg-muted/60 px-2 py-2.5 text-right font-mono text-xs leading-5 text-muted-foreground"
         >
           {Array.from({ length: Math.max(1, value.split("\n").length) }, (_, index) => index + 1).join("\n")}
         </pre>
@@ -68,8 +70,12 @@ export function CssSection({
           aria-label="自定义 CSS 文档"
           value={value}
           onChange={event => onChange(event.target.value)}
+          onScroll={event => {
+            if (gutterRef.current) gutterRef.current.scrollTop = event.currentTarget.scrollTop;
+          }}
+          wrap="off"
           spellCheck={false}
-          className="min-h-[22rem] flex-1 resize-none bg-transparent p-2.5 font-mono text-xs leading-5 text-foreground outline-none"
+          className="min-h-[22rem] flex-1 resize-none overflow-auto whitespace-pre bg-transparent p-2.5 font-mono text-xs leading-5 text-foreground outline-none"
           placeholder={'[data-ui="main-tab-bar"] {\n  border-color: var(--primary);\n}'}
         />
       </div>

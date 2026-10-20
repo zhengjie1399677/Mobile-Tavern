@@ -19,13 +19,21 @@ import {
   contrastRatio,
   formatRgb,
   parseCssColor,
+  parseThemeColorValue,
   relativeLuminance,
   type RgbColor,
   type RgbaColor,
 } from "../../../../domain/themes/themeColor";
 
 export type { RgbColor, RgbaColor };
-export { compositeOver, contrastRatio, formatRgb, parseCssColor, relativeLuminance };
+export {
+  compositeOver,
+  contrastRatio,
+  formatRgb,
+  parseCssColor,
+  parseThemeColorValue,
+  relativeLuminance,
+};
 
 export interface ViewportSizeLike {
   width: number;
@@ -258,7 +266,7 @@ export function collectThemeDiagnosticLines(
       lines.push(`${name}: (empty)`);
       continue;
     }
-    const parsed = parseCssColor(raw);
+    const parsed = parseThemeColorValue(raw);
     lines.push(`${name}: ${raw}${parsed ? ` → ${formatRgb(parsed)}` : " → (unparsed)"}`);
   }
   if (missingVariable) {

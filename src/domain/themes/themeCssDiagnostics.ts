@@ -43,6 +43,8 @@ interface ForbiddenPattern {
   code: ThemeCssDiagnosticCode;
   pattern: RegExp;
   message: string;
+  /** 正则带前缀捕获时，返回真正问题内容的偏移。 */
+  matchOffset?: (match: RegExpExecArray) => number;
 }
 
 const FORBIDDEN_PATTERNS: readonly ForbiddenPattern[] = [
@@ -54,7 +56,13 @@ const FORBIDDEN_PATTERNS: readonly ForbiddenPattern[] = [
   { code: "forbidden-safe-area", pattern: /--(?:android-)?safe-area[\w-]*\s*:/gi, message: "主题不得重新声明 Safe Area 变量，相关声明会被移除。" },
   { code: "forbidden-expression", pattern: /\bexpression\s*\(/gi, message: "IE expression() 不受支持，且会被移除。" },
   { code: "forbidden-moz-binding", pattern: /-moz-binding\s*:/gi, message: "-moz-binding 不受支持，且会被移除。" },
-  { code: "forbidden-behavior", pattern: /\bbehavior\s*:/gi, message: "behavior 属性不受支持，且会被移除。" },
+  {
+    code: "forbidden-behavior",
+    // 前面不能是连字符，避免把合法属性 scroll-behavior 误判成 behavior。
+    pattern: /(^|[^\w-])behavior\s*:/gi,
+    message: "behavior 属性不受支持，且会被移除。",
+    matchOffset: match => match[0].indexOf("behavior"),
+  },
 ];
 
 function buildLineStarts(css: string): number[] {
@@ -205,11 +213,18 @@ export function analyzeThemeCss(css: string): ThemeCssDiagnostic[] {
   }
 
   const maskedText = masked.join("");
-  for (const { code, pattern, message } of FORBIDDEN_PATTERNS) {
+  for (const { code, pattern, message, matchOffset } of FORBIDDEN_PATTERNS) {
     pattern.lastIndex = 0;
     let match = pattern.exec(maskedText);
     while (match) {
-      addIssue(code, "error", match.index, match[0].length, message);
+      const offsetInMatch = matchOffset ? matchOffset(match) : 0;
+      addIssue(
+        code,
+        "error",
+        match.index + offsetInMatch,
+        match[0].length - offsetInMatch,
+        message,
+      );
       match = pattern.exec(maskedText);
     }
   }
