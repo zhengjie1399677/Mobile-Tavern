@@ -1,18 +1,18 @@
 import { useMemo, useState } from "react";
 import { Brain, ChevronDown, ChevronUp, HelpCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
-import { Card, CardHeader, CardContent } from "../../../components/ui/card";
+import { Card, CardHeader, CardContent } from "@/src/components/ui/card";
 import { useTranslation } from "../../contexts/LanguageContext";
 import {
   Accordion,
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from "../../../components/ui/accordion";
-import { Switch } from "../../../components/ui/switch";
-import { Checkbox } from "../../../components/ui/checkbox";
-import { Input } from "../../../components/ui/input";
-import { Textarea } from "../../../components/ui/textarea";
-import { cn } from "../../../lib/utils";
+} from "@/src/components/ui/accordion";
+import { Switch } from "@/src/components/ui/switch";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { Input } from "@/src/components/ui/input";
+import { Textarea } from "@/src/components/ui/textarea";
+import { cn } from "@/src/lib/utils";
 import type { PromptConfig, UserSettings } from "../../types";
 import {
   RECOMMENDED_PROMPT_TEMPLATES,

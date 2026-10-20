@@ -25,7 +25,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "../../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { useKernel } from "../../contexts/KernelContext";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { destroyApplicationRuntime } from "../../application/runtime";

@@ -1,7 +1,7 @@
 import React from "react";
 import { ArrowLeft, CheckCircle2, Eye, Save, X } from "lucide-react";
-import { Button } from "../../components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../../components/ui/dialog";
+import { Button } from "@/src/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/src/components/ui/dialog";
 import {
   buildThemeDocumentCandidate,
   createThemeDocumentDraft,

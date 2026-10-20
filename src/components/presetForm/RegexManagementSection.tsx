@@ -1,9 +1,9 @@
 import { Sparkles, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
-import { Card, CardHeader, CardContent } from "../../../components/ui/card";
+import { Card, CardHeader, CardContent } from "@/src/components/ui/card";
 import { useTranslation, type LanguageContextProps } from "../../contexts/LanguageContext";
-import { Switch } from "../../../components/ui/switch";
-import { Checkbox } from "../../../components/ui/checkbox";
-import { cn } from "../../../lib/utils";
+import { Switch } from "@/src/components/ui/switch";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { cn } from "@/src/lib/utils";
 import type { Dispatch, SetStateAction } from "react";
 import type { UserSettings, CharacterCard, RegexScript } from "../../types";
 import type { EditableRegexScript } from "./usePresetFormState";

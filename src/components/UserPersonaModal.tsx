@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { User, Plus, Edit2, Trash2, Check, X, Upload } from "lucide-react";
-import { Button } from "../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 import { compressImage } from "../utils/imageCompressor";

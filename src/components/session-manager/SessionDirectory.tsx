@@ -11,7 +11,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Button } from "../../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import type { CharacterCard, ChatSession, Message } from "../../types";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { getAvatarGradientClass } from "../../utils/avatarUtils";

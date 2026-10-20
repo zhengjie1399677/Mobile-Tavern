@@ -1,4 +1,4 @@
-import { Switch } from "../../../components/ui/switch";
+import { Switch } from "@/src/components/ui/switch";
 
 interface SettingsToggleRowProps {
   label: string;

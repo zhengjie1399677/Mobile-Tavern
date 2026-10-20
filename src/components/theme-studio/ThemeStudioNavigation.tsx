@@ -1,5 +1,5 @@
 import { Code, LayoutDashboard, Palette, SlidersHorizontal, Workflow } from "lucide-react";
-import { Button } from "../../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import type { StudioSection, StudioSectionItem } from "./themeStudioTypes";
 
 export const SECTION_ITEMS: StudioSectionItem[] = [

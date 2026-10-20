@@ -1,14 +1,14 @@
 import React from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { Clock } from "lucide-react";
-import { Button } from "../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 export default function TimelineModal() {

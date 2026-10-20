@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Check, Copy } from "lucide-react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
-import { Button } from "../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 import { writeTextToClipboard } from "../infrastructure/platform/clipboard";
 

@@ -1,9 +1,9 @@
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/src/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
-import { DialogPortalContext } from "@/components/ui/dialog"
+import { DialogPortalContext } from "@/src/components/ui/dialog"
 
 function Select<Value = unknown, Multiple extends boolean = false>({
   onValueChange,

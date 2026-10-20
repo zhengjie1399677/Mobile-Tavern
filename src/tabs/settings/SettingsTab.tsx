@@ -20,13 +20,13 @@ import {
   Wrench,
 } from "lucide-react";
 import { useUnifiedApp } from "../../UnifiedAppContext";
-import { Card, CardContent } from "../../../components/ui/card";
+import { Card, CardContent } from "@/src/components/ui/card";
 import { useKernel } from "../../contexts/KernelContext";
 import { getDeviceModel, getFreeTrialCount, useViewportSize } from "./utils";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { getErrorMessage } from "../../utils/errorUtils";
 
-const PresetForm = React.lazy(() => import("../../components/PresetForm"));
+const PresetForm = React.lazy(() => import("../../components/presetForm/PresetForm"));
 import GeneralConfigSection from "./GeneralConfigSection";
 import ThemeConfigSection from "./ThemeConfigSection";
 import PersonaConfigSection from "./PersonaConfigSection";

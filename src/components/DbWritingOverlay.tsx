@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useTranslation } from "../contexts/LanguageContext";
-import { Button } from "../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 /**

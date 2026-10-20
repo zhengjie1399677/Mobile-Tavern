@@ -20,15 +20,15 @@ import {
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from "../../../../components/ui/accordion";
+} from "@/src/components/ui/accordion";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../../components/ui/select";
-import { Input } from "../../../../components/ui/input";
+} from "@/src/components/ui/select";
+import { Input } from "@/src/components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import SettingsToggleRow from "../SettingsToggleRow";
 import ReasoningStrengthRow from "../ReasoningStrengthRow";

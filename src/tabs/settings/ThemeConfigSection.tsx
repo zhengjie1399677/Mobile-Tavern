@@ -5,14 +5,14 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-} from "../../../components/ui/card";
+} from "@/src/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../components/ui/select";
+} from "@/src/components/ui/select";
 import { compressImage } from "../../utils/imageCompressor";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 import { Upload, Download, Trash2, Check, Plus, Edit, Globe, Sparkles, FolderArchive } from "lucide-react";

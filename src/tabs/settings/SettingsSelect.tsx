@@ -5,8 +5,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../components/ui/select";
-import { cn } from "../../../lib/utils";
+} from "@/src/components/ui/select";
+import { cn } from "@/src/lib/utils";
 
 export interface SettingsSelectOption {
   value: string;

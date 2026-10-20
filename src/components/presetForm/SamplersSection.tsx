@@ -1,7 +1,7 @@
 import { Sliders, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
-import { Card, CardHeader, CardContent } from "../../../components/ui/card";
+import { Card, CardHeader, CardContent } from "@/src/components/ui/card";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { cn } from "../../../lib/utils";
+import { cn } from "@/src/lib/utils";
 import {
   DEFAULT_MAX_OUTPUT_TOKENS,
   MAX_OUTPUT_TOKENS,

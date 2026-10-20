@@ -4,12 +4,12 @@ import { IKernel, globalKernel } from "../kernel";
 import { useKernel } from "../contexts/KernelContext";
 import { useTranslation } from "../contexts/LanguageContext";
 import { IUpdateCheckService, UpdateInfo } from "@/src/application/serviceContracts";
-import { Button } from "../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 // === 更新检查策略常量 ===

@@ -18,15 +18,15 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { Button } from "../../../components/ui/button";
-import { Checkbox } from "../../../components/ui/checkbox";
+import { Button } from "@/src/components/ui/button";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../components/ui/select";
+} from "@/src/components/ui/select";
 import type {
   ISessionManagementService,
 } from "../../application/serviceContracts";

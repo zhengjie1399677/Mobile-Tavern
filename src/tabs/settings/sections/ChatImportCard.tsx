@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardContent,
   CardDescription,
-} from "../../../../components/ui/card";
+} from "@/src/components/ui/card";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 
 export type ChatImportCardProps = Pick<UnifiedAppContextProps, "handleImportSillyChatHistory">;

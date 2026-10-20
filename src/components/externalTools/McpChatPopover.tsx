@@ -23,7 +23,7 @@ import {
   Copy,
   Check as CheckIcon,
 } from "lucide-react";
-import { Switch } from "../../../components/ui/switch";
+import { Switch } from "@/src/components/ui/switch";
 import { externalSourceUseCases } from "../../application/externalSources/externalSourceUseCases";
 import { syncExternalSourceToolMounts } from "../../application/useCases/externalSourceToolMounting";
 import { KernelServices, type IExternalSourceRuntimeService } from "../../application/serviceContracts";

@@ -1,12 +1,12 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
-import { Checkbox } from "../../../components/ui/checkbox";
-import { Input } from "../../../components/ui/input";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { Input } from "@/src/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
-} from "../../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 import type { EditableRegexScript, usePresetFormState } from "./usePresetFormState";

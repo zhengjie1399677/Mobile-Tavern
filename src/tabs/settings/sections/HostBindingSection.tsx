@@ -13,7 +13,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { useTranslation } from "../../../contexts/LanguageContext";
-import { Input } from "../../../../components/ui/input";
+import { Input } from "@/src/components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import type { HostBindingSettings } from "../../../types";
 import {

@@ -23,9 +23,11 @@ export default defineConfig(({ command }) => {
     },
     plugins: [react(), tailwindcss()],
     resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
+      alias: [
+        { find: '@/components/ui', replacement: path.resolve(__dirname, 'src/components/ui') },
+        { find: '@/lib/utils', replacement: path.resolve(__dirname, 'src/lib/utils') },
+        { find: '@', replacement: path.resolve(__dirname, '.') },
+      ],
     },
     esbuild: {
       // 生产构建时移除 console.log / console.debug，保留 console.warn / console.error 用于诊断。

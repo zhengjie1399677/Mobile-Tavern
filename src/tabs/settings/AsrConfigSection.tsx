@@ -1,7 +1,7 @@
 import { Mic } from "lucide-react";
-import { AccordionItem, AccordionTrigger, AccordionContent } from "../../../components/ui/accordion";
-import { Switch } from "../../../components/ui/switch";
-import { Input } from "../../../components/ui/input";
+import { AccordionItem, AccordionTrigger, AccordionContent } from "@/src/components/ui/accordion";
+import { Switch } from "@/src/components/ui/switch";
+import { Input } from "@/src/components/ui/input";
 import type { UserSettings } from "../../types";
 import { useTranslation } from "../../contexts/LanguageContext";
 

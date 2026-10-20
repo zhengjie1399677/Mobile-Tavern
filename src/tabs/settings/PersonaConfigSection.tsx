@@ -14,9 +14,9 @@ import {
   Briefcase,
 } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { Card } from "../../../components/ui/card";
-import { Input } from "../../../components/ui/input";
-import { Textarea } from "../../../components/ui/textarea";
+import { Card } from "@/src/components/ui/card";
+import { Input } from "@/src/components/ui/input";
+import { Textarea } from "@/src/components/ui/textarea";
 import { compressImage } from "../../utils/imageCompressor";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 import type { UserPersona } from "../../types";

@@ -6,7 +6,7 @@ import {
   CardTitle,
   CardContent,
   CardDescription,
-} from "../../components/ui/card";
+} from "@/src/components/ui/card";
 import { Activity } from "lucide-react";
 import { reportColdStartReady } from "./telemetry";
 import { useKernel } from "../contexts/KernelContext";

@@ -15,7 +15,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ApiConfigSection from "../../src/tabs/settings/sections/ApiConfigSection";
-import { Accordion } from "../../components/ui/accordion";
+import { Accordion } from "@/src/components/ui/accordion";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { ApiProfile, UserSettings } from "../../src/types";

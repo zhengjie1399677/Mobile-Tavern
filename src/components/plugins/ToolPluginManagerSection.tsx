@@ -14,7 +14,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/src/components/ui/dialog";
 import { toolPluginManagementUseCases } from "../../application/useCases/toolPluginManagementUseCases";
 import type {
   InstalledToolPlugin,

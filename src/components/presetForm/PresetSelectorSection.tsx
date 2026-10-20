@@ -1,14 +1,14 @@
 import type React from "react";
 import { Plus, Save, Trash2, Download, Upload, FileText } from "lucide-react";
 import { useTranslation } from "../../contexts/LanguageContext";
-import { Card } from "../../../components/ui/card";
+import { Card } from "@/src/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../components/ui/select";
+} from "@/src/components/ui/select";
 import type { UserSettings } from "../../types";
 import { resolveActivePresetBundle } from "../../application/useCases/presetBundleLifecycle";
 

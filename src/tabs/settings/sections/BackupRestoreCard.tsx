@@ -5,9 +5,9 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-} from "../../../../components/ui/card";
-import { Switch } from "../../../../components/ui/switch";
-import { Input } from "../../../../components/ui/input";
+} from "@/src/components/ui/card";
+import { Switch } from "@/src/components/ui/switch";
+import { Input } from "@/src/components/ui/input";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 
 export type BackupRestoreCardProps = Pick<UnifiedAppContextProps,

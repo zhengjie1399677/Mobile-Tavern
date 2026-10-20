@@ -5,17 +5,17 @@ import {
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from "../../../../components/ui/accordion";
+} from "@/src/components/ui/accordion";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../../components/ui/select";
-import { Switch } from "../../../../components/ui/switch";
-import { Input } from "../../../../components/ui/input";
-import { Textarea } from "../../../../components/ui/textarea";
+} from "@/src/components/ui/select";
+import { Switch } from "@/src/components/ui/switch";
+import { Input } from "@/src/components/ui/input";
+import { Textarea } from "@/src/components/ui/textarea";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 
 export type ImageGenConfigSectionProps = Pick<

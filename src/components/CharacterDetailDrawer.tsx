@@ -8,7 +8,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { getErrorMessage, getErrorName } from '../utils/errorUtils';
 import {
   X,

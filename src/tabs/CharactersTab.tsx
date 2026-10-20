@@ -36,7 +36,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 
 export default function CharactersTab() {
   const {

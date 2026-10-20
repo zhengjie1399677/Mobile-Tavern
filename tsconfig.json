@@ -18,6 +18,12 @@
     "strictNullChecks": true,
     "jsx": "react-jsx",
     "paths": {
+      "@/components/ui/*": [
+        "./src/components/ui/*"
+      ],
+      "@/lib/*": [
+        "./src/lib/*"
+      ],
       "@/*": [
         "./*"
       ],

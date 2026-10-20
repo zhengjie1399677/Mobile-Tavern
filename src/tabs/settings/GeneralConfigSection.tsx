@@ -10,7 +10,7 @@ import {
   Volume2,
   Wifi,
 } from "lucide-react";
-import { Accordion } from "../../../components/ui/accordion";
+import { Accordion } from "@/src/components/ui/accordion";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";
 import AsrConfigSection from "./AsrConfigSection";

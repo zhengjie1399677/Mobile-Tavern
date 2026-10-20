@@ -22,7 +22,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 interface RenderStateSnapshot {

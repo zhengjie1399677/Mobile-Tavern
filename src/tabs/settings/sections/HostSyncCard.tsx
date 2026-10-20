@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
-} from "../../../../components/ui/card";
+} from "@/src/components/ui/card";
 import SettingsToggleRow from "../SettingsToggleRow";
 import type { HostBindingSettings } from "../../../types";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";

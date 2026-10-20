@@ -38,7 +38,7 @@ import {
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useOptionalKernel } from "../../contexts/KernelContext";
 import { setExternalCapabilitiesEnabled } from "../../application/externalSources/externalCapabilityGate";
-import { Switch } from "../../../components/ui/switch";
+import { Switch } from "@/src/components/ui/switch";
 
 interface ToolCapabilitiesWidgetProps {
   className?: string;

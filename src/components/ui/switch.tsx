@@ -3,7 +3,7 @@
 import { useId } from "react"
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/src/lib/utils"
 
 function Switch({
   className,

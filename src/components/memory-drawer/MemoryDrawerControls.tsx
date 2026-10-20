@@ -1,14 +1,14 @@
 import type { ComponentProps, ReactNode } from "react";
-import { Input } from "../../../components/ui/input";
+import { Input } from "@/src/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../components/ui/select";
-import { Textarea } from "../../../components/ui/textarea";
-import { cn } from "../../../lib/utils";
+} from "@/src/components/ui/select";
+import { Textarea } from "@/src/components/ui/textarea";
+import { cn } from "@/src/lib/utils";
 
 const EMPTY_OPTION_VALUE = "__memory_drawer_empty__";
 const controlSurfaceClass = "border-border/80 bg-background/90 shadow-sm transition-[border-color,box-shadow,background-color] focus-visible:border-primary/70 focus-visible:ring-2 focus-visible:ring-primary/20";

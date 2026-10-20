@@ -4,10 +4,10 @@
  * 组件只调用应用用例与运行时服务，不直接触碰 IndexedDB、协议 SDK 或存储实现。
  */
 import * as React from "react";
-import { Button } from "../../../components/ui/button";
-import { Card, CardContent } from "../../../components/ui/card";
-import { Input } from "../../../components/ui/input";
-import { Switch } from "../../../components/ui/switch";
+import { Button } from "@/src/components/ui/button";
+import { Card, CardContent } from "@/src/components/ui/card";
+import { Input } from "@/src/components/ui/input";
+import { Switch } from "@/src/components/ui/switch";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import {
   KernelServices,

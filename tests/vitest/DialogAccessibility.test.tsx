@@ -8,7 +8,7 @@ import {
   DialogDescription,
   DialogTitle,
   DialogTrigger,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 
 function AccessibleDialogHarness() {
   return (

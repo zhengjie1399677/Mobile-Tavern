@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Gamepad2, HardDriveDownload, Loader2, Play, Trash2, Upload } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/src/components/ui/dialog";
 import { parseFullscreenPluginPackage, type InstalledFullscreenPlugin } from "../../domain/plugins";
 import {
   deletePlugin,

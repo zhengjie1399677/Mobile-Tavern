@@ -4,12 +4,12 @@ import { useTranslation } from "../contexts/LanguageContext";
 import { X } from "lucide-react";
 import CharacterDetailTab from "./character-edit/CharacterDetailTab";
 import LorebookTab from "./character-edit/LorebookTab";
-import { Button } from "../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
-} from "../../components/ui/dialog";
+} from "@/src/components/ui/dialog";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
 
 export default function CharacterEditModal() {

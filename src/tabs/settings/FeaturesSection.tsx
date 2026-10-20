@@ -5,16 +5,16 @@ import {
   CardHeader,
   CardContent,
   CardDescription,
-} from "../../../components/ui/card";
-import { Switch } from "../../../components/ui/switch";
-import { Input } from "../../../components/ui/input";
+} from "@/src/components/ui/card";
+import { Switch } from "@/src/components/ui/switch";
+import { Input } from "@/src/components/ui/input";
 import {
   Accordion,
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from "../../../components/ui/accordion";
-import { Textarea } from "../../../components/ui/textarea";
+} from "@/src/components/ui/accordion";
+import { Textarea } from "@/src/components/ui/textarea";
 import { DEFAULT_SETTINGS } from "../../hooks/useSettings";
 import type { UnifiedAppContextProps } from "../../UnifiedAppContext";
 import { useTranslation } from "../../contexts/LanguageContext";

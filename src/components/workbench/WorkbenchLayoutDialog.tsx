@@ -1,6 +1,6 @@
 import React from "react";
 import { GripVertical, LayoutGrid, RotateCcw, X, EyeOff } from "lucide-react";
-import { Switch } from "../../../components/ui/switch";
+import { Switch } from "@/src/components/ui/switch";
 import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 import { moveWorkbenchCardTo } from "../../domain/ui/workbenchLayout";
 import { WORKBENCH_CARDS } from "./workbenchCards";

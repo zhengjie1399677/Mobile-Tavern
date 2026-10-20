@@ -6,16 +6,16 @@ import {
   CardTitle,
   CardContent,
   CardDescription,
-} from "../../../../components/ui/card";
+} from "@/src/components/ui/card";
 import {
   Accordion,
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from "../../../../components/ui/accordion";
-import { Switch } from "../../../../components/ui/switch";
-import { Input } from "../../../../components/ui/input";
-import { Textarea } from "../../../../components/ui/textarea";
+} from "@/src/components/ui/accordion";
+import { Switch } from "@/src/components/ui/switch";
+import { Input } from "@/src/components/ui/input";
+import { Textarea } from "@/src/components/ui/textarea";
 import { DEFAULT_SETTINGS } from "../../../hooks/useSettings";
 import type { UnifiedAppContextProps } from "../../../UnifiedAppContext";
 import SettingsSelect from "../SettingsSelect";

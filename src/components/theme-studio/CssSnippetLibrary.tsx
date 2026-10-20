@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { Button } from "../../../components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import { useTranslation } from "../../contexts/LanguageContext";
 import { THEME_CSS_SNIPPETS } from "../../domain/themes/themeCssSnippets";
 
