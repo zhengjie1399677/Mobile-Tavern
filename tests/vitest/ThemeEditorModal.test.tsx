@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ThemeEditorModal from "../../src/components/ThemeEditorModal";
+import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import type { CustomThemePackage } from "../../src/utils/themePackage";
 
 const THEME: CustomThemePackage = {
@@ -33,7 +34,12 @@ function renderEditor(overrides: Partial<React.ComponentProps<typeof ThemeEditor
     showCustomConfirm: vi.fn(async () => true),
     ...overrides,
   };
-  render(<ThemeEditorModal {...props} />);
+  localStorage.setItem("mobile_tavern_language", "zh-CN");
+  render(
+    <LanguageProvider>
+      <ThemeEditorModal {...props} />
+    </LanguageProvider>,
+  );
   return props;
 }
 
@@ -85,6 +91,77 @@ describe("主题工作室", () => {
 
     await user.click(screen.getByRole("button", { name: "返回上一页" }));
     expect(await screen.findByRole("dialog", { name: "颜色" })).toBeInTheDocument();
+  });
+
+  it("新建主题可从浅色起点开始，并切换预览场景", async () => {
+    const user = userEvent.setup();
+    renderEditor({ themeToEdit: null, customThemes: [THEME] });
+
+    expect(await screen.findByText("选择起点")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /空白浅色/ }));
+
+    const previews = screen.getAllByLabelText("主题草稿预览");
+    expect(previews).toHaveLength(1);
+    expect(previews[0]).not.toHaveClass("dark");
+    expect(previews[0]).toHaveAttribute("data-preview-scene", "chat");
+
+    await user.click(screen.getByRole("button", { name: "预览" }));
+    await user.click(screen.getAllByRole("tab", { name: "角色" })[0]);
+    for (const preview of screen.getAllByLabelText("主题草稿预览")) {
+      expect(preview).toHaveAttribute("data-preview-scene", "characters");
+    }
+  });
+
+  it("颜色分区显示对比度检查，并能发现低对比度文本", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "颜色" }));
+    expect(await screen.findByText("对比度检查")).toBeInTheDocument();
+    expect(screen.getAllByText("通过").length).toBeGreaterThan(0);
+
+    const foregroundInput = screen.getAllByDisplayValue("#f5f5f5").find(
+      element => (element as HTMLInputElement).type === "text",
+    ) as HTMLInputElement;
+    await user.clear(foregroundInput);
+    await user.type(foregroundInput, "#111111");
+    expect(screen.getByLabelText("对比度检查")).toHaveTextContent("失败");
+  });
+
+  it("CSS 诊断给出行列并可点击定位，片段可插入", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "自定义 CSS" }));
+    const textarea = screen.getByLabelText("自定义 CSS 文档") as HTMLTextAreaElement;
+    await user.clear(textarea);
+    await user.type(textarea, "a {{");
+
+    expect(await screen.findByText("CSS 诊断")).toBeInTheDocument();
+    expect(screen.getByText("L1:3")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /L1:3/ }));
+    expect(textarea.selectionStart).toBe(2);
+    expect(textarea.selectionEnd).toBe(3);
+
+    await user.click(screen.getByRole("button", { name: /CSS 片段库/ }));
+    await user.click(screen.getAllByRole("button", { name: "插入" })[0]);
+    expect(textarea.value).toContain('[data-ui="main-tab-bar"]');
+  });
+
+  it("复制现有自定义主题会生成新 ID 的副本", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn(async (_pkg: CustomThemePackage, _applyAfterSave: boolean) => undefined);
+    renderEditor({ themeToEdit: null, customThemes: [THEME], onSave });
+
+    await user.selectOptions(screen.getByLabelText("复制现有主题"), THEME.id ?? "");
+    expect(await screen.findByText("测试主题 副本")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "保存主题" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const saved = onSave.mock.calls[0][0] as CustomThemePackage;
+    expect(saved.id).not.toBe(THEME.id);
+    expect(saved.name).toBe("测试主题 副本");
   });
 
   it("存在未保存修改时关闭会先确认", async () => {

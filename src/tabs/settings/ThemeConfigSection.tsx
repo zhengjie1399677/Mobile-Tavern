@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useTranslation } from "../../contexts/LanguageContext";
 import {
   Card,
@@ -28,6 +28,10 @@ import {
   type CustomThemePackage,
 } from "../../utils/themePackage";
 import ThemeEditorModal from "../../components/ThemeEditorModal";
+import {
+  createThemeStudioResourcePort,
+  type ThemeStudioResourcePort,
+} from "../../components/theme-studio/themeStudioResourcePort";
 import LocalResourceManager from "./LocalResourceManager";
 import { PROTECTED_MAIN_TABS, sanitizeHiddenMainTabs } from "../../domain/ui/mainTabVisibility";
 import { useKernel } from "../../contexts/KernelContext";
@@ -54,6 +58,15 @@ export default function ThemeConfigSection({
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<CustomThemePackage | null>(null);
+  const themeResourcePort = useMemo<ThemeStudioResourcePort | undefined>(() => {
+    try {
+      return createThemeStudioResourcePort(
+        kernel.getService<ILocalResourceService>(KernelServices.LocalResources),
+      );
+    } catch {
+      return undefined;
+    }
+  }, [kernel]);
 
   const handleSaveEditedTheme = async (updatedTheme: CustomThemePackage, applyAfterSave: boolean) => {
     if (!updatedTheme.id) return;
@@ -810,6 +823,8 @@ export default function ThemeConfigSection({
           onSave={handleSaveEditedTheme}
           showCustomAlert={showCustomAlert}
           showCustomConfirm={showCustomConfirm}
+          resourcePort={themeResourcePort}
+          mediaPermissionEnabled={settings.themeMediaEnabled === true}
         />
       </CardContent>
     </Card>

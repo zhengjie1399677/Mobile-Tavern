@@ -17,6 +17,45 @@ export const THEME_MEDIA_SURFACES = [
   "chat.background",
 ] as const;
 
+/** UI 下拉与契约共用同一份选项，避免编辑器写出 schema 不接受的枚举值。 */
+export const THEME_ORIENTATIONS = ["portrait", "landscape"] as const;
+export const THEME_MEDIA_PRELOAD_VALUES = ["none", "metadata", "auto"] as const;
+export const THEME_VIDEO_FIT_VALUES = ["cover", "contain", "fill"] as const;
+export const THEME_STATE_TYPES = ["boolean", "enum", "counter"] as const;
+export const THEME_INTERACTION_EVENT_TYPES = [
+  "theme.activate",
+  "theme.deactivate",
+  "tab.enter",
+  "tab.leave",
+  "app.pause",
+  "app.resume",
+  "orientation.change",
+  "ui.tap",
+  "media.ended",
+] as const;
+export const THEME_INTERACTION_CONDITION_TYPES = [
+  "state.equals",
+  "tab.is",
+  "orientation.is",
+  "media.enabled",
+  "accessibility.reducedMotion",
+] as const satisfies readonly ThemeInteractionCondition["condition"][];
+export const THEME_INTERACTION_ACTION_TYPES = [
+  "media.play",
+  "media.pause",
+  "media.stop",
+  "media.setVolume",
+  "media.setMuted",
+  "surface.show",
+  "surface.hide",
+  "state.set",
+  "state.toggle",
+  "state.increment",
+  "theme.state.add",
+  "theme.state.remove",
+  "theme.state.replace",
+] as const satisfies readonly ThemeInteractionAction["action"][];
+
 const identifierSchema = z.string().min(1).max(64)
   .regex(/^[a-z][a-z0-9.-]*$/, "标识符只能使用小写字母、数字、点和连字符");
 const stateKeySchema = z.string().min(1).max(40)
@@ -29,7 +68,7 @@ const resourceReferenceSchema = z.string().refine(
   value => /^tavern-resource:\/\/r_[a-z0-9_-]{1,80}$/.test(value),
   "媒体 src 必须是本地资源引用 tavern-resource://r_...",
 );
-const preloadSchema = z.enum(["none", "metadata", "auto"]).default("metadata");
+const preloadSchema = z.enum(THEME_MEDIA_PRELOAD_VALUES).default("metadata");
 
 const audioMediaSchema = z.object({
   type: z.literal("audio"),
@@ -44,7 +83,7 @@ const videoMediaSchema = z.object({
   loop: z.boolean().default(false),
   volume: z.number().min(0).max(1).default(1),
   muted: z.boolean().default(true),
-  fit: z.enum(["cover", "contain", "fill"]).default("cover"),
+  fit: z.enum(THEME_VIDEO_FIT_VALUES).default("cover"),
   preload: preloadSchema,
 }).strict();
 export const ThemeMediaDefinitionSchema = z.discriminatedUnion("type", [
@@ -96,22 +135,12 @@ export const ThemeStateDefinitionSchema = z.union([
   counterStateSchema,
 ]);
 
-export const ThemeInteractionEventTypeSchema = z.enum([
-  "theme.activate",
-  "theme.deactivate",
-  "tab.enter",
-  "tab.leave",
-  "app.pause",
-  "app.resume",
-  "orientation.change",
-  "ui.tap",
-  "media.ended",
-]);
+export const ThemeInteractionEventTypeSchema = z.enum(THEME_INTERACTION_EVENT_TYPES);
 const whenSchema = z.object({
   event: ThemeInteractionEventTypeSchema,
   target: identifierSchema.optional(),
   tabId: tabIdSchema.optional(),
-  orientation: z.enum(["portrait", "landscape"]).optional(),
+  orientation: z.enum(THEME_ORIENTATIONS).optional(),
   mediaId: identifierSchema.optional(),
 }).strict().superRefine((when, context) => {
   if (when.event === "ui.tap" && !when.target) {
@@ -131,7 +160,7 @@ const conditionSchema = z.discriminatedUnion("condition", [
   z.object({ condition: z.literal("tab.is"), value: tabIdSchema }).strict(),
   z.object({
     condition: z.literal("orientation.is"),
-    value: z.enum(["portrait", "landscape"]),
+    value: z.enum(THEME_ORIENTATIONS),
   }).strict(),
   z.object({ condition: z.literal("media.enabled"), value: z.boolean() }).strict(),
   z.object({
@@ -257,7 +286,7 @@ export const ThemeInteractionConfigSchema = configBaseSchema.superRefine((config
             path: ["interactions", ruleIndex, "if", conditionIndex, "key"],
             message: `未声明主题状态：${condition.key}`,
           });
-        } else if (!isStateValueValid(definition, condition.value)) {
+        } else if (!isThemeStateValueValid(definition, condition.value)) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["interactions", ruleIndex, "if", conditionIndex, "value"],
@@ -342,7 +371,7 @@ export const ThemeInteractionConfigSchema = configBaseSchema.superRefine((config
             message: "state.increment 只能操作计数器状态",
           });
         }
-        if (action.action === "state.set" && !isStateValueValid(definition, action.value)) {
+        if (action.action === "state.set" && !isThemeStateValueValid(definition, action.value)) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path: [...actionPath, "value"],
@@ -370,15 +399,51 @@ export interface ThemeInteractionParseResult {
   config?: ThemeInteractionConfig;
 }
 
-export function parseThemeInteractionConfig(value: unknown): ThemeInteractionParseResult {
+export interface ThemeInteractionIssue {
+  path: Array<string | number>;
+  message: string;
+}
+
+export interface ThemeInteractionDetailedParseResult {
+  success: boolean;
+  errors: string[];
+  issues: ThemeInteractionIssue[];
+  config?: ThemeInteractionConfig;
+}
+
+/**
+ * 结构化解析结果：除扁平错误文案外，还保留 `issue.path`，供可视化编辑器把
+ * 错误定位到具体规则/条件/动作行。保存路径仍可继续使用扁平结果。
+ */
+export function parseThemeInteractionConfigDetailed(
+  value: unknown,
+): ThemeInteractionDetailedParseResult {
   const result = ThemeInteractionConfigSchema.safeParse(value);
-  if (result.success) return { success: true, errors: [], config: result.data };
+  if (result.success) {
+    return { success: true, errors: [], issues: [], config: result.data };
+  }
+  const issues = result.error.issues.map(issue => ({
+    path: issue.path.filter(
+      (part): part is string | number => typeof part === "string" || typeof part === "number",
+    ),
+    message: issue.message,
+  }));
   return {
     success: false,
-    errors: result.error.issues.map(issue => {
+    issues,
+    errors: issues.map(issue => {
       const path = issue.path.length > 0 ? `${issue.path.join(".")}：` : "";
       return `${path}${issue.message}`;
     }),
+  };
+}
+
+export function parseThemeInteractionConfig(value: unknown): ThemeInteractionParseResult {
+  const detailed = parseThemeInteractionConfigDetailed(value);
+  return {
+    success: detailed.success,
+    errors: detailed.errors,
+    config: detailed.config,
   };
 }
 
@@ -386,7 +451,22 @@ export function createEmptyThemeInteractionConfig(): ThemeInteractionConfig {
   return { media: {}, state: {}, interactions: [] };
 }
 
-function isStateValueValid(definition: ThemeStateDefinition, value: ThemeStateValue): boolean {
+export function isValidThemeMediaId(value: string): boolean {
+  return identifierSchema.safeParse(value).success;
+}
+
+export function isValidThemeStateKey(value: string): boolean {
+  return stateKeySchema.safeParse(value).success;
+}
+
+export function isValidThemeStyleToken(value: string): boolean {
+  return styleTokenSchema.safeParse(value).success;
+}
+
+export function isThemeStateValueValid(
+  definition: ThemeStateDefinition,
+  value: ThemeStateValue,
+): boolean {
   if (definition.type === "boolean") return typeof value === "boolean";
   if (definition.type === "enum") return typeof value === "string" && definition.values.includes(value);
   return typeof value === "number" && Number.isInteger(value) &&
