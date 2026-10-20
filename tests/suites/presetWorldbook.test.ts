@@ -6,9 +6,12 @@
  *  - 自定义世界书关键词触发并按 position 插入
  */
 
-import { assemblePromptContext } from "../../src/utils/promptBuilder";
+import { PromptService } from "../../src/application/services/PromptService";
 import { LorebookEntry, UserSettings, CharacterCard, ChatSession, CustomWorldbook } from "../../src/types";
 import { assert } from "./testUtils";
+
+const promptService = new PromptService();
+const assemblePromptContext = (params: any) => promptService.assemblePrompt(params);
 
 export function testPresetAndWorldbookIntegration() {
   console.log("\n--- Running Preset & Custom Worldbook Integration Verification ---");

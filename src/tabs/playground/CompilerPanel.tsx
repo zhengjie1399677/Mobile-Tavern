@@ -12,7 +12,7 @@ export default function CompilerPanel({ actions }: CompilerPanelProps) {
     <div className="space-y-4 animate-[fadeIn_0.2s_ease-out]">
       <div className="p-3 bg-muted/40 rounded-lg text-xs leading-relaxed border border-border">
         <span className="font-semibold text-primary">说明：</span>
-        此工具模拟了 `promptBuilder.ts` 将静态卡片信息、世界书以及玩家人设组装成大模型接收格式的全生命周期。在下方输入参数，并点击编译。
+        此工具模拟了 `PromptService` 将静态卡片信息、世界书以及玩家人设组装成大模型接收格式的全生命周期。在下方输入参数，并点击编译。
       </div>
 
       {/* Inputs Form */}

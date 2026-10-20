@@ -1,9 +1,15 @@
-import {
-  replaceMacros,
-  getTriggeredLorebookEntries,
-  assemblePromptContext,
-} from "../src/utils/promptBuilder";
+import { PromptService } from "../src/application/services/PromptService";
 import { CharacterCard, ChatSession, UserSettings, LorebookEntry, Message } from "../src/types";
+
+const promptService = new PromptService();
+const replaceMacros = (text: string, params: any) => promptService.replaceMacros(text, params);
+const getTriggeredLorebookEntries = (
+  messages: any[],
+  userInput: string,
+  entries: any[],
+  maxRecursionDepth?: number
+) => promptService.getTriggeredLorebookEntries(messages, userInput, entries, maxRecursionDepth);
+const assemblePromptContext = (params: any) => promptService.assemblePrompt(params);
 
 function assert(condition: boolean, message: string) {
   if (!condition) {

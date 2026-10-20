@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import type { ChangeEvent } from "react";
 import { CharacterCard, Message, LorebookEntry } from "../../types";
-import { assemblePromptContext } from "../../utils/promptBuilder";
+import { PromptService } from "../../application/services/PromptService";
 import { parseCharacterFile } from "../../utils/cardParser";
 import { FLOW_NODES } from "./flowNodes";
+
+const promptService = new PromptService();
 
 import { getErrorMessage } from '../../utils/errorUtils';
 export function usePlaygroundActions() {
@@ -127,7 +129,7 @@ export function usePlaygroundActions() {
       summaries: [] as never[],
     };
 
-    const payload = assemblePromptContext({
+    const payload = promptService.assemblePrompt({
       character: mockChar as CharacterCard,
       chat: chatSession,
       userInput: mockUserInput,

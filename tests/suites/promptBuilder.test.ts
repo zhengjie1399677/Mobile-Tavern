@@ -6,9 +6,19 @@
  *  - testPromptBuilderSystemMerging：中途 system 消息合并与 strict user/assistant 交替
  */
 
-import { replaceMacros, getTriggeredLorebookEntries, assemblePromptContext } from "../../src/utils/promptBuilder";
+import { PromptService } from "../../src/application/services/PromptService";
 import { LorebookEntry, Message, UserSettings, CharacterCard, ChatSession } from "../../src/types";
 import { assert } from "./testUtils";
+
+const promptService = new PromptService();
+const replaceMacros = (text: string, params: any) => promptService.replaceMacros(text, params);
+const getTriggeredLorebookEntries = (
+  messages: any[],
+  userInput: string,
+  entries: any[],
+  maxRecursionDepth?: number
+) => promptService.getTriggeredLorebookEntries(messages, userInput, entries, maxRecursionDepth);
+const assemblePromptContext = (params: any) => promptService.assemblePrompt(params);
 
 export function testPromptBuilder() {
   console.log("\n--- Running Prompt Builder Verification ---");
