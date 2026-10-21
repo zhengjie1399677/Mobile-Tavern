@@ -585,11 +585,11 @@ export default function PromptsConfigSection({
                           />
                         )}
                         <Switch
+                          size="sm"
                           aria-label={t("prompts.aria_toggle", { name: p.name })}
                           checked={p.enabled}
                           onCheckedChange={(checked) => handleToggle(p, checked)}
                           onClick={(e) => e.stopPropagation()}
-                          className="data-[state=checked]:bg-primary !h-4.5 !w-8.5 [&>span]:!w-3.5 [&>span]:!h-3.5 shrink-0"
                         />
 
                         {/* 角色类型徽章 */}

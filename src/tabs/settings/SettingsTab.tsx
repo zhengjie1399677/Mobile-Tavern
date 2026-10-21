@@ -282,7 +282,7 @@ export default function SettingsTab() {
           </div>
         );
       case "prompt":
-        return <PresetForm sections={["preset", "prompts", "compat", "regex"]} />;
+        return <PresetForm sections={["preset", "prompts", "regex"]} />;
       case "appearance":
         return (
           <ThemeConfigSection
