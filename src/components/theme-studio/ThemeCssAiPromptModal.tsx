@@ -69,9 +69,50 @@ export const AI_CSS_PROMPT_CONTENT = `你现在是移动端酒馆 Mobile Tavern 
    }
    \`\`\`
 
-### 五、动态状态机联动（选填）
-当宿主触发相应模式时，在根节点挂载属性，例如：
-\`:root[data-theme-state~="ambient-active"] .chat-message-assistant { ... }\`
+### 五、主题 1.1 FSM 交互状态机联动规范（免 JS 纯声明式）
+宿主会把激活的状态 Token 实时同步到 <html> 根节点的 data-theme-state 属性中，CSS 通过 \`:root[data-theme-state~="<token>"]\` 即可实现完全动态联动！
+
+1. 状态 Token 生成规则：
+   - 布尔状态：\`<key>-true\` / \`<key>-false\`（如 visited-true）
+   - 枚举状态：\`<key>-<value>\`（如 mood-dream、bg-night）
+   - 计数器：\`<key>-<count>\`（如 pulses-0、pulses-3）
+   - 显式样式标记：通过 theme.state.add 注入的纯 Token（如 ambient-active、chat-glow、tab-pulse）
+
+2. 状态机支持的 9 种触发事件 (when)：
+   - theme.activate / theme.deactivate（主题激活/切走）
+   - tab.enter / tab.leave（切入/离开主要 Tab：characters / chat / workbench / settings）
+   - app.pause / app.resume（应用息屏切后台 / 恢复可见）
+   - orientation.change（手机横竖屏切换，orientation: portrait | landscape）
+   - ui.tap（轻点界面语义元素，target: main-tab | character-card | chat-composer 等）
+   - media.ended（媒体播放自然结束）
+
+3. 状态机支持的 5 种前置条件 (if，需同时满足)：
+   - state.equals（逻辑状态比对）
+   - tab.is（当前处于特定 Tab）
+   - orientation.is（当前横竖屏）
+   - media.enabled（用户是否允许播放媒体）
+   - accessibility.reducedMotion（用户系统是否开启了减弱动效）
+
+4. 状态机支持的 13 种动作 (do，均支持 delayMs 延时)：
+   - 驱动样式：theme.state.add（加Token）、theme.state.remove（删Token）、theme.state.replace（分组替换Token）
+   - 逻辑状态：state.set、state.toggle、state.increment
+   - 媒体控制：media.play、media.pause、media.stop、media.setVolume、media.setMuted
+   - 背景视频：surface.show（在 main.background / characters.background / chat.background 显示视频）、surface.hide
+
+5. 状态机与 CSS 联动实战范例：
+   \`\`\`css
+   /* 当进入聊天 Tab 激活动态光晕标记时，气泡呼吸流光 */
+   :root[data-theme-state~="chat-glow"] .chat-message-assistant {
+     box-shadow: 0 0 24px rgba(168, 85, 247, 0.45) !important;
+     border-color: #a855f7 !important;
+     transition: all 0.4s ease;
+   }
+   /* 当用户点击底栏触发瞬态 tab-pulse 时，底栏微亮 */
+   :root[data-theme-state~="tab-pulse"] [data-ui="main-tab-bar"] {
+     border-top-color: var(--primary) !important;
+     box-shadow: 0 -4px 16px rgba(168, 85, 247, 0.35) !important;
+   }
+   \`\`\`
 
 ### 六、输出格式要求
 只返回带有清晰注释的纯 CSS 代码块（用 \`\`\`css 包裹），无需多余客套话。

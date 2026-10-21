@@ -90,16 +90,66 @@ Mobile Tavern 的 CSS 会经过运行时的严格清洗器（`sanitizeCss`），
   - 彻底去除阴影：`* { box-shadow: none !important; }`
   - 转换为彩色光晕：`[class*="shadow"] { box-shadow: 0 4px 16px -2px rgba(244, 114, 182, 0.25) !important; }`
 
-### 6. 动态状态机与本地资源契约（主题 1.1 FSM）
-- **动态状态镜像选择器**：`:root[data-theme-state~="<state-token>"]`
-  - 宿主状态机在运行中会自动把当前状态快照同步到根节点的 `data-theme-state` 属性中；
-  - 常见状态标记：如 `ambient-active`、`mood-dream`、`tab-tapped` 或作者在 `theme.json` 的 `state` 中自定义的状态值；
-  - 用法示例：`:root[data-theme-state~="mood-dream"] .chat-message-assistant { ... }` 实现免 JS 的动态变身。
-- **本地图片/壁纸变量**：
-  - 格式：`var(--tavern-resource-r_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, none)`；
-  - 在 CSS 中通过此变量安全读取本地相册/资源库图片，禁止直接写 `url("http...")`。
-- **背景 Surface 槽位**：
-  - `[data-ui="theme-media-host"]`：宿主管理的动态视频/壁纸层，位于最底层、不截断交互。
+### 6. 主题 1.1 FSM 交互状态机与 CSS 联动权威规范
+Mobile Tavern 1.1 引入了纯声明式的受限有限状态机（FSM）。**无需写一行 JavaScript 脚本，即可实现与用户交互、页面切换、媒体播放深度绑定的动态主题。**
+
+#### (1) 状态机到 CSS 的映射原理
+- 宿主状态机在运行中会自动把当前激活的所有状态 Token 实时同步到 `<html>` 根节点的 `data-theme-state` 属性中（以空格分隔）；
+- 在 CSS 中通过属性选择器 `:root[data-theme-state~="<token>"]` 即可精准匹配并触发样式动态变身；
+- **状态 Token 生成规则**：
+  - **布尔状态 (boolean)**：自动生成 `<key>-true` 或 `<key>-false`（如 `visited-true`）；
+  - **枚举状态 (enum)**：自动生成 `<key>-<value>`（如 `mood-dream`、`bg-night`）；
+  - **计数器 (counter)**：自动生成 `<key>-<count>`（如 `pulses-0`、`pulses-3`）；
+  - **显式样式标记**：通过动作 `theme.state.add` / `replace` 注入的纯样式 token（如 `ambient-active`、`neon-pulse`、`tab-tapped`）。
+
+#### (2) 状态机支持的 9 种触发事件 (`when`)
+| 事件 (`event`) | 可选参数 | 说明 |
+|---|---|---|
+| `theme.activate` | 无 | 主题被激活启用时触发 |
+| `theme.deactivate` | 无 | 主题被停用切换走时触发 |
+| `tab.enter` | `tabId: "characters" \| "chat" \| "workbench" \| "settings"` | 用户切入进入某个主要页面 |
+| `tab.leave` | `tabId` | 用户离开离开某个主要页面 |
+| `app.pause` | 无 | 应用切到手机后台或息屏暂停 |
+| `app.resume` | 无 | 应用从后台恢复可见 |
+| `orientation.change` | `orientation: "portrait" \| "landscape"` | 手机横屏/竖屏切换 |
+| `ui.tap` | `target: string`（必须为语义目标，如 `main-tab`, `character-card`, `chat-composer`） | 用户轻点界面的指定元素 |
+| `media.ended` | `mediaId: string` | 非循环音频/视频媒体播放结束时 |
+
+#### (3) 状态机支持的 5 种前置条件 (`if`)
+所有条件必须同时满足（AND 关系）：
+- `state.equals`：检查逻辑状态值（如 `{ "condition": "state.equals", "key": "mood", "value": "dream" }`）
+- `tab.is`：检查当前页面 Tab（如 `{ "condition": "tab.is", "value": "chat" }`）
+- `orientation.is`：检查屏幕方向（`"portrait"` 竖屏或 `"landscape"` 横屏）
+- `media.enabled`：检查用户是否在设置中开启了“允许主题播放本地媒体”
+- `accessibility.reducedMotion`：检查用户系统是否开启了“减弱动效/减少动态效果”
+
+#### (4) 状态机支持的 13 种动作 (`do`)
+每个动作均可选带 `delayMs: 0..60000`（延时执行）：
+- **驱动 CSS 变化**：
+  - `theme.state.add`：添加显式样式 token（如 `{ "action": "theme.state.add", "value": "neon-active" }`）
+  - `theme.state.remove`：移除显式样式 token（如 `{ "action": "theme.state.remove", "value": "neon-active" }`）
+  - `theme.state.replace`：按分组替换样式 token（如 `{ "action": "theme.state.replace", "group": "time", "value": "time-dusk" }`）
+- **逻辑状态修改**：
+  - `state.set`：设置布尔/枚举/计数器（如 `{ "action": "state.set", "key": "mood", "value": "dream" }`）
+  - `state.toggle`：切换布尔状态（如 `{ "action": "state.toggle", "key": "sidebar-open" }`）
+  - `state.increment`：计数器加减（如 `{ "action": "state.increment", "key": "pulses", "amount": 1 }`）
+- **本地音视频播放与 Surface 视频背景**：
+  - `media.play` / `media.pause` / `media.stop`：播放/暂停/停止音频或视频
+  - `media.setVolume`：调节音量（`0..1`）
+  - `media.setMuted`：视频静音控制（`true`/`false`）
+  - `surface.show`：将视频渲染至底层背景 Surface（`target: "main.background" \| "characters.background" \| "chat.background"`, `mediaId`）
+  - `surface.hide`：隐藏背景 Surface 视频
+
+#### (5) 防抖与单次执行
+- `cooldownMs: 100..60000`：规则防抖冷却时间，防止连击狂点
+- `once: true`：单次触发，激活期间只执行一次，切主题后重置
+
+#### (6) 本地图片/壁纸变量
+- **格式**：`var(--res-<5位短ID>, none)` 或 `var(--tavern-resource-r_<5位短ID>, none)`；
+- 在 CSS 中通过此变量安全读取本地相册/资源库图片，禁止直接写 `url("http...")`。
+
+#### (7) 背景 Surface 槽位
+- `[data-ui="theme-media-host"]`：宿主管理的动态视频/壁纸层，位于最底层、不截断交互。
 
 ---
 
@@ -199,27 +249,72 @@ Mobile Tavern 的 CSS 会经过运行时的严格清洗器（`sanitizeCss`），
 }
 ```
 
-### 示例 4：结合状态机与本地壁纸的动态交互主题
+### 示例 4：完整闭环 —— FSM 状态机规则与 CSS 动态联动
+该示例展示了「当用户点击底栏或切入聊天页时，状态机如何改变状态，以及 CSS 如何配合做出炫酷变身」：
+
+#### (A) 主题状态机规则定义 (在主题工作室「高级规则」或 theme.json 中声明)
+```json
+{
+  "state": {
+    "mood": { "type": "enum", "values": ["calm", "dream", "neon"], "default": "calm" },
+    "interactive": { "type": "boolean", "default": false }
+  },
+  "interactions": [
+    {
+      "id": "enter-chat-activate",
+      "when": { "event": "tab.enter", "tabId": "chat" },
+      "do": [
+        { "action": "theme.state.add", "value": "chat-active" },
+        { "action": "state.set", "key": "mood", "value": "neon" }
+      ]
+    },
+    {
+      "id": "leave-chat-deactivate",
+      "when": { "event": "tab.leave", "tabId": "chat" },
+      "do": [
+        { "action": "theme.state.remove", "value": "chat-active" },
+        { "action": "state.set", "key": "mood", "value": "calm" }
+      ]
+    },
+    {
+      "id": "tap-feedback",
+      "when": { "event": "ui.tap", "target": "main-tab" },
+      "do": [
+        { "action": "theme.state.add", "value": "tab-pulse", "delayMs": 50 },
+        { "action": "theme.state.remove", "value": "tab-pulse", "delayMs": 600 }
+      ],
+      "cooldownMs": 300
+    }
+  ]
+}
+```
+
+#### (B) 对应的 Custom CSS 响应代码
 ```css
-/* 读取本地资源库中的壁纸作为聊天背景 */
+/* 1. 读取本地资源库中的壁纸作为聊天背景 */
 .chat-shell {
-  background-image: var(--tavern-resource-r_0123456789abcdef0123456789abcdef, none);
+  background-image: var(--res-a1b2c, none);
   background-size: cover;
   background-position: center;
 }
 
-/* 当宿主状态机进入 ambient-active 模式时，气泡产生微光脉冲 */
-:root[data-theme-state~="ambient-active"] .chat-message-assistant {
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.45) !important;
+/* 2. 当进入聊天页触发 chat-active 状态时，消息气泡激活动态流光脉冲 */
+:root[data-theme-state~="chat-active"] .chat-message-assistant {
+  box-shadow: 0 0 24px rgba(168, 85, 247, 0.45) !important;
   border-color: #a855f7 !important;
-  transition: all 0.4s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 当用户点击底栏触发 tab-tapped 瞬态时，底栏微亮 */
-:root[data-theme-state~="tab-tapped"] [data-ui="main-tab-bar"] {
-  border-top-color: var(--primary) !important;
+/* 3. 响应枚举状态 mood-neon：正文字体微调与高亮 */
+:root[data-theme-state~="mood-neon"] .chat-message-bubble {
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.35);
 }
-```
+
+/* 4. 当用户点击底栏产生 tab-pulse 瞬态标记时，底栏边框闪烁高亮 */
+:root[data-theme-state~="tab-pulse"] [data-ui="main-tab-bar"] {
+  border-top-color: var(--primary) !important;
+  box-shadow: 0 -4px 16px rgba(168, 85, 247, 0.35) !important;
+}
 
 ### 示例 5：粉色/浅色主题精修（去除灰色阴影 + 美化半透明框 + 弱化小字调优）
 ```css
