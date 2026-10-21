@@ -955,7 +955,6 @@ export default {
   "quick_actions.tool_desc": "快捷喚起 DeepSeek 網頁搜尋、網頁抓取、擲骰子、隨機抽取等外掛工具。",
   "quick_actions.preset_title": "預設調控 (Preset)",
   "quick_actions.preset_desc": "快速切換模型取樣預設方案，並在聊天中即時微調溫度 (Temperature) 與取樣參數。",
-  "quick_actions.preset_button": "預設",
   "quick_actions.preset_select_label": "當前預設方案",
   "quick_actions.preset_temperature": "溫度 (Temperature)",
   "quick_actions.preset_top_p": "取樣核 (Top-P)",
