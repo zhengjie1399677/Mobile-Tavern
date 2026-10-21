@@ -990,7 +990,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
   const unifiedContextFields = unifiedContextSource
     .slice(unifiedContextStart, unifiedContextEnd)
     .split(/\r?\n/)
-    .filter((line) => /^\s{2}[A-Za-z_$][\w$]*\??\s*:/.test(line)).length;
+    .filter((line) => /^\s{2}[A-Za-z_$][\w$]*\??\s*[:(]/.test(line)).length;
   assert(
     unifiedContextFields <= 171,
     `UnifiedAppContextProps 字段数已冻结为 171，当前 ${unifiedContextFields}。新增领域状态请建立独立 Context/Store。`

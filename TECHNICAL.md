@@ -343,7 +343,7 @@ Mobile Tavern 利用 React 19 的 Concurrent Mode，通过分片更新机制，
 为解决长会话（几千条消息）场景下 IndexedDB 全量读取延迟与 DOM 节点过载问题，Mobile Tavern 实现了**三层递进式消息流瘦身机制**：
 
 #### 第一层：前端分页懒加载
-* **实现位置**: [ChatContext.tsx](src/contexts/ChatContext.tsx)、[chatMessageHydration.ts](src/contexts/chatMessageHydration.ts)、[indexedDbMemoryStore.ts](src/infrastructure/storage/indexedDbMemoryStore.ts) 与 [useChatScroll.ts](src/tabs/chat/useChatScroll.ts)
+* **实现位置**: [ChatContext.tsx](src/contexts/ChatContext.tsx)、[chatMessageHydration.ts](src/application/useCases/chatMessageHydration.ts)、[indexedDbMemoryStore.ts](src/infrastructure/storage/indexedDbMemoryStore.ts) 与 [useChatScroll.ts](src/tabs/chat/useChatScroll.ts)
 * **核心机制**: 利用消息存储适配器的 `limit` / `offset` / `descending` 参数，首次进入聊天室仅加载最新 `MESSAGES_PAGE_SIZE = 50` 条消息。`descending: true` 只承担 IndexedDB 从尾部高效定位分页的职责，返回的最新优先批次必须经 `hydrateNewestFirstMessagePage` 转换为界面时间正序；更早分页也先转换后 prepend，禁止存储查询方向泄漏为展示顺序。用户滚动到顶部时，`useChatScroll` 的 `handleScroll` 检测 `scrollTop < 80px` 且 `hasMoreMessages` 为真时自动触发 `loadMoreMessages()`，加 500ms 防抖。
 * **滚动位置锚点保持**: 加载前通过 `pendingScrollPreserveRef` 记录 `scrollHeight`，加载完成后补偿 `scrollTop += delta`（新增历史高度），使用户视觉锚点不动。期间 MutationObserver / ResizeObserver 跳过自动归底，避免跳动。
 * **分页状态隔离**: `messagePagingRef` 按 `sessionId` 维度缓存已加载 offset 与 hasMore 标志，切换会话时不重置，切回时恢复分页进度。
@@ -953,7 +953,7 @@ Schema 变更由领域纯函数统一处理：列重命名按稳定 ID 保留数
 
 #### 🐱 小猫客服异常异常与补强测试 (Catbot & Hardening)
 *   **`runCatbotErrorTests`**：模拟小猫客服连上云端 FC 遭遇 429 限流或欠费时的本地正则关键词降级处理器，确保不崩溃。
-*   **`testTableMemoryService`**：验证旧 TableMemoryService 功能兼容测试。
+*   **`testMemoryStateTable`**：验证状态表默认初始化、指令解析与 CRUD（含宽松 JSON 与文本清理）。
 *   **`testPromptServiceRedosProtection`**：测试 Prompt 模板正则引擎对恶意超长字符攻击的 ReDoS 防护（非递归超时降级）。
 *   **`testLLMServiceUrlValidation`**：校验非合法 HTTP/HTTPS API 协议地址的自愈与纠偏行为。
 *   **`testAutoSummaryMetadataParsing`**：测试元数据提取的防御性兜底。

@@ -4,7 +4,7 @@
 
 | 用户现象或开发问题 | 优先检查 | 常用验证 |
 |---|---|---|
-| 关闭重开后消息顺序错乱 | `ChatContext.tsx`、`chatMessageHydration.ts`、`indexedDbSessionQueries.ts` | `tests/suites/paginationAndArchival.test.ts` |
+| 关闭重开后消息顺序错乱 | `ChatContext.tsx`、`application/useCases/chatMessageHydration.ts`、`indexedDbSessionQueries.ts` | `tests/suites/paginationAndArchival.test.ts` |
 | 重发未覆盖旧回复或出现双回复 | `useRerollMessage.ts`、`replaceSessionBranch` | `tests/vitest/useRerollMessage.test.ts`、`tests/suites/turnIndexConsistency.test.ts` |
 | 流式输出卡顿、跳字、丢字 | `useChat.tsx`、`useSendMessage.ts`、`streamHelpers.ts`、`ChatStreamService.ts` | 流式输出相关 Vitest 与系统测试 |
 | LLM 请求发不出去（`error sending request for url`） | `ChatStreamService.ts`、`LLMService.ts`、`@tauri-apps/plugin-http`（原生端由 Rust reqwest 发请求） | 设置 → 系统报告（`/api/test-connection` 走同一通道）；复现时抓 logcat/JS 日志；此类错误不自动重试 |

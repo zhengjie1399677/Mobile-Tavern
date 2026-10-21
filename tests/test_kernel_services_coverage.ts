@@ -60,7 +60,7 @@ async function testPromptServiceRedosProtection() {
   // 拦截 console.warn 以验证降级行为
   const originalWarn = console.warn;
   let warnCalled = false;
-  console.warn = (...args: any[]) => {
+  console.warn = (...args: unknown[]) => {
     const msg = String(args[0] || "");
     if (msg.includes("ReDoS")) {
       warnCalled = true;
@@ -150,9 +150,10 @@ async function testLLMServiceUrlValidation() {
       let threw = false;
       try {
         validateBaseUrl(url);
-      } catch (e: any) {
+      } catch (e: unknown) {
         threw = true;
-        assert(e.message.includes("http://") || e.message.includes("https://"), `应抛出协议错误: ${url}`);
+        const message = e instanceof Error ? e.message : String(e);
+        assert(message.includes("http://") || message.includes("https://"), `应抛出协议错误: ${url}`);
       }
       assert(threw === true, `非法 URL 应抛错: ${url}`);
     }
@@ -202,9 +203,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       console.log("\n=================================================");
       console.log("🎉 Kernel Services Coverage Tests ALL PASSED!");
       console.log("=================================================");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("\n❌ TESTS FAILED!");
-      console.error(err.stack || err.message);
+      if (err instanceof Error) console.error(err.stack || err.message);
+      else console.error(String(err));
       process.exit(1);
     }
   })();

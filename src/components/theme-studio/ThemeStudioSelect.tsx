@@ -37,8 +37,12 @@ export function ThemeStudioSelect({
   size?: "sm" | "default";
   disabled?: boolean;
 }) {
-  const selected = options.find(option => option.value === value);
   const hasValue = value !== "";
+  // 非法草稿可能保留一个已不存在的引用；补一个当前值选项，避免下拉显示空白。
+  const displayOptions = hasValue && !options.some(option => option.value === value)
+    ? [...options, { value, label: value }]
+    : options;
+  const selected = displayOptions.find(option => option.value === value);
   return (
     <Select<string>
       value={hasValue ? value : null}
@@ -58,7 +62,7 @@ export function ThemeStudioSelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {options.map(option => (
+        {displayOptions.map(option => (
           <SelectItem
             key={option.value}
             value={option.value}

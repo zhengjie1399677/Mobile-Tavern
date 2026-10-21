@@ -72,6 +72,7 @@ function SelectTrigger({
       )}
       <SelectPrimitive.Trigger
         id={triggerId}
+        aria-label={ariaLabel}
         data-slot="select-trigger"
         data-size={size}
         className={cn(
