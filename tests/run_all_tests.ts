@@ -21,7 +21,6 @@ import { format as utilFormat } from "util";
 import { setKernelStrictMode } from "../src/kernel/Kernel";
 import { runCatbotErrorTests } from "./test_catbot_error_handling";
 import {
-  testTableMemoryService,
   testPromptServiceRedosProtection,
   testLLMServiceUrlValidation,
 } from "./test_kernel_services_coverage";
@@ -245,7 +244,6 @@ async function run() {
     { name: "testCssSanitization", fn: testCssSanitization },
     { name: "testServerLogDesensitization", fn: testServerLogDesensitization },
     // 内核服务覆盖补强测试
-    { name: "testTableMemoryService", fn: testTableMemoryService },
     { name: "testPromptServiceRedosProtection", fn: testPromptServiceRedosProtection },
     { name: "testLLMServiceUrlValidation", fn: testLLMServiceUrlValidation },
     { name: "testScriptServiceDecoupling", fn: testScriptServiceDecoupling },

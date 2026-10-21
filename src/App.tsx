@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useState } from "react";
-import { AppContextAssembler } from "./contexts/LegacyAppContextProvider";
+import { AppContextAssembler } from "./contexts/AppContextAssembler";
 import MainLayout from "./components/MainLayout";
 import { globalKernel } from "./kernel";
 import {
@@ -17,7 +17,7 @@ import { useUnifiedApp } from "./UnifiedAppContext";
 export {
   DEFAULT_PROMPT_CONFIG,
   DEFAULT_SETTINGS,
-} from "./contexts/LegacyAppContextProvider";
+} from "./contexts/AppContextAssembler";
 
 // 懒加载全屏插件运行器，避免主 bundle 包含插件宿主逻辑。
 const FullscreenPluginRunner = React.lazy(() => import("./components/plugins/FullscreenPluginRunner"));

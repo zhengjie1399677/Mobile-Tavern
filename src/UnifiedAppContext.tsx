@@ -69,7 +69,7 @@ export interface UnifiedAppContextProps {
   isFetchingModels: boolean;
   setIsFetchingModels: (fetching: boolean) => void;
   connectionStatus: { testing: boolean; success?: boolean; message?: string };
-  setConnectionStatus: (status: any) => void;
+  setConnectionStatus: React.Dispatch<React.SetStateAction<{ testing: boolean; success?: boolean; message?: string }>>;
   loadSessions: () => Promise<void>;
   loadMoreSessions: () => Promise<void>;
   hasMoreSessions: boolean;
@@ -134,7 +134,7 @@ export interface UnifiedAppContextProps {
   handlePullFromHost: () => Promise<void>;
   /** 用本机数据覆盖远程宿主快照（覆盖式，保留宿主设置）。 */
   handlePushToHost: () => Promise<void>;
-  handleSilentDailyBackup: (characters: any[]) => Promise<boolean>;
+  handleSilentDailyBackup: (characters: CharacterCard[]) => Promise<boolean>;
   customWorldbooks: Record<string, CustomWorldbook>;
   updateCustomWorldbooks: (
     updater: Record<string, CustomWorldbook> | ((prev: Record<string, CustomWorldbook>) => Record<string, CustomWorldbook>)

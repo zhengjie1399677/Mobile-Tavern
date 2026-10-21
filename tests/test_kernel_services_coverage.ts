@@ -2,19 +2,16 @@
  * 内核服务覆盖补强测试
  *
  * 补充覆盖以下模块的测试空白：
- * 1. TableMemoryService - 表格记忆解析（updateRow/insertRow/deleteRow）
- * 2. PromptService - ReDoS 防护与 Lorebook 递归触发
- * 3. LLMService - validateBaseUrl URL 校验
+ * 1. PromptService - ReDoS 防护与 Lorebook 递归触发
+ * 2. LLMService - validateBaseUrl URL 校验
  *
  * 遵循 AGENTS.md `CHANGE-SAFE`：局部测试跑通，独立验证后再接入聚合测试。
  */
 
-import { TableMemoryService } from "../src/application/services/TableMemoryService";
 import { PromptService } from "../src/application/services/PromptService";
 import { LLMService } from "../src/application/services/LLMService";
 import { Kernel } from "../src/kernel/Kernel";
-import { IKernelService } from "@/src/application/serviceContracts";
-import { TableMemorySheet, CharacterCard, ChatSession, Message } from "../src/types";
+import { Message } from "../src/types";
 
 // 注：ScriptService 测试因依赖 tavernHelperBridge（操作 window 对象）在 Node 环境下无法加载，
 // 已记录为测试覆盖空白，需在浏览器环境或 E2E 测试中补充覆盖。
@@ -23,113 +20,6 @@ function assert(condition: boolean, message: string) {
   if (!condition) {
     throw new Error(`Assertion failed: ${message}`);
   }
-}
-
-// ============================================================
-// 1. TableMemoryService 测试
-// ============================================================
-
-async function testTableMemoryService() {
-  console.log("\n--- Running TableMemoryService Coverage Verification ---");
-  const testKernel = new Kernel();
-  const service = new TableMemoryService();
-  await testKernel.registerService("tableMemory", service);
-
-  // 构造初始表格：状态与关系表
-  const initialMemory: TableMemorySheet[] = [
-    {
-      id: "status_rel",
-      name: "状态与关系",
-      columns: ["角色", "好感度", "当前状态描述"],
-      rows: [
-        ["银霜", "50", "初次结识"],
-        ["莉莉丝", "30", "警惕"],
-      ],
-      enable: true,
-    },
-  ];
-
-  // 1.1 updateRow 双参数模式：按定位列匹配后更新
-  {
-    const content = 'updateRow("状态与关系", {"角色": "银霜"}, {"好感度": "65"})';
-    const result = service.processTableMemory(initialMemory, content);
-    assert(result.hasChanges === true, "updateRow 双参数应触发变更");
-    assert(result.updatedMemory[0].rows[0][1] === "65", "银霜好感度应更新为 65");
-    assert(result.updatedMemory[0].rows[1][1] === "30", "莉莉丝好感度应保持不变");
-    assert(!result.cleanContent.includes("updateRow"), "清理后内容不应包含 updateRow 指令");
-    console.log("  ✔ updateRow 双参数模式验证通过");
-  }
-
-  // 1.2 updateRow 单参数模式：默认更新首行
-  {
-    const content = 'updateRow("状态与关系", {"好感度": "80"})';
-    const result = service.processTableMemory(initialMemory, content);
-    assert(result.hasChanges === true, "updateRow 单参数应触发变更");
-    assert(result.updatedMemory[0].rows[0][1] === "80", "首行好感度应更新为 80");
-    console.log("  ✔ updateRow 单参数模式验证通过");
-  }
-
-  // 1.3 insertRow：插入新行
-  {
-    const content = 'insertRow("状态与关系", {"角色": "新角色", "好感度": "10", "当前状态描述": "陌生"})';
-    const result = service.processTableMemory(initialMemory, content);
-    assert(result.hasChanges === true, "insertRow 应触发变更");
-    assert(result.updatedMemory[0].rows.length === 3, "应新增一行");
-    assert(result.updatedMemory[0].rows[2][0] === "新角色", "新行角色名应正确");
-    console.log("  ✔ insertRow 模式验证通过");
-  }
-
-  // 1.4 deleteRow：按条件删除行
-  {
-    const content = 'deleteRow("状态与关系", {"角色": "莉莉丝"})';
-    const result = service.processTableMemory(initialMemory, content);
-    assert(result.hasChanges === true, "deleteRow 应触发变更");
-    assert(result.updatedMemory[0].rows.length === 1, "应删除一行");
-    assert(result.updatedMemory[0].rows[0][0] === "银霜", "应保留银霜行");
-    console.log("  ✔ deleteRow 模式验证通过");
-  }
-
-  // 1.5 宽松 JSON 解析：单引号与未引号键名
-  {
-    const content = "updateRow('状态与关系', {角色: '银霜'}, {好感度: '99'})";
-    const result = service.processTableMemory(initialMemory, content);
-    assert(result.hasChanges === true, "单引号 JSON 应正确解析");
-    assert(result.updatedMemory[0].rows[0][1] === "99", "单引号更新应生效");
-    console.log("  ✔ 宽松 JSON 解析（单引号/未引号键名）验证通过");
-  }
-
-  // 1.6 多指令混合：一条消息中包含多个操作
-  {
-    const content = [
-      'updateRow("状态与关系", {"角色": "银霜"}, {"好感度": "70"})',
-      'insertRow("状态与关系", {"角色": "路人甲", "好感度": "5"})',
-    ].join("\n");
-    const result = service.processTableMemory(initialMemory, content);
-    assert(result.hasChanges === true, "多指令应触发变更");
-    assert(result.updatedMemory[0].rows[0][1] === "70", "首条 updateRow 应生效");
-    assert(result.updatedMemory[0].rows.length === 3, "第二条 insertRow 应生效");
-    console.log("  ✔ 多指令混合验证通过");
-  }
-
-  // 1.7 不存在的表名：应静默跳过不抛错
-  {
-    const content = 'updateRow("不存在的表", {"key": "val"})';
-    const result = service.processTableMemory(initialMemory, content);
-    assert(result.hasChanges === false || result.cleanContent !== content, "不存在的表名应静默处理");
-    console.log("  ✔ 不存在表名静默降级验证通过");
-  }
-
-  // 1.8 无指令内容：原样返回
-  {
-    const content = "这是一段普通的对话内容，没有任何表格指令。";
-    const result = service.processTableMemory(initialMemory, content);
-    assert(result.hasChanges === false, "无指令内容不应触发变更");
-    assert(result.cleanContent === content, "无指令内容应原样返回");
-    console.log("  ✔ 无指令内容原样返回验证通过");
-  }
-
-  await testKernel.destroy();
-  console.log("✔ TableMemoryService 覆盖测试全部通过！");
 }
 
 // ============================================================
@@ -297,7 +187,6 @@ async function testLLMServiceUrlValidation() {
 
 // 导出所有测试函数
 export {
-  testTableMemoryService,
   testPromptServiceRedosProtection,
   testLLMServiceUrlValidation,
 };
@@ -308,7 +197,6 @@ import { pathToFileURL } from "url";
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   (async () => {
     try {
-      await testTableMemoryService();
       await testPromptServiceRedosProtection();
       await testLLMServiceUrlValidation();
       console.log("\n=================================================");

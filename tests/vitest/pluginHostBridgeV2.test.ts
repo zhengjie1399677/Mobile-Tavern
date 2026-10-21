@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { dispatchPluginHostRequest } from "../../src/domain/plugins/hostBridgeV2";
+import { dispatchPluginHostRequest } from "../../src/domain/plugins/pluginHostRpc";
 
 const context = {
   activeCharacter: {

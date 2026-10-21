@@ -18,7 +18,7 @@ import { getErrorMessage, getErrorName } from '../utils/errorUtils';
  * 设计遵循 AGENTS.md 准则一第 6 条「面向模块化/服务化的轻量化开发」。
  *
  * Provider 层级约束说明：
- *   useCharacterEditor 被 useCharacters 调用，后者由 LegacyAppContextProviderInner
+ *   useCharacterEditor 被 useCharacters 调用，后者由 AppContextAssemblerInner
  *   在 LanguageProvider **外层** 装配（详见 src/App.tsx 渲染树），因此此处
  *   严禁使用 useTranslation hook，与 CharacterContext/ChatContext 同源约束。
  *   错误提示文案直接从 TRANSLATIONS 读取当前语言，与 tChar/tChat 模式保持一致。

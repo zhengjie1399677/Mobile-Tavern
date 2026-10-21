@@ -295,7 +295,7 @@ export default function CharactersTab() {
             ? "grid grid-cols-3 gap-3"
             : "grid grid-cols-2 gap-4"
       }>
-        {/* characters array is pre-sorted by last chat time via useMemo in LegacyAppContextProvider */}
+        {/* characters array is pre-sorted by last chat time via useMemo in AppContextAssembler */}
         {displayCharacters.map((char, index) => {
           const isPluginCard = !!char.extensions?.mt_plugin;
           const branchCount = sessionCountsByCharacter[char.id] ?? 0;

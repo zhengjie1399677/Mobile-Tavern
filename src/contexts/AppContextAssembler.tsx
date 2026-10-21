@@ -48,15 +48,13 @@ function setRunningPluginId(pluginId?: string): void {
 }
 
 /**
- * 应用 Context 组合器。文件名保留是为了兼容历史导入路径，新代码应使用 AppContextAssembler。
+ * 应用 Context 组合器。
  *
  * 职责：
  * 1. 嵌套挂载所有分离的 Context Provider（AppProvider / CharacterProvider / ChatProvider）
  * 2. 在内层 Inner 组件中调用所有业务 Hook（useSettings / useCharacters / useChat）
  * 3. 将来自多个 context 和 hook 的状态合并为统一 the AppContext 值，供全局消费
  * 4. 通过 useMemo 对 characters 按最近聊天时间排序，避免在下游组件重复计算
- *
- * LegacyAppContextProvider 仅作为旧名称兼容别名保留。
  */
 
 export {
@@ -77,9 +75,6 @@ export const AppContextAssembler: React.FC<{ children: React.ReactNode }> = ({
     </AppProvider>
   );
 };
-
-/** @deprecated 请使用 AppContextAssembler。 */
-export const LegacyAppContextProvider = AppContextAssembler;
 
 function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
   const kernel = useKernel();

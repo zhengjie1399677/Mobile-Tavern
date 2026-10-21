@@ -586,7 +586,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
   );
   assert(
     read("src/contexts/ChatContext.tsx").includes("prepareRuntimeProfileSessionResume")
-      && read("src/contexts/LegacyAppContextProvider.tsx").includes("readRuntimeProfileSessionResumeIntent")
+      && read("src/contexts/AppContextAssembler.tsx").includes("readRuntimeProfileSessionResumeIntent")
       && read("src/infrastructure/runtimeProfiles/runtimeProfileSessionResume.ts")
         .includes("resumeIntentSchema.safeParse"),
     "跨 Profile 打开会话必须以经过 Schema 校验的一次性意图重启，并在目标组合装载后恢复会话"
@@ -598,7 +598,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
         .includes("AndroidThemeBridge")
       && read("src/application/useCases/runtimeProfileAgentLaunch.ts")
         .includes("writeRuntimeProfileAgentLaunchIntent")
-      && read("src/contexts/LegacyAppContextProvider.tsx")
+      && read("src/contexts/AppContextAssembler.tsx")
         .includes("readRuntimeProfileAgentLaunchIntent")
       && sendMessageHook.includes("resolveAgentSessionSettings")
       && read("src/hooks/useChat/useRerollMessage.ts").includes("resolveAgentSessionSettings"),
@@ -662,7 +662,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "主功能页切换必须使用 Transition，避免快速代码分块加载时 loading 动画闪烁"
   );
   assert(
-    !read("src/contexts/LegacyAppContextProvider.tsx").includes("Triggering daily backup check"),
+    !read("src/contexts/AppContextAssembler.tsx").includes("Triggering daily backup check"),
     "应用启动不得静默触发文件备份；数据导出必须由用户显式发起"
   );
   assert(
@@ -900,6 +900,7 @@ export async function testArchitectureBoundaries(): Promise<void> {
     "src/utils/localDB.ts",
     "src/application/services/PromptService.ts",
     "src/hooks/useChat/useSendMessage.ts",
+    "src/components/session-manager/SessionManagerPanel.tsx",
     "src/components/FormattedText.tsx",
     "src/components/formatted-text/renderingRuntime.tsx",
     "src/tabs/settings/sections/system-report/SystemReportSectionView.tsx",
@@ -976,6 +977,23 @@ export async function testArchitectureBoundaries(): Promise<void> {
   assert(
     existsSync(path.join(workspace, externalSourceDirectory)),
     "外部能力通道的中立契约目录缺失：src/domain/externalSources"
+  );
+
+  // UnifiedAppContext 是历史包袱而非扩展点：字段数已冻结，新增领域状态必须建立独立 Context/Store。
+  const unifiedContextSource = read("src/UnifiedAppContext.tsx");
+  const unifiedContextStart = unifiedContextSource.indexOf("export interface UnifiedAppContextProps");
+  const unifiedContextEnd = unifiedContextSource.indexOf("\n}", unifiedContextStart);
+  assert(
+    unifiedContextStart >= 0 && unifiedContextEnd > unifiedContextStart,
+    "UnifiedAppContextProps 接口必须保持可解析"
+  );
+  const unifiedContextFields = unifiedContextSource
+    .slice(unifiedContextStart, unifiedContextEnd)
+    .split(/\r?\n/)
+    .filter((line) => /^\s{2}[A-Za-z_$][\w$]*\??\s*:/.test(line)).length;
+  assert(
+    unifiedContextFields <= 171,
+    `UnifiedAppContextProps 字段数已冻结为 171，当前 ${unifiedContextFields}。新增领域状态请建立独立 Context/Store。`
   );
 
   console.log("✔ 内核架构边界守卫通过");

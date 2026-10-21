@@ -20,6 +20,7 @@
 
 ### 4. 状态管理边界限制与防副作用泄漏
 * **单一职责状态流动**：各个功能模块 of 内部状态（如配置编辑、临时选框等）应尽可能限制在局部 Context、局部 Hook 或组件内部处理，严禁滥用全局 Context（如 AppContext）扩散非核心状态。
+* **UnifiedAppContext 字段冻结**：`UnifiedAppContextProps` 已冻结为 171 个字段，由 `tests/suites/architectureBoundaries.test.ts` 守卫。新增领域状态必须建立独立 Context/Store，禁止继续向该聚合接口追加字段。
 * **副作用隔离**：在编写 `useEffect`、事件响应器或订阅逻辑时，必须精确指明依赖项，避免多余的状态变动在整个系统树上引发多重“雪崩式”级联渲染与未捕获的运行时空指针异常。
 
 ### 5. 向前兼容与接口降级设计（Fallback）

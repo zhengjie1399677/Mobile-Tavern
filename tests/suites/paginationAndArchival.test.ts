@@ -9,7 +9,7 @@
  */
 
 import { assert } from "./testUtils";
-import { hydrateNewestFirstMessagePage } from "../../src/contexts/chatMessageHydration";
+import { hydrateNewestFirstMessagePage } from "../../src/application/useCases/chatMessageHydration";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 测试目标 1：消息角色映射（从 ChatContext.tsx 提取的纯逻辑）

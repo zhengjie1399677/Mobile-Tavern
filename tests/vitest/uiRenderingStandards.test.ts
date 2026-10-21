@@ -76,7 +76,7 @@ const imageSources = [
   "src/components/FloatingCharacter.tsx",
   "src/components/SplashScreen.tsx",
   "src/components/community/CommunityCardDetail.tsx",
-  "src/components/session-manager/SessionManagerPanel.tsx",
+  "src/components/session-manager/SessionDirectoryViews.tsx",
   "src/tabs/CharactersTab.tsx",
   "src/tabs/CommunityTab.tsx",
   "src/tabs/chat/CharacterPortraitSection.tsx",
@@ -91,7 +91,7 @@ const imageSources = [
 ] as const;
 
 const deferredImageSources = [
-  "src/components/session-manager/SessionManagerPanel.tsx",
+  "src/components/session-manager/SessionDirectoryViews.tsx",
   "src/tabs/CommunityTab.tsx",
   "src/tabs/chat/message-bubble/GeneratedImageBlock.tsx",
   "src/tabs/chat/message-bubble/MessageAttachmentParts.tsx",

@@ -27,6 +27,7 @@ import type { MemoryServiceTyped } from "../application/services/memory";
 import type { MemoryAuditSnapshot } from "../application/services/memory/types";
 import type { InstalledFullscreenPlugin } from "../domain/plugins";
 import { setCompatibilityGenerationState } from "../application/useCases/compatibilityGenerationState";
+import { Logger } from "../utils/logger";
 
 import { useChatUI } from "./useChat/useChatUI";
 import { useSessionManager } from "./useChat/useSessionManager";
@@ -37,6 +38,8 @@ import { useDialogueBubble } from "./useChat/useDialogueBubble";
 
 // 重新导出 calculateBisonModeProbability 以保持向后兼容
 export { calculateBisonModeProbability } from "./useChat/helpers";
+
+const logger = Logger.create("useChat");
 
 export const useChat = (
   settings: UserSettings,
@@ -111,7 +114,7 @@ export const useChat = (
   // 角色切换时中止正在进行的流式请求
   useEffect(() => {
     if (abortControllerRef.current) {
-      console.log("[useChat] Aborting stream because active character or session changed");
+      logger.debug("Aborting stream because active character or session changed");
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       isSendingRef.current = false;
@@ -215,7 +218,7 @@ export const useChat = (
       if (firstMsg.sender === "assistant") {
         const expectedGreeting = activeCharacter.first_mes || "";
         if (firstMsg.content !== expectedGreeting) {
-          console.log("[useChat] Autodetected unstarted session with stale greeting. Syncing greeting...");
+          logger.debug("Autodetected unstarted session with stale greeting; syncing greeting");
           const updatedMsg = {
             ...firstMsg,
             content: expectedGreeting,
@@ -254,7 +257,7 @@ export const useChat = (
       (!activeSession.tableMemory || activeSession.tableMemory.length === 0)
     ) {
       if (memoryService) {
-        console.log("[useChat] Autodetected empty tableMemory with enableTableMemory active. Initializing default sheets...");
+        logger.debug("Autodetected empty tableMemory with enableTableMemory active; initializing default sheets");
         const defaultSheets = memoryService.getStateTable().initDefaultSheets(activeCharacter.name || "NPC");
         const updatedSession = {
           ...activeSession,

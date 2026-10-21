@@ -172,7 +172,6 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                     .readState(activeSession)
                 : {}}
               onSave={async (newVars) => {
-                console.log(`[MVU-SAVE-DIAG] onSave called, sessId=${activeSession.id}, varKeys=${Object.keys(newVars?.stat_data || {}).join(',')}`);
                 const compatibilityRuntime = kernel?.hasService(KernelServices.CompatibilityRuntime)
                   ? kernel.getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
                   : null;
@@ -185,14 +184,12 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
                   runtimePluginState: nextSession.runtimePluginState,
                 });
                 setSessionViews((prev) => prev.map((s) => (s.id === nextSession.id ? nextSession : s)));
-                console.log(`[MVU-SAVE-DIAG] setSessionViews done`);
                 try {
                   if (kernel?.hasService(KernelServices.CompatibilityRuntime)) {
                     kernel
                       .getService<ICompatibilityRuntimeService>(KernelServices.CompatibilityRuntime)
                       .notifyStateChanged(nextSession);
                   }
-                  console.log(`[MVU-SAVE-DIAG] notifyVariablesUpdated done`);
                 } catch (e) {
                   console.warn("[MemoryTableDrawer] notifyVariablesUpdated failed:", e);
                 }
