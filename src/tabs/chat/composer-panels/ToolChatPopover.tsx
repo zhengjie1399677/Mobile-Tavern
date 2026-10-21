@@ -89,14 +89,14 @@ export function ToolChatPopover({
         aria-label="工具插件"
         title="工具插件"
         disabled={disabled}
-        className={`flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 transition-colors disabled:opacity-40 ${
+        className={`flex h-8 flex-1 min-w-0 items-center justify-center gap-1.5 rounded-lg px-1.5 transition-colors disabled:opacity-40 ${
           open
             ? "bg-primary/12 text-primary"
             : "text-muted-foreground hover:bg-muted/60 hover:text-primary"
         }`}
       >
-        <Wrench className="w-3.5 h-3.5" />
-        <span className="text-xs font-medium">{t("quick_actions.tools_btn") || "工具"}</span>
+        <Wrench className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate text-xs font-medium">{t("quick_actions.tools_btn") || "工具"}</span>
       </Popover.Trigger>
 
       <Popover.Portal>

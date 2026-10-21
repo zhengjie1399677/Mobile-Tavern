@@ -950,7 +950,7 @@ export default {
   "quick_actions.tool_title": "工具插件 (Tool)",
   "quick_actions.tool_desc": "快捷唤起 DeepSeek 网页搜索、网页抓取、掷骰子、随机抽取等插件工具。",
   "quick_actions.preset_title": "预设调控 (Preset)",
-  "quick_actions.preset_desc": "快速切换模型采样预设方案，并在聊天中即时微调温度 (Temperature) 与采样参数。",
+  "quick_actions.preset_desc": "快速切换预设方案，并在聊天中即时开关各项预设提示词模块（文风、视角、细节强化等）。",
   "quick_actions.preset_select_label": "当前预设方案",
   "quick_actions.preset_temperature": "温度 (Temperature)",
   "quick_actions.preset_top_p": "采样核 (Top-P)",

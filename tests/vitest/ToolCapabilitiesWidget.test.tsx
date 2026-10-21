@@ -8,6 +8,8 @@ import { externalSourceUseCases } from "../../src/application/externalSources/ex
 vi.mock("../../src/application/useCases/toolPluginManagementUseCases", () => ({
   toolPluginManagementUseCases: {
     list: vi.fn(),
+    listOfficial: vi.fn().mockResolvedValue([]),
+    install: vi.fn().mockResolvedValue({} as never),
     setEnabled: vi.fn(),
   },
 }));

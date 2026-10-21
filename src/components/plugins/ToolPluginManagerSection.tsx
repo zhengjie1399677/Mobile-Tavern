@@ -228,9 +228,9 @@ export default function ToolPluginManagerSection(): React.JSX.Element {
         {filteredPlugins.length === 0 ? (
           <div className="surface-card flex flex-col items-center rounded-2xl border border-dashed border-border/70 p-5 text-center">
             <PackageCheck className="h-6 w-6 text-muted-foreground/60" />
-            <p className="mt-1.5 text-xs font-bold text-foreground">尚未安装 Tool Plugin Manifest</p>
+            <p className="mt-1.5 text-xs font-bold text-foreground">暂无可用的 Tool 插件</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              点击上方“导入插件”即可快速添加。
+              点击上方“导入插件”即可快速添加外部插件包。
             </p>
           </div>
         ) : (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   Wrench,
   Check,
@@ -14,6 +14,7 @@ import {
   Trash2,
   Gauge,
   Play,
+  Key,
 } from "lucide-react";
 import { toolPluginManagementUseCases } from "../../application/useCases/toolPluginManagementUseCases";
 import { syncExternalSourceToolMounts } from "../../application/useCases/externalSourceToolMounting";
@@ -24,7 +25,7 @@ import {
 } from "../../application/externalSources/thirdPartyMcpParser";
 import { ThirdPartyMcpImportModal } from "./ThirdPartyMcpImportModal";
 import { ToolPlaygroundModal } from "./ToolPlaygroundModal";
-import type { InstalledToolPlugin } from "../../domain/toolPlugins";
+import type { InstalledToolPlugin, ToolPluginInspection } from "../../domain/toolPlugins";
 import type {
   ExternalCapabilitySnapshot,
   ExternalSourceRuntimeDiagnostics,
@@ -49,10 +50,11 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
 }) => {
   // 组件可能在无 KernelProvider 的隔离测试里渲染，这里用可选内核，缺失时跳过挂载同步。
   const kernel = useOptionalKernel();
-  const { showCustomAlert, showCustomConfirm, getKernelService, settings, updateSettings } =
+  const { showCustomAlert, showCustomConfirm, showCustomPrompt, getKernelService, settings, updateSettings } =
     useUnifiedApp((state) => ({
       showCustomAlert: state.showCustomAlert,
       showCustomConfirm: state.showCustomConfirm,
+      showCustomPrompt: state.showCustomPrompt,
       getKernelService: state.getKernelService,
       settings: state.settings,
       updateSettings: state.updateSettings,
@@ -65,6 +67,26 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
   // 原生插件状态
   const [plugins, setPlugins] = useState<InstalledToolPlugin[]>([]);
   const [pluginsLoading, setPluginsLoading] = useState(false);
+  const [officialPlugins, setOfficialPlugins] = useState<ToolPluginInspection[]>([]);
+
+  const installedIds = useMemo(() => new Set(plugins.map((p) => p.id)), [plugins]);
+  const displayPlugins: InstalledToolPlugin[] = useMemo(() => {
+    return [
+      ...plugins,
+      ...officialPlugins
+        .filter((o) => !installedIds.has(o.manifest.id))
+        .map((o) => ({
+          id: o.manifest.id,
+          manifest: o.manifest,
+          enabled: false,
+          grantedPermissions: [],
+          installedAt: 0,
+          updatedAt: 0,
+          history: [],
+          sourceVerification: o.sourceVerification,
+        })),
+    ];
+  }, [plugins, officialPlugins, installedIds]);
 
   // MCP 外部能力源状态
   const [mcpSources, setMcpSources] = useState<StoredExternalSource[]>([]);
@@ -108,8 +130,16 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
   const loadPlugins = useCallback(async () => {
     try {
       setPluginsLoading(true);
-      const list = await toolPluginManagementUseCases.list();
-      setPlugins(list);
+      const officialPromise =
+        typeof toolPluginManagementUseCases.listOfficial === "function"
+          ? toolPluginManagementUseCases.listOfficial().catch(() => [] as ToolPluginInspection[])
+          : Promise.resolve([] as ToolPluginInspection[]);
+      const [list, official] = await Promise.all([
+        toolPluginManagementUseCases.list(),
+        officialPromise,
+      ]);
+      setPlugins(list || []);
+      setOfficialPlugins(official || []);
     } catch {
       // ignore
     } finally {
@@ -153,16 +183,87 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
     void loadMcpSources();
   }, [loadPlugins, loadMcpSources]);
 
-  // 原生插件启停
+  // 配置插件密钥凭据
+  const handleConfigureCredential = async (plugin: InstalledToolPlugin) => {
+    try {
+      const cred = plugin.manifest.credentials?.[0];
+      if (!cred) return;
+      const isPersisted = installedIds.has(plugin.id);
+      if (!isPersisted) {
+        const official = officialPlugins.find((o) => o.manifest.id === plugin.id);
+        if (official) {
+          await toolPluginManagementUseCases.install(official);
+        }
+      }
+      const value = await showCustomPrompt(
+        `请输入“${cred.label}”。凭据只会加密保存在本地并由宿主注入请求。`,
+        "",
+        `配置 ${plugin.manifest.name} 密钥`,
+        "password",
+      );
+      if (value === null) return;
+      if (value.trim() === "") {
+        await toolPluginManagementUseCases.deleteCredential(plugin.id, cred.id);
+        showCustomAlert("已清除该插件的密钥凭据。", "密钥已清除");
+      } else {
+        await toolPluginManagementUseCases.setCredential(plugin.id, cred.id, value.trim());
+        showCustomAlert("密钥已加密保存！", "配置成功");
+      }
+      const updated = await toolPluginManagementUseCases.list();
+      setPlugins(updated);
+    } catch (e) {
+      showCustomAlert(e instanceof Error ? e.message : String(e), "配置密钥失败");
+    }
+  };
+
+  // 原生插件启停（无二次安装步骤，开箱即用，按需自动持久化与凭据校验）
   const handleTogglePlugin = async (plugin: InstalledToolPlugin) => {
     try {
       const nextEnabled = !plugin.enabled;
+      const isPersisted = installedIds.has(plugin.id);
+      if (!isPersisted) {
+        const official = officialPlugins.find((o) => o.manifest.id === plugin.id);
+        if (official) {
+          await toolPluginManagementUseCases.install(official);
+        }
+      }
+      if (nextEnabled) {
+        const required = plugin.manifest.permissions.map((p) => p.id);
+        if (required.length > 0) {
+          await toolPluginManagementUseCases.setPermissions(plugin.id, required);
+        }
+
+        const requiredCredentials = plugin.manifest.credentials?.filter((c) => c.required) ?? [];
+        if (requiredCredentials.length > 0) {
+          const statuses = await toolPluginManagementUseCases.listCredentialStatus(plugin.id);
+          const configured = new Set(statuses.filter((s) => s.configured).map((s) => s.id));
+          for (const cred of requiredCredentials) {
+            if (!configured.has(cred.id)) {
+              const value = await showCustomPrompt(
+                `该插件需要“${cred.label}”方可工作。\n凭据只会加密保存在本地，不会暴露给外部代码。`,
+                "",
+                `配置 ${plugin.manifest.name} 凭据`,
+                "password",
+              );
+              if (!value || !value.trim()) {
+                // 用户取消或未输入，中止开启
+                return;
+              }
+              await toolPluginManagementUseCases.setCredential(plugin.id, cred.id, value.trim());
+            }
+          }
+        }
+      }
       await toolPluginManagementUseCases.setEnabled(plugin.id, nextEnabled);
-      setPlugins((prev) =>
-        prev.map((p) => (p.id === plugin.id ? { ...p, enabled: nextEnabled } : p))
-      );
+      const updated = await toolPluginManagementUseCases.list();
+      setPlugins(updated);
     } catch (e) {
-      showCustomAlert(e instanceof Error ? e.message : String(e), "切换插件状态失败");
+      const msg = e instanceof Error ? e.message : String(e);
+      const friendlyMsg =
+        msg === "TOOL_PLUGIN_REQUIRED_CREDENTIAL_MISSING"
+          ? "该插件需要配置 API Key / 凭据后方可启用，请先点击钥匙图标配置密钥。"
+          : msg;
+      showCustomAlert(friendlyMsg, "切换插件状态失败");
     }
   };
 
@@ -406,6 +507,7 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
               </p>
             </div>
             <Switch
+              size="sm"
               aria-label="启用外部能力"
               checked={externalCapabilitiesEnabled}
               onCheckedChange={(value: boolean) => {
@@ -414,7 +516,6 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
                 const runtime = getRuntime();
                 if (runtime) void runtime.reload();
               }}
-              className="data-[state=checked]:bg-cyan-500 h-4 w-8 shrink-0 [&_span]:h-3 [&_span]:w-3"
             />
           </div>
 
@@ -659,72 +760,95 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
       )}
 
       {/* 2. 原生 Tool 插件视界 */}
-      {activeTab === "plugin" && (
-        <div>
-          {plugins.length === 0 ? (
-            <div className="flex min-h-16 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 p-3 text-center text-xs text-muted-foreground">
-              <Sparkles className="mb-1 h-4 w-4 text-purple-400/60" />
-              <span>{pluginsLoading ? "正在读取插件状态..." : "暂无已安装的本地 Tool 插件"}</span>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              {plugins.map((plugin) => (
-                <div
-                  key={plugin.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/5 p-2 transition-all hover:bg-white/8"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-xs font-semibold text-foreground">
-                        {plugin.manifest.name}
-                      </span>
-                      <span className="rounded bg-white/10 px-1 py-0.2 text-[9px] font-mono text-muted-foreground">
-                        v{plugin.manifest.version}
-                      </span>
-                      {plugin.sourceVerification?.trustLevel === "official" && (
-                        <span className="flex items-center gap-0.5 rounded-full bg-cyan-500/10 px-1.5 py-0.2 text-[9px] font-medium text-cyan-400 border border-cyan-500/20">
-                          <ShieldCheck className="h-2.5 w-2.5" />
-                          官方
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate text-[10px] text-muted-foreground">
-                      {plugin.manifest.description || "无描述"}
-                    </p>
-                  </div>
+      {activeTab === "plugin" && (() => {
+        const activePluginsCount = displayPlugins.filter((p) => p.enabled).length;
 
-                  <button
-                    type="button"
-                    onClick={() => handleTogglePlugin(plugin)}
-                    className={`flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-bold transition-all active:scale-95 ${
-                      plugin.enabled
-                        ? "border border-purple-500/30 bg-purple-500/15 text-purple-400 hover:bg-purple-500/25"
-                        : "border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-                    }`}
-                  >
-                    {plugin.enabled ? (
-                      <>
-                        <Check className="h-2.5 w-2.5" />
-                        已启用
-                      </>
-                    ) : (
-                      <>
-                        <Power className="h-2.5 w-2.5" />
-                        停用
-                      </>
-                    )}
-                  </button>
-                </div>
-              ))}
-              <div className="pt-1 text-right">
-                <span className="text-[10px] text-muted-foreground font-mono">
-                  {activePluginsCount} / {plugins.length} 插件已启用
+        return (
+          <div className="space-y-3">
+            {displayPlugins.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 p-5 text-center text-xs">
+                <Sparkles className="mb-1.5 h-5 w-5 text-muted-foreground/60" />
+                <span className="font-semibold text-foreground">
+                  {pluginsLoading ? "正在读取插件状态..." : "暂无可用的 Tool 插件"}
                 </span>
+                <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                  系统已预置 DeepSeek 联网检索、Brave 搜索、设备时间与本地实用小工具。
+                </p>
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            ) : (
+              <div className="space-y-1.5">
+                {displayPlugins.map((plugin) => (
+                  <div
+                    key={plugin.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/5 p-2 transition-all hover:bg-white/8"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-xs font-semibold text-foreground">
+                          {plugin.manifest.name}
+                        </span>
+                        <span className="rounded bg-white/10 px-1 py-0.2 text-[9px] font-mono text-muted-foreground">
+                          v{plugin.manifest.version}
+                        </span>
+                        {plugin.sourceVerification?.trustLevel === "official" && (
+                          <span className="flex items-center gap-0.5 rounded-full bg-cyan-500/10 px-1.5 py-0.2 text-[9px] font-medium text-cyan-400 border border-cyan-500/20">
+                            <ShieldCheck className="h-2.5 w-2.5" />
+                            官方
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {plugin.manifest.description || "无描述"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {plugin.manifest.credentials && plugin.manifest.credentials.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => void handleConfigureCredential(plugin)}
+                          className="flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all active:scale-95"
+                          title="配置密钥"
+                          aria-label={`配置 ${plugin.manifest.name} 密钥`}
+                        >
+                          <Key className="h-2.5 w-2.5 text-cyan-400" />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePlugin(plugin)}
+                        className={`flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-bold transition-all active:scale-95 ${
+                          plugin.enabled
+                            ? "border border-purple-500/30 bg-purple-500/15 text-purple-400 hover:bg-purple-500/25"
+                            : "border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                        }`}
+                      >
+                        {plugin.enabled ? (
+                          <>
+                            <Check className="h-2.5 w-2.5" />
+                            已启用
+                          </>
+                        ) : (
+                          <>
+                            <Power className="h-2.5 w-2.5" />
+                            停用
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-1 text-right">
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {activePluginsCount} / {displayPlugins.length} 插件已启用
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 3. 接入第三方 MCP 弹窗 */}
       {isImportModalOpen && (

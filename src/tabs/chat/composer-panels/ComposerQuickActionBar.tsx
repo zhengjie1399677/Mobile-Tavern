@@ -151,7 +151,7 @@ export function ComposerQuickActionBar({
         isHolding ? "pointer-events-none" : ""
       }`}
     >
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="flex flex-1 min-w-0 items-center gap-1.5 overflow-x-auto no-scrollbar">
         {/* 模块 1: 重发回复 */}
         {modulesConfig.reroll && (
           <button
@@ -163,11 +163,11 @@ export function ComposerQuickActionBar({
               !Array.isArray(activeSession.messages) ||
               !activeSession.messages.some((m: Message) => m.sender === "assistant")
             }
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
+            className="flex h-8 flex-1 min-w-0 items-center justify-center gap-1.5 rounded-lg px-1.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
             title="消除整条故事分支的最后一条AI回复并进行重新生成"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSending ? "animate-spin" : ""}`} />
-            <span className="text-xs font-medium">{t("chat_input.reroll_last")}</span>
+            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSending ? "animate-spin" : ""}`} />
+            <span className="truncate text-xs font-medium">{t("chat_input.reroll_last")}</span>
           </button>
         )}
 
@@ -180,11 +180,11 @@ export function ComposerQuickActionBar({
               void handleSendMessage(continuePrompt);
             }}
             disabled={isSending || !activeSession}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
+            className="flex h-8 flex-1 min-w-0 items-center justify-center gap-1.5 rounded-lg px-1.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-primary disabled:opacity-40"
             title="发送指令，引导 AI 沿当前剧情继续推进"
           >
-            <Play className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">{t("chat_input.continue")}</span>
+            <Play className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate text-xs font-medium">{t("chat_input.continue")}</span>
           </button>
         )}
 

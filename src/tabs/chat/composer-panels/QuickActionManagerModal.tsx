@@ -69,7 +69,7 @@ const MODULE_DEFINITIONS: readonly ModuleItemDef[] = [
     titleKey: "quick_actions.preset_title",
     defaultTitle: "预设调控 (Preset)",
     descKey: "quick_actions.preset_desc",
-    defaultDesc: "快速切换模型采样预设方案，并在聊天中即时微调温度 (Temperature) 与采样参数。",
+    defaultDesc: "快速切换预设方案，并在聊天中即时开关各项预设提示词模块（文风、视角、细节强化等）。",
     icon: Sliders,
     accentColor: "text-amber-400 bg-amber-500/15 border-amber-500/30",
   },

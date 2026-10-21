@@ -261,7 +261,7 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
         title="MCP 能力"
         disabled={triggerDisabled}
         className={triggerVariant === "bar"
-          ? `flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 transition-colors disabled:opacity-40 ${
+          ? `flex h-8 flex-1 min-w-0 items-center justify-center gap-1.5 rounded-lg px-1.5 transition-colors disabled:opacity-40 ${
               open
                 ? "bg-primary/12 text-primary"
                 : "text-muted-foreground hover:bg-muted/60 hover:text-primary"
@@ -272,8 +272,8 @@ export const McpChatPopover: React.FC<McpChatPopoverProps> = ({
                 : "border-border/80 bg-input/30 text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
       >
-        <Plug className={triggerVariant === "bar" ? "w-3.5 h-3.5" : "size-4"} />
-        {triggerVariant === "bar" && <span className="text-xs font-medium">MCP</span>}
+        <Plug className={triggerVariant === "bar" ? "w-3.5 h-3.5 shrink-0" : "size-4"} />
+        {triggerVariant === "bar" && <span className="truncate text-xs font-medium">MCP</span>}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner
