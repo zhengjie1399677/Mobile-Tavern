@@ -9,6 +9,7 @@ interface MiniResourceManagerModalProps {
   onClose: () => void;
   resourcePort: ThemeStudioResourcePort | undefined;
   onInsertCode?: (code: string) => void;
+  onResourcesChanged?: () => void;
   showCustomAlert?: (msg: string, title?: string) => Promise<void>;
   showCustomConfirm?: (msg: string, title?: string) => Promise<boolean>;
 }
@@ -18,6 +19,7 @@ export function MiniResourceManagerModal({
   onClose,
   resourcePort,
   onInsertCode,
+  onResourcesChanged,
   showCustomAlert,
   showCustomConfirm,
 }: MiniResourceManagerModalProps) {
@@ -25,7 +27,7 @@ export function MiniResourceManagerModal({
   useMobileBackHandler(isOpen, () => {
     onClose();
     return true;
-  }, 80);
+  }, 860);
 
   return (
     <Dialog open={isOpen} onOpenChange={open => { if (!open) onClose(); }}>
@@ -42,6 +44,7 @@ export function MiniResourceManagerModal({
         <ThemeStudioResourceView
           resourcePort={resourcePort}
           onInsertCode={onInsertCode}
+          onResourcesChanged={onResourcesChanged}
           showCustomAlert={showCustomAlert}
           showCustomConfirm={showCustomConfirm}
           embedded={false}

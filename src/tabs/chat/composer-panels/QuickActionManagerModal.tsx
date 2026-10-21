@@ -136,11 +136,10 @@ export function QuickActionManagerModal({
     if (checked && isMaxReached) {
       return;
     }
-    setDraftConfig((prev) => {
-      const next = { ...prev, [id]: checked };
-      onUpdateModulesConfig(next);
-      return next;
-    });
+    const next = { ...draftConfig, [id]: checked };
+    setDraftConfig(next);
+    // 不要在 state updater 内更新父组件/写 localStorage：StrictMode 会重复执行 updater。
+    onUpdateModulesConfig(next);
   };
 
   const handleToggleVisible = (checked: boolean) => {

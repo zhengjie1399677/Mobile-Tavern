@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useState } from "react";
 import type { CharacterCard } from "../types";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useOptionalKernel } from "../contexts/KernelContext";
@@ -45,12 +45,6 @@ const FormattedText = memo(function FormattedText({
 }: FormattedTextProps) {
   const kernel = useOptionalKernel();
   const [isExpanded, setIsExpanded] = useState(false);
-  const isTooLong = text.length > 5000;
-  const isWidget = /```html\b|<iframe\b|<StatusPlaceHolder/i.test(text);
-  const shouldTruncate = isTooLong && !isExpanded && !isWidget;
-  const displayText = shouldTruncate
-    ? `${text.substring(0, 4500)}\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字符 ] ...*`
-    : text;
 
   const context = useUnifiedApp((state) => ({
     settings: state.settings,
@@ -101,6 +95,14 @@ const FormattedText = memo(function FormattedText({
         messageIndex !== undefined &&
         messageIndex === activeSession.messages.length - 1,
     );
+
+  const isTooLong = text.length > 5000;
+  const isWidget = /```html\b|<iframe\b|<StatusPlaceHolder/i.test(text);
+  // 流式输出期间不要折叠：否则新 token 会落在截断点之后，用户看起来像流式中断。
+  const shouldTruncate = isTooLong && !isExpanded && !isWidget && !isStreamingLastMessage;
+  const displayText = shouldTruncate
+    ? `${text.substring(0, 4500)}\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字符 ] ...*`
+    : text;
 
   if (enableScriptExecution && messageIndex !== undefined && text.length > 10) {
     const hasCodeBlock = /```/.test(text);

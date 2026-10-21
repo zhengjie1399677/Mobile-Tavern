@@ -95,7 +95,7 @@ export function ComposerQuickActionBar({
     modulesConfig.preset ||
     modulesConfig.token_predict ||
     modulesConfig.tool ||
-    modulesConfig.mcp;
+    (modulesConfig.mcp && settings.enableExternalCapabilities === true);
 
   if (!visible || !hasAnyActiveModule) return null;
 

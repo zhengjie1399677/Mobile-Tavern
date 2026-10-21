@@ -122,10 +122,11 @@ export function ThemeCssAiPromptModal({ isOpen, onClose }: ThemeCssAiPromptModal
   const [copied, setCopied] = useState(false);
 
   // 移动端实体/手势返回键拦截，避免直接退出整个主题工作室
+  // 必须高于主题工作室（850），否则返回键会先退出 CSS 分区并顺带卸载本弹窗。
   useMobileBackHandler(isOpen, () => {
     onClose();
     return true;
-  }, 80);
+  }, 860);
 
   const handleCopy = async () => {
     let succeeded = false;

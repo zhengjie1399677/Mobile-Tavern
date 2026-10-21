@@ -30,8 +30,9 @@ const logger = Logger.create("ChatContext");
 const SESSIONS_PAGE_SIZE = 50;
 
 // 单会话消息分页懒加载页大小。
-// 首次进入聊天室仅加载最新 15 条消息，用户滚动到顶部时通过 loadMoreMessages 异步追加更早的历史。
-const MESSAGES_PAGE_SIZE = 15;
+// 首次进入聊天室仅加载最新 50 条消息，用户滚动到顶部时通过 loadMoreMessages 异步追加更早的历史。
+// 不要继续缩小：兼容桥目前把已加载窗口当作完整聊天历史，窗口越小，角色卡脚本拿到的消息索引越容易失真。
+const MESSAGES_PAGE_SIZE = 50;
 
 /** ChatProvider 在 LanguageProvider 上层，无法使用 useTranslation hook。此处直接从 TRANSLATIONS 读取当前语言的翻译。 */
 function tChat(key: string, errorMessage = ""): string {
@@ -412,19 +413,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 虚拟列表通过消息 key 与锚定策略保持当前视觉位置（见 DialogueHistoryView）。
   const loadMoreMessages = async () => {
     if (!activeSessionId || isLoadingMoreMessages || !hasMoreMessages) return;
-    const cached = messagePagingRef.current[activeSessionId];
+    const sessionId = activeSessionId;
+    const cached = messagePagingRef.current[sessionId];
     if (!cached) return; // 尚未进行首次分页加载，忽略
     setIsLoadingMoreMessages(true);
     try {
       const page = await chatSessionUseCases.loadMessagePage(
-        activeSessionId,
+        sessionId,
         MESSAGES_PAGE_SIZE,
         cached.oldestMessageId,
       );
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || activeSessionIdRef.current !== sessionId) return;
       const loadedCount = page.loadedCount;
       const newHasMore = page.hasMore;
-      messagePagingRef.current[activeSessionId] = {
+      messagePagingRef.current[sessionId] = {
         oldestMessageId: page.messages[0]?.id ?? cached.oldestMessageId,
         hasMore: newHasMore,
       };
@@ -432,7 +434,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (loadedCount > 0) {
         setSessionViews((prev) =>
           prev.map((s) => {
-            if (s.id !== activeSessionId) return s;
+            if (s.id !== sessionId) return s;
             // 每一页先转换为时间正序，再 prepend 到现有最新页之前。
             return {
               ...s,
@@ -442,12 +444,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       }
     } catch (e: unknown) {
-      logger.error("Failed to load more messages for active session", e, { activeSessionId });
-      if (isMountedRef.current) {
+      logger.error("Failed to load more messages for active session", e, { sessionId });
+      if (isMountedRef.current && activeSessionIdRef.current === sessionId) {
         showCustomAlert(tChat("chat.load_more_messages_failed", getErrorMessage(e)));
       }
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && activeSessionIdRef.current === sessionId) {
         setIsLoadingMoreMessages(false);
       }
     }

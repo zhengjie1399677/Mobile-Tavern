@@ -21,6 +21,7 @@ import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import type { LocalResourceKind, LocalResourceMetadata } from "../../domain/resources/types";
 import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
 import { extractMediaFilesFromZip } from "../../domain/themes/themeZipPackage";
+import { useMobileBackHandler } from "../../hooks/useMobileBackHandler";
 
 const PAGE_SIZE = 24;
 
@@ -31,6 +32,9 @@ export interface ThemeStudioResourceViewProps {
   showCustomConfirm?: (msg: string, title?: string) => Promise<boolean>;
   embedded?: boolean;
   onClose?: () => void;
+  /** 外部导入/删除素材后递增，通知其它已挂载的素材视图重新拉取列表。 */
+  refreshToken?: number;
+  onResourcesChanged?: () => void;
 }
 
 export function ThemeStudioResourceView({
@@ -40,6 +44,8 @@ export function ThemeStudioResourceView({
   showCustomConfirm,
   embedded = false,
   onClose,
+  refreshToken,
+  onResourcesChanged,
 }: ThemeStudioResourceViewProps) {
   const [resources, setResources] = useState<LocalResourceMetadata[]>([]);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
@@ -66,7 +72,13 @@ export function ThemeStudioResourceView({
 
   useEffect(() => {
     void loadResources();
-  }, [loadResources]);
+  }, [loadResources, refreshToken]);
+
+  // 灯箱是工作室内部最上层的浮层，返回键必须先关闭它。
+  useMobileBackHandler(Boolean(zoomedImage), () => {
+    setZoomedImage(null);
+    return true;
+  }, 870);
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -94,6 +106,7 @@ export function ThemeStudioResourceView({
         }
       }
       await loadResources();
+      onResourcesChanged?.();
       if (showCustomAlert) {
         await showCustomAlert(`成功导入 ${importedCount} 个素材并生成 5 位短 ID！`, "导入成功");
       }
@@ -124,10 +137,21 @@ export function ThemeStudioResourceView({
         return next;
       });
       await loadResources();
+      onResourcesChanged?.();
     } catch (error) {
       console.error("[ThemeStudioResourceView] Delete failed:", error);
     }
   };
+
+  /** 复制/插入短变量前先确保资源 URL 已进入 CSS 变量表（音视频默认不预取）。 */
+  const ensureCssResourceUrl = useCallback(async (id: string) => {
+    if (!resourcePort) return;
+    try {
+      await resourcePort.getObjectUrl(id);
+    } catch {
+      // 资源缺失时仍允许复制变量，方便用户自行排查。
+    }
+  }, [resourcePort]);
 
   const copyText = async (text: string, id: string) => {
     let succeeded = false;
@@ -376,7 +400,7 @@ export function ThemeStudioResourceView({
                           variant="outline"
                           size="sm"
                           className="h-6.5 px-2 text-[10px] gap-1 hover:bg-primary/10 hover:border-primary/40"
-                          onClick={() => copyText(shortCssVar, resource.id)}
+                          onClick={() => void ensureCssResourceUrl(resource.id).then(() => copyText(shortCssVar, resource.id))}
                           title="复制短 CSS 变量"
                         >
                           {isCopied ? (
@@ -408,7 +432,7 @@ export function ThemeStudioResourceView({
                             type="button"
                             size="sm"
                             className="h-6.5 px-2 text-[10px] gap-1 bg-primary/90 text-primary-foreground hover:bg-primary"
-                            onClick={() => onInsertCode(shortCssVar)}
+                            onClick={() => void ensureCssResourceUrl(resource.id).then(() => onInsertCode(shortCssVar))}
                             title="一键插入到 CSS 光标位置"
                           >
                             <Plus className="size-3" />

@@ -35,6 +35,71 @@ const MIME_MAP: Record<string, string> = {
   flac: "audio/flac",
 };
 
+/** 导出时把浏览器 MIME 还原为可被 MIME_MAP 识别的扩展名。 */
+const MIME_TO_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/aac": "aac",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/ogg": "ogg",
+  "audio/flac": "flac",
+  "audio/x-flac": "flac",
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** 在对象字符串值里把资源引用改成 ZIP 相对路径；在 JSON.stringify 之前完成，避免破坏 JSON 转义。 */
+function rewriteStringResourceReferences(
+  value: string,
+  idToNewPath: ReadonlyMap<string, string>,
+): string {
+  let next = value;
+  // 先替换较长的 ID，避免旧 UUID 资源 ID 以新短 ID 为前缀时被部分匹配。
+  const entries = [...idToNewPath.entries()].sort((left, right) => right[0].length - left[0].length);
+  for (const [id, newPath] of entries) {
+    next = next.replaceAll(`tavern-resource://${id}`, newPath);
+    const shortCode = id.replace(/^r_/, "");
+    for (const variable of [`--tavern-resource-${id}`, `--res-${shortCode}`]) {
+      // 允许 var(--res-xxx, none) 这类带兜底值的写法；导出后兜底由资源文件本身保证。
+      const pattern = new RegExp(`var\\(\\s*${escapeRegExp(variable)}(?:\\s*,[^)]*)?\\)`, "g");
+      next = next.replace(pattern, `url("${newPath}")`);
+    }
+  }
+  return next;
+}
+
+function rewriteThemeResourceReferences<T>(
+  value: T,
+  idToNewPath: ReadonlyMap<string, string>,
+): T {
+  if (typeof value === "string") {
+    return rewriteStringResourceReferences(value, idToNewPath) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => rewriteThemeResourceReferences(item, idToNewPath)) as T;
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        rewriteThemeResourceReferences(item, idToNewPath),
+      ]),
+    ) as T;
+  }
+  return value;
+}
+
 export interface ExtractedMediaFile {
   relativePath: string;
   filename: string;
@@ -358,8 +423,10 @@ export async function exportThemeZipPackage(
       if (!res.ok) continue;
       const blob = await res.blob();
       const arrayBuffer = await blob.arrayBuffer();
-      const ext = blob.type.split("/").pop() ?? "bin";
-      const filename = `${id}.${ext}`;
+      const ext = MIME_TO_EXT[blob.type]
+        ?? blob.type.split("/").pop()?.replace(/[^a-z0-9]/gi, "")
+        ?? "bin";
+      const filename = `${id}.${ext || "bin"}`;
       const relativePath = `assets/${filename}`;
       zipFiles[relativePath] = new Uint8Array(arrayBuffer);
       idToNewPath.set(id, `./${relativePath}`);
@@ -368,18 +435,10 @@ export async function exportThemeZipPackage(
     }
   }
 
-  // 在导出的 theme.json 中将 tavern-resource:// 还原为相对路径
-  let themeJsonStr = JSON.stringify(themeClone, null, 2);
-  for (const [id, newPath] of idToNewPath.entries()) {
-    // 还原 media.src
-    themeJsonStr = themeJsonStr.replaceAll(`tavern-resource://${id}`, newPath);
-    // 还原 var(--tavern-resource-xxx) 与 var(--res-xxx)
-    themeJsonStr = themeJsonStr.replaceAll(`var(--tavern-resource-${id})`, `url("${newPath}")`);
-    const shortCode = id.replace(/^r_/, "");
-    themeJsonStr = themeJsonStr.replaceAll(`var(--res-${shortCode})`, `url("${newPath}")`);
-  }
-
-  zipFiles["theme.json"] = new TextEncoder().encode(themeJsonStr);
+  // 在对象层面还原 tavern-resource:// 与 CSS 变量，再统一 JSON.stringify。
+  // 不能先 stringify 再替换：向 JSON 字符串里插入 url("...") 会引入未转义引号，导出包将无法再导入。
+  const themeWithPaths = rewriteThemeResourceReferences(themeClone, idToNewPath);
+  zipFiles["theme.json"] = new TextEncoder().encode(JSON.stringify(themeWithPaths, null, 2));
 
   // 打包为 zip 二进制
   return new Promise((resolve, reject) => {

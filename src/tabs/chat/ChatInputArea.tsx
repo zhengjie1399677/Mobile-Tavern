@@ -32,6 +32,7 @@ import { ComposerReplySuggestions } from "./composer-panels/ComposerReplySuggest
 import { QuickActionManagerModal } from "./composer-panels/QuickActionManagerModal";
 import {
   loadQuickActionModulesConfig,
+  normalizeQuickActionModulesConfig,
   saveQuickActionModulesConfig,
   type QuickActionModulesConfig,
 } from "./composer-panels/quickActionTypes";
@@ -79,8 +80,9 @@ const ChatInputArea = ({
   const [quickActionManagerOpen, setQuickActionManagerOpen] = React.useState(false);
 
   const handleUpdateQuickActionModules = React.useCallback((next: QuickActionModulesConfig) => {
-    setQuickActionModules(next);
-    saveQuickActionModulesConfig(next);
+    const normalized = normalizeQuickActionModulesConfig(next);
+    setQuickActionModules(normalized);
+    saveQuickActionModulesConfig(normalized);
   }, []);
 
   const handleToggleQuickActions = React.useCallback(() => {
@@ -616,6 +618,7 @@ const ChatInputArea = ({
         availableCommands={composerCommands}
         onSelectCommand={(command) => {
           if (command.acceptsArgument) {
+            if (isVoiceMode) setIsVoiceMode(false);
             const nextInput = `/${command.name} `;
             setLocalInput(nextInput);
             setUserInputMessage(nextInput);

@@ -139,7 +139,7 @@ describe("SillyTavern Regex Engine", () => {
     ).toBe("TARGET");
   });
 
-  it("applySillyTavernRegexEngine 在未设置 maxDepth 时，display/render 态默认上限为 15，prompt/store 态不受此限", () => {
+  it("未设置或 maxDepth 为 null 时不限制深度，显式 maxDepth 仍严格生效", () => {
     const scripts = [
       {
         scriptName: "card-widget",
@@ -148,24 +148,18 @@ describe("SillyTavern Regex Engine", () => {
       },
     ];
 
-    // display 态：depth = 15 时生效
-    expect(
-      applySillyTavernRegexEngine("CARD", scripts, { mode: "display", depth: 15 }),
-    ).toBe("PRETTIFIED_CARD");
-
-    // display 态：depth = 16 超过默认上限 15，跳过渲染以保护性能
+    // 没有 maxDepth：深层历史消息也必须继续渲染，不能静默套用默认上限。
     expect(
       applySillyTavernRegexEngine("CARD", scripts, { mode: "display", depth: 16 }),
-    ).toBe("CARD");
-
-    // render 态同理
+    ).toBe("PRETTIFIED_CARD");
     expect(
-      applySillyTavernRegexEngine("CARD", scripts, { mode: "render", depth: 16 }),
-    ).toBe("CARD");
+      applySillyTavernRegexEngine("CARD", scripts, { mode: "display", depth: 200 }),
+    ).toBe("PRETTIFIED_CARD");
 
-    // prompt 态：不受 display 默认上限 15 限制，保证提示词上下文完整
+    // 显式 null 与 UI 的“∞”一致
+    const nullDepthScript = [{ ...scripts[0], maxDepth: null }];
     expect(
-      applySillyTavernRegexEngine("CARD", scripts, { mode: "prompt", depth: 20 }),
+      applySillyTavernRegexEngine("CARD", nullDepthScript, { mode: "display", depth: 200 }),
     ).toBe("PRETTIFIED_CARD");
 
     // 作者显式指定 maxDepth 时优先遵循作者配置

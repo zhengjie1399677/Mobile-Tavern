@@ -33,6 +33,33 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
     expect(config.mcp).toBe(false);
   });
 
+  it("旧缓存开启超过 4 个模块时按优先级收敛，避免升级后突破上限", () => {
+    localStorage.setItem(QUICK_ACTION_MODULES_STORAGE_KEY, JSON.stringify({
+      reroll: true,
+      continue: true,
+      preset: true,
+      token_predict: true,
+      tool: true,
+      mcp: true,
+    }));
+
+    const loaded = loadQuickActionModulesConfig();
+    expect(Object.values(loaded).filter(Boolean)).toHaveLength(4);
+    expect(loaded.tool).toBe(false);
+    expect(loaded.mcp).toBe(false);
+
+    saveQuickActionModulesConfig({
+      reroll: true,
+      continue: true,
+      preset: true,
+      token_predict: true,
+      tool: true,
+      mcp: true,
+    });
+    const stored = JSON.parse(localStorage.getItem(QUICK_ACTION_MODULES_STORAGE_KEY) ?? "{}") as QuickActionModulesConfig;
+    expect(Object.values(stored).filter(Boolean)).toHaveLength(4);
+  });
+
   it("能正确持久化与重新读取 6 个模块的自由开关配置", () => {
     const customConfig: QuickActionModulesConfig = {
       reroll: false,

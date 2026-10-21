@@ -35,6 +35,7 @@ import type { StoredExternalSource } from "../../infrastructure/externalSources/
 import {
   KernelServices,
   type IExternalSourceRuntimeService,
+  type IToolPluginRuntimeService,
 } from "../../application/serviceContracts";
 import { useUnifiedApp } from "../../UnifiedAppContext";
 import { useOptionalKernel } from "../../contexts/KernelContext";
@@ -116,6 +117,14 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
 
   // 导入/添加弹窗
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  const reloadToolPluginRuntime = useCallback(async () => {
+    try {
+      await getKernelService<IToolPluginRuntimeService>(KernelServices.ToolConnectors).reload();
+    } catch {
+      // 测试/降级启动阶段服务可能尚未装载；持久化变更仍视为成功。
+    }
+  }, [getKernelService]);
 
   const getRuntime = useCallback((): IExternalSourceRuntimeService | null => {
     try {
@@ -211,6 +220,7 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
       }
       const updated = await toolPluginManagementUseCases.list();
       setPlugins(updated);
+      await reloadToolPluginRuntime();
     } catch (e) {
       showCustomAlert(e instanceof Error ? e.message : String(e), "配置密钥失败");
     }
@@ -257,6 +267,8 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
       await toolPluginManagementUseCases.setEnabled(plugin.id, nextEnabled);
       const updated = await toolPluginManagementUseCases.list();
       setPlugins(updated);
+      // 插件存储变更不会自动通知运行时；不 reload 的话，新启用的工具/命令在重启前不可见。
+      await reloadToolPluginRuntime();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const friendlyMsg =
@@ -490,7 +502,7 @@ export const ToolCapabilitiesWidget: React.FC<ToolCapabilitiesWidgetProps> = ({
           >
             <Wrench className="h-2.5 w-2.5" />
             <span>插件</span>
-            <span className="font-mono text-[9px] opacity-70">({plugins.length})</span>
+            <span className="font-mono text-[9px] opacity-70">({displayPlugins.length})</span>
           </button>
         </div>
       </div>

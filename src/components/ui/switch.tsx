@@ -42,7 +42,7 @@ function Switch({
         data-slot="switch"
         data-size={size}
         className={cn(
-          "peer group/switch relative inline-flex shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 outline-none select-none",
+          "peer group/switch relative inline-flex shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 outline-none select-none after:absolute after:-inset-x-3 after:-inset-y-2 after:content-['']",
           "data-[size=default]:h-5 data-[size=default]:w-9",
           "data-[size=sm]:h-4 data-[size=sm]:w-7",
           "data-checked:bg-primary data-unchecked:bg-muted-foreground/30 dark:data-unchecked:bg-muted/80",

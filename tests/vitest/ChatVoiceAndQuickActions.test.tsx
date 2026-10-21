@@ -253,12 +253,12 @@ describe("ChatInputArea 微信语音交互与快捷栏持久化", () => {
     enterVoiceMode();
 
     await pointerDown(200);
-    // 视口 600px → 阈值为 100px；上滑 120px 进入取消态。
+    // 视口 600px → 阈值为 120px；上滑 140px 进入取消态。
     await act(async () => {
-      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 80 });
+      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 60 });
     });
     await act(async () => {
-      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 80 });
+      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 60 });
     });
 
     expect(mockCancelCapture).toHaveBeenCalled();
@@ -311,15 +311,15 @@ describe("ChatInputArea 微信语音交互与快捷栏持久化", () => {
     enterVoiceMode();
 
     await pointerDown(200);
-    // 先上滑 120px 进入取消态，再回退到 80px：仍高于退出阈值 75px。
+    // 先上滑 140px 进入取消态，再回退到 100px：仍高于退出阈值 90px。
     await act(async () => {
-      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 80 });
+      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 60 });
     });
     await act(async () => {
-      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 120 });
+      fireEvent.pointerMove(holdButton(), { pointerId: 1, clientY: 100 });
     });
     await act(async () => {
-      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 120 });
+      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 100 });
     });
 
     expect(mockCancelCapture).toHaveBeenCalled();
@@ -333,7 +333,7 @@ describe("ChatInputArea 微信语音交互与快捷栏持久化", () => {
     await pointerDown(200);
     // 只发 pointerup，坐标已经在阈值之外（模拟 pointermove 与 pointerup 同帧合并）
     await act(async () => {
-      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 80 });
+      fireEvent.pointerUp(holdButton(), { pointerId: 1, clientY: 60 });
     });
 
     expect(mockCancelCapture).toHaveBeenCalled();

@@ -70,6 +70,12 @@ export default function ThemeEditorModal({
   const [desktopPreviewOpen, setDesktopPreviewOpen] = React.useState(true);
   const lastEditingSectionRef = React.useRef<StudioSection>("overview");
   const closingRef = React.useRef(false);
+  // 只在打开/切换编辑对象时重建草稿；保存会更新 customThemes，
+  // 若把它放进重置 effect 的依赖，保存后会把用户刚保存的草稿回滚掉。
+  const customThemesRef = React.useRef(customThemes);
+  React.useEffect(() => {
+    customThemesRef.current = customThemes;
+  }, [customThemes]);
   const dirty = isThemeDocumentDirty(draft);
   const canGoBack = section !== "overview" || sectionHistory.length > 0;
   const previewStateTokens = React.useMemo(() => {
@@ -85,14 +91,14 @@ export default function ThemeEditorModal({
 
   React.useEffect(() => {
     if (!isOpen) return;
-    setDraft(createThemeDocumentDraft(themeToEdit, customThemes));
+    setDraft(createThemeDocumentDraft(themeToEdit, customThemesRef.current));
     setSection("overview");
     setSectionHistory([]);
     setSaveState("editing");
     setPreviewScene("chat");
     setStartPointKind(themeToEdit ? null : "blank-dark");
     closingRef.current = false;
-  }, [isOpen, themeToEdit, customThemes]);
+  }, [isOpen, themeToEdit]);
 
   const navigateToSection = React.useCallback((next: StudioSection) => {
     if (next === section) return;

@@ -305,14 +305,16 @@ export function useChatVoiceInput({
     activePointerIdRef.current = e.pointerId;
     voiceStartYRef.current = e.clientY;
     cancelSwipeThresholdRef.current = resolveCancelSwipeThresholds();
+    // React 合成事件在 await 之后 currentTarget 会被置空，先保存元素引用。
+    const target = e.currentTarget;
     try {
-      e.currentTarget.setPointerCapture(e.pointerId);
+      target.setPointerCapture(e.pointerId);
     } catch {}
     const ok = await startHoldRecord();
     if (!ok) {
       activePointerIdRef.current = null;
       try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
+        target.releasePointerCapture(e.pointerId);
       } catch {}
     }
   }, [startHoldRecord]);
@@ -363,13 +365,16 @@ export function useChatVoiceInput({
   const handlePointerCancel = React.useCallback(async (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!holdActiveRef.current) return;
     if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
+    const target = e.currentTarget;
     try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
+      target.releasePointerCapture(e.pointerId);
     } catch {}
-    // 手指滑入取消阈值才按取消处理；若未达取消阈值（如轻微滑动被系统偶发手势/失焦打断），平滑完成录音提交，避免误丢语音。
-    if (cancelArmedRef.current) {
+    // 切后台/锁屏时 pointercancel 可能先于 visibilitychange 到达；
+    // 这种情况下必须取消，绝不能把截断的录音在后台自动发出去。
+    if (document.visibilityState === "hidden" || cancelArmedRef.current) {
       await cancelHoldRecord();
     } else {
+      // 手指未达取消阈值（如轻微滑动被系统偶发手势打断）时平滑提交，避免误丢语音。
       await finishHoldRecordRef.current("release");
     }
   }, [cancelHoldRecord]);

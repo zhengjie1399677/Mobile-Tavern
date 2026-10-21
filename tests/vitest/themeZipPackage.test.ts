@@ -149,6 +149,45 @@ describe("Theme & Media ZIP Package Engine", () => {
     expect(result.theme.media?.["click-sfx"]?.src).toBe(`tavern-resource://${audioId}`);
   });
 
+  it("exportThemeZipPackage 能把短 CSS 变量安全写回相对路径并保留可导入的 JSON", async () => {
+    const theme: CustomThemePackage = {
+      schemaVersion: "1.1",
+      id: "custom_cyber_123456",
+      name: "Cyber Neon Space",
+      version: "1.0.0",
+      isDark: true,
+      variables: {
+        "--background": "var(--res-abc12)",
+      },
+      customCss: 'body { background: var(--res-abc12, none); } .x { color: var(--tavern-resource-r_abc12); }',
+      media: {
+        bgm: { type: "audio", src: "tavern-resource://r_audio1", loop: true, volume: 0.5, preload: "metadata" },
+      },
+    };
+
+    const dataUrls: Record<string, string> = {
+      r_abc12: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3Q6wAAAABJRU5ErkJggg==",
+      r_audio1: "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA",
+    };
+    const mockLocalResourceService = {
+      getObjectUrl: vi.fn(async (id: string) => dataUrls[id] ?? ""),
+    } as unknown as ILocalResourceService;
+
+    const zipBlob = await exportThemeZipPackage(theme, mockLocalResourceService);
+    const arrayBuffer = await zipBlob.arrayBuffer();
+    const unpacked = await unpackThemeZip(arrayBuffer);
+
+    // 修复前这里会因 url("...") 未转义而 JSON.parse 失败。
+    const parsed = JSON.parse(unpacked.rawThemeJson) as CustomThemePackage;
+    expect(parsed.customCss).toContain('url("./assets/r_abc12.png")');
+    expect(parsed.customCss).not.toContain("var(--res-abc12");
+    expect(parsed.variables["--background"]).toBe('url("./assets/r_abc12.png")');
+    expect(parsed.media?.bgm.src).toBe("./assets/r_audio1.mp3");
+
+    const filenames = unpacked.mediaFiles.map(file => file.filename).sort();
+    expect(filenames).toEqual(["r_abc12.png", "r_audio1.mp3"]);
+  });
+
   it("exportThemeZipPackage 能够成功生成合法的 ZIP Blob 包含 theme.json", async () => {
     const theme: CustomThemePackage = {
       schemaVersion: "1.1",

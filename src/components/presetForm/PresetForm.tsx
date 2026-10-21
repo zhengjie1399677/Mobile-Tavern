@@ -18,7 +18,7 @@ interface PresetFormProps {
 }
 
 export default function PresetForm({
-  sections = ["preset", "samplers", "prompts", "regex"],
+  sections = ["preset", "samplers", "prompts", "compat", "regex"],
 }: PresetFormProps) {
   const showPreset = sections.includes("preset");
   const showSamplers = sections.includes("samplers");

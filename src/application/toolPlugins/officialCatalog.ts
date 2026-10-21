@@ -143,7 +143,7 @@ const deepseekWebManifest = {
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", minLength: 1, maxLength: 500 },
+        query: { type: "string", minLength: 1, maxLength: 128, pattern: "\\S" },
       },
       required: ["query"],
       additionalProperties: false,

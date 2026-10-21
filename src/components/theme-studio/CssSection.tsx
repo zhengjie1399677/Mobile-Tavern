@@ -28,6 +28,7 @@ export function CssSection({
   const { t } = useTranslation();
   const [aiPromptOpen, setAiPromptOpen] = useState(false);
   const [resourceManagerOpen, setResourceManagerOpen] = useState(false);
+  const [resourceVersion, setResourceVersion] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLPreElement>(null);
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
@@ -138,6 +139,7 @@ export function CssSection({
         showCustomAlert={showCustomAlert}
         showCustomConfirm={showCustomConfirm}
         embedded={true}
+        refreshToken={resourceVersion}
       />
 
       <CssDiagnosticsPanel css={value} diagnostics={diagnostics} onSelect={handleDiagnosticSelect} />
@@ -152,6 +154,7 @@ export function CssSection({
         onClose={() => setResourceManagerOpen(false)}
         resourcePort={resourcePort}
         onInsertCode={handleInsertSnippet}
+        onResourcesChanged={() => setResourceVersion(version => version + 1)}
         showCustomAlert={showCustomAlert}
         showCustomConfirm={showCustomConfirm}
       />

@@ -24,9 +24,6 @@ export const enum RegexPlacement {
   REASONING = 6,
 }
 
-/** 渲染态正则默认深度上限（默认 15，避免未设上限的卡片在深层历史消息中无限渲染拖慢页面） */
-export const DEFAULT_DISPLAY_REGEX_MAX_DEPTH = 15;
-
 export interface RegexEngineScript {
   id?: string;
   scriptName?: string;
@@ -337,11 +334,9 @@ export function applySillyTavernRegexEngine(
         !Number.isNaN(script.maxDepth) &&
         script.maxDepth >= 0;
 
-      const effectiveMaxDepth = hasExplicitMaxDepth
-        ? script.maxDepth!
-        : (mode === "display" || mode === "render" || script.markdownOnly === true)
-          ? DEFAULT_DISPLAY_REGEX_MAX_DEPTH
-          : null;
+      // maxDepth 为 null/undefined 表示不限制深度（与 SillyTavern 及 UI 的“∞”一致）；
+      // 历史渲染性能由分页与虚拟列表控制，不能静默改写卡作者声明的深度语义。
+      const effectiveMaxDepth = hasExplicitMaxDepth ? script.maxDepth! : null;
 
       if (effectiveMaxDepth !== null && depth > effectiveMaxDepth) {
         continue;
