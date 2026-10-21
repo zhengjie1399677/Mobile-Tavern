@@ -24,6 +24,9 @@ export const enum RegexPlacement {
   REASONING = 6,
 }
 
+/** 渲染态正则默认深度上限（默认 15，避免未设上限的卡片在深层历史消息中无限渲染拖慢页面） */
+export const DEFAULT_DISPLAY_REGEX_MAX_DEPTH = 15;
+
 export interface RegexEngineScript {
   id?: string;
   scriptName?: string;
@@ -327,13 +330,20 @@ export function applySillyTavernRegexEngine(
       ) {
         continue;
       }
-      if (
+
+      const hasExplicitMaxDepth =
         script.maxDepth !== undefined &&
         script.maxDepth !== null &&
         !Number.isNaN(script.maxDepth) &&
-        script.maxDepth >= 0 &&
-        depth > script.maxDepth
-      ) {
+        script.maxDepth >= 0;
+
+      const effectiveMaxDepth = hasExplicitMaxDepth
+        ? script.maxDepth!
+        : (mode === "display" || mode === "render" || script.markdownOnly === true)
+          ? DEFAULT_DISPLAY_REGEX_MAX_DEPTH
+          : null;
+
+      if (effectiveMaxDepth !== null && depth > effectiveMaxDepth) {
         continue;
       }
     }

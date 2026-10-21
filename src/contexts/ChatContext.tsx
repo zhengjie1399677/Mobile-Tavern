@@ -30,8 +30,8 @@ const logger = Logger.create("ChatContext");
 const SESSIONS_PAGE_SIZE = 50;
 
 // 单会话消息分页懒加载页大小。
-// 首次进入聊天室仅加载最新 50 条消息，用户滚动到顶部时通过 loadMoreMessages 异步追加更早的历史。
-const MESSAGES_PAGE_SIZE = 50;
+// 首次进入聊天室仅加载最新 15 条消息，用户滚动到顶部时通过 loadMoreMessages 异步追加更早的历史。
+const MESSAGES_PAGE_SIZE = 15;
 
 /** ChatProvider 在 LanguageProvider 上层，无法使用 useTranslation hook。此处直接从 TRANSLATIONS 读取当前语言的翻译。 */
 function tChat(key: string, errorMessage = ""): string {

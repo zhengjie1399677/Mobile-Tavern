@@ -1,4 +1,4 @@
-import React, { memo, useState } from "react";
+import React, { memo, useMemo, useState } from "react";
 import type { CharacterCard } from "../types";
 import { useUnifiedApp } from "../UnifiedAppContext";
 import { useOptionalKernel } from "../contexts/KernelContext";
@@ -45,11 +45,11 @@ const FormattedText = memo(function FormattedText({
 }: FormattedTextProps) {
   const kernel = useOptionalKernel();
   const [isExpanded, setIsExpanded] = useState(false);
-  const isTooLong = text.length > 50000;
+  const isTooLong = text.length > 5000;
   const isWidget = /```html\b|<iframe\b|<StatusPlaceHolder/i.test(text);
   const shouldTruncate = isTooLong && !isExpanded && !isWidget;
   const displayText = shouldTruncate
-    ? `${text.substring(0, 45000)}\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字 ] ...*`
+    ? `${text.substring(0, 4500)}\n\n*... [ 此处已自动折叠超长内容，当前共 ${text.length} 字符 ] ...*`
     : text;
 
   const context = useUnifiedApp((state) => ({
@@ -151,6 +151,7 @@ const FormattedText = memo(function FormattedText({
       : undefined,
     activeSession?.id,
   );
+
   const hasHtml = enableHtml && /<[a-z/][\s\S]*?>/i.test(processed);
   const swipeId =
     messageIndex === undefined

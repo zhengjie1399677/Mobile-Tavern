@@ -123,14 +123,17 @@ const DialogueHistoryView = ({
   // 正文渲染只由分页懒加载（内存规模）与虚拟列表（DOM 数量）控制。
 
   // 预计算每条消息的轮次编号与最新一条 Assistant 消息 ID
-  const roundNums: Record<string, number> = {};
-  let roundCount = 0;
-  (activeSession?.messages || []).forEach((message: Message) => {
-    if (message.sender === "user") {
-      roundCount++;
-    }
-    roundNums[message.id] = roundCount;
-  });
+  const roundNums = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    let roundCount = 0;
+    (activeSession?.messages || []).forEach((message: Message) => {
+      if (message.sender === "user") {
+        roundCount++;
+      }
+      map[message.id] = roundCount;
+    });
+    return map;
+  }, [activeSession?.messages]);
 
   const lastAssistantMsgId = React.useMemo(() => {
     const msgs = activeSession?.messages || [];

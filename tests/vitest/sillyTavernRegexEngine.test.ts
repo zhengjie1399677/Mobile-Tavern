@@ -139,6 +139,52 @@ describe("SillyTavern Regex Engine", () => {
     ).toBe("TARGET");
   });
 
+  it("applySillyTavernRegexEngine 在未设置 maxDepth 时，display/render 态默认上限为 15，prompt/store 态不受此限", () => {
+    const scripts = [
+      {
+        scriptName: "card-widget",
+        findRegex: "/CARD/g",
+        replaceString: "PRETTIFIED_CARD",
+      },
+    ];
+
+    // display 态：depth = 15 时生效
+    expect(
+      applySillyTavernRegexEngine("CARD", scripts, { mode: "display", depth: 15 }),
+    ).toBe("PRETTIFIED_CARD");
+
+    // display 态：depth = 16 超过默认上限 15，跳过渲染以保护性能
+    expect(
+      applySillyTavernRegexEngine("CARD", scripts, { mode: "display", depth: 16 }),
+    ).toBe("CARD");
+
+    // render 态同理
+    expect(
+      applySillyTavernRegexEngine("CARD", scripts, { mode: "render", depth: 16 }),
+    ).toBe("CARD");
+
+    // prompt 态：不受 display 默认上限 15 限制，保证提示词上下文完整
+    expect(
+      applySillyTavernRegexEngine("CARD", scripts, { mode: "prompt", depth: 20 }),
+    ).toBe("PRETTIFIED_CARD");
+
+    // 作者显式指定 maxDepth 时优先遵循作者配置
+    const explicitScript = [
+      {
+        scriptName: "custom-depth",
+        findRegex: "/CARD/g",
+        replaceString: "PRETTIFIED_CARD",
+        maxDepth: 25,
+      },
+    ];
+    expect(
+      applySillyTavernRegexEngine("CARD", explicitScript, { mode: "display", depth: 20 }),
+    ).toBe("PRETTIFIED_CARD");
+    expect(
+      applySillyTavernRegexEngine("CARD", explicitScript, { mode: "display", depth: 26 }),
+    ).toBe("CARD");
+  });
+
   it("applySillyTavernRegexEngine 支持 runOnEdit 编辑态感知", () => {
     const scripts = [
       {
