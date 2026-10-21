@@ -444,8 +444,36 @@ const utilityManifest = {
   },
 } as const satisfies Omit<ToolPluginManifest, "contentHash">;
 
+const BUNDLED_MANIFESTS = [
+  braveSearchManifest,
+  deepseekWebManifest,
+  memoryManifest,
+  deviceTimeManifest,
+  utilityManifest,
+] as const;
+
+/** `pluginId:toolId` → 是否允许模型自动调用。 */
+const OFFICIAL_TOOL_AUTO_INVOKE = new Map<string, boolean>(
+  BUNDLED_MANIFESTS.flatMap((manifest) =>
+    manifest.tools.map((tool) => {
+      const declared = (tool as { autoInvoke?: boolean }).autoInvoke;
+      return [`${manifest.id}:${tool.id}`, declared !== false] as const;
+    })),
+);
+
+/**
+ * 官方目录声明的「是否允许模型自动调用」。
+ *
+ * 已安装副本的 manifest 与内容哈希绑定，不会因为 App 升级被改写；而 `autoInvoke` 决定
+ * 模型能否自行花用户的钱，属于安全策略而非插件功能，因此以随包分发的官方目录为准。
+ * 返回 `undefined` 表示该插件/工具不在官方目录内，调用方应回落到已安装 manifest。
+ */
+export function readOfficialToolAutoInvoke(pluginId: string, toolId: string): boolean | undefined {
+  return OFFICIAL_TOOL_AUTO_INVOKE.get(`${pluginId}:${toolId}`);
+}
+
 export async function listOfficialToolPluginInspections(): Promise<ToolPluginInspection[]> {
-  return Promise.all([braveSearchManifest, deepseekWebManifest, memoryManifest, deviceTimeManifest, utilityManifest].map(async (manifest) => ({
+  return Promise.all(BUNDLED_MANIFESTS.map(async (manifest) => ({
     manifest: structuredClone({
       ...manifest,
       contentHash: await computeToolPluginManifestHash(manifest),

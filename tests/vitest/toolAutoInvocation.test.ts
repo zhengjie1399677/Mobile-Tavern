@@ -6,6 +6,7 @@ import {
   DEVICE_TIME_TOOL_NAME,
   listOfficialToolPluginInspections,
   MEMORY_WRITE_TOOL_NAME,
+  readOfficialToolAutoInvoke,
 } from "../../src/application/toolPlugins/officialCatalog";
 import { parseToolPluginManifest } from "../../src/domain/toolPlugins";
 import { computeToolPluginManifestHash } from "../../src/domain/toolPlugins/manifestParser";
@@ -42,6 +43,18 @@ describe("工具自动调用声明", () => {
 
     expect(byName.get(MEMORY_WRITE_TOOL_NAME)?.autoInvoke).toBeUndefined();
     expect(byName.get(DEVICE_TIME_TOOL_NAME)?.autoInvoke).toBeUndefined();
+  });
+
+  it("官方内置插件以随包目录为准，已安装的旧 manifest 不含该字段也不会退化成可自动调用", () => {
+    // 已安装副本与内容哈希绑定、不会随 App 升级改写，所以这层覆盖是必要的。
+    expect(readOfficialToolAutoInvoke("official.deepseek-web", "web.search")).toBe(false);
+    expect(readOfficialToolAutoInvoke("official.deepseek-web", "web.fetch")).toBe(false);
+    expect(readOfficialToolAutoInvoke("official.brave-search", "web.search")).toBe(false);
+    // 本地工具仍为可自动调用
+    expect(readOfficialToolAutoInvoke("official.memory", "memory.write")).toBe(true);
+    expect(readOfficialToolAutoInvoke("official.device-time", "system.time")).toBe(true);
+    // 非官方插件不覆盖，交由已安装 manifest 决定
+    expect(readOfficialToolAutoInvoke("com.example.custom", "web.search")).toBeUndefined();
   });
 
   it("manifest 校验接受布尔 autoInvoke，并把非布尔值判为无效", async () => {

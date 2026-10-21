@@ -27,6 +27,7 @@ import type {
   ToolPluginNetworkRequest,
   ToolPluginWorkerPort,
 } from "../toolPlugins/executionContracts";
+import { readOfficialToolAutoInvoke } from "../toolPlugins/officialCatalog";
 import {
   KernelServices,
   type IAgentRuntimeService,
@@ -226,7 +227,8 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
           riskLevel: tool.riskLevel,
           sideEffect: tool.sideEffect,
           executionScope: tool.executionScope,
-          autoInvoke: tool.autoInvoke !== false,
+          // 官方内置插件以随包目录的声明为准：已安装副本的旧 manifest 不含该字段时不能退化成"可自动"。
+          autoInvoke: readOfficialToolAutoInvoke(plugin.id, tool.id) ?? tool.autoInvoke !== false,
           policy: "ask",
           timeoutMs: plugin.manifest.runtime.timeoutMs ?? 15_000,
           execute: (input, context) => this.executeTool(plugin, tool, artifact?.entryCode, input, context),
