@@ -586,8 +586,9 @@ export function useSendMessage(p: SendMessageParams) {
         }));
         await executeOpenAiToolLoop({
           context: agentTurn,
+          // 声明 autoInvoke:false 的工具（如收费联网检索）不进入模型工具列表，只保留手动执行入口。
           tools: provider.capabilities.supportsTools && typeof runtime.listTools === "function"
-            ? runtime.listTools().filter((tool) => enabledToolNames.has(tool.name))
+            ? runtime.listTools().filter((tool) => enabledToolNames.has(tool.name) && tool.autoInvoke !== false)
             : [],
           executeModelStep: executeProviderStep,
         });
@@ -836,7 +837,7 @@ export function useSendMessage(p: SendMessageParams) {
     });
     const enabledToolNameSet = new Set(enabledToolNames);
     const registeredTools = typeof runtime.listTools === "function" ? runtime.listTools() : [];
-    const enabledTools = registeredTools.filter((tool) => enabledToolNameSet.has(tool.name));
+    const enabledTools = registeredTools.filter((tool) => enabledToolNameSet.has(tool.name) && tool.autoInvoke !== false);
     const handleKey = `${sessionId}:${MOBILE_TAVERN_CHAT_DRIVER_ID}:${providerId}:${enabledToolNames.join(",")}`;
     if (agentHandleRef.current && agentHandleKeyRef.current === handleKey) {
       return agentHandleRef.current;

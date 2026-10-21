@@ -1,22 +1,20 @@
 /**
- * 统一工具面板回归（2026-10-21）。
+ * 统一工具面板回归（2026-10-21 合并入口；2026-10-22 拆分「模型可用 / 立即执行」）。
  *
- * 背景：`/tool` 曾被改写成直接打开 MCP 气泡，「工具」气泡里又混着一条同样打开 MCP 的
- * 「调用外部能力」，导致功能重复、而模型真正可用的 Tool 在聊天里完全不可见。
- *
- * 这里钉住合并后的契约：
- *   - 两个分区「自动调用」「手动调用」并存；
- *   - 自动调用分区只读展示模型可用的 Tool，不提供任何执行入口；
- *   - 手动调用分区只列插件命令（owner = tool-plugin/*），宿主内置命令不再混入；
- *   - `initialTab` 决定打开时的落点，供 `/tool` 与 `/mcp` 区分。
+ * 钉住四件事：
+ *   - 三个分区并存：模型可用、立即执行、MCP；
+ *   - 模型可用分区只读，不提供执行入口；
+ *   - `autoInvoke: false` 的收费工具只出现在「立即执行」，填表后真正调用用例；
+ *   - 宿主内置命令不混进插件命令列表（曾经导致"工具里再开工具"）。
  */
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import {
   ToolsPanel,
+  type SessionManualToolSummary,
   type SessionModelToolSummary,
   type ToolsPanelTab,
 } from "../../src/tabs/chat/composer-panels/ToolsPanel";
@@ -41,6 +39,8 @@ vi.mock("../../src/hooks/useMobileBackHandler", () => ({
   useMobileBackHandler: () => undefined,
 }));
 
+const SEARCH_TOOL = "ext.official.deepseek-web.web.search";
+
 const modelTools: SessionModelToolSummary[] = [
   {
     name: "character.read",
@@ -49,12 +49,29 @@ const modelTools: SessionModelToolSummary[] = [
     sideEffect: "none",
     policy: "allow",
   },
+];
+
+const manualTools: SessionManualToolSummary[] = [
   {
-    name: "memory.write",
-    description: "写入长期记忆",
-    riskLevel: "high",
-    sideEffect: "local-write",
+    name: "character.read",
+    description: "读取当前角色的公开字段",
+    riskLevel: "low",
+    sideEffect: "none",
+    policy: "allow",
+    inputJsonSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: SEARCH_TOOL,
+    description: "搜索公开网页并返回标题、链接和摘要",
+    riskLevel: "medium",
+    sideEffect: "external",
     policy: "ask",
+    inputJsonSchema: {
+      type: "object",
+      properties: { query: { type: "string", description: "检索关键词" } },
+      required: ["query"],
+      additionalProperties: false,
+    },
   },
 ];
 
@@ -69,26 +86,36 @@ const commands: ComposerCommandDescriptor[] = [
   {
     name: "tool",
     label: "查看可用工具",
-    description: "宿主内置命令不应出现在手动分区",
+    description: "宿主内置命令不应出现在插件命令里",
     owner: "host.builtin",
     acceptsArgument: true,
   },
 ];
 
-function renderPanel(initialTab: ToolsPanelTab, onSelectCommand = vi.fn()) {
+function renderPanel(options: {
+  initialTab?: ToolsPanelTab;
+  onInvokeTool?: (toolName: string, input: Record<string, unknown>) => Promise<{
+    toolName: string;
+    data: string;
+    durationMs: number;
+    isError: boolean;
+  }>;
+} = {}) {
   const onOpenChange = vi.fn();
-  // 固定中文，避免断言被语言包翻译成英文后失配。
+  const onInvokeTool = options.onInvokeTool ?? vi.fn();
   localStorage.setItem("mobile_tavern_language", "zh-CN");
   render(
     <LanguageProvider>
       <ToolsPanel
         open
         onOpenChange={onOpenChange}
-        initialTab={initialTab}
+        initialTab={options.initialTab ?? "model"}
         draftText=""
         modelTools={modelTools}
+        manualTools={manualTools}
         availableCommands={commands}
-        onSelectCommand={onSelectCommand}
+        onSelectCommand={vi.fn()}
+        onInvokeTool={onInvokeTool}
         onInsertData={vi.fn()}
         onOpenWorkbench={vi.fn()}
         showAlert={vi.fn()}
@@ -97,45 +124,54 @@ function renderPanel(initialTab: ToolsPanelTab, onSelectCommand = vi.fn()) {
       />
     </LanguageProvider>,
   );
-  return { onOpenChange, onSelectCommand };
+  return { onOpenChange, onInvokeTool };
 }
 
 describe("统一工具面板", () => {
-  it("默认落在自动调用分区，只读展示模型可用工具", () => {
-    renderPanel("auto");
+  it("默认落在模型可用分区，只读展示模型可自动调用的工具", () => {
+    renderPanel();
 
-    expect(screen.getByRole("tab", { name: /自动调用/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /模型可用/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("character.read")).toBeInTheDocument();
-    expect(screen.getByText("memory.write")).toBeInTheDocument();
-    // 风险与策略标签来自 Tool Definition，不是界面猜测
-    expect(screen.getByText("高风险")).toBeInTheDocument();
-    expect(screen.getByText("需确认")).toBeInTheDocument();
-    // 只读：不存在执行按钮
-    expect(screen.queryByRole("button", { name: /^调用$/ })).toBeNull();
+    // 收费检索不在模型可用分区里
+    expect(screen.queryByText(SEARCH_TOOL)).toBeNull();
+    // 只读：没有「执行」按钮
+    expect(screen.queryByRole("button", { name: /^执行$/ })).toBeNull();
   });
 
-  it("手动调用分区只列插件命令，点选后回调并关闭面板", () => {
-    const { onOpenChange, onSelectCommand } = renderPanel("manual");
+  it("立即执行分区能手动跑 autoInvoke:false 的收费检索工具", async () => {
+    const onInvokeTool = vi.fn(async () => ({
+      toolName: SEARCH_TOOL,
+      data: "【结果】唐朝建立于 618 年",
+      durationMs: 42,
+      isError: false,
+    }));
+    renderPanel({ initialTab: "run", onInvokeTool });
 
-    expect(screen.getByRole("tab", { name: /手动调用/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /立即执行/ })).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(screen.getByText(SEARCH_TOOL).closest("button") as HTMLElement);
+    fireEvent.change(screen.getByPlaceholderText("检索关键词"), { target: { value: "唐朝" } });
+    fireEvent.click(screen.getByRole("button", { name: /^执行$/ }));
+
+    await waitFor(() => {
+      expect(onInvokeTool).toHaveBeenCalledWith(SEARCH_TOOL, { query: "唐朝" });
+    });
+    expect(await screen.findByText(/唐朝建立于 618 年/)).toBeInTheDocument();
+  });
+
+  it("插件命令列表只收 tool-plugin 归属的命令", () => {
+    renderPanel({ initialTab: "run" });
+
     expect(screen.getByText("/dice")).toBeInTheDocument();
-    // 宿主内置的 /tool 不再混进手动分区，避免出现"工具里开工具"的重复入口
     expect(screen.queryByText("/tool")).toBeNull();
-
-    fireEvent.click(screen.getByText("/dice").closest("button") as HTMLElement);
-    expect(onSelectCommand).toHaveBeenCalledWith(expect.objectContaining({ name: "dice" }));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("initialTab=manual 时直接进入手动分区（/mcp 的落点）", () => {
-    renderPanel("manual");
-    expect(screen.getByRole("tab", { name: /手动调用/ })).toHaveAttribute("aria-selected", "true");
+  it("initialTab=mcp 时进入 MCP 分区并给出总开关提示", () => {
+    renderPanel({ initialTab: "mcp" });
+
+    expect(screen.getByRole("tab", { name: /MCP/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("外部能力（MCP）")).toBeInTheDocument();
-  });
-
-  it("外部能力开关关闭时，手动分区给出明确提示而不是静默隐藏", () => {
-    renderPanel("manual");
-    expect(screen.getByText(/外部能力总开关关闭时/)).toBeInTheDocument();
     expect(screen.getByText(/总开关当前是关闭的/)).toBeInTheDocument();
   });
 });

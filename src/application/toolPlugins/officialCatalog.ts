@@ -78,6 +78,7 @@ const braveSearchManifest = {
     riskLevel: "medium",
     sideEffect: "external",
     executionScope: "external",
+    autoInvoke: false,
     handler: {
       kind: "http",
       request: {
@@ -157,6 +158,7 @@ const deepseekWebManifest = {
     riskLevel: "medium",
     sideEffect: "external",
     executionScope: "external",
+    autoInvoke: false,
     handler: {
       kind: "http",
       request: {
@@ -188,6 +190,7 @@ const deepseekWebManifest = {
     riskLevel: "medium",
     sideEffect: "external",
     executionScope: "external",
+    autoInvoke: false,
     handler: {
       kind: "http",
       request: {

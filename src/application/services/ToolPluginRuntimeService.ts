@@ -226,6 +226,7 @@ export class ToolPluginRuntimeService implements IToolPluginRuntimeService {
           riskLevel: tool.riskLevel,
           sideEffect: tool.sideEffect,
           executionScope: tool.executionScope,
+          autoInvoke: tool.autoInvoke !== false,
           policy: "ask",
           timeoutMs: plugin.manifest.runtime.timeoutMs ?? 15_000,
           execute: (input, context) => this.executeTool(plugin, tool, artifact?.entryCode, input, context),

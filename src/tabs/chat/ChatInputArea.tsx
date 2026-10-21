@@ -30,7 +30,9 @@ import {
 import { ComposerCommandSuggestions } from "./ComposerCommandSuggestions";
 import { ComposerQuickActionBar } from "./composer-panels/ComposerQuickActionBar";
 import type { ToolsPanelTab } from "./composer-panels/ToolsPanel";
-import { useSessionModelTools } from "./useSessionModelTools";
+import { useSessionTools } from "./useSessionTools";
+import { useOptionalKernel } from "../../contexts/KernelContext";
+import { invokeAgentToolManually } from "@/src/application/useCases/manualToolInvocation";
 import { ComposerReplySuggestions } from "./composer-panels/ComposerReplySuggestions";
 import { QuickActionManagerModal } from "./composer-panels/QuickActionManagerModal";
 import {
@@ -99,7 +101,7 @@ const ChatInputArea = ({
   }, []);
 
   const [toolsPanelOpen, setToolsPanelOpen] = React.useState(false);
-  const [toolsPanelTab, setToolsPanelTab] = React.useState<ToolsPanelTab>("auto");
+  const [toolsPanelTab, setToolsPanelTab] = React.useState<ToolsPanelTab>("model");
   const [toolsPanelSeedText, setToolsPanelSeedText] = React.useState("");
   const { t } = useTranslation();
   const {
@@ -369,7 +371,8 @@ const ChatInputArea = ({
     return Array.from(map.values());
   }, [composerProfileId, getKernelService]);
   const composerCommandSuggestions = filterComposerCommandSuggestions(localInput, composerCommands);
-  const sessionModelTools = useSessionModelTools(activeSession, activeCharacter);
+  const kernel = useOptionalKernel();
+  const { modelTools: sessionModelTools, manualTools: sessionManualTools } = useSessionTools(activeSession, activeCharacter);
   const [selectedCommandIndex, setSelectedCommandIndex] = React.useState(0);
 
   React.useEffect(() => {
@@ -389,6 +392,20 @@ const ChatInputArea = ({
       return null;
     }
   }, [getKernelService]);
+
+  /** 手动执行一次工具：单次、无审批链、不进 Agent Journal；结果只回填草稿。 */
+  const handleInvokeTool = React.useCallback(async (
+    toolName: string,
+    input: Record<string, unknown>,
+  ) => {
+    if (!kernel || !activeSession) throw new Error("工具运行时未就绪，无法执行。");
+    return invokeAgentToolManually({
+      kernel,
+      sessionId: activeSession.id,
+      toolName,
+      input,
+    });
+  }, [kernel, activeSession]);
 
   /**
    * 工具结果只插入输入框（数据正文），不自动发送、不触发模型。
@@ -415,7 +432,9 @@ const ChatInputArea = ({
       // `/tool` 打开统一工具面板：无参数进「自动调用」看模型可用工具，带参数直接进手动调用并预填。
       // `/mcp` 始终进入手动调用分区，行为与原 MCP 显性调用一致。
       if (command.name === "tool" || command.name === "mcp") {
-        const tab: ToolsPanelTab = command.name === "mcp" || argument ? "manual" : "auto";
+        const tab: ToolsPanelTab = command.name === "mcp"
+          ? "mcp"
+          : (argument ? "run" : "model");
         setLocalInput("");
         setUserInputMessage("");
         setReplySuggestions([]);
@@ -623,6 +642,8 @@ const ChatInputArea = ({
           },
           draftText: toolsPanelSeedText,
           modelTools: sessionModelTools,
+          manualTools: sessionManualTools,
+          onInvokeTool: handleInvokeTool,
           externalCapabilitiesEnabled: settings.enableExternalCapabilities === true,
           getRuntime: getExternalSourceRuntime,
           showAlert: showCustomAlert,

@@ -3,9 +3,10 @@ import { RefreshCw, Cpu, Play } from "lucide-react";
 import { useUnifiedApp } from "../../../UnifiedAppContext";
 import { useTranslation } from "../../../contexts/LanguageContext";
 import { useComposerCompatibilityVariables } from "../useComposerInputPath";
-import { ToolsPanel, type SessionModelToolSummary, type ToolsPanelTab } from "./ToolsPanel";
+import { ToolsPanel, type SessionManualToolSummary, type SessionModelToolSummary, type ToolsPanelTab } from "./ToolsPanel";
 import { PresetQuickPopover } from "./PresetQuickPopover";
 import type { IExternalSourceRuntimeService } from "@/src/application/serviceContracts";
+import type { ManualToolInvocationResult } from "@/src/application/useCases/manualToolInvocation";
 import type { CustomPromptBlock, Message, SummaryCard } from "../../../types";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { QuickActionModulesConfig } from "./quickActionTypes";
@@ -18,6 +19,8 @@ export interface ComposerToolsPanelBinding {
   readonly onOpenChange: (open: boolean) => void;
   readonly draftText: string;
   readonly modelTools: readonly SessionModelToolSummary[];
+  readonly manualTools: readonly SessionManualToolSummary[];
+  readonly onInvokeTool: (toolName: string, input: Record<string, unknown>) => Promise<ManualToolInvocationResult>;
   readonly externalCapabilitiesEnabled: boolean;
   readonly getRuntime: () => IExternalSourceRuntimeService | null;
   readonly showAlert: (message: string, title?: string) => Promise<void> | void;
@@ -204,6 +207,8 @@ export function ComposerQuickActionBar({
             disabled={isSending || !activeSession}
             draftText={toolsPanel.draftText}
             modelTools={toolsPanel.modelTools}
+            manualTools={toolsPanel.manualTools}
+            onInvokeTool={toolsPanel.onInvokeTool}
             availableCommands={availableCommands}
             onSelectCommand={(command) => onSelectCommand?.(command)}
             onInsertData={onInsertData}

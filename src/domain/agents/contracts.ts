@@ -91,6 +91,8 @@ export interface AgentToolDefinition {
   readonly riskLevel: AgentToolRiskLevel;
   readonly sideEffect: AgentToolSideEffect;
   readonly executionScope: AgentToolExecutionScope;
+  /** 是否进入模型工具列表；false 表示只允许用户手动执行。缺省为 true。 */
+  readonly autoInvoke?: boolean;
   /** 未配置永久授权时的 fail-closed 策略；高风险 Tool 不得默认 allow。 */
   readonly policy: AgentToolPolicy;
   readonly timeoutMs: number;

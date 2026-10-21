@@ -67,6 +67,12 @@ export interface ToolPluginToolDeclaration {
   readonly riskLevel: AgentToolRiskLevel;
   readonly sideEffect: AgentToolSideEffect;
   readonly executionScope: AgentToolExecutionScope;
+  /**
+   * 是否允许模型在对话中自动提议调用；默认 true。
+   * 收费或高成本的外部能力（如联网检索）应声明 false：工具仍然注册、仍可手动执行，
+   * 但不会进入模型工具列表，避免"模型自己决定花钱"。
+   */
+  readonly autoInvoke?: boolean;
   readonly composerCommand?: ToolPluginComposerCommandDeclaration;
   readonly handler?:
     | {

@@ -121,6 +121,7 @@ const manifestSchema = z.object({
     riskLevel: riskSchema,
     sideEffect: z.enum(["none", "local-write", "external", "irreversible"]),
     executionScope: z.enum(["turn", "session", "memory", "character", "external"]),
+    autoInvoke: z.boolean().optional(),
     composerCommand: composerCommandSchema.optional(),
     handler: toolHandlerSchema.optional(),
   }).strict()).min(1).max(32),
