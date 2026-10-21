@@ -56,8 +56,15 @@ export const BUILTIN_COMPOSER_COMMANDS: readonly ComposerCommandDescriptor[] = [
   },
   {
     name: "tool",
+    label: "查看可用工具",
+    description: "打开工具面板：查看模型当前可自动调用的工具，并手动执行插件命令；带参数时直接进入手动调用分区",
+    owner: "host.builtin",
+    acceptsArgument: true,
+  },
+  {
+    name: "mcp",
     label: "调用外部能力",
-    description: "显式调用已启用的 MCP / 外部工具，并把结果作为上下文送入对话",
+    description: "打开工具面板的外部能力分区，手动调用已启用的 MCP 工具并把结果插入输入框",
     owner: "host.builtin",
     acceptsArgument: true,
   },

@@ -30,7 +30,6 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
     expect(config.preset).toBe(true);
     expect(config.token_predict).toBe(true);
     expect(config.tool).toBe(false);
-    expect(config.mcp).toBe(false);
   });
 
   it("旧缓存开启超过 4 个模块时按优先级收敛，避免升级后突破上限", () => {
@@ -40,13 +39,11 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
       preset: true,
       token_predict: true,
       tool: true,
-      mcp: true,
     }));
 
     const loaded = loadQuickActionModulesConfig();
     expect(Object.values(loaded).filter(Boolean)).toHaveLength(4);
     expect(loaded.tool).toBe(false);
-    expect(loaded.mcp).toBe(false);
 
     saveQuickActionModulesConfig({
       reroll: true,
@@ -54,20 +51,18 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
       preset: true,
       token_predict: true,
       tool: true,
-      mcp: true,
     });
     const stored = JSON.parse(localStorage.getItem(QUICK_ACTION_MODULES_STORAGE_KEY) ?? "{}") as QuickActionModulesConfig;
     expect(Object.values(stored).filter(Boolean)).toHaveLength(4);
   });
 
-  it("能正确持久化与重新读取 6 个模块的自由开关配置", () => {
+  it("能正确持久化与重新读取 5 个模块的自由开关配置", () => {
     const customConfig: QuickActionModulesConfig = {
       reroll: false,
       continue: true,
       preset: false,
       token_predict: false,
       tool: true,
-      mcp: true,
     };
     saveQuickActionModulesConfig(customConfig);
 
@@ -75,7 +70,28 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
     expect(loaded).toEqual(customConfig);
     expect(loaded.reroll).toBe(false);
     expect(loaded.tool).toBe(true);
-    expect(loaded.mcp).toBe(true);
+  });
+
+  it("把已合并的旧 mcp 模块平移为工具面板开关，不丢用户意图", () => {
+    // 旧版本会同时写入 tool 与 mcp：只开 MCP 的用户迁移后应当直接得到工具面板入口。
+    localStorage.setItem(
+      QUICK_ACTION_MODULES_STORAGE_KEY,
+      JSON.stringify({ reroll: false, continue: false, preset: false, token_predict: false, mcp: true })
+    );
+    expect(loadQuickActionModulesConfig().tool).toBe(true);
+
+    localStorage.setItem(
+      QUICK_ACTION_MODULES_STORAGE_KEY,
+      JSON.stringify({ reroll: false, continue: false, preset: false, token_predict: false, tool: false, mcp: true })
+    );
+    expect(loadQuickActionModulesConfig().tool).toBe(true);
+
+    // 两个都关的用户保持关闭，不因迁移被强行打开。
+    localStorage.setItem(
+      QUICK_ACTION_MODULES_STORAGE_KEY,
+      JSON.stringify({ reroll: false, continue: false, preset: false, token_predict: false, tool: false, mcp: false })
+    );
+    expect(loadQuickActionModulesConfig().tool).toBe(false);
   });
 
   it("平滑兼容旧版本存储的 token_actions 键", () => {
@@ -87,7 +103,7 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
     expect(loaded.reroll).toBe(false);
     expect(loaded.continue).toBe(false);
     expect(loaded.token_predict).toBe(false);
-    expect(loaded.mcp).toBe(true);
+    expect(loaded.tool).toBe(true);
   });
 
   it("在 localStorage 包含损坏 JSON 时平滑回退到默认值而不抛出异常", () => {
@@ -96,7 +112,7 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
     expect(loaded).toEqual(DEFAULT_QUICK_ACTION_MODULES);
   });
 
-  it("QuickActionManagerModal 正常渲染标题、总开关与 6 个功能模块卡片及 4 个上限控制", () => {
+  it("QuickActionManagerModal 正常渲染标题、总开关与 5 个功能模块卡片及 4 个上限控制", () => {
     const onClose = vi.fn();
     const onToggleQuickActionsVisible = vi.fn();
     const onUpdateModulesConfig = vi.fn();
@@ -116,20 +132,21 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
     expect(screen.getByText("快捷栏管理")).toBeInTheDocument();
     expect(screen.getAllByText("启用输入框快捷栏").length).toBeGreaterThanOrEqual(1);
 
-    // 检查 6 个独立模块都在列表中渲染
+    // 检查 5 个独立模块都在列表中渲染
     expect(screen.getAllByText("重新生成回复 (重发)").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("继续推进剧情").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("预设调控 (Preset)").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Token 实时预估").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("工具插件 (Tool)").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("外部能力 (MCP)").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("工具面板 (Tool)").length).toBeGreaterThanOrEqual(1);
+    // 合并后不再出现独立的 MCP 开关卡片
+    expect(screen.queryByText("外部能力 (MCP)")).toBeNull();
 
     // 默认 4 个开启 (reroll + continue + preset + token_predict)
     expect(screen.getByText("4 / 4 已开启")).toBeInTheDocument();
     expect(screen.getByText(/最多同时开启 4 个快捷功能/)).toBeInTheDocument();
   });
 
-  it("点击恢复默认按钮能重置 6 个模块与总开关", () => {
+  it("点击恢复默认按钮能重置模块与总开关", () => {
     const onClose = vi.fn();
     const onToggleQuickActionsVisible = vi.fn();
     const onUpdateModulesConfig = vi.fn();
@@ -140,7 +157,6 @@ describe("快捷栏管理与模块配置 (Quick Action Bar Management)", () => {
       preset: false,
       token_predict: false,
       tool: true,
-      mcp: true,
     };
 
     renderWithLang(

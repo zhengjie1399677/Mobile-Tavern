@@ -11,6 +11,7 @@ import {
   KernelServices,
   type IAttachmentService,
   type IComposerCommandService,
+  type IExternalSourceRuntimeService,
 } from "@/src/application/serviceContracts";
 import { getSessionRuntimeProfileId } from "@/src/application/useCases/runtimeProfileSession";
 import {
@@ -28,6 +29,8 @@ import {
 } from "./attachment-composer/PendingAttachmentStrip";
 import { ComposerCommandSuggestions } from "./ComposerCommandSuggestions";
 import { ComposerQuickActionBar } from "./composer-panels/ComposerQuickActionBar";
+import type { ToolsPanelTab } from "./composer-panels/ToolsPanel";
+import { useSessionModelTools } from "./useSessionModelTools";
 import { ComposerReplySuggestions } from "./composer-panels/ComposerReplySuggestions";
 import { QuickActionManagerModal } from "./composer-panels/QuickActionManagerModal";
 import {
@@ -95,8 +98,9 @@ const ChatInputArea = ({
     });
   }, []);
 
-  const [mcpPopoverOpen, setMcpPopoverOpen] = React.useState(false);
-  const [mcpSeedText, setMcpSeedText] = React.useState("");
+  const [toolsPanelOpen, setToolsPanelOpen] = React.useState(false);
+  const [toolsPanelTab, setToolsPanelTab] = React.useState<ToolsPanelTab>("auto");
+  const [toolsPanelSeedText, setToolsPanelSeedText] = React.useState("");
   const { t } = useTranslation();
   const {
     isSending,
@@ -365,16 +369,26 @@ const ChatInputArea = ({
     return Array.from(map.values());
   }, [composerProfileId, getKernelService]);
   const composerCommandSuggestions = filterComposerCommandSuggestions(localInput, composerCommands);
+  const sessionModelTools = useSessionModelTools(activeSession, activeCharacter);
   const [selectedCommandIndex, setSelectedCommandIndex] = React.useState(0);
 
   React.useEffect(() => {
     setSelectedCommandIndex(0);
   }, [localInput]);
 
-  const openMcpPopover = React.useCallback((seed: string) => {
-    setMcpSeedText(seed);
-    setMcpPopoverOpen(true);
+  const openToolsPanel = React.useCallback((tab: ToolsPanelTab, seed = "") => {
+    setToolsPanelTab(tab);
+    setToolsPanelSeedText(seed);
+    setToolsPanelOpen(true);
   }, []);
+
+  const getExternalSourceRuntime = React.useCallback((): IExternalSourceRuntimeService | null => {
+    try {
+      return getKernelService<IExternalSourceRuntimeService>(KernelServices.ExternalSources);
+    } catch {
+      return null;
+    }
+  }, [getKernelService]);
 
   /**
    * 工具结果只插入输入框（数据正文），不自动发送、不触发模型。
@@ -398,21 +412,14 @@ const ChatInputArea = ({
     if (!activeSession || isExecutingComposerCommand) return;
 
     if (command.owner === "host.builtin") {
-      // `/tool [查询]` 走显性调用面板：列出已启用工具并自动匹配 / 预填查询。
-      if (command.name === "tool") {
-        if (settings.enableExternalCapabilities !== true) {
-          await showCustomAlert(
-            "外部能力（MCP）总开关当前是关闭的。\n\n请到 工作台 → 扩展能力 打开「启用外部能力（MCP）」后再使用。",
-            "外部能力已关闭",
-          );
-          setLocalInput("");
-          setUserInputMessage("");
-          return;
-        }
+      // `/tool` 打开统一工具面板：无参数进「自动调用」看模型可用工具，带参数直接进手动调用并预填。
+      // `/mcp` 始终进入手动调用分区，行为与原 MCP 显性调用一致。
+      if (command.name === "tool" || command.name === "mcp") {
+        const tab: ToolsPanelTab = command.name === "mcp" || argument ? "manual" : "auto";
         setLocalInput("");
         setUserInputMessage("");
         setReplySuggestions([]);
-        openMcpPopover(argument.trim());
+        openToolsPanel(tab, argument.trim());
         return;
       }
       await executeBuiltinComposerCommand({
@@ -482,8 +489,7 @@ const ChatInputArea = ({
     showCustomAlert,
     showCustomConfirm,
     t,
-    openMcpPopover,
-    settings.enableExternalCapabilities,
+    openToolsPanel,
   ]);
 
   const executeComposerCommandIfPresent = React.useCallback(async (): Promise<boolean> => {
@@ -604,16 +610,23 @@ const ChatInputArea = ({
       className="chat-composer-shell z-10 flex shrink-0 flex-col items-center gap-2 px-3 pt-2.5"
     >
       <ComposerQuickActionBar
-        visible={showQuickActions}
+        visible={showQuickActions || toolsPanelOpen}
         isHolding={isHolding}
         draftText={localInput}
         onInsertData={handleInsertToolData}
-        mcpPopoverOpen={mcpPopoverOpen}
-        onMcpPopoverOpenChange={(next) => {
-          if (next) setMcpSeedText((localInput || "").trim());
-          setMcpPopoverOpen(next);
+        toolsPanel={{
+          open: toolsPanelOpen,
+          tab: toolsPanelTab,
+          onOpenChange: (next) => {
+            if (next) setToolsPanelSeedText((localInput || "").trim());
+            setToolsPanelOpen(next);
+          },
+          draftText: toolsPanelSeedText,
+          modelTools: sessionModelTools,
+          externalCapabilitiesEnabled: settings.enableExternalCapabilities === true,
+          getRuntime: getExternalSourceRuntime,
+          showAlert: showCustomAlert,
         }}
-        mcpSeedText={mcpSeedText}
         modulesConfig={quickActionModules}
         availableCommands={composerCommands}
         onSelectCommand={(command) => {

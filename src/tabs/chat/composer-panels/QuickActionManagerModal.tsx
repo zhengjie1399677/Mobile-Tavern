@@ -4,7 +4,6 @@ import {
   RefreshCw,
   Play,
   Cpu,
-  Plug,
   Wrench,
   Sliders,
   RotateCcw,
@@ -85,20 +84,11 @@ const MODULE_DEFINITIONS: readonly ModuleItemDef[] = [
   {
     id: "tool",
     titleKey: "quick_actions.tool_title",
-    defaultTitle: "工具插件 (Tool)",
+    defaultTitle: "工具面板 (Tool)",
     descKey: "quick_actions.tool_desc",
-    defaultDesc: "快捷唤起 DeepSeek 网页搜索、网页抓取、掷骰子、随机抽取等插件工具。",
+    defaultDesc: "统一工具面板：查看模型可自动调用的工具，并手动执行插件命令与 MCP 外部能力。",
     icon: Wrench,
     accentColor: "text-teal-400 bg-teal-500/15 border-teal-500/30",
-  },
-  {
-    id: "mcp",
-    titleKey: "quick_actions.mcp_title",
-    defaultTitle: "外部能力 (MCP)",
-    descKey: "quick_actions.mcp_desc",
-    defaultDesc: "快捷唤起 MCP 外部服务与能力面板，支持随时手动触发外部工具并提取资料。",
-    icon: Plug,
-    accentColor: "text-purple-400 bg-purple-500/15 border-purple-500/30",
   },
 ] as const;
 
@@ -223,7 +213,7 @@ export function QuickActionManagerModal({
             </p>
           )}
 
-          {/* 6 个模块开关卡片 */}
+          {/* 模块开关卡片（MCP 已并入工具面板） */}
           <div className="space-y-2">
             {MODULE_DEFINITIONS.map((mod) => {
               const Icon = mod.icon;

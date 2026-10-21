@@ -3,23 +3,32 @@ import { RefreshCw, Cpu, Play } from "lucide-react";
 import { useUnifiedApp } from "../../../UnifiedAppContext";
 import { useTranslation } from "../../../contexts/LanguageContext";
 import { useComposerCompatibilityVariables } from "../useComposerInputPath";
-import { McpChatPopover } from "../../../components/externalTools/McpChatPopover";
-import { ToolChatPopover } from "./ToolChatPopover";
+import { ToolsPanel, type SessionModelToolSummary, type ToolsPanelTab } from "./ToolsPanel";
 import { PresetQuickPopover } from "./PresetQuickPopover";
-import { KernelServices, type IExternalSourceRuntimeService } from "@/src/application/serviceContracts";
+import type { IExternalSourceRuntimeService } from "@/src/application/serviceContracts";
 import type { CustomPromptBlock, Message, SummaryCard } from "../../../types";
 import type { RecalledMessage } from "@/src/application/services/memory/types";
 import type { QuickActionModulesConfig } from "./quickActionTypes";
 import type { ComposerCommandDescriptor } from "@/src/domain/composer/contracts";
+
+/** 工具面板的受控绑定：打开态、当前分区与数据源都由输入区持有。 */
+export interface ComposerToolsPanelBinding {
+  readonly open: boolean;
+  readonly tab: ToolsPanelTab;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly draftText: string;
+  readonly modelTools: readonly SessionModelToolSummary[];
+  readonly externalCapabilitiesEnabled: boolean;
+  readonly getRuntime: () => IExternalSourceRuntimeService | null;
+  readonly showAlert: (message: string, title?: string) => Promise<void> | void;
+}
 
 interface ComposerQuickActionBarProps {
   /** 由输入区控制显隐（AttachmentPicker 的快捷栏开关），组件本身不持有该状态。 */
   visible: boolean;
   draftText: string;
   onInsertData: (data: string) => void;
-  mcpPopoverOpen: boolean;
-  onMcpPopoverOpenChange: (next: boolean) => void;
-  mcpSeedText: string;
+  toolsPanel: ComposerToolsPanelBinding;
   isHolding?: boolean;
   modulesConfig: QuickActionModulesConfig;
   availableCommands?: readonly ComposerCommandDescriptor[];
@@ -32,16 +41,15 @@ interface ComposerQuickActionBarProps {
  * 2. continue: 沿当前剧情推进
  * 3. preset: 预设方案与采样调控
  * 4. token_predict: 实时上下文 Token 预估
- * 5. tool: 工具插件（DeepSeek 搜索/抓取等）
- * 6. mcp: MCP 外部能力面板
+ * 5. tool: 统一工具面板（自动调用 / 手动调用）
+ *
+ * 2026-10-21：原独立的 MCP 模块已合并进工具面板，避免同一能力出现两个入口。
  */
 export function ComposerQuickActionBar({
   visible,
   draftText,
   onInsertData,
-  mcpPopoverOpen,
-  onMcpPopoverOpenChange,
-  mcpSeedText,
+  toolsPanel,
   isHolding = false,
   modulesConfig,
   availableCommands = [],
@@ -55,10 +63,9 @@ export function ComposerQuickActionBar({
     settings,
     handleRerollLast,
     handleSendMessage,
-    showCustomAlert,
-    lastRecalledMemories,
     setActiveTab,
     getKernelService,
+    lastRecalledMemories,
   } = useUnifiedApp((state) => ({
     isSending: state.isSending,
     activeSession: state.activeSession,
@@ -66,13 +73,11 @@ export function ComposerQuickActionBar({
     settings: state.settings,
     handleRerollLast: state.handleRerollLast,
     handleSendMessage: state.handleSendMessage,
-    showCustomAlert: state.showCustomAlert,
-    lastRecalledMemories: state.lastRecalledMemories,
     setActiveTab: state.setActiveTab,
     getKernelService: state.getKernelService,
+    lastRecalledMemories: state.lastRecalledMemories,
   }));
 
-  const [toolPopoverOpen, setToolPopoverOpen] = React.useState(false);
   const [presetPopoverOpen, setPresetPopoverOpen] = React.useState(false);
 
   const compatibilityVariables = useComposerCompatibilityVariables({
@@ -81,21 +86,14 @@ export function ComposerQuickActionBar({
     getKernelService,
   });
 
-  const getExternalSourceRuntime = React.useCallback((): IExternalSourceRuntimeService | null => {
-    try {
-      return getKernelService<IExternalSourceRuntimeService>(KernelServices.ExternalSources);
-    } catch {
-      return null;
-    }
-  }, [getKernelService]);
-
   const hasAnyActiveModule =
     modulesConfig.reroll ||
     modulesConfig.continue ||
     modulesConfig.preset ||
     modulesConfig.token_predict ||
     modulesConfig.tool ||
-    (modulesConfig.mcp && settings.enableExternalCapabilities === true);
+    // `/tool` 与 `/mcp` 可在模块关闭时直接唤起面板：此时仍需渲染触发器以承载弹层。
+    toolsPanel.open;
 
   if (!visible || !hasAnyActiveModule) return null;
 
@@ -197,36 +195,27 @@ export function ComposerQuickActionBar({
           />
         )}
 
-        {/* 模块 4: 工具插件 (Tool) */}
-        {modulesConfig.tool && (
-          <ToolChatPopover
-            open={toolPopoverOpen}
-            onOpenChange={setToolPopoverOpen}
+        {/* 模块 4: 统一工具面板（自动调用 / 手动调用）；命令唤起时即使模块关闭也要挂载 */}
+        {(modulesConfig.tool || toolsPanel.open) && (
+          <ToolsPanel
+            open={toolsPanel.open}
+            onOpenChange={toolsPanel.onOpenChange}
+            initialTab={toolsPanel.tab}
             disabled={isSending || !activeSession}
+            draftText={toolsPanel.draftText}
+            modelTools={toolsPanel.modelTools}
             availableCommands={availableCommands}
-            onSelectCommand={(cmd) => {
-              if (onSelectCommand) onSelectCommand(cmd);
-            }}
-          />
-        )}
-
-        {/* 模块 5: MCP 外部能力 */}
-        {modulesConfig.mcp && settings.enableExternalCapabilities === true && (
-          <McpChatPopover
-            triggerVariant="bar"
-            triggerDisabled={isSending || !activeSession}
-            open={mcpPopoverOpen}
-            onOpenChange={onMcpPopoverOpenChange}
-            draftText={mcpSeedText}
-            getRuntime={getExternalSourceRuntime}
+            onSelectCommand={(command) => onSelectCommand?.(command)}
             onInsertData={onInsertData}
             onOpenWorkbench={() => setActiveTab("workbench")}
-            showAlert={showCustomAlert}
+            showAlert={toolsPanel.showAlert}
+            getRuntime={toolsPanel.getRuntime}
+            externalCapabilitiesEnabled={toolsPanel.externalCapabilitiesEnabled}
           />
         )}
       </div>
 
-      {/* 模块 6: Token 实时预估显示在快捷栏右侧 */}
+      {/* 模块 5: Token 实时预估显示在快捷栏右侧 */}
       {modulesConfig.token_predict && (
         <div
           aria-hidden="true"

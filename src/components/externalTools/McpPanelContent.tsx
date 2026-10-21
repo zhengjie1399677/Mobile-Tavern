@@ -1,0 +1,570 @@
+/**
+ * 工具面板里的「外部能力（MCP）」分区内容。
+ *
+ * 从原 `McpChatPopover` 抽取：这里只负责内容与调用逻辑，不再自己拥有 Popover 触发器。
+ * 触发器、分区切换、返回键与关闭统一由上层 `ToolsPanel` 承担，避免出现两个入口重复。
+ *
+ * 用户定稿（2026-10-07 及 2026-10-21 合并面板）：
+ *   - 外部能力总开关关闭时，本分区只给引导，不隐藏分区本身；
+ *   - 只允许手动调用，结果不再自动发起对话；
+ *   - 调用成功后只提供「插入输入框」，且只插数据正文（不插 `{text,raw,isError}` 包装）。
+ */
+import React from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Check,
+  Loader2,
+  Plug,
+  Power,
+  RefreshCw,
+  Send,
+  X,
+  Sparkles,
+  Copy,
+  Check as CheckIcon,
+} from "lucide-react";
+import { Switch } from "@/src/components/ui/switch";
+import { externalSourceUseCases } from "../../application/externalSources/externalSourceUseCases";
+import { syncExternalSourceToolMounts } from "../../application/useCases/externalSourceToolMounting";
+import { KernelServices, type IExternalSourceRuntimeService } from "../../application/serviceContracts";
+import { useOptionalKernel } from "../../contexts/KernelContext";
+import type { ExternalToolDescriptor } from "../../domain/externalSources/contracts";
+import {
+  buildToolArguments,
+  deriveInitialToolArguments,
+  extractToolResultData,
+  EXTERNAL_TOOL_RESULT_PREVIEW_MAX_CHARS,
+  findMissingRequiredArguments,
+  listToolArgumentFields,
+  resolvePrimaryArgumentKey,
+  type ExternalToolInvocationTarget,
+  type ToolArgumentField,
+} from "./externalToolInvocation";
+
+export interface McpPanelContentProps {
+  /** 当前输入框草稿：用于自动匹配工具与预填查询。 */
+  readonly draftText?: string;
+  /** 外部能力总开关；关闭时只展示引导。 */
+  readonly enabled: boolean;
+  readonly getRuntime: () => IExternalSourceRuntimeService | null;
+  /** 把工具结果的数据正文插入聊天输入框（不发送、不带 JSON 包装）。 */
+  readonly onInsertData: (data: string) => void;
+  readonly onOpenWorkbench: () => void;
+  readonly showAlert: (message: string, title?: string) => Promise<void> | void;
+  /** 关闭整个工具面板（分区内部的 × 只收起工具详情，不关面板）。 */
+  readonly onRequestClose: () => void;
+}
+
+interface SourceRow {
+  readonly id: string;
+  readonly name: string;
+  readonly enabled: boolean;
+  readonly connected: boolean;
+  readonly tools: readonly ExternalToolDescriptor[];
+}
+
+export const McpPanelContent: React.FC<McpPanelContentProps> = ({
+  draftText,
+  enabled,
+  getRuntime,
+  onInsertData,
+  onOpenWorkbench,
+  showAlert,
+  onRequestClose,
+}) => {
+  const kernel = useOptionalKernel();
+  const [rows, setRows] = React.useState<SourceRow[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const [selected, setSelected] = React.useState<ExternalToolInvocationTarget | null>(null);
+  const [fieldValues, setFieldValues] = React.useState<Record<string, string | boolean>>({});
+  const [formError, setFormError] = React.useState<string | null>(null);
+  const [executing, setExecuting] = React.useState(false);
+  const [togglingId, setTogglingId] = React.useState<string | null>(null);
+  const [callResult, setCallResult] = React.useState<{
+    readonly data: string;
+    readonly durationMs: number;
+    readonly isError: boolean;
+  } | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const reload = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const runtime = getRuntime();
+      const sources = await externalSourceUseCases.list();
+      const next: SourceRow[] = sources.map((source) => {
+        const snapshot = runtime?.getSnapshot(source.id) ?? null;
+        return {
+          id: source.id,
+          name: source.displayName,
+          enabled: source.enabled,
+          connected: Boolean(snapshot),
+          tools: snapshot?.tools ?? [],
+        };
+      });
+      setRows(next);
+      // 草稿里出现某个工具名 / 来源名时直接展开该来源，减少一次点击。
+      const lowered = (draftText ?? "").trim().toLowerCase();
+      if (lowered) {
+        const matched = next.find((row) =>
+          lowered.includes(row.name.toLowerCase())
+          || row.tools.some((tool) =>
+            lowered.includes(tool.localName.toLowerCase())
+            || lowered.includes(tool.qualifiedName.toLowerCase()),
+          ),
+        );
+        if (matched) setExpandedId(matched.id);
+      }
+    } catch (error: unknown) {
+      console.warn("[McpPanelContent] 读取 MCP 来源失败", error);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [draftText, getRuntime]);
+
+  React.useEffect(() => {
+    if (!enabled) return;
+    void reload();
+  }, [enabled, reload]);
+
+  const handleToggleSource = async (row: SourceRow, nextEnabled: boolean) => {
+    if (togglingId) return;
+    setTogglingId(row.id);
+    try {
+      await externalSourceUseCases.setEnabled(row.id, nextEnabled);
+      const runtime = getRuntime();
+      if (runtime) await runtime.reload();
+      if (kernel) {
+        try {
+          syncExternalSourceToolMounts({ kernel, sourceId: row.id, enabled: nextEnabled });
+        } catch (error: unknown) {
+          console.warn("[McpPanelContent] 同步工具挂载失败", error);
+        }
+      }
+      await reload();
+    } catch (error: unknown) {
+      await showAlert(
+        `${nextEnabled ? "启用" : "停用"} ${row.name} 失败：${error instanceof Error ? error.message : String(error)}`,
+        "MCP 设置",
+      );
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const selectTool = (row: SourceRow, tool: ExternalToolDescriptor) => {
+    setSelected({
+      sourceId: row.id,
+      sourceName: row.name,
+      tool,
+    });
+    setFieldValues(deriveInitialToolArguments(tool.inputSchema, draftText));
+    setFormError(null);
+  };
+
+  /** 收起工具参数/结果区，回到来源与工具列表（不关闭整个面板）。 */
+  const clearToolSelection = React.useCallback(() => {
+    setSelected(null);
+    setFieldValues({});
+    setFormError(null);
+    setCallResult(null);
+    setCopied(false);
+  }, []);
+
+  const selectedFields: ToolArgumentField[] = React.useMemo(
+    () => (selected ? listToolArgumentFields(selected.tool.inputSchema) : []),
+    [selected],
+  );
+
+  const setFieldValue = (key: string, value: string | boolean) => {
+    setFieldValues((current) => ({ ...current, [key]: value }));
+    setFormError(null);
+  };
+
+  const handleInvoke = async () => {
+    if (!selected || executing) return;
+    const runtime = getRuntime();
+    if (!runtime) {
+      await showAlert("外部能力运行时未就绪，无法调用。", "调用失败");
+      return;
+    }
+    const fields = listToolArgumentFields(selected.tool.inputSchema);
+    const missing = findMissingRequiredArguments(fields, fieldValues);
+    if (missing.length > 0) {
+      setFormError(`请填写必填参数：${missing.join("、")}`);
+      return;
+    }
+    const input = buildToolArguments(fields, fieldValues);
+    setExecuting(true);
+    setCallResult(null);
+    try {
+      const response = await runtime.testCallTool(
+        selected.sourceId,
+        selected.tool.localName,
+        input,
+      );
+      // 只提取数据正文：绝不把 { text, raw, isError } 包装或协议原文塞进对话。
+      setCallResult({
+        data: extractToolResultData(response.result),
+        durationMs: response.durationMs,
+        isError: Boolean(
+          response.result
+          && typeof response.result === "object"
+          && (response.result as { isError?: unknown }).isError === true,
+        ),
+      });
+    } catch (error: unknown) {
+      setCallResult({
+        data: error instanceof Error ? error.message : String(error),
+        durationMs: 0,
+        isError: true,
+      });
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  // 开关关闭时保留分区标题与引导，避免用户以为"MCP 入口消失了"。
+  const disabledNotice = (
+    <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
+      <Plug className="size-5 text-muted-foreground/50" />
+      <p className="text-[11px] text-muted-foreground">
+        外部能力（MCP）总开关当前是关闭的
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          onRequestClose();
+          onOpenWorkbench();
+        }}
+        className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/15 active:scale-95"
+      >
+        去工作台启用
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex size-6 items-center justify-center rounded-lg bg-primary/12 text-primary">
+            <Sparkles className="size-3.5" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-bold text-foreground">外部能力（MCP）</p>
+            <p className="truncate text-[10px] text-muted-foreground">
+              {loading ? "读取中…" : `${rows.filter((row) => row.enabled).length}/${rows.length} 已启用 · 点工具直接调用`}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          aria-label="刷新 MCP 状态"
+          onClick={() => void reload()}
+          className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+        >
+          <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2">
+        {!enabled ? disabledNotice : !loading && rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
+            <Plug className="size-5 text-muted-foreground/50" />
+            <p className="text-[11px] text-muted-foreground">
+              还没有接入 MCP 来源
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                onRequestClose();
+                onOpenWorkbench();
+              }}
+              className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/15 active:scale-95"
+            >
+              去工作台接入
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {rows.map((row) => {
+              const expanded = expandedId === row.id;
+              const selectedHere = selected?.sourceId === row.id;
+              return (
+                <div
+                  key={row.id}
+                  className={`overflow-hidden rounded-xl border transition-colors ${
+                    selectedHere ? "border-primary/30 bg-primary/5" : "border-border/50 bg-card/40"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 px-2 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(expanded ? null : row.id)}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      aria-expanded={expanded}
+                    >
+                      <span
+                        className={`size-1.5 shrink-0 rounded-full ${
+                          !row.enabled
+                            ? "bg-muted-foreground/40"
+                            : row.connected
+                              ? "bg-emerald-400"
+                              : "bg-amber-400"
+                        }`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[11.5px] font-semibold text-foreground">
+                          {row.name}
+                        </span>
+                        <span className="block truncate text-[9.5px] text-muted-foreground">
+                          {!row.enabled
+                            ? "已停用"
+                            : row.connected
+                              ? `${row.tools.length} 个工具`
+                              : "已启用 · 未连通"}
+                        </span>
+                      </span>
+                      {expanded
+                        ? <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                        : <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />}
+                    </button>
+                    <Switch
+                      aria-label={`${row.enabled ? "停用" : "启用"} ${row.name}`}
+                      checked={row.enabled}
+                      onCheckedChange={(value: boolean) => void handleToggleSource(row, value)}
+                      className="data-[state=checked]:bg-primary h-4 w-7 shrink-0 [&_span]:h-3 [&_span]:w-3"
+                    />
+                  </div>
+
+                  {expanded && row.enabled && (
+                    <div className="space-y-1 border-t border-border/40 bg-black/15 px-2 py-1.5">
+                      {row.tools.length === 0 ? (
+                        <p className="px-1 py-1 text-[10px] text-muted-foreground">
+                          {row.connected ? "该来源未暴露工具" : "尚未连通，稍后重试或到工作台查看诊断"}
+                        </p>
+                      ) : row.tools.map((tool) => {
+                        const active = selected?.tool.qualifiedName === tool.qualifiedName;
+                        return (
+                          <button
+                            key={tool.qualifiedName}
+                            type="button"
+                            onClick={() => selectTool(row, tool)}
+                            className={`w-full rounded-lg px-2 py-1.5 text-left transition-colors ${
+                              active ? "bg-primary/15 text-primary" : "hover:bg-muted/70"
+                            }`}
+                          >
+                            <span className="block truncate text-[11px] font-medium">
+                              {tool.localName}
+                            </span>
+                            <span
+                              className="block text-[9.5px] text-muted-foreground"
+                              style={{
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                              }}
+                            >
+                              {tool.description || "无描述"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        aria-label={`收起 ${row.name}`}
+                        onClick={() => setExpandedId(null)}
+                        className="flex w-full items-center justify-center gap-1 rounded-lg py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                      >
+                        <ChevronDown className="size-3 rotate-180" />
+                        收起
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <div className="space-y-2 border-t border-border/60 bg-card/60 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-[10px] font-semibold text-primary">
+              {selected.sourceName} / {selected.tool.localName}
+            </p>
+            <button
+              type="button"
+              aria-label="收起工具面板"
+              title="收起"
+              onClick={clearToolSelection}
+              className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+          {selectedFields.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground">
+              该工具不需要参数，可直接调用。
+            </p>
+          ) : (
+            <div className="max-h-44 space-y-1.5 overflow-y-auto overscroll-contain pr-0.5">
+              {selectedFields.map((field) => (
+                <label key={field.key} className="block space-y-1">
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className="font-mono text-foreground">{field.key}</span>
+                    {field.required && <span className="text-rose-400">*</span>}
+                    {field.primary && (
+                      <span className="rounded bg-primary/12 px-1 text-[9px] text-primary">
+                        草稿自动带入
+                      </span>
+                    )}
+                    {field.type !== "string" && (
+                      <span className="rounded bg-muted px-1 text-[9px]">{field.type}</span>
+                    )}
+                  </span>
+                  {field.type === "boolean" ? (
+                    <span className="flex items-center justify-between rounded-lg border border-border/70 bg-background/80 px-2 py-1">
+                      <span className="text-[10px] text-muted-foreground">
+                        {field.description || "布尔开关"}
+                      </span>
+                      <Switch
+                        aria-label={field.key}
+                        checked={fieldValues[field.key] === true}
+                        onCheckedChange={(value: boolean) => setFieldValue(field.key, value)}
+                        className="data-[state=checked]:bg-primary h-4 w-7 shrink-0 [&_span]:h-3 [&_span]:w-3"
+                      />
+                    </span>
+                  ) : field.type === "json" ? (
+                    <textarea
+                      value={String(fieldValues[field.key] ?? "")}
+                      onChange={(event) => setFieldValue(field.key, event.target.value)}
+                      rows={2}
+                      spellCheck={false}
+                      placeholder={field.description || "{ }"}
+                      className="w-full resize-none rounded-lg border border-border/70 bg-background/80 px-2 py-1.5 font-mono text-[10.5px] text-foreground outline-none focus:border-primary/50"
+                    />
+                  ) : field.primary ? (
+                    <textarea
+                      value={String(fieldValues[field.key] ?? "")}
+                      onChange={(event) => setFieldValue(field.key, event.target.value)}
+                      rows={2}
+                      placeholder={field.description || "输入查询内容"}
+                      className="w-full resize-none rounded-lg border border-border/70 bg-background/80 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-primary/50"
+                    />
+                  ) : (
+                    <input
+                      type={field.type === "number" ? "number" : "text"}
+                      inputMode={field.type === "number" ? "decimal" : undefined}
+                      value={String(fieldValues[field.key] ?? "")}
+                      onChange={(event) => setFieldValue(field.key, event.target.value)}
+                      placeholder={field.description || field.key}
+                      className="w-full rounded-lg border border-border/70 bg-background/80 px-2 py-1.5 text-[11px] text-foreground outline-none focus:border-primary/50"
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+          {formError && (
+            <p className="text-[10px] font-medium text-rose-400">{formError}</p>
+          )}
+          {callResult ? (
+            <div className="space-y-1.5">
+              <div
+                className={`rounded-lg border px-2 py-1.5 ${
+                  callResult.isError
+                    ? "border-rose-500/30 bg-rose-500/10"
+                    : "border-emerald-500/25 bg-emerald-500/8"
+                }`}
+              >
+                <p className={`text-[10px] font-semibold ${callResult.isError ? "text-rose-300" : "text-emerald-300"}`}>
+                  {callResult.isError ? "调用失败" : `调用成功 · 耗时 ${callResult.durationMs}ms`}
+                </p>
+                <pre className="mt-1 max-h-28 overflow-y-auto overscroll-contain whitespace-pre-wrap break-all font-mono text-[10px] leading-relaxed text-foreground/90">
+                  {callResult.data.slice(0, EXTERNAL_TOOL_RESULT_PREVIEW_MAX_CHARS)}
+                </pre>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {!callResult.isError && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onInsertData(callResult.data);
+                      onRequestClose();
+                    }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/15 py-1.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/25 active:scale-[0.99]"
+                  >
+                    <Send className="size-3.5" />
+                    插入输入框
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(callResult.data).then(() => setCopied(true)).catch(() => undefined);
+                  }}
+                  className="flex items-center justify-center gap-1 rounded-lg border border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  {copied ? <CheckIcon className="size-3.5" /> : <Copy className="size-3.5" />}
+                  {copied ? "已复制" : "复制"}
+                </button>
+                <button
+                  type="button"
+                  disabled={executing}
+                  onClick={() => void handleInvoke()}
+                  className="rounded-lg border border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                >
+                  重试
+                </button>
+              </div>
+              <p className="text-[9.5px] text-muted-foreground">
+                {callResult.isError
+                  ? "失败结果不会进入对话；修改参数后重试。"
+                  : "只把数据正文插入输入框，可编辑后再发送。"}
+              </p>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={executing}
+              onClick={() => void handleInvoke()}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary/15 py-1.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/25 active:scale-[0.99] disabled:opacity-50"
+            >
+              {executing
+                ? <Loader2 className="size-3.5 animate-spin" />
+                : <Send className="size-3.5" />}
+              {executing ? "调用中…" : "调用"}
+            </button>
+          )}
+        </div>
+      )}
+
+      <footer className="flex items-center justify-between border-t border-border/60 px-3 py-2">
+        <span className="flex items-center gap-1 text-[9.5px] text-muted-foreground">
+          <Check className="size-3" />
+          只手动调用，不会自动进入对话
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            onRequestClose();
+            onOpenWorkbench();
+          }}
+          className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Power className="size-3" />
+          工作台管理
+        </button>
+      </footer>
+    </div>
+  );
+};
+
+export default McpPanelContent;
