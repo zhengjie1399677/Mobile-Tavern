@@ -55,14 +55,48 @@ export function SessionSections(props: {
   onArchive: (entry: SessionDirectoryEntry) => void;
   onRestore: (entry: SessionDirectoryEntry) => void;
   onDelete: (entry: SessionDirectoryEntry) => void;
+  /** 分组方式：默认按时间；「按角色」用于跨角色浏览会话（用户需求 2026-10-22）。 */
+  groupBy?: "time" | "character";
 }) {
   const { t } = useTranslation();
-  const groups = useMemo(() => groupEntries(props.entries), [props.entries]);
+  const groups = useMemo(() => {
+    if (props.groupBy === "character") {
+      const byCharacter = new Map<string, {
+        id: string;
+        title: string;
+        entries: SessionDirectoryEntry[];
+        lastActive: number;
+      }>();
+      for (const entry of props.entries) {
+        const id = entry.session.characterId || "__unknown__";
+        const current = byCharacter.get(id) ?? {
+          id,
+          title: entry.characterName || "未知角色",
+          entries: [],
+          lastActive: 0,
+        };
+        current.entries.push(entry);
+        current.lastActive = Math.max(
+          current.lastActive,
+          entry.session.updatedAt ?? entry.session.createdAt ?? 0,
+        );
+        byCharacter.set(id, current);
+      }
+      return [...byCharacter.values()]
+        .sort((left, right) => right.lastActive - left.lastActive)
+        .map((group) => ({ key: group.id, title: group.title, entries: group.entries }));
+    }
+    return groupEntries(props.entries).map((group) => ({
+      key: group.label,
+      title: t(`session_manager.group_${group.label}`),
+      entries: group.entries,
+    }));
+  }, [props.entries, props.groupBy, t]);
   return (
     <div className="space-y-3.5">
       {groups.map((group) => (
-        <section key={group.label}>
-          <h3 className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{t(`session_manager.group_${group.label}`)}</h3>
+        <section key={group.key}>
+          <h3 className="mb-1 px-1 text-[11px] font-medium text-muted-foreground">{group.title}</h3>
           <div className="space-y-1.5">
             {group.entries.map((entry) => (
               <SessionRow

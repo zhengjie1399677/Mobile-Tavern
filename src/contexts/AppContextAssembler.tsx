@@ -6,6 +6,7 @@ import { ChatProvider, useChatState } from "./ChatContext";
 import { useSettings } from "../hooks/useSettings";
 import { useCharacters } from "../hooks/useCharacters";
 import { useChat } from "../hooks/useChat";
+import { CHARACTER_RECENCY_EVENT, readCharacterRecency } from "../utils/characterRecency";
 import { useUsageTracking } from "../utils/useUsageTracking";
 import { CharacterCard, ChatSession, SamplerPreset, PromptConfig, UserSettings } from "../types";
 import { useKernel } from "./KernelContext";
@@ -307,8 +308,17 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     );
   }, [settingsHook, charState.characters]);
 
-  // Sort characters by their last active conversation time (latest message timestamp across all sessions) descending.
+  // 角色卡排序：主键为"最近点击时间"（用户定稿 2026-10-22），次键为最后聊天活跃时间，
+  // 两者都没有时按名称。点击记录变化由窗口事件触发重排。
+  const [characterRecencyVersion, setCharacterRecencyVersion] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => setCharacterRecencyVersion((current) => current + 1);
+    window.addEventListener(CHARACTER_RECENCY_EVENT, bump);
+    return () => window.removeEventListener(CHARACTER_RECENCY_EVENT, bump);
+  }, []);
+
   const sortedCharacters = React.useMemo(() => {
+    const recency = readCharacterRecency();
     const getCharLastActiveTime = (charId: string) => {
       const charSessions = chatState.sessions.filter(s => s.characterId === charId);
       if (charSessions.length === 0) return 0;
@@ -320,6 +330,11 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     };
 
     return [...charState.characters].sort((a, b) => {
+      const aOpened = recency[a.id] ?? 0;
+      const bOpened = recency[b.id] ?? 0;
+      if (bOpened !== aOpened) {
+        return bOpened - aOpened;
+      }
       const aTime = getCharLastActiveTime(a.id);
       const bTime = getCharLastActiveTime(b.id);
       if (bTime !== aTime) {
@@ -327,7 +342,9 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
       }
       return a.name.localeCompare(b.name);
     });
-  }, [charState.characters, chatState.sessions]);
+    // characterRecencyVersion 参与依赖：点击后立即重排，而不是等下次会话数据变化。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charState.characters, chatState.sessions, characterRecencyVersion]);
 
   // 稳定化 getKernelService 引用：kernel 实例在整个应用生命周期内不变，
   // bind 一次即可。之前放在 appContextValue useMemo 内每次业务 state 变化都会重新 bind，

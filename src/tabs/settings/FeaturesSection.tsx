@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, FlaskConical, Globe } from "lucide-react";
+import { ChevronDown, Globe } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -27,7 +27,6 @@ export default function FeaturesSection({
   updateSettings,
 }: FeaturesSectionProps) {
   const { language, changeLanguage, t } = useTranslation();
-  const [showFeatureDetails, setShowFeatureDetails] = useState(false);
   const [showExpressionDictionary, setShowExpressionDictionary] = useState(false);
 
   return (
@@ -71,22 +70,9 @@ export default function FeaturesSection({
         </CardContent>
       </Card>
 
-      {/* 2. 功能设置 (Features) */}
+      {/* 2. 功能条目：直接跟随语言选择，不再套一层「功能设置」折叠卡（用户定稿 2026-10-22） */}
       <Card className="settings-feature-card glass-panel shadow-sm mt-3">
-        <button
-          type="button"
-          aria-expanded={showFeatureDetails}
-          onClick={() => setShowFeatureDetails((current) => !current)}
-          className="flex min-h-11 w-full items-center gap-2.5 px-3 text-left"
-        >
-            <FlaskConical className="w-4 h-4 text-primary" />
-            <span className="flex-1 text-xs sm:text-[13px] font-semibold text-foreground tracking-wide">
-              {t("features.section_title")}
-            </span>
-            <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${showFeatureDetails ? "rotate-180" : ""}`} />
-        </button>
-        {showFeatureDetails && (
-        <CardContent className="space-y-4 border-t border-border/40 px-4 pb-4 pt-3">
+        <CardContent className="space-y-4 px-4 pb-4 pt-3">
 
           {/* 子分类 1：界面渲染与交互特性 */}
           <div className="space-y-2">
@@ -461,7 +447,6 @@ export default function FeaturesSection({
             </div>
           </div>
         </CardContent>
-        )}
       </Card>
 
       {/* 3. 全局表情情绪匹配正则词典 */}

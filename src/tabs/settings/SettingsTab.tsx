@@ -163,6 +163,7 @@ export default function SettingsTab() {
     handlePullFromHost,
     handlePushToHost,
     getKernelService,
+    activeTab,
   } = useUnifiedApp((state) => ({
     settings: state.settings,
     currentTheme: state.currentTheme,
@@ -194,6 +195,7 @@ export default function SettingsTab() {
     handlePullFromHost: state.handlePullFromHost,
     handlePushToHost: state.handlePushToHost,
     getKernelService: state.getKernelService,
+    activeTab: state.activeTab,
   }));
 
   const [activeSection, setActiveSection] = React.useState<SettingsSectionId | null>(null);
@@ -242,6 +244,14 @@ export default function SettingsTab() {
       setIsCheckingUpdate(false);
     }
   };
+
+  React.useEffect(() => {
+    if (activeTab === "settings") return;
+    // 用户反馈（2026-10-22）：从设置子页切到其他 Tab 再回来，仍停留在子页。
+    // 现在输入框已可独立开关预设，不再需要"停在子页"的兼容行为，回到设置即回到顶层。
+    setActiveSection(null);
+    setPluginsSubTab("profiles");
+  }, [activeTab]);
 
   React.useEffect(() => {
     const apiStr = JSON.stringify(settings.api);

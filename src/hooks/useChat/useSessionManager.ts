@@ -6,6 +6,7 @@ import { cleanSuggestionsFromText, parseSuggestions } from "./helpers";
 import { listBuiltinPluginMetadata, loadBuiltinPluginById } from "../../infrastructure/plugins/builtinPlugins";
 import { listInstalledPlugins, loadPluginFiles } from "../../infrastructure/plugins/pluginStorage";
 import type { InstalledFullscreenPlugin } from "../../domain/plugins";
+import { markCharacterOpened } from "../../utils/characterRecency";
 
 interface SessionManagerParams {
   isSending: boolean;
@@ -81,6 +82,8 @@ export function useSessionManager(p: SessionManagerParams) {
       await launchPluginById(pluginId, p.launchPlugin);
       return;
     }
+    // 角色卡排序按"点击时间"（用户定稿 2026-10-22）：进入角色即记一次。
+    markCharacterOpened(charId);
     if (p.isSending || p.isSendingRef.current) {
       await p.showCustomAlert("当前有正在生成的对话，请等待生成完毕或手动停止生成后再切换角色卡。");
       return;

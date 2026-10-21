@@ -248,7 +248,7 @@ export function PresetQuickPopover({
                         }`}
                       >
                         {isCurrent && <Check className="h-3 w-3" />}
-                        <span className="truncate max-w-[120px]">{bundleName}</span>
+                        <span className="truncate max-w-[220px]">{bundleName}</span>
                       </button>
                     );
                   })}

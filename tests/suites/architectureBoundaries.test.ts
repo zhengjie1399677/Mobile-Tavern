@@ -777,9 +777,14 @@ export async function testArchitectureBoundaries(): Promise<void> {
   }
   const featuresSection = read("src/tabs/settings/FeaturesSection.tsx");
   assert(
-    featuresSection.includes("aria-expanded={showFeatureDetails}") &&
-      featuresSection.includes("aria-expanded={showExpressionDictionary}"),
-    "设置页高密度功能与表情词典必须默认折叠并按需展开"
+    featuresSection.includes("aria-expanded={showExpressionDictionary}"),
+    "设置页表情词典必须默认折叠并按需展开"
+  );
+  // 用户定稿（2026-10-22）：取消独立的「功能设置」折叠卡，条目直接跟随语言选择展示。
+  // 这里反过来守住新契约：不得重新引入那层折叠，否则等于把已拍板的交互改回去。
+  assert(
+    !featuresSection.includes("showFeatureDetails"),
+    "「功能设置」折叠卡已按用户要求取消，条目必须直接展示在语言选择下方"
   );
 
   const androidBridgePlugin = read("src-tauri/plugins/android-bridge/src/lib.rs");

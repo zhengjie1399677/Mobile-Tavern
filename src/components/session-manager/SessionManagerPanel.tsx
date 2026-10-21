@@ -83,6 +83,7 @@ export default function SessionManagerPanel({
     [kernel],
   );
   const [category, setCategory] = useState<SessionDirectoryCategory>("active");
+  const [groupBy, setGroupBy] = useState<"time" | "character">("time");
   const [snapshot, setSnapshot] = useState<SessionDirectorySnapshot>(EMPTY_SNAPSHOT);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -466,6 +467,29 @@ export default function SessionManagerPanel({
                 <SlidersHorizontal className="size-3.5" />
               </Button>
             </div>
+
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/30 p-0.5" aria-label="会话分组方式">
+              <button
+                type="button"
+                aria-pressed={groupBy === "time"}
+                onClick={() => setGroupBy("time")}
+                className={`h-7.5 rounded-md px-2 text-xs font-medium transition-all ${
+                  groupBy === "time" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                按时间
+              </button>
+              <button
+                type="button"
+                aria-pressed={groupBy === "character"}
+                onClick={() => setGroupBy("character")}
+                className={`h-7.5 rounded-md px-2 text-xs font-medium transition-all ${
+                  groupBy === "character" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                按角色
+              </button>
+            </div>
           </>
         )}
 
@@ -556,6 +580,7 @@ export default function SessionManagerPanel({
         ) : (
           <SessionSections
             entries={category === "active" ? snapshot.active : snapshot.archived}
+            groupBy={groupBy}
             activeSessionId={activeSessionId}
             category={category}
             manage={manage}
