@@ -14,6 +14,7 @@
 import type { IKernel } from "../../kernel/types";
 import { KernelServices, type IAgentRuntimeService } from "../serviceContracts";
 import type { AgentToolDefinition } from "../../domain/agents/contracts";
+import { formatAgentToolResult } from "./toolResultFormatting";
 
 export interface ManualToolInvocationResult {
   readonly toolName: string;
@@ -24,15 +25,6 @@ export interface ManualToolInvocationResult {
 
 /** 单次手动执行的结果正文上限，避免把超大响应塞进输入框。 */
 const MAX_RESULT_CHARS = 20_000;
-
-function stringifyResult(value: unknown): string {
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value, null, 2) ?? String(value);
-  } catch {
-    return String(value);
-  }
-}
 
 function resolveTool(kernel: IKernel, toolName: string): AgentToolDefinition {
   const runtime = kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
@@ -80,7 +72,7 @@ export async function invokeAgentToolManually(options: {
     });
     return {
       toolName,
-      data: stringifyResult(result).slice(0, MAX_RESULT_CHARS),
+      data: formatAgentToolResult(result).slice(0, MAX_RESULT_CHARS),
       durationMs: Math.round(performance.now() - startedAt),
       isError: false,
     };

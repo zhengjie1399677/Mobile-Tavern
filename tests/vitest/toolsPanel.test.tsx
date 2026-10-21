@@ -40,6 +40,7 @@ vi.mock("../../src/hooks/useMobileBackHandler", () => ({
 }));
 
 const SEARCH_TOOL = "ext.official.deepseek-web.web.search";
+const FETCH_TOOL = "ext.official.deepseek-web.web.fetch";
 
 const modelTools: SessionModelToolSummary[] = [
   {
@@ -70,6 +71,19 @@ const manualTools: SessionManualToolSummary[] = [
       type: "object",
       properties: { query: { type: "string", description: "检索关键词" } },
       required: ["query"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: FETCH_TOOL,
+    description: "抓取指定 URL 网页的完整正文",
+    riskLevel: "medium",
+    sideEffect: "external",
+    policy: "ask",
+    inputJsonSchema: {
+      type: "object",
+      properties: { url: { type: "string", description: "网页地址" } },
+      required: ["url"],
       additionalProperties: false,
     },
   },
@@ -158,6 +172,27 @@ describe("统一工具面板", () => {
       expect(onInvokeTool).toHaveBeenCalledWith(SEARCH_TOOL, { query: "唐朝" });
     });
     expect(await screen.findByText(/唐朝建立于 618 年/)).toBeInTheDocument();
+  });
+
+  it("搜索结果里的 URL 能一键接力给抓取工具（search → fetch 不是两个孤立按钮）", async () => {
+    const onInvokeTool = vi.fn(async () => ({
+      toolName: SEARCH_TOOL,
+      data: "1. 唐朝 - 维基百科\nhttps://zh.wikipedia.org/wiki/唐朝\n2. 唐 - 百度百科\nhttps://baike.baidu.com/item/唐",
+      durationMs: 30,
+      isError: false,
+    }));
+    renderPanel({ initialTab: "run", onInvokeTool });
+
+    fireEvent.click(screen.getByText(SEARCH_TOOL).closest("button") as HTMLElement);
+    fireEvent.change(screen.getByPlaceholderText("检索关键词"), { target: { value: "唐朝" } });
+    fireEvent.click(screen.getByRole("button", { name: /^执行$/ }));
+
+    const link = await screen.findByRole("button", { name: /zh\.wikipedia\.org/ });
+    fireEvent.click(link);
+
+    // 接力后表单切到抓取工具，URL 已预填
+    expect(screen.getAllByText(FETCH_TOOL).length).toBeGreaterThan(0);
+    expect(screen.getByDisplayValue("https://zh.wikipedia.org/wiki/唐朝")).toBeInTheDocument();
   });
 
   it("插件命令列表只收 tool-plugin 归属的命令", () => {
