@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, type ChangeEvent } from "react";
+import React, { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   Check,
   ChevronDown,
@@ -14,11 +14,15 @@ import {
   Trash2,
   Upload,
   X,
+  ZoomIn,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import type { LocalResourceKind, LocalResourceMetadata } from "../../domain/resources/types";
 import type { ThemeStudioResourcePort } from "./themeStudioResourcePort";
 import { extractMediaFilesFromZip } from "../../domain/themes/themeZipPackage";
+
+const PAGE_SIZE = 24;
 
 export interface ThemeStudioResourceViewProps {
   resourcePort: ThemeStudioResourcePort | undefined;
@@ -40,10 +44,12 @@ export function ThemeStudioResourceView({
   const [resources, setResources] = useState<LocalResourceMetadata[]>([]);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [filterKind, setFilterKind] = useState<"all" | LocalResourceKind>("all");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isLoading, setIsLoading] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
 
   const loadResources = useCallback(async () => {
     if (!resourcePort) return;
@@ -51,22 +57,6 @@ export function ThemeStudioResourceView({
     try {
       const list = await resourcePort.listResources();
       setResources(list);
-
-      // 异步读取图片预览 URL（仅针对图片类型优先读取，音视频支持按需加载）
-      const imageEntries = await Promise.all(
-        list
-          .filter(r => r.kind === "image")
-          .map(async r => {
-            try {
-              const url = await resourcePort.getObjectUrl(r.id);
-              return [r.id, url] as const;
-            } catch {
-              return null;
-            }
-          }),
-      );
-      const validEntries = imageEntries.filter((entry): entry is readonly [string, string] => entry !== null);
-      setPreviewUrls(Object.fromEntries(validEntries));
     } catch (error) {
       console.error("[ThemeStudioResourceView] Load resources failed:", error);
     } finally {
@@ -255,7 +245,7 @@ export function ThemeStudioResourceView({
                 className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                   filterKind === "all" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
                 }`}
-                onClick={() => setFilterKind("all")}
+                onClick={() => { setFilterKind("all"); setVisibleCount(PAGE_SIZE); }}
               >
                 全部 ({resources.length})
               </button>
@@ -264,7 +254,7 @@ export function ThemeStudioResourceView({
                 className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                   filterKind === "image" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
                 }`}
-                onClick={() => setFilterKind("image")}
+                onClick={() => { setFilterKind("image"); setVisibleCount(PAGE_SIZE); }}
               >
                 图片 ({resources.filter(r => r.kind === "image").length})
               </button>
@@ -275,7 +265,7 @@ export function ThemeStudioResourceView({
                     ? "bg-primary/15 text-primary font-semibold"
                     : "text-muted-foreground hover:bg-muted"
                 }`}
-                onClick={() => setFilterKind(filterKind === "audio" ? "all" : "audio")}
+                onClick={() => { setFilterKind(filterKind === "audio" ? "all" : "audio"); setVisibleCount(PAGE_SIZE); }}
               >
                 音视频 ({resources.filter(r => r.kind === "audio" || r.kind === "video").length})
               </button>
@@ -299,39 +289,28 @@ export function ThemeStudioResourceView({
                 <p className="text-[10px] opacity-70">点击上方「导入素材」上传图片、音视频或 ZIP 包</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {filteredResources.map(resource => {
-                  const shortCode = resource.id.replace(/^r_/, "");
-                  const shortCssVar = `var(--res-${shortCode})`;
-                  const fullCssVar = `var(--tavern-resource-${resource.id})`;
-                  const resourceUri = `tavern-resource://${resource.id}`;
-                  const previewUrl = previewUrls[resource.id];
-                  const isCopied = copiedId === resource.id;
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {filteredResources.slice(0, visibleCount).map(resource => {
+                    const shortCode = resource.id.replace(/^r_/, "");
+                    const shortCssVar = `var(--res-${shortCode})`;
+                    const fullCssVar = `var(--tavern-resource-${resource.id})`;
+                    const resourceUri = `tavern-resource://${resource.id}`;
+                    const previewUrl = previewUrls[resource.id];
+                    const isCopied = copiedId === resource.id;
 
-                  return (
-                    <div
-                      key={resource.id}
-                      className="flex flex-col gap-2 rounded-xl border border-border/80 bg-background/50 p-2.5 shadow-xs hover:border-primary/40 transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {/* 缩略图或媒体类型图标 */}
-                        <div className="size-11 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/40 flex items-center justify-center">
-                          {resource.kind === "image" && previewUrl ? (
-                            <img
-                              src={previewUrl}
-                              alt={resource.name}
-                              loading="lazy"
-                              decoding="async"
-                              className="size-full object-cover"
-                            />
-                          ) : resource.kind === "video" ? (
-                            <FileVideo className="size-5 text-purple-400" />
-                          ) : resource.kind === "audio" ? (
-                            <FileAudio className="size-5 text-emerald-400" />
-                          ) : (
-                            <FileImage className="size-5 text-muted-foreground" />
-                          )}
-                        </div>
+                    return (
+                      <div
+                        key={resource.id}
+                        className="flex flex-col gap-2 rounded-xl border border-border/80 bg-background/50 p-2.5 shadow-xs hover:border-primary/40 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {/* 视口惰性加载的轻量缩略图 */}
+                          <ThemeStudioThumbnail
+                            resource={resource}
+                            resourcePort={resourcePort}
+                            onClickZoom={url => setZoomedImage({ url, name: resource.name })}
+                          />
 
                         {/* 资源元信息 */}
                         <div className="min-w-0 flex-1">
@@ -441,9 +420,153 @@ export function ThemeStudioResourceView({
                   );
                 })}
               </div>
+
+              {filteredResources.length > visibleCount && (
+                <div className="flex justify-center pt-1 pb-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 text-muted-foreground"
+                    onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                  >
+                    <ChevronDown className="size-3.5" />
+                    <span>加载更多素材 (已展示 {Math.min(visibleCount, filteredResources.length)} / {filteredResources.length})</span>
+                  </Button>
+                </div>
+              )}
+            </div>
             )}
           </div>
         </>
+      )}
+
+      {/* 图片点击放大预览弹窗 (Lightbox) */}
+      {zoomedImage && (
+        <Dialog open={!!zoomedImage} onOpenChange={open => { if (!open) setZoomedImage(null); }}>
+          <DialogContent
+            overlayClassName="z-[1400] bg-black/85 backdrop-blur-sm"
+            className="z-[1400] max-w-[94vw] max-h-[92vh] p-3 sm:p-4 bg-background/95 border border-border/80 rounded-2xl shadow-2xl flex flex-col items-center justify-center gap-2 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+          >
+            <div className="flex w-full items-center justify-between border-b border-border/50 pb-2 px-1">
+              <span className="truncate text-xs font-semibold text-foreground max-w-[80vw]" title={zoomedImage.name}>
+                {zoomedImage.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoomedImage(null)}
+                className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 transition-all"
+                aria-label="关闭预览"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div
+              className="flex max-h-[78vh] w-full items-center justify-center overflow-auto rounded-xl bg-black/40 p-2 cursor-zoom-out"
+              onClick={() => setZoomedImage(null)}
+              title="点击任意位置关闭"
+            >
+              <img
+                src={zoomedImage.url}
+                alt={zoomedImage.name}
+                loading="lazy"
+                decoding="async"
+                className="max-h-[74vh] max-w-full rounded-lg object-contain select-none shadow-2xl transition-transform"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function ThemeStudioThumbnail({
+  resource,
+  resourcePort,
+  onClickZoom,
+}: {
+  resource: LocalResourceMetadata;
+  resourcePort: ThemeStudioResourcePort | undefined;
+  onClickZoom?: (url: string) => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [inView, setInView] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (resource.kind !== "image") return;
+    const el = containerRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "120px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [resource.kind]);
+
+  useEffect(() => {
+    if (!inView || resource.kind !== "image" || !resourcePort) return;
+    let active = true;
+    resourcePort
+      .getObjectUrl(resource.id)
+      .then(loadedUrl => {
+        if (active) setUrl(loadedUrl);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [inView, resource.id, resource.kind, resourcePort]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`size-11 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/40 flex items-center justify-center ${
+        resource.kind === "image" && url ? "cursor-pointer group relative" : ""
+      }`}
+      onClick={() => {
+        if (resource.kind === "image" && url && onClickZoom) {
+          onClickZoom(url);
+        }
+      }}
+      title={resource.kind === "image" && url ? "点击放大查看图片" : undefined}
+    >
+      {resource.kind === "image" ? (
+        url ? (
+          <>
+            <img
+              src={url}
+              alt={resource.name}
+              loading="lazy"
+              decoding="async"
+              className="size-full object-cover transition-transform group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+              <ZoomIn className="size-3.5 text-white drop-shadow-md" />
+            </div>
+          </>
+        ) : (
+          <div className="size-full animate-pulse bg-muted/60 flex items-center justify-center">
+            <FileImage className="size-4 text-muted-foreground/35" />
+          </div>
+        )
+      ) : resource.kind === "video" ? (
+        <FileVideo className="size-5 text-purple-400" />
+      ) : resource.kind === "audio" ? (
+        <FileAudio className="size-5 text-emerald-400" />
+      ) : (
+        <FileImage className="size-5 text-muted-foreground" />
       )}
     </div>
   );

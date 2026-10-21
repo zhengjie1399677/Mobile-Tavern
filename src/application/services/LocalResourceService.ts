@@ -38,14 +38,19 @@ export class LocalResourceService implements ILocalResourceService {
     if (signal?.aborted) return;
     this.metadata = new Map(resources.map(resource => [resource.id, resource]));
 
-    // 图片会直接用于主题 CSS，因此启动时恢复其稳定变量。音视频保持按需加载，避免大文件常驻。
-    for (const resource of resources) {
-      if (resource.kind !== "image" || signal?.aborted) continue;
-      try {
-        await this.getObjectUrl(resource.id);
-      } catch {
-        // 元数据存在但文件字节损坏时跳过单项，不能让整个非关键资源服务启动失败。
-      }
+    // 图片会直接用于主题 CSS，因此启动时恢复其稳定变量。受控并发度 4 批量恢复，避免纯串行拖慢冷启动与单次无界暴击。
+    const imageResources = resources.filter(r => r.kind === "image");
+    const concurrency = 4;
+    for (let i = 0; i < imageResources.length; i += concurrency) {
+      if (signal?.aborted) return;
+      const chunk = imageResources.slice(i, i + concurrency);
+      await Promise.all(chunk.map(async resource => {
+        try {
+          await this.getObjectUrl(resource.id);
+        } catch {
+          // 元数据存在但文件字节损坏时跳过单项，不能让整个非关键资源服务启动失败。
+        }
+      }));
     }
   }
 
@@ -143,26 +148,37 @@ export class LocalResourceService implements ILocalResourceService {
     return `var(--res-${shortCode})`;
   }
 
+  private pendingCssRender = false;
+
   private renderCssVariables(): void {
     if (typeof document === "undefined") return;
-    let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
-    if (!style) {
-      style = document.createElement("style");
-      style.id = STYLE_ID;
-      style.setAttribute("data-tavern-local-resources", "true");
-      document.head.appendChild(style);
-    }
-    const declarations = Array.from(this.objectUrls.entries())
-      .filter(([id]) => this.metadata.has(id))
-      .flatMap(([id, url]) => {
-        const shortCode = id.replace(/^r_/, "");
-        return [
-          `  --tavern-resource-${id}: url("${url}");`,
-          `  --res-${shortCode}: url("${url}");`,
-        ];
-      })
-      .join("\n");
-    style.textContent = `:root {\n${declarations}\n}`;
+    if (this.pendingCssRender) return;
+    this.pendingCssRender = true;
+    queueMicrotask(() => {
+      this.pendingCssRender = false;
+      if (this.destroyed || typeof document === "undefined") return;
+      let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+      if (!style) {
+        style = document.createElement("style");
+        style.id = STYLE_ID;
+        style.setAttribute("data-tavern-local-resources", "true");
+        document.head.appendChild(style);
+      }
+      const declarations = Array.from(this.objectUrls.entries())
+        .filter(([id]) => this.metadata.has(id))
+        .flatMap(([id, url]) => {
+          const shortCode = id.replace(/^r_/, "");
+          return [
+            `  --tavern-resource-${id}: url("${url}");`,
+            `  --res-${shortCode}: url("${url}");`,
+          ];
+        })
+        .join("\n");
+      const nextContent = `:root {\n${declarations}\n}`;
+      if (style.textContent !== nextContent) {
+        style.textContent = nextContent;
+      }
+    });
   }
 
   private assertReady(): void {

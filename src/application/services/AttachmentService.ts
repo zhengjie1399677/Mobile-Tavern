@@ -26,6 +26,8 @@ const MAX_ATTACHMENT_BYTES: Record<AttachmentKind, number> = {
   file: 50 * 1024 * 1024,
 };
 const MAX_TOTAL_ATTACHMENT_BYTES = 1024 * 1024 * 1024;
+/** 内存中最大活跃 Object URL 缓存数，超出时按 LRU 淘汰并自动 revoke，防止长会话内存持续泄漏。 */
+const MAX_OBJECT_URL_CACHE_SIZE = 64;
 
 /** major brand 已经是音频品牌的 ISO-BMFF 文件，不必再探测轨道。 */
 const ISO_BMFF_AUDIO_BRANDS = ["M4A ", "M4B ", "M4P "];
@@ -112,10 +114,26 @@ export class AttachmentService implements IAttachmentService {
     this.assertReady();
     assertAttachmentId(id);
     const cached = this.objectUrls.get(id);
-    if (cached) return cached;
+    if (cached) {
+      // LRU: 刷新至 Map 尾部
+      this.objectUrls.delete(id);
+      this.objectUrls.set(id, cached);
+      return cached;
+    }
     const blob = await this.getBlob(id);
     this.assertReady();
     const url = URL.createObjectURL(blob);
+
+    // 超出最大容量时，淘汰最旧的未访问条目并释放内存
+    if (this.objectUrls.size >= MAX_OBJECT_URL_CACHE_SIZE) {
+      const oldestKey = this.objectUrls.keys().next().value;
+      if (oldestKey) {
+        const oldestUrl = this.objectUrls.get(oldestKey);
+        if (oldestUrl) URL.revokeObjectURL(oldestUrl);
+        this.objectUrls.delete(oldestKey);
+      }
+    }
+
     this.objectUrls.set(id, url);
     return url;
   }
