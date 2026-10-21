@@ -51,6 +51,12 @@ export function VoiceHoldButton({
       onPointerMove={pointerHandlers.onPointerMove}
       onPointerUp={pointerHandlers.onPointerUp}
       onPointerCancel={pointerHandlers.onPointerCancel}
+      onContextMenu={(event) => event.preventDefault()}
+      style={{
+        touchAction: "none",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+      }}
       onKeyDown={(event) => {
         if ((event.key === " " || event.key === "Enter") && !event.repeat) {
           event.preventDefault();
@@ -91,14 +97,14 @@ export function VoiceHoldButton({
     >
       {isHolding ? (
         isCancelHovered ? (
-          <RotateCcw className="mr-1.5 size-4 animate-spin text-red-400" />
+          <RotateCcw className="pointer-events-none mr-1.5 size-4 animate-spin text-red-400" />
         ) : (
-          <Radio className="mr-1.5 size-4 animate-pulse text-primary" />
+          <Radio className="pointer-events-none mr-1.5 size-4 animate-pulse text-primary" />
         )
       ) : (
-        <Mic className="mr-1.5 size-4 opacity-60 transition-transform group-hover:scale-110" />
+        <Mic className="pointer-events-none mr-1.5 size-4 opacity-60 transition-transform group-hover:scale-110" />
       )}
-      <span>{label}</span>
+      <span className="pointer-events-none">{label}</span>
     </button>
   );
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, CheckCircle2, Eye, Save, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, Save, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/src/components/ui/dialog";
 import {
@@ -59,7 +59,7 @@ export default function ThemeEditorModal({
   resourcePort,
   mediaPermissionEnabled = false,
 }: ThemeEditorModalProps) {
-  const [draft, setDraft] = React.useState<ThemeDocumentDraft>(() => createThemeDocumentDraft(themeToEdit));
+  const [draft, setDraft] = React.useState<ThemeDocumentDraft>(() => createThemeDocumentDraft(themeToEdit, customThemes));
   const [section, setSection] = React.useState<StudioSection>("overview");
   const [sectionHistory, setSectionHistory] = React.useState<StudioSection[]>([]);
   const [saveState, setSaveState] = React.useState<SaveState>("editing");
@@ -67,6 +67,8 @@ export default function ThemeEditorModal({
   const [startPointKind, setStartPointKind] = React.useState<ThemeStartPointKind | null>(
     themeToEdit ? null : "blank-dark",
   );
+  const [desktopPreviewOpen, setDesktopPreviewOpen] = React.useState(true);
+  const lastEditingSectionRef = React.useRef<StudioSection>("overview");
   const closingRef = React.useRef(false);
   const dirty = isThemeDocumentDirty(draft);
   const canGoBack = section !== "overview" || sectionHistory.length > 0;
@@ -76,15 +78,21 @@ export default function ThemeEditorModal({
   }, [draft.interactionSource]);
 
   React.useEffect(() => {
+    if (section !== "preview") {
+      lastEditingSectionRef.current = section;
+    }
+  }, [section]);
+
+  React.useEffect(() => {
     if (!isOpen) return;
-    setDraft(createThemeDocumentDraft(themeToEdit));
+    setDraft(createThemeDocumentDraft(themeToEdit, customThemes));
     setSection("overview");
     setSectionHistory([]);
     setSaveState("editing");
     setPreviewScene("chat");
     setStartPointKind(themeToEdit ? null : "blank-dark");
     closingRef.current = false;
-  }, [isOpen, themeToEdit]);
+  }, [isOpen, themeToEdit, customThemes]);
 
   const navigateToSection = React.useCallback((next: StudioSection) => {
     if (next === section) return;
@@ -216,12 +224,66 @@ export default function ThemeEditorModal({
               <span className={saveState === "failed" ? "text-destructive" : dirty ? "text-primary" : "text-muted-foreground"}>{statusText}</span>
             </DialogDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" className="h-8 px-2.5 text-xs lg:hidden" onClick={() => navigateToSection("preview")}>
-            <Eye className="size-3.5" />预览
+          {/* 移动端点击预览 / 关闭预览切换 */}
+          {section === "preview" ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="group flex h-8 items-center gap-1.5 rounded-full border border-destructive/40 bg-destructive/15 px-3 text-xs font-semibold text-destructive shadow-sm hover:border-destructive/60 hover:bg-destructive/25 transition-all lg:hidden"
+              onClick={() => setSection(lastEditingSectionRef.current || "overview")}
+              aria-label="关闭预览"
+              title="退出预览模式，返回刚才的编辑页面"
+            >
+              <EyeOff className="size-3.5 text-destructive transition-transform group-hover:scale-110" />
+              <span>关闭预览</span>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="group flex h-8 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 text-xs font-medium text-primary shadow-sm hover:border-primary/60 hover:bg-primary/20 transition-all lg:hidden"
+              onClick={() => {
+                lastEditingSectionRef.current = section;
+                navigateToSection("preview");
+              }}
+              aria-label="预览"
+              title="查看主题实时全屏预览"
+            >
+              <Eye className="size-3.5 text-primary transition-transform group-hover:scale-110" />
+              <span>点击预览</span>
+            </Button>
+          )}
+
+          {/* 桌面端点击开启/关闭右侧预览面板 */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={`group hidden lg:flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium shadow-sm transition-all ${
+              desktopPreviewOpen
+                ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/60"
+                : "border-border/80 bg-card/60 text-muted-foreground hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+            }`}
+            onClick={() => setDesktopPreviewOpen(prev => !prev)}
+            title={desktopPreviewOpen ? "收起右侧预览面板" : "展开右侧预览面板"}
+          >
+            {desktopPreviewOpen ? (
+              <>
+                <EyeOff className="size-3.5 text-primary transition-transform group-hover:scale-110" />
+                <span>关闭预览</span>
+              </>
+            ) : (
+              <>
+                <Eye className="size-3.5 text-primary transition-transform group-hover:scale-110" />
+                <span>点击预览</span>
+              </>
+            )}
           </Button>
         </header>
 
-        <div className="min-h-0 flex-1 lg:grid lg:grid-cols-[15rem_minmax(22rem,1fr)_minmax(24rem,0.95fr)]">
+        <div className={`min-h-0 flex-1 lg:grid ${desktopPreviewOpen ? "lg:grid-cols-[15rem_minmax(22rem,1fr)_minmax(24rem,0.95fr)]" : "lg:grid-cols-[15rem_1fr]"}`}>
           <aside className="hidden min-h-0 border-r border-border bg-card/35 p-3 lg:block">
             <ThemeStudioNavigation section={section} onSelect={navigateToSection} />
           </aside>
@@ -249,6 +311,9 @@ export default function ThemeEditorModal({
               <CssSection
                 value={draft.theme.customCss ?? ""}
                 onChange={value => updateTheme(theme => ({ ...theme, customCss: value }))}
+                resourcePort={resourcePort}
+                showCustomAlert={showCustomAlert}
+                showCustomConfirm={showCustomConfirm}
               />
             )}
             {section === "interactions" && (
@@ -275,20 +340,22 @@ export default function ThemeEditorModal({
               </div>
             )}
           </main>
-          <aside className="hidden min-h-0 border-l border-border bg-muted/20 p-4 lg:flex lg:flex-col">
-            <div className="mb-2 flex items-center justify-between">
-              <div><p className="text-sm font-bold">当前草稿</p><p className="text-xs text-muted-foreground">隔离预览，不改变正式主题</p></div>
-              <Eye className="size-4 text-primary" />
-            </div>
-            <ThemePreviewSceneSwitcher scene={previewScene} onChange={setPreviewScene} />
-            <div className="mt-2 min-h-0 flex-1">
-              <ThemeDraftPreview
-                theme={draft.theme}
-                scene={previewScene}
-                stateTokens={previewStateTokens}
-              />
-            </div>
-          </aside>
+          {desktopPreviewOpen && (
+            <aside className="hidden min-h-0 border-l border-border bg-muted/20 p-4 lg:flex lg:flex-col">
+              <div className="mb-2 flex items-center justify-between">
+                <div><p className="text-sm font-bold">当前草稿</p><p className="text-xs text-muted-foreground">隔离预览，不改变正式主题</p></div>
+                <Eye className="size-4 text-primary" />
+              </div>
+              <ThemePreviewSceneSwitcher scene={previewScene} onChange={setPreviewScene} />
+              <div className="mt-2 min-h-0 flex-1">
+                <ThemeDraftPreview
+                  theme={draft.theme}
+                  scene={previewScene}
+                  stateTokens={previewStateTokens}
+                />
+              </div>
+            </aside>
+          )}
         </div>
 
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-background px-3 pt-2 pb-[max(0.5rem,var(--safe-area-bottom))] sm:px-5">

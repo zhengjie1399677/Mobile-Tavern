@@ -181,48 +181,48 @@ export default function CharacterDetailDrawer({
         </div>
 
         {/* Dynamic Navigation Tabs */}
-        <div role="tablist" aria-label={character.name} className="flex justify-around border-b border-border/40 bg-muted/20 px-3 py-1.5 text-sm font-medium">
+        <div role="tablist" aria-label={character.name} className="grid grid-cols-3 gap-1.5 border-b border-border/40 bg-muted/20 px-2.5 py-1.5 text-xs sm:text-sm font-medium">
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === "persona"}
             onClick={() => setActiveTab("persona")}
-            className={`flex min-h-11 items-center gap-1.5 rounded-lg px-4 transition-colors ${
+            className={`flex min-h-10 items-center justify-center gap-1 rounded-lg px-1.5 py-1 text-center whitespace-nowrap transition-colors ${
               activeTab === "persona"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
             }`}
           >
-            <Sparkles className="w-4 h-4" />
-            {t("char_detail.tab_persona")}
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{t("char_detail.tab_persona")}</span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === "dialogue"}
             onClick={() => setActiveTab("dialogue")}
-            className={`flex min-h-11 items-center gap-1.5 rounded-lg px-4 transition-colors ${
+            className={`flex min-h-10 items-center justify-center gap-1 rounded-lg px-1.5 py-1 text-center whitespace-nowrap transition-colors ${
               activeTab === "dialogue"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
             }`}
           >
-            <MessageSquare className="w-4 h-4" />
-            {t("char_detail.tab_dialogue")}
+            <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{t("char_detail.tab_dialogue")}</span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === "lore"}
             onClick={() => setActiveTab("lore")}
-            className={`flex min-h-11 items-center gap-1.5 rounded-lg px-4 transition-colors ${
+            className={`flex min-h-10 items-center justify-center gap-1 rounded-lg px-1.5 py-1 text-center whitespace-nowrap transition-colors ${
               activeTab === "lore"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
             }`}
           >
-            <BookOpen className="w-4 h-4" />
-            {t("char_detail.tab_lore", { count: String(loreEntries.length) })}
+            <BookOpen className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{t("char_detail.tab_lore", { count: String(loreEntries.length) })}</span>
           </button>
         </div>
 

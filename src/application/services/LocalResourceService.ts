@@ -75,7 +75,7 @@ export class LocalResourceService implements ILocalResourceService {
       throw new Error("LOCAL_RESOURCE_TOTAL_LIMIT");
     }
     const now = Date.now();
-    const id = createResourceId();
+    const id = createResourceId(storedResources.map(resource => resource.id));
     const metadata: LocalResourceMetadata = {
       id,
       name: normalizeName(file.name),
@@ -137,6 +137,12 @@ export class LocalResourceService implements ILocalResourceService {
     return `var(--tavern-resource-${id})`;
   }
 
+  getShortCssReference(id: string): string {
+    this.assertResourceId(id);
+    const shortCode = id.replace(/^r_/, "");
+    return `var(--res-${shortCode})`;
+  }
+
   private renderCssVariables(): void {
     if (typeof document === "undefined") return;
     let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
@@ -148,7 +154,13 @@ export class LocalResourceService implements ILocalResourceService {
     }
     const declarations = Array.from(this.objectUrls.entries())
       .filter(([id]) => this.metadata.has(id))
-      .map(([id, url]) => `  --tavern-resource-${id}: url("${url}");`)
+      .flatMap(([id, url]) => {
+        const shortCode = id.replace(/^r_/, "");
+        return [
+          `  --tavern-resource-${id}: url("${url}");`,
+          `  --res-${shortCode}: url("${url}");`,
+        ];
+      })
       .join("\n");
     style.textContent = `:root {\n${declarations}\n}`;
   }
@@ -189,6 +201,20 @@ function normalizeName(name: string): string {
   return (normalized || "未命名资源").slice(0, 160);
 }
 
-function createResourceId(): string {
-  return `r_${crypto.randomUUID().replace(/-/g, "")}`;
+function createResourceId(existingIds?: Iterable<string>): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const existingSet = existingIds ? new Set(existingIds) : null;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const bytes = new Uint8Array(5);
+    crypto.getRandomValues(bytes);
+    let code = "";
+    for (let index = 0; index < 5; index += 1) {
+      code += chars[bytes[index] % chars.length];
+    }
+    const id = `r_${code}`;
+    if (!existingSet || !existingSet.has(id)) {
+      return id;
+    }
+  }
+  return `r_${Date.now().toString(36).slice(-5)}`;
 }

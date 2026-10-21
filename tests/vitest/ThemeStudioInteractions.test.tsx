@@ -210,4 +210,37 @@ describe("主题工作室 Theme 1.1 可视化编辑", () => {
     });
     await waitFor(() => expect(screen.getByText("编辑主题草稿")).toBeInTheDocument());
   });
+
+  it("CSS 分区内嵌本地素材库，并支持插入 5 位短 ID 变量", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "自定义 CSS" }));
+    expect(await screen.findByText("本地素材库")).toBeInTheDocument();
+    expect(screen.getByText("5位短ID")).toBeInTheDocument();
+    expect(await screen.findByText("rain.mp3")).toBeInTheDocument();
+    expect(screen.getByText("r_audio")).toBeInTheDocument();
+
+    const insertBtn = screen.getByRole("button", { name: "插入 CSS" });
+    await user.click(insertBtn);
+
+    const textarea = screen.getByLabelText("自定义 CSS 文档") as HTMLTextAreaElement;
+    expect(textarea.value).toContain("var(--res-audio)");
+  });
+
+  it("AI 编写提示词弹窗与素材库弹窗支持打开与 Android 返回键关闭", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByRole("button", { name: "自定义 CSS" }));
+    const aiBtn = screen.getByRole("button", { name: "AI 编写提示词" });
+    await user.click(aiBtn);
+
+    expect(await screen.findByText("AI 编写提示词 · 快速复制")).toBeInTheDocument();
+
+    await act(async () => {
+      dispatchMobileBack();
+    });
+    await waitFor(() => expect(screen.queryByText("AI 编写提示词 · 快速复制")).not.toBeInTheDocument());
+  });
 });

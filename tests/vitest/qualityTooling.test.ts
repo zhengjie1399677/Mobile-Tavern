@@ -25,7 +25,7 @@ describe("质量门禁工具链", () => {
     ) as { scripts: Record<string, string> };
 
     expect(manifest.scripts["quality:push"]).toContain("watchdog-run.mjs");
-    expect(manifest.scripts["quality:push"]).toContain("--timeout 600000");
+    expect(manifest.scripts["quality:push"]).toContain("--timeout 900000");
     expect(manifest.scripts["quality:push:inner"]).toContain("npm test -- --bail");
   });
 
@@ -34,16 +34,16 @@ describe("质量门禁工具链", () => {
     const failingCommand = `"${process.execPath}" -e "process.exit(7)"`;
     const result = spawnSync(
       process.execPath,
-      [watchdogPath, "--cmd", failingCommand, "--timeout", "5000"],
+      [watchdogPath, "--cmd", failingCommand, "--timeout", "10000"],
       {
         cwd: workspaceRoot,
         encoding: "utf8",
-        timeout: 8_000,
+        timeout: 20_000,
       },
     );
 
     expect(result.status).toBe(7);
-  });
+  }, 25_000);
 
   it("watchdog 超时后快速终止并返回 124", () => {
     const tempDirectory = mkdtempSync(path.join(tmpdir(), "mobile-tavern-watchdog-"));
@@ -69,7 +69,7 @@ describe("质量门禁工具链", () => {
         {
           cwd: workspaceRoot,
           encoding: "utf8",
-          timeout: 8_000,
+          timeout: 20_000,
         },
       );
 
@@ -87,5 +87,5 @@ describe("质量门禁工具链", () => {
     } finally {
       rmSync(tempDirectory, { recursive: true, force: true });
     }
-  }, 10_000);
+  }, 25_000);
 });

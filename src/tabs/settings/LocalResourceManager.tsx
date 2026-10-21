@@ -89,14 +89,38 @@ export default function LocalResourceManager({ showCustomAlert, showCustomConfir
     }
   };
 
-  const copyReference = async (resource: LocalResourceMetadata, format: "resource" | "css") => {
+  const copyReference = async (resource: LocalResourceMetadata, format: "resource" | "css" | "short-css") => {
     try {
-      if (format === "css") await getService().getObjectUrl(resource.id);
-      const reference = format === "css"
+      if (format === "css" || format === "short-css") await getService().getObjectUrl(resource.id);
+      const reference = format === "short-css"
+        ? (getService().getShortCssReference?.(resource.id) ?? getService().getCssReference(resource.id))
+        : format === "css"
         ? getService().getCssReference(resource.id)
         : getService().getResourceReference(resource.id);
-      if (!navigator.clipboard?.writeText) throw new Error("CLIPBOARD_UNAVAILABLE");
-      await navigator.clipboard.writeText(reference);
+
+      let succeeded = false;
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(reference);
+          succeeded = true;
+        } catch {}
+      }
+
+      if (!succeeded) {
+        try {
+          const textarea = document.createElement("textarea");
+          textarea.value = reference;
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
+          succeeded = document.execCommand("copy");
+          document.body.removeChild(textarea);
+        } catch {}
+      }
+
+      if (!succeeded) throw new Error("CLIPBOARD_UNAVAILABLE");
       await showCustomAlert(t("local_resources.copy_success", { reference }), t("local_resources.copy_success_title"));
     } catch (reason) {
       await showCustomAlert(normalizeResourceError(reason), t("local_resources.copy_failed"));
@@ -136,6 +160,8 @@ export default function LocalResourceManager({ showCustomAlert, showCustomConfir
             const previewUrl = previewUrls[resource.id];
             const ResourceIcon = resource.kind === "image" ? FileImage : resource.kind === "video" ? FileVideo : FileAudio;
             const resourceReference = getService().getResourceReference(resource.id);
+            const shortCode = resource.id.replace(/^r_/, "");
+            const shortCssRef = `var(--res-${shortCode})`;
             return (
               <article key={resource.id} data-resource-id={resource.id} className="overflow-hidden rounded-lg border border-border/50 bg-background/45">
                 {resource.kind === "image" && previewUrl && <img src={previewUrl} alt="" loading="lazy" decoding="async" className="h-28 w-full object-cover" />}
@@ -144,11 +170,14 @@ export default function LocalResourceManager({ showCustomAlert, showCustomConfir
                 <div className="flex items-center gap-2 p-2.5">
                   <ResourceIcon className="h-4 w-4 shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] font-semibold text-foreground">{resource.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-[11px] font-semibold text-foreground">{resource.name}</p>
+                      <span className="shrink-0 rounded bg-primary/10 px-1 py-0.2 font-mono text-[9px] font-bold text-primary">{resource.id}</span>
+                    </div>
                     <p className="text-[8px] text-muted-foreground">{resource.kind} · {formatBytes(resource.size)}</p>
                     <code className="block max-w-full select-all truncate text-[8px] text-primary/80">{resourceReference}</code>
                     {resource.kind === "image" && (
-                      <code className="block max-w-full select-all truncate text-[8px] text-primary/65">CSS: {getService().getCssReference(resource.id)}</code>
+                      <code className="block max-w-full select-all truncate text-[8px] font-bold text-primary font-mono" title={shortCssRef}>CSS: {shortCssRef}</code>
                     )}
                   </div>
                   {!previewUrl && resource.kind !== "image" && (
@@ -156,9 +185,9 @@ export default function LocalResourceManager({ showCustomAlert, showCustomConfir
                       {loadingPreviewId === resource.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
                   )}
-                  <button type="button" onClick={() => void copyReference(resource, "resource")} className="flex h-8 w-8 items-center justify-center rounded-md border border-primary/25 text-primary" aria-label={t("local_resources.copy_reference")}><Copy className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => void copyReference(resource, "resource")} className="flex h-8 w-8 items-center justify-center rounded-md border border-primary/25 text-primary" title="复制 URI" aria-label={t("local_resources.copy_reference")}><Copy className="h-3.5 w-3.5" /></button>
                   {resource.kind === "image" && (
-                    <button type="button" onClick={() => void copyReference(resource, "css")} className="flex h-8 w-8 items-center justify-center rounded-md border border-primary/25 text-primary" aria-label={t("local_resources.copy_css_reference")}><Palette className="h-3.5 w-3.5" /></button>
+                    <button type="button" onClick={() => void copyReference(resource, "short-css")} className="flex h-8 px-2 items-center gap-1 rounded-md border border-primary/25 text-[10px] text-primary font-mono" title="复制短 CSS 变量 var(--res-xxxxx)" aria-label="复制短变量"><Palette className="h-3.5 w-3.5" /><span className="text-[9px] font-semibold">短变量</span></button>
                   )}
                   <button type="button" onClick={() => void removeResource(resource)} className="flex h-8 w-8 items-center justify-center rounded-md border border-destructive/25 text-destructive" aria-label={t("local_resources.delete")}><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>

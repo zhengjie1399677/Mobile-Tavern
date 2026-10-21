@@ -29,6 +29,12 @@ import {
 import { ComposerCommandSuggestions } from "./ComposerCommandSuggestions";
 import { ComposerQuickActionBar } from "./composer-panels/ComposerQuickActionBar";
 import { ComposerReplySuggestions } from "./composer-panels/ComposerReplySuggestions";
+import { QuickActionManagerModal } from "./composer-panels/QuickActionManagerModal";
+import {
+  loadQuickActionModulesConfig,
+  saveQuickActionModulesConfig,
+  type QuickActionModulesConfig,
+} from "./composer-panels/quickActionTypes";
 import { useChatVoiceInput } from "./useChatVoiceInput";
 import { VoiceDraftHint } from "./voice-composer/VoiceDraftHint";
 import { VoiceHoldButton } from "./voice-composer/VoiceHoldButton";
@@ -66,6 +72,16 @@ const ChatInputArea = ({
       return false;
     }
   });
+
+  const [quickActionModules, setQuickActionModules] = React.useState<QuickActionModulesConfig>(() =>
+    loadQuickActionModulesConfig()
+  );
+  const [quickActionManagerOpen, setQuickActionManagerOpen] = React.useState(false);
+
+  const handleUpdateQuickActionModules = React.useCallback((next: QuickActionModulesConfig) => {
+    setQuickActionModules(next);
+    saveQuickActionModulesConfig(next);
+  }, []);
 
   const handleToggleQuickActions = React.useCallback(() => {
     setShowQuickActions((prev) => {
@@ -585,19 +601,30 @@ const ChatInputArea = ({
       }}
       className="chat-composer-shell z-10 flex shrink-0 flex-col items-center gap-2 px-3 pt-2.5"
     >
-      <div className={isHolding ? "pointer-events-none" : undefined}>
-        <ComposerQuickActionBar
-          visible={showQuickActions}
-          draftText={localInput}
-          onInsertData={handleInsertToolData}
-          mcpPopoverOpen={mcpPopoverOpen}
-          onMcpPopoverOpenChange={(next) => {
-            if (next) setMcpSeedText((localInput || "").trim());
-            setMcpPopoverOpen(next);
-          }}
-          mcpSeedText={mcpSeedText}
-        />
-      </div>
+      <ComposerQuickActionBar
+        visible={showQuickActions}
+        isHolding={isHolding}
+        draftText={localInput}
+        onInsertData={handleInsertToolData}
+        mcpPopoverOpen={mcpPopoverOpen}
+        onMcpPopoverOpenChange={(next) => {
+          if (next) setMcpSeedText((localInput || "").trim());
+          setMcpPopoverOpen(next);
+        }}
+        mcpSeedText={mcpSeedText}
+        modulesConfig={quickActionModules}
+        availableCommands={composerCommands}
+        onSelectCommand={(command) => {
+          if (command.acceptsArgument) {
+            const nextInput = `/${command.name} `;
+            setLocalInput(nextInput);
+            setUserInputMessage(nextInput);
+            requestAnimationFrame(() => textareaRef.current?.focus());
+          } else {
+            void executeComposerCommand(command, "");
+          }
+        }}
+      />
       <ComposerReplySuggestions
         commandSuggestionsVisible={composerCommandSuggestions.length > 0}
       />
@@ -734,6 +761,7 @@ const ChatInputArea = ({
           quickActionsVisible={showQuickActions}
           onSelect={handleSelectAttachments}
           onToggleQuickActions={handleToggleQuickActions}
+          onOpenQuickActionManager={() => setQuickActionManagerOpen(true)}
           onTriggerSlash={() => {
             if (isVoiceMode) setIsVoiceMode(false);
             setLocalInput("/");
@@ -778,6 +806,19 @@ const ChatInputArea = ({
         )}
       </div>
 
+      <QuickActionManagerModal
+        open={quickActionManagerOpen}
+        onClose={() => setQuickActionManagerOpen(false)}
+        quickActionsVisible={showQuickActions}
+        onToggleQuickActionsVisible={(nextVisible) => {
+          setShowQuickActions(nextVisible);
+          try {
+            localStorage.setItem(QUICK_ACTIONS_STORAGE_KEY, String(nextVisible));
+          } catch {}
+        }}
+        modulesConfig={quickActionModules}
+        onUpdateModulesConfig={handleUpdateQuickActionModules}
+      />
     </div>
   );
 };

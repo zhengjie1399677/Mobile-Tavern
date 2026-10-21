@@ -28,8 +28,8 @@ const MAX_PENDING_ATTACHMENTS = 4;
  * 阈值按视口高度计算（约六分之一屏），避免固定像素在不同尺寸手机上体感差异过大；
  * 进入与退出使用不同阈值（滞回），避免手指在边界抖动时红/绿状态反复跳变。
  */
-const CANCEL_SWIPE_VIEWPORT_RATIO = 1 / 6;
-const CANCEL_SWIPE_MIN_THRESHOLD_PX = 72;
+const CANCEL_SWIPE_VIEWPORT_RATIO = 1 / 5;
+const CANCEL_SWIPE_MIN_THRESHOLD_PX = 100;
 const CANCEL_SWIPE_DISARM_RATIO = 0.75;
 const AMPLITUDE_POLL_INTERVAL_MS = 100;
 /** 进度只按 5% 步进提交，避免 pointermove 高频 setState 拖慢 WebView。 */
@@ -179,12 +179,14 @@ export function useChatVoiceInput({
   const startHoldRecord = React.useCallback(async (): Promise<boolean> => {
     if (pendingAttachments.length >= MAX_PENDING_ATTACHMENTS) {
       await showCustomAlert("每条消息最多添加 4 个附件。");
+      resetHoldState();
       return false;
     }
     let capture: IVoiceCaptureService;
     try {
       capture = getKernelService<IVoiceCaptureService>(KernelServices.VoiceCapture);
     } catch {
+      resetHoldState();
       return false;
     }
 
@@ -295,6 +297,9 @@ export function useChatVoiceInput({
 
   const handlePointerDown = React.useCallback(async (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     // 重入守卫：第二根手指不再打断并丢弃正在进行的录音。
     if (holdActiveRef.current || activePointerIdRef.current !== null) return;
     activePointerIdRef.current = e.pointerId;
@@ -303,12 +308,21 @@ export function useChatVoiceInput({
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
-    await startHoldRecord();
+    const ok = await startHoldRecord();
+    if (!ok) {
+      activePointerIdRef.current = null;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
   }, [startHoldRecord]);
 
   const handlePointerMove = React.useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     if (!holdActiveRef.current) return;
     if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     const swipeDistance = voiceStartYRef.current - e.clientY;
     const { arm, disarm } = cancelSwipeThresholdRef.current;
     // 滞回：一旦进入取消态，要回退到更近的距离才退出，避免临界点反复跳色。
@@ -325,6 +339,9 @@ export function useChatVoiceInput({
   const handlePointerUp = React.useCallback(async (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!holdActiveRef.current) return;
     if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {}
@@ -343,9 +360,18 @@ export function useChatVoiceInput({
     await finishHoldRecordRef.current("release");
   }, [cancelHoldRecord]);
 
-  const handlePointerCancel = React.useCallback(async () => {
+  const handlePointerCancel = React.useCallback(async (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!holdActiveRef.current) return;
-    await cancelHoldRecord();
+    if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    // 手指滑入取消阈值才按取消处理；若未达取消阈值（如轻微滑动被系统偶发手势/失焦打断），平滑完成录音提交，避免误丢语音。
+    if (cancelArmedRef.current) {
+      await cancelHoldRecord();
+    } else {
+      await finishHoldRecordRef.current("release");
+    }
   }, [cancelHoldRecord]);
 
   return {

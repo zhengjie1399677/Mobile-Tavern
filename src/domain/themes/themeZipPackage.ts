@@ -334,14 +334,18 @@ export async function exportThemeZipPackage(
   const zipFiles: Record<string, Uint8Array> = {};
   const themeClone = JSON.parse(JSON.stringify(theme)) as CustomThemePackage;
 
-  // 收集主题中引用的所有 tavern-resource://r_xxx 与 var(--tavern-resource-r_xxx)
+  // 收集主题中引用的所有 tavern-resource://r_xxx 与 var(--tavern-resource-r_xxx) 以及 var(--res-xxx)
   const resourceIds = new Set<string>();
   const resourcePattern = /r_[a-z0-9_-]{1,80}/g;
+  const resVarPattern = /--res-([a-z0-9_-]{1,80})/g;
 
   const serialized = JSON.stringify(themeClone);
   let match: RegExpExecArray | null;
   while ((match = resourcePattern.exec(serialized)) !== null) {
     resourceIds.add(match[0]);
+  }
+  while ((match = resVarPattern.exec(serialized)) !== null) {
+    resourceIds.add(`r_${match[1]}`);
   }
 
   // 读取所有引用的资源 Blob 并放入 ZIP 的 assets/ 目录
@@ -369,8 +373,10 @@ export async function exportThemeZipPackage(
   for (const [id, newPath] of idToNewPath.entries()) {
     // 还原 media.src
     themeJsonStr = themeJsonStr.replaceAll(`tavern-resource://${id}`, newPath);
-    // 还原 var(--tavern-resource-xxx)
+    // 还原 var(--tavern-resource-xxx) 与 var(--res-xxx)
     themeJsonStr = themeJsonStr.replaceAll(`var(--tavern-resource-${id})`, `url("${newPath}")`);
+    const shortCode = id.replace(/^r_/, "");
+    themeJsonStr = themeJsonStr.replaceAll(`var(--res-${shortCode})`, `url("${newPath}")`);
   }
 
   zipFiles["theme.json"] = new TextEncoder().encode(themeJsonStr);

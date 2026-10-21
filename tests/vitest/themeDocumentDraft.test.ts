@@ -60,21 +60,45 @@ describe("主题工作室草稿", () => {
     expect(result.theme.name).toBe("已有主题");
   });
 
-  it("空交互草稿生成 Theme 1.0，并拒绝同名主题", () => {
+  it("空交互草稿生成 Theme 1.0，遇到同名主题自动递增命名", () => {
     const draft = createThemeDocumentDraft(null);
     draft.theme.name = "新主题";
     draft.interactionSource = JSON.stringify({ media: {}, state: {}, interactions: [] });
 
-    const duplicate = buildThemeDocumentCandidate(draft, [{
+    // 第一次冲突：自动递增为 "新主题 1"
+    const duplicate1 = buildThemeDocumentCandidate(draft, [{
       ...EXISTING_THEME,
       id: "custom_other",
       name: "新主题",
     }]);
-    expect(duplicate.success).toBe(false);
+    expect(duplicate1.success).toBe(true);
+    if (!duplicate1.success) return;
+    expect(duplicate1.theme.name).toBe("新主题 1");
 
+    // 第二次冲突（已有 "新主题" 和 "新主题 1"）：自动递增为 "新主题 2"
+    const duplicate2 = buildThemeDocumentCandidate(draft, [
+      { ...EXISTING_THEME, id: "custom_1", name: "新主题" },
+      { ...EXISTING_THEME, id: "custom_2", name: "新主题 1" },
+    ]);
+    expect(duplicate2.success).toBe(true);
+    if (!duplicate2.success) return;
+    expect(duplicate2.theme.name).toBe("新主题 2");
+
+    // 若原名已带无空格数字如 "新自定义主题1"，递增为 "新自定义主题2"
+    draft.theme.name = "新自定义主题1";
+    const duplicate3 = buildThemeDocumentCandidate(draft, [
+      { ...EXISTING_THEME, id: "custom_3", name: "新自定义主题1" },
+    ]);
+    expect(duplicate3.success).toBe(true);
+    if (!duplicate3.success) return;
+    expect(duplicate3.theme.name).toBe("新自定义主题2");
+
+    // 无冲突时保留原名并正确处理 Theme 1.0 字段
+    draft.theme.name = "独一无二主题";
     const result = buildThemeDocumentCandidate(draft, []);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    expect(result.theme.name).toBe("独一无二主题");
     expect(result.theme.schemaVersion).toBe("1.0");
     expect(result.theme.media).toBeUndefined();
     expect(result.theme.state).toBeUndefined();

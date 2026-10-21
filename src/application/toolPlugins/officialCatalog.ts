@@ -3,6 +3,9 @@ import { computeToolPluginManifestHash } from "../../domain/toolPlugins";
 
 export const BRAVE_SEARCH_TOOL_PLUGIN_ID = "official.brave-search";
 export const BRAVE_SEARCH_TOOL_NAME = `ext.${BRAVE_SEARCH_TOOL_PLUGIN_ID}.web.search`;
+export const DEEPSEEK_WEB_TOOL_PLUGIN_ID = "official.deepseek-web";
+export const DEEPSEEK_SEARCH_TOOL_NAME = `ext.${DEEPSEEK_WEB_TOOL_PLUGIN_ID}.web.search`;
+export const DEEPSEEK_FETCH_TOOL_NAME = `ext.${DEEPSEEK_WEB_TOOL_PLUGIN_ID}.web.fetch`;
 export const MEMORY_TOOL_PLUGIN_ID = "official.memory";
 export const MEMORY_WRITE_TOOL_NAME = `ext.${MEMORY_TOOL_PLUGIN_ID}.memory.write`;
 export const DEVICE_TIME_TOOL_PLUGIN_ID = "official.device-time";
@@ -82,6 +85,117 @@ const braveSearchManifest = {
         url: "https://api.search.brave.com/res/v1/web/search?q={{input.query}}&count={{input.count}}&safesearch=moderate",
         headers: { Accept: "application/json" },
         credentialIds: ["brave-api-key"],
+      },
+    },
+  }],
+  cleanup: {
+    onDisable: "revoke-runtime",
+    onPermissionRevoke: "disable-dependent-tools",
+    onUninstall: ["registrations", "credentials", "plugin-data"],
+  },
+} as const satisfies Omit<ToolPluginManifest, "contentHash">;
+
+const deepseekWebManifest = {
+  format: "mobile-tavern.tool-plugin",
+  manifestVersion: 2,
+  id: DEEPSEEK_WEB_TOOL_PLUGIN_ID,
+  name: "DeepSeek 联网检索与抓取",
+  version: "1.0.0",
+  description: "通过 DeepSeek Search 与 Fetch API 为 Agent 提供实时网页搜索与长网页正文提取；需要配置 DeepSeek API Key。",
+  author: "Mobile Tavern",
+  source: {
+    label: "Mobile Tavern 官方预置",
+    url: "https://github.com/zhengjie1399677/Mobile-Tavern",
+  },
+  runtime: {
+    minVersion: "1.8.9",
+    execution: "worker",
+    timeoutMs: 25_000,
+  },
+  network: {
+    allowedOrigins: ["https://api.deepseek.com"],
+    allowedMethods: ["POST"],
+    maxRequestsPerCall: 1,
+    maxRequestBytes: 8_192,
+    maxResponseBytes: 1_024 * 1_024,
+  },
+  credentials: [{
+    id: "deepseek-api-key",
+    label: "DeepSeek API Key",
+    required: true,
+    injection: {
+      location: "header",
+      name: "Authorization",
+      prefix: "Bearer ",
+    },
+  }],
+  targetProfiles: ["*"],
+  dependencies: [],
+  permissions: [{
+    id: "network.request",
+    reason: "向 DeepSeek API 发送搜索查询或正文抓取请求，并获取互联网结果。",
+    riskLevel: "medium",
+  }],
+  tools: [{
+    id: "web.search",
+    name: "网页搜索",
+    description: "搜索公开网页并返回标题、链接和摘要。适合查询需要最新外部事实的问题。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", minLength: 1, maxLength: 500 },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: true,
+    },
+    permissions: ["network.request"],
+    riskLevel: "medium",
+    sideEffect: "external",
+    executionScope: "external",
+    handler: {
+      kind: "http",
+      request: {
+        method: "POST",
+        url: "https://api.deepseek.com/v1/tools/search",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: { query: "{{input.query}}" },
+        credentialIds: ["deepseek-api-key"],
+      },
+    },
+  }, {
+    id: "web.fetch",
+    name: "网页正文抓取",
+    description: "抓取指定 URL 网页的完整正文内容并转换为 Markdown。适合深入研读具体网页细节。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", minLength: 1, maxLength: 2048 },
+      },
+      required: ["url"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: true,
+    },
+    permissions: ["network.request"],
+    riskLevel: "medium",
+    sideEffect: "external",
+    executionScope: "external",
+    handler: {
+      kind: "http",
+      request: {
+        method: "POST",
+        url: "https://api.deepseek.com/v1/tools/fetch",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: { url: "{{input.url}}" },
+        credentialIds: ["deepseek-api-key"],
       },
     },
   }],
@@ -328,7 +442,7 @@ const utilityManifest = {
 } as const satisfies Omit<ToolPluginManifest, "contentHash">;
 
 export async function listOfficialToolPluginInspections(): Promise<ToolPluginInspection[]> {
-  return Promise.all([braveSearchManifest, memoryManifest, deviceTimeManifest, utilityManifest].map(async (manifest) => ({
+  return Promise.all([braveSearchManifest, deepseekWebManifest, memoryManifest, deviceTimeManifest, utilityManifest].map(async (manifest) => ({
     manifest: structuredClone({
       ...manifest,
       contentHash: await computeToolPluginManifestHash(manifest),

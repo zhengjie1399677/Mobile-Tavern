@@ -652,6 +652,7 @@ export interface ILocalResourceService extends IKernelService {
   getResourceReference(id: string): string;
   resolveResourceReference(reference: string): Promise<string>;
   getCssReference(id: string): string;
+  getShortCssReference?(id: string): string;
 }
 
 export type ThemeOrientation = "portrait" | "landscape";

@@ -13,6 +13,9 @@ export interface ThemeStudioResourcePort {
   importFile(file: File): Promise<LocalResourceMetadata>;
   getObjectUrl(id: string): Promise<string>;
   getResourceReference(id: string): string;
+  getCssReference?(id: string): string;
+  getShortCssReference?(id: string): string;
+  deleteResource?(id: string): Promise<void>;
 }
 
 export function createThemeStudioResourcePort(
@@ -23,5 +26,8 @@ export function createThemeStudioResourcePort(
     importFile: file => service.importFile(file),
     getObjectUrl: id => service.getObjectUrl(id),
     getResourceReference: id => service.getResourceReference(id),
+    getCssReference: id => service.getCssReference(id),
+    getShortCssReference: id => (service.getShortCssReference ? service.getShortCssReference(id) : service.getCssReference(id)),
+    deleteResource: id => service.deleteResource(id),
   };
 }

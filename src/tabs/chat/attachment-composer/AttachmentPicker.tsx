@@ -3,6 +3,7 @@ import {
   AudioLines,
   ImagePlus,
   Plus,
+  Sliders,
   SlidersHorizontal,
   Terminal,
   Video,
@@ -16,6 +17,7 @@ interface AttachmentPickerProps {
   quickActionsVisible: boolean;
   onSelect: (files: readonly File[]) => void;
   onToggleQuickActions: () => void;
+  onOpenQuickActionManager?: () => void;
   onTriggerSlash?: () => void;
 }
 interface AttachmentChoice {
@@ -53,6 +55,7 @@ export function AttachmentPicker({
   quickActionsVisible,
   onSelect,
   onToggleQuickActions,
+  onOpenQuickActionManager,
   onTriggerSlash,
 }: AttachmentPickerProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
@@ -67,6 +70,15 @@ export function AttachmentPicker({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open]);
+
+  // 计算网格列数：快捷栏开关(1) + [快捷管理(1)] + [命令/(1)] + 附件(3)
+  const totalItems = 4 + (onOpenQuickActionManager ? 1 : 0) + (onTriggerSlash ? 1 : 0);
+  const gridColsClass =
+    totalItems >= 6
+      ? "grid-cols-6"
+      : totalItems === 5
+        ? "grid-cols-5"
+        : "grid-cols-4";
 
   return (
     <div className="shrink-0" data-ui="attachment-picker">
@@ -95,10 +107,9 @@ export function AttachmentPicker({
           id="attachment-source-menu"
           role="menu"
           aria-label="添加内容与输入工具"
-          className={`absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 grid w-full ${
-            onTriggerSlash ? "grid-cols-5" : "grid-cols-4"
-          } gap-1 rounded-2xl border border-border/70 bg-popover p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2`}
+          className={`absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 grid w-full ${gridColsClass} gap-1 rounded-2xl border border-border/70 bg-popover p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2`}
         >
+          {/* 1. 快捷栏开关 */}
           <button
             type="button"
             role="menuitemcheckbox"
@@ -116,6 +127,25 @@ export function AttachmentPicker({
             <SlidersHorizontal className="size-3.5" aria-hidden="true" />
             <span>快捷栏</span>
           </button>
+
+          {/* 2. 快捷栏管理 */}
+          {onOpenQuickActionManager && (
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="快捷栏管理"
+              onClick={() => {
+                onOpenQuickActionManager();
+                setOpen(false);
+              }}
+              className="flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
+            >
+              <Sliders className="size-3.5" aria-hidden="true" />
+              <span>管理</span>
+            </button>
+          )}
+
+          {/* 3. 命令 / */}
           {onTriggerSlash && (
             <button
               type="button"
@@ -130,6 +160,8 @@ export function AttachmentPicker({
               <span>命令 /</span>
             </button>
           )}
+
+          {/* 4. 图片、视频、音频 */}
           {CHOICES.map((choice) => {
             const Icon = choice.icon;
             return (

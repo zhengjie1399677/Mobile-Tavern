@@ -376,7 +376,21 @@ function resolveHttpTemplate(template: ToolPluginHttpRequestTemplate, input: unk
 }
 
 function mapTemplateValue(value: unknown, input: unknown): unknown {
-  if (typeof value === "string") return interpolate(value, input, false);
+  if (typeof value === "string") {
+    const singleMatch = /^\{\{input\.([A-Za-z0-9_.-]+)\}\}$/.exec(value);
+    if (singleMatch) {
+      const path = singleMatch[1];
+      const resolved = path.split(".").reduce<unknown>((current, key) => (
+        current && typeof current === "object" && !Array.isArray(current)
+          ? (current as Record<string, unknown>)[key]
+          : undefined
+      ), input);
+      if (typeof resolved === "number" || typeof resolved === "boolean") {
+        return resolved;
+      }
+    }
+    return interpolate(value, input, false);
+  }
   if (Array.isArray(value)) return value.map((item) => mapTemplateValue(item, input));
   if (value && typeof value === "object") {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, mapTemplateValue(item, input)]));

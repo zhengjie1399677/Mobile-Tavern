@@ -67,8 +67,56 @@ function buildInteractionSource(theme: CustomThemePackage): string {
   }, null, 2);
 }
 
-export function createThemeDocumentDraft(source: CustomThemePackage | null): ThemeDocumentDraft {
-  const theme = cloneTheme(source ?? NEUTRAL_DARK_THEME);
+export function resolveUniqueThemeName(
+  baseName: string,
+  existingThemes: readonly CustomThemePackage[],
+  selfId?: string,
+): string {
+  const trimmed = baseName.trim() || "新自定义主题";
+  const isDuplicate = (name: string) =>
+    existingThemes.some(
+      (t) =>
+        t.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase() &&
+        t.id !== selfId,
+    );
+
+  if (!isDuplicate(trimmed)) {
+    return trimmed;
+  }
+
+  const match = trimmed.match(/^(.*?)(\s*)(\d+)$/);
+  let prefix: string;
+  let sep: string;
+  let num: number;
+
+  if (match) {
+    prefix = match[1];
+    sep = match[2];
+    num = parseInt(match[3], 10) + 1;
+  } else {
+    prefix = trimmed;
+    sep = " ";
+    num = 1;
+  }
+
+  while (true) {
+    const candidate = `${prefix}${sep}${num}`;
+    if (!isDuplicate(candidate)) {
+      return candidate;
+    }
+    num += 1;
+  }
+}
+
+export function createThemeDocumentDraft(
+  source: CustomThemePackage | null,
+  existingThemes?: readonly CustomThemePackage[],
+): ThemeDocumentDraft {
+  const baseTheme = source ?? {
+    ...NEUTRAL_DARK_THEME,
+    name: existingThemes ? resolveUniqueThemeName("新自定义主题", existingThemes) : NEUTRAL_DARK_THEME.name,
+  };
+  const theme = cloneTheme(baseTheme);
   const interactionSource = buildInteractionSource(theme);
   return {
     theme,
@@ -104,11 +152,7 @@ export function buildThemeDocumentCandidate(
   if (!trimmedVersion) return { success: false, errors: ["版本号不能为空"] };
 
   const existingId = draft.baseline.id;
-  const duplicate = customThemes.some(theme => (
-    theme.name.trim().toLocaleLowerCase() === trimmedName.toLocaleLowerCase() &&
-    theme.id !== existingId
-  ));
-  if (duplicate) return { success: false, errors: [`已存在同名主题「${trimmedName}」，请使用其他名称。`] };
+  const resolvedName = resolveUniqueThemeName(trimmedName, customThemes, existingId);
 
   let rawInteractions: unknown;
   try {
@@ -130,11 +174,11 @@ export function buildThemeDocumentCandidate(
   const candidate: CustomThemePackage = {
     ...cloneTheme(draft.theme),
     schemaVersion: hasInteractions ? "1.1" : "1.0",
-    name: trimmedName,
+    name: resolvedName,
     version: trimmedVersion,
     description: draft.theme.description?.trim() || undefined,
     // 已保存主题的 ID 是运行时引用，重命名不能令当前主题或外部引用悬空。
-    id: existingId ?? generateThemeId(trimmedName),
+    id: existingId ?? generateThemeId(resolvedName),
     importedAt: draft.baseline.importedAt ?? Date.now(),
     media: hasInteractions ? interactionConfig.media : undefined,
     state: hasInteractions ? interactionConfig.state : undefined,

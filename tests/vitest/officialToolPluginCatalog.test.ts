@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   BRAVE_SEARCH_TOOL_NAME,
   BRAVE_SEARCH_TOOL_PLUGIN_ID,
+  DEEPSEEK_FETCH_TOOL_NAME,
+  DEEPSEEK_SEARCH_TOOL_NAME,
+  DEEPSEEK_WEB_TOOL_PLUGIN_ID,
   DEVICE_TIME_TOOL_NAME,
   DEVICE_TIME_TOOL_PLUGIN_ID,
   listOfficialToolPluginInspections,
@@ -110,5 +113,39 @@ describe("官方 Tool Plugin 目录", () => {
     expect(`ext.${parsed.id}.${parsed.tools[1].id}`).toBe(UTILITY_COIN_TOOL_NAME);
     expect(`ext.${parsed.id}.${parsed.tools[2].id}`).toBe(UTILITY_PICK_TOOL_NAME);
     expect(`ext.${parsed.id}.${parsed.tools[3].id}`).toBe(UTILITY_COUNT_TOOL_NAME);
+  });
+
+  it("提供通过严格校验的 DeepSeek 联网检索与抓取连接器", async () => {
+    const inspections = await listOfficialToolPluginInspections();
+    const inspection = inspections.find((item) => item.manifest.id === DEEPSEEK_WEB_TOOL_PLUGIN_ID)!;
+    expect(inspection).toBeDefined();
+    const parsed = await parseToolPluginManifest(JSON.stringify(inspection.manifest));
+
+    expect(parsed).toMatchObject({
+      id: DEEPSEEK_WEB_TOOL_PLUGIN_ID,
+      manifestVersion: 2,
+      targetProfiles: ["*"],
+      network: {
+        allowedOrigins: ["https://api.deepseek.com"],
+        allowedMethods: ["POST"],
+        maxRequestsPerCall: 1,
+      },
+      credentials: [{
+        id: "deepseek-api-key",
+        required: true,
+        injection: { location: "header", name: "Authorization", prefix: "Bearer " },
+      }],
+      permissions: [{ id: "network.request", riskLevel: "medium" }],
+    });
+
+    expect(parsed.tools).toHaveLength(2);
+    expect(`ext.${parsed.id}.${parsed.tools[0].id}`).toBe(DEEPSEEK_SEARCH_TOOL_NAME);
+    expect(`ext.${parsed.id}.${parsed.tools[1].id}`).toBe(DEEPSEEK_FETCH_TOOL_NAME);
+    expect(inspection.sourceVerification).toEqual({
+      trustLevel: "official",
+      verificationMethod: "bundled",
+      signerId: "mobile-tavern.bundled-catalog",
+      signerLabel: "Mobile Tavern 内置目录",
+    });
   });
 });
