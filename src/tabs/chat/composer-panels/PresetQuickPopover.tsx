@@ -65,7 +65,7 @@ export function PresetQuickPopover({
   // 严格遵守：只叫预设，不叫基本预设
   const activeDisplayName =
     !rawActiveName || rawActiveName === "基本预设" || rawActiveName === "Default"
-      ? (t("quick_actions.preset_button") || "预设")
+      ? (t("quick_actions.preset_btn") || "预设")
       : rawActiveName;
 
   const handleSwitchPreset = async (bundleId: string) => {

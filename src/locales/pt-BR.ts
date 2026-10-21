@@ -961,6 +961,7 @@ export default {
   "quick_actions.preset_precise": "Preciso (0.0)",
   "quick_actions.preset_balance": "Equilibrado (1.0)",
   "quick_actions.preset_creative": "Criativo (2.0)",
+  "quick_actions.preset_btn": "Predefinição",
   "quick_actions.tools_btn": "Ferramentas",
   "quick_actions.tools_title": "Ferramentas e Plugins Disponíveis",
   "quick_actions.tools_filter_placeholder": "Pesquisar ferramentas ou comandos…",

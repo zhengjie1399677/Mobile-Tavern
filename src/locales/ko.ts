@@ -971,6 +971,7 @@ export default {
   "quick_actions.preset_precise": "정밀함 (0.0)",
   "quick_actions.preset_balance": "균형 (1.0)",
   "quick_actions.preset_creative": "창의적 (2.0)",
+  "quick_actions.preset_btn": "프리셋",
   "quick_actions.tools_btn": "도구",
   "quick_actions.tools_title": "사용 가능한 플러그인 도구",
   "quick_actions.tools_filter_placeholder": "도구 또는 명령어 검색…",

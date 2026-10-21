@@ -951,6 +951,7 @@ export default {
   "quick_actions.preset_precise": "厳密 (0.0)",
   "quick_actions.preset_balance": "バランス (1.0)",
   "quick_actions.preset_creative": "クリエイティブ (2.0)",
+  "quick_actions.preset_btn": "プリセット",
   "quick_actions.tools_btn": "ツール",
   "quick_actions.tools_title": "利用可能なプラグイン・ツール",
   "quick_actions.tools_filter_placeholder": "ツールやコマンドを検索…",

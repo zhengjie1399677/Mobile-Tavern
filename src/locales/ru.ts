@@ -951,6 +951,7 @@ export default {
   "quick_actions.preset_precise": "Точный (0.0)",
   "quick_actions.preset_balance": "Сбалансированный (1.0)",
   "quick_actions.preset_creative": "Творческий (2.0)",
+  "quick_actions.preset_btn": "Пресет",
   "quick_actions.tools_btn": "Инструменты",
   "quick_actions.tools_title": "Доступные инструменты и плагины",
   "quick_actions.tools_filter_placeholder": "Поиск инструментов или команд…",

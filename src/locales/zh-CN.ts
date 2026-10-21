@@ -957,6 +957,7 @@ export default {
   "quick_actions.preset_precise": "严谨精确 (0.0)",
   "quick_actions.preset_balance": "平衡 (1.0)",
   "quick_actions.preset_creative": "创意天马 (2.0)",
+  "quick_actions.preset_btn": "预设",
   "quick_actions.tools_btn": "工具",
   "quick_actions.tools_title": "可用工具插件",
   "quick_actions.tools_filter_placeholder": "搜索工具或命令…",
