@@ -246,7 +246,7 @@ export function ToolsPanel({
         <DialogContent
           showCloseButton={false}
           aria-label="工具面板"
-          className="fixed inset-x-0 bottom-0 top-auto left-0 z-[1300] flex h-auto max-h-[86dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-2xl rounded-b-none border-x-0 border-b-0 bg-popover p-0 pb-[max(env(safe-area-inset-bottom),0px)] shadow-2xl data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-6 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-6"
+          className="fixed inset-x-0 bottom-0 top-auto left-0 z-[1300] flex h-auto max-h-[86dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-2xl rounded-b-none border-x-0 border-b-0 bg-popover p-0 pb-[max(env(safe-area-inset-bottom),0px)] shadow-2xl sm:max-w-none data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-6 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-6"
         >
           <DialogTitle className="sr-only">工具面板</DialogTitle>
 
