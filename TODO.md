@@ -41,6 +41,14 @@
 
 ## 中期排期
 
+- [ ] **预设与聊天闭环一致性缺陷修复（P1，质量治理）**：
+  - ①【已复现】导入预设立即被判脏：`preparePresetBundleImport` 产生 `topA: undefined` / `seed: undefined` 键，而激活态由 `projectSamplerPreset` 补齐默认值（`topA: 0, seed: -1`），展开对象时 undefined 覆盖了默认值导致比对失败，聊天栏切预设频繁触发「未保存丢弃确认」。
+  - ②【已复现】重启后预设再次判脏：启动引导 `presetBootstrap` 重新归一化活跃 `promptConfig`（空 `mainPrompt` 时赋 `useMainPrompt: false`、重写 headers、重排 customPrompts id），与切换预设 `projectPresetActivation` 的投影规则口径不一致。
+  - ③【已复现】导出再导入丢失 `requestShaping.enabled=false`：`presetRuntimeNamespace` 未收录该状态。
+  - ④【UX 缺陷】聊天快捷面板关闭主/规则提示词后条目消失：`PresetQuickPopover` 条件逻辑将 `useMainPrompt === false` 判为不渲染。
+  - ⑤【Agent Profile 绑定】`AppContextAssembler` 启动 Agent 时静默覆盖未保存预设编辑且吞掉 `preset-missing` 诊断；`usePresetBundles` 删除提示文案过时。
+  - ⑥【孤儿预设降级保护】`useSettingsLoader` 发现未找到预设 ID 时仅替换采样身份却未重载 Prompt 内容，导致用户保存时存在覆盖兜底预设风险。
+
 - [ ] **写入队列与聊天并发治理（P1）**：解决「2 个隐患 + 3 个结构性缺口」——合并语义、队列吞吐、新鲜度判断散落、状态权威未写死、性能无预算。
   - ①【已完成】`enqueueWrite` 增加显式 `mode`：`coalesceable`（默认，保持 P1-11 以来的既有语义）与 `must-complete`（绝不合并、各自拿到自己的结果）分开，`idbWriteQueue.test.ts` 钉住两种语义。翻转 4 处提交类写入：`commitSessionTurn`（**红检实证：退回合并后 m1 永久丢失**）、`deleteSessionMessage`（key 只到会话级，删不同消息会互相顶掉）、`updateSessionMessage`（调用方消费返回的 ChatSession）、`upsertDictEntry`（返回 boolean 会被另一次调用顶掉）。`character:${id}` / `session:${id}:cascade` / `settings:user_settings` 有注释表明是故意合并，保持不动。
   - ②【已完成】写队列由全局单链改为**按聚合分片**：分片由声明的 key 前两段推导（`session:abc:turn` → `session:abc`），无 key 落默认分片仍彼此串行；每分片独立保留串行、15s 熔断、深度遥测与 abort 传导。整库迁移（`replace-all` / `merge`）显式共享 `data-migration` 分片并 must-complete，避免两个整库重写并行。测试覆盖：长写不阻塞无关聚合、同聚合严格有序、不同会话可并行、两个迁移互相串行。**过程中测试立刻抓到一处自引入回归**：must-complete 置空内部 key 会让分片推导也丢失（落到默认分片、同聚合反并行），已改为按声明的 key 推导分片。
