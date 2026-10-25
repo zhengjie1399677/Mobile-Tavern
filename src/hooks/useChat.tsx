@@ -82,11 +82,21 @@ export const useChat = (
   const sessionsRef = React.useRef(sessions);
   const activeSessionIdRef = React.useRef(activeSessionId);
   const activeCharIdRef    = React.useRef(activeCharId);
-  useEffect(() => {
+  React.useLayoutEffect(() => {
     sessionsRef.current = sessions;
     activeSessionIdRef.current = activeSessionId;
     activeCharIdRef.current = activeCharId;
   }, [activeCharId, activeSessionId, sessions]);
+
+  // 同步桥接：在 setSessionViews 触发 state 计算时，立即同步镜像至 sessionsRef，
+  // 彻底避免异步重渲染/useEffect 延迟导致随后的立即重发操作读取到陈旧会话快照。
+  const safeSetSessionViews = useCallback<React.Dispatch<React.SetStateAction<ChatSession[]>>>((action) => {
+    setSessionViews((prev) => {
+      const next = typeof action === "function" ? action(prev) : action;
+      sessionsRef.current = next;
+      return next;
+    });
+  }, [setSessionViews]);
 
   // P1-7: 卸载保护 ref。异步持久化回调在组件卸载后
   // 仍会执行 setSessionViews，导致 React 状态更新泄漏（卸载后 setState 警告）。
@@ -163,7 +173,7 @@ export const useChat = (
 
   const timelineSummary = useTimelineSummary({
     activeSession, settings, activeCharacter,
-    setSessionViews, setIsSummarizing, databaseService, showCustomAlert,
+    setSessionViews: safeSetSessionViews, setIsSummarizing, databaseService, showCustomAlert,
   });
 
   const sendMessage = useSendMessage({
@@ -177,7 +187,7 @@ export const useChat = (
     pendingUpdateTimeoutRef: ui.pendingUpdateTimeoutRef,
     bisonRemainingCountRef: ui.bisonRemainingCountRef,
     bisonChainTimerRef,
-    setSessionViews, setIsSending,
+    setSessionViews: safeSetSessionViews, setIsSending,
     setIsBisonLocking: ui.setIsBisonLocking,
     setReplySuggestions: ui.setReplySuggestions,
     triggerScroll: ui.triggerScroll,
@@ -196,7 +206,7 @@ export const useChat = (
     activeSessionIdRef, sessionsRef,
     abortControllerRef,
     pendingUpdateTimeoutRef: ui.pendingUpdateTimeoutRef,
-    setSessionViews, setIsSending,
+    setSessionViews: safeSetSessionViews, setIsSending,
     setReplySuggestions: ui.setReplySuggestions,
     triggerScroll: ui.triggerScroll,
     databaseService, promptService, telemetryService, chatStreamService,

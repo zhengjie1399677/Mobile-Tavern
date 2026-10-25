@@ -445,6 +445,32 @@ export function useRerollMessage(p: RerollMessageParams) {
       p.setSessionViews((prev) =>
         prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
       );
+      const commonRequestBody: Record<string, unknown> = {
+        model: finalModel,
+        stream: true,
+        ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
+          stream_options: { include_usage: true }
+        }),
+        messages: providerMessages,
+        ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
+        temperature: effectiveSettings.preset.temperature,
+        top_p: effectiveSettings.preset.topP,
+        top_k: effectiveSettings.preset.topK,
+        top_a: effectiveSettings.preset.topA,
+        min_p: effectiveSettings.preset.minP,
+        max_tokens: effectiveSettings.preset.maxTokens,
+        presence_penalty: effectiveSettings.preset.presencePenalty ?? 0.0,
+        frequency_penalty: effectiveSettings.preset.frequencyPenalty ?? 0.0,
+        repetition_penalty: effectiveSettings.preset.repetitionPenalty ?? 1.0,
+        // ST 约定 seed < 0 为随机；不发送才能让服务端每次重新采样。
+        ...(typeof effectiveSettings.preset.seed === "number" && effectiveSettings.preset.seed >= 0
+          ? { seed: effectiveSettings.preset.seed }
+          : {}),
+      };
+      const providerInstance = typeof runtime?.getProvider === "function" ? runtime.getProvider(provider.id) : null;
+      const providerRequestBody = providerInstance?.buildRequestBody
+        ? providerInstance.buildRequestBody(commonRequestBody)
+        : commonRequestBody;
 
       const stream = p.chatStreamService.streamLlmResponse({
         baseUrl: finalBaseUrl,
@@ -454,28 +480,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         disableReasoning: p.settings.api.disableReasoning,
         reasoningStrength: p.settings.api.reasoningStrength,
         forceBasicParams: p.settings.api.forceBasicParams,
-        reqBody: {
-          model: finalModel,
-          stream: true,
-          ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
-            stream_options: { include_usage: true }
-          }),
-          messages: providerMessages,
-          ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
-          temperature: effectiveSettings.preset.temperature,
-          top_p: effectiveSettings.preset.topP,
-          top_k: effectiveSettings.preset.topK,
-          top_a: effectiveSettings.preset.topA,
-          min_p: effectiveSettings.preset.minP,
-          max_tokens: effectiveSettings.preset.maxTokens,
-          presence_penalty: effectiveSettings.preset.presencePenalty ?? 0.0,
-          frequency_penalty: effectiveSettings.preset.frequencyPenalty ?? 0.0,
-          repetition_penalty: effectiveSettings.preset.repetitionPenalty ?? 1.0,
-          // ST 约定 seed < 0 为随机；不发送才能让服务端每次重新采样。
-          ...(typeof effectiveSettings.preset.seed === "number" && effectiveSettings.preset.seed >= 0
-            ? { seed: effectiveSettings.preset.seed }
-            : {}),
-        },
+        reqBody: providerRequestBody,
         signal: controller.signal,
         traceId,
       });
@@ -704,32 +709,22 @@ export function useRerollMessage(p: RerollMessageParams) {
 
     const messages = currentSession.messages;
 
-    // 寻找最后一条用户消息和最后一条 AI 回复（规避 index 0 的欢迎词）
-    let lastUserIdx = -1;
-    let lastAiIdx = -1;
-
+    // 从后向前寻找最新一条可供重新生成的对话对白（跳过非对话消息）
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].sender === "user" && lastUserIdx === -1) {
-        lastUserIdx = i;
+      const msg = messages[i];
+      if (msg.sender === "assistant") {
+        if (i === 0) continue; // 规避首条欢迎词（开场白不应被直接重掷）
+        await handleRerollFromMessage(msg);
+        return;
       }
-      if (messages[i].sender === "assistant" && lastAiIdx === -1) {
-        if (i === 0) continue; // 规避首条欢迎词
-        lastAiIdx = i;
+      if (msg.sender === "user") {
+        // 最近一条对话是对白中的用户消息（说明 AI 回复尚未生成或失败被清理），针对该用户消息重新生成回复
+        await handleRerollFromMessage(msg);
+        return;
       }
     }
 
-    if (lastUserIdx === -1 && lastAiIdx === -1) {
-      await p.showCustomAlert("对话中尚未存在可供重新生成的对白！");
-      return;
-    }
-
-    // 决策：如果最后的用户消息在最后的 AI 回复之后（说明最后一条用户消息发送后失败了、被中断了，或者尚未得到回复）
-    // 此时应当针对最后一条用户消息重新生成回复。
-    if (lastUserIdx > lastAiIdx) {
-      await handleRerollFromMessage(messages[lastUserIdx]);
-    } else {
-      await handleRerollFromMessage(messages[lastAiIdx]);
-    }
+    await p.showCustomAlert("对话中尚未存在可供重新生成的对白！");
   }, [handleRerollFromMessage]);
 
   return { handleRerollFromMessage, handleRerollLast };

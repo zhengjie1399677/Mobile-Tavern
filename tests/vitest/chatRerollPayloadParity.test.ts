@@ -694,6 +694,47 @@ describe("发送→停止→重发 的请求载荷一致性", () => {
     expect(rerollCall.messages.some((message) => message.content.includes("来自世界书"))).toBe(false);
     expect(rerollCall.body).toEqual(sendCall.body);
   });
+
+  it("连接中断并保留部分内容时快捷栏重发：精确命中截断助手消息而非用户消息，且请求以 user 结尾", async () => {
+    // 模拟连接异常中断（产生非 Abort 错误，保留截断内容与 CONNECTION_INTERRUPTED_SUFFIX）
+    const interruptedStream = async function* () {
+      yield { choices: [{ delta: { content: "这是被截断的内容" } }] };
+      throw new Error("Network connection lost");
+    };
+    const harness = createHarness([
+      interruptedStream,
+      createImmediateStream(["重新生成的新回复"]),
+    ]);
+    const send = renderHook(() => useSendMessage(harness.sendParams));
+
+    let sendPromise!: Promise<boolean>;
+    act(() => {
+      sendPromise = send.result.current.handleSendMessage(NEW_USER_TEXT);
+    });
+    await act(async () => {
+      await sendPromise;
+    });
+
+    // 确认界面与存储中留下了带有连接中断后缀的助手消息
+    const lastMsg = harness.viewMessages().at(-1);
+    expect(lastMsg?.sender).toBe("assistant");
+    expect(lastMsg?.content).toContain("连接中断，仅保留部分生成内容");
+
+    // 用户通过快捷栏点击重发（handleRerollLast）
+    const reroll = renderHook(() => useRerollMessage(harness.rerollParams));
+    await act(async () => {
+      await reroll.result.current.handleRerollLast();
+    });
+
+    // 验证第二次请求已正常发起
+    expect(harness.streamCalls).toHaveLength(2);
+    const rerollCall = harness.streamCalls[1];
+    // 重发目标精确为该条截断助手回复（排除了它本身，消息包最后一条必须是 user）
+    expect(rerollCall.messages.at(-1)).toEqual({ role: "user", content: NEW_USER_TEXT });
+    expect(rerollCall.messages.some((message) => message.content.includes("这是被截断的内容"))).toBe(false);
+    // 边界消息 ID 精确指向截断助手消息
+    expect(harness.store.promptQueries[1].beforeMessageId).toBe(lastMsg?.id);
+  });
 });
 
 describe("权威历史读取：空产出助手消息不参与组装", () => {
