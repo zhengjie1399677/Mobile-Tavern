@@ -2,21 +2,12 @@ package com.aitavern.app
 
 import android.os.Bundle
 import android.os.SystemClock
-import androidx.activity.enableEdgeToEdge
-import androidx.activity.OnBackPressedCallback
 import android.webkit.WebView
-import android.view.ViewGroup
-import android.view.View
-import androidx.core.view.WindowCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import android.content.ContentValues
-import android.provider.MediaStore
-import android.os.Environment
-import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.Toast
-import android.view.Gravity
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import com.aitavern.plugin.androidbridge.AndroidThemeBridge
 
 class MainActivity : TauriActivity() {
@@ -58,36 +49,9 @@ class MainActivity : TauriActivity() {
       }
     })
 
-    // Listen for window inset changes (e.g. orientation changes, navigation bar toggles)
-    val decorView = window.decorView
-    ViewCompat.setOnApplyWindowInsetsListener(decorView) { view, windowInsets ->
-      val systemBarInsets = windowInsets.getInsets(
-        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-      )
-      val statusBarHeight = systemBarInsets.top
-      val navigationBarHeight = systemBarInsets.bottom
-      val leftInset = systemBarInsets.left
-      val rightInset = systemBarInsets.right
-      
-      val density = view.resources.displayMetrics.density
-      val statusBarDp = statusBarHeight / density
-      val navigationBarDp = navigationBarHeight / density
-      val leftInsetDp = leftInset / density
-      val rightInsetDp = rightInset / density
-
-      appWebView?.let { webView ->
-        webView.post {
-          webView.evaluateJavascript(
-            "window.dispatchEvent(new CustomEvent('androidSafeAreasChanged', { detail: { top: $statusBarDp, bottom: $navigationBarDp, left: $leftInsetDp, right: $rightInsetDp } }));",
-            null
-          )
-        }
-      }
-
-      windowInsets
-    }
-
-
+    // 安全区域及软键盘 (IME) 避让内边距由 Tauri Android 插件 `AndroidBridgePlugin` 统一在
+    // WebView 上监听并调度（见 AndroidThemeBridge.dispatchSafeAreasChanged），
+    // 避免 decorView 与 webView 两个 listener 同时派发相互冲突的 androidSafeAreasChanged 事件。
   }
 
   private fun handleUnconsumedBackPress() {
@@ -132,93 +96,9 @@ class MainActivity : TauriActivity() {
     // 导致 `hasStoragePermission / scanGlobalCards / requestStoragePermission / readLocalFile`
     // 等方法在 JS 端不可见，抛出 `C.hasStoragePermission is not a function`。
     //
-    // `AndroidThemeBridge` 类已是 `ThemeBridgeInterface` 的严格超集（同样实现
-    // getSafeAreas / setStatusBarStyle / saveFile / saveFileBase64，且采用 MediaStore API
-    // 而非已废弃的 WRITE_EXTERNAL_STORAGE 路径），因此无需再在 MainActivity 内重复注入。
-  }
-
-  inner class ThemeBridgeInterface {
-    @android.webkit.JavascriptInterface
-    fun getSafeAreas(): String {
-      val decorView = window.decorView
-      val insets = ViewCompat.getRootWindowInsets(decorView)
-      var statusBarDp = 0f
-      var navigationBarDp = 0f
-      var leftInsetDp = 0f
-      var rightInsetDp = 0f
-      if (insets != null) {
-        val systemBarInsets = insets.getInsets(
-          WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-        )
-        val density = decorView.resources.displayMetrics.density
-        statusBarDp = systemBarInsets.top / density
-        navigationBarDp = systemBarInsets.bottom / density
-        leftInsetDp = systemBarInsets.left / density
-        rightInsetDp = systemBarInsets.right / density
-      }
-      return "{\"top\": $statusBarDp, \"bottom\": $navigationBarDp, \"left\": $leftInsetDp, \"right\": $rightInsetDp}"
-    }
-
-    @android.webkit.JavascriptInterface
-    fun setStatusBarStyle(dark: Boolean, colorHex: String) {
-      // Persist so next cold start reads the correct theme
-      getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-        .edit()
-        .putBoolean(KEY_THEME_DARK, dark)
-        .putString(KEY_THEME_COLOR, colorHex)
-        .apply()
-
-      runOnUiThread { applyStatusBar(dark, colorHex) }
-    }
-
-    @android.webkit.JavascriptInterface
-    fun saveFile(fileName: String, content: String): String {
-      try {
-        val resolver = contentResolver
-        val contentValues = ContentValues().apply {
-          put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-          put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
-          put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-        }
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-        if (uri != null) {
-          val outputStream = resolver.openOutputStream(uri)
-          outputStream?.use { stream ->
-            stream.write(content.toByteArray())
-          }
-          return "内部存储/Download/" + fileName
-        }
-      } catch (e: Exception) {
-        e.printStackTrace()
-        return "error: " + e.message
-      }
-      return "error: Failed to create file"
-    }
-
-    @android.webkit.JavascriptInterface
-    fun saveFileBase64(fileName: String, base64Content: String, mimeType: String): String {
-      try {
-        val bytes = android.util.Base64.decode(base64Content, android.util.Base64.DEFAULT)
-        val resolver = contentResolver
-        val contentValues = ContentValues().apply {
-          put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-          put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-          put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-        }
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-        if (uri != null) {
-          val outputStream = resolver.openOutputStream(uri)
-          outputStream?.use { stream ->
-            stream.write(bytes)
-          }
-          return "内部存储/Download/" + fileName
-        }
-      } catch (e: Exception) {
-        e.printStackTrace()
-        return "error: " + e.message
-      }
-      return "error: Failed to create file"
-    }
+    // `AndroidThemeBridge` 类已是原有接口的严格超集（实现 getSafeAreas / setStatusBarStyle /
+    // saveFile / saveFileBase64 以及文件权限扫描等能力，采用 MediaStore API），
+    // 统一由 AndroidBridgePlugin 注入，无需在 MainActivity 内重复实现。
   }
 
   private fun applyStatusBar(isDark: Boolean, colorHex: String) {

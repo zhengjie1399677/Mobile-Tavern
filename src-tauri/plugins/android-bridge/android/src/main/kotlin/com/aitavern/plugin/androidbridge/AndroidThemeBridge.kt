@@ -629,8 +629,11 @@ class AndroidThemeBridge(
             // 底部只认导航栏 / 手势条。systemBars 的联合结果在部分 ROM（MIUI 等）
             // 上会把输入法高度一起算进来，键盘弹起时底栏就会被顶到页面中间。
             val navigationBars = compatInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            val imeInsets = compatInsets.getInsets(WindowInsetsCompat.Type.ime())
             imeVisible = compatInsets.isVisible(WindowInsetsCompat.Type.ime())
-            bottomPx = if (imeVisible) 0 else navigationBars.bottom
+            val isImeDocked = imeInsets.bottom > navigationBars.bottom &&
+                (imeVisible || imeInsets.bottom > (navigationBars.bottom + 40 * density))
+            bottomPx = if (isImeDocked) 0 else navigationBars.bottom
             leftPx = systemBars.left
             rightPx = systemBars.right
             insetsResolved = bottomPx != 0 || leftPx != 0 || rightPx != 0
@@ -682,33 +685,46 @@ class AndroidThemeBridge(
             WindowInsetsCompat.Type.systemBars() or
                 WindowInsetsCompat.Type.displayCutout()
         )
-        // 与 getSafeAreas 保持同一口径：底部只取导航栏，键盘可见时按 0 处理，
-        // 避免把输入法高度当成底部安全区推给前端。
         val navigationBars = compatInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+        val imeInsets = compatInsets.getInsets(WindowInsetsCompat.Type.ime())
         val imeVisible = compatInsets.isVisible(WindowInsetsCompat.Type.ime())
 
         val statusResourceId = activity.resources.getIdentifier(
             "status_bar_height", "dimen", "android"
         )
-        val topPx = if (statusResourceId > 0) {
+        val resourceTopPx = if (statusResourceId > 0) {
             activity.resources.getDimensionPixelSize(statusResourceId)
         } else {
-            systemBars.top
+            0
         }
+        // 取系统栏与相机挖孔/刘海的最大高度，确保异形屏和普通屏均不被遮挡
+        val topPx = Math.max(systemBars.top, resourceTopPx)
+
+        // 判定软键盘是否真正附着在屏幕底部（排除悬浮键盘/分体键盘等不占底部的形态，并包容某些 OEM 收起动画的中间状态）
+        val isImeDocked = imeInsets.bottom > navigationBars.bottom &&
+            (imeVisible || imeInsets.bottom > (navigationBars.bottom + 40 * density))
+        val imeBottomPx = if (isImeDocked) imeInsets.bottom else 0
 
         val topDp = (topPx / density).toInt()
-        val bottomDp = (if (imeVisible) 0 else navigationBars.bottom / density).toInt()
+        // 软键盘弹起吸底时，底部导航栏安全区传 0，避免底部元素在被 WebView 垫起后又叠加一层导航栏留白
+        val bottomDp = if (isImeDocked) 0 else (navigationBars.bottom / density).toInt()
         val leftDp = (systemBars.left / density).toInt()
         val rightDp = (systemBars.right / density).toInt()
 
         Log.d(
             TAG,
-            "onApplyWindowInsets: topDp=$topDp, bottomDp=$bottomDp, leftDp=$leftDp, rightDp=$rightDp"
+            "onApplyWindowInsets: topDp=$topDp, bottomDp=$bottomDp, leftDp=$leftDp, rightDp=$rightDp, imeBottomPx=$imeBottomPx"
         )
 
-        // WebView padding 保持为 0：宿主 App 已设置 adjustResize 并由前端 CSS 接管安全区，
-        // 设置 padding 会导致布局产生双重挤压。
-        view.setPadding(0, 0, 0, 0)
+        // 核心修复（Android 12 ~ 17 全版本兼容）：
+        // 在 Android 15+ (API 35+) 及 Android 16/17 中，enableEdgeToEdge 强制全屏沉浸绘制，
+        // 传统的 windowSoftInputMode="adjustResize" 不再自动压缩根窗口/WebView。
+        // 当软键盘弹起时，必须通过 padding 将 WebView 的内容绘制区域垫高，
+        // 从而直接触发 Chromium 内部视口收缩并触发 resize 事件，彻底解决输入框被键盘遮挡的问题；
+        // 当软键盘收起时，padding 恢复为 0，继续保持底部手势栏的无缝穿透沉浸。
+        if (view.paddingBottom != imeBottomPx) {
+            view.setPadding(0, 0, 0, imeBottomPx)
+        }
 
         val js = (
             "window.dispatchEvent(new CustomEvent('androidSafeAreasChanged', " +
