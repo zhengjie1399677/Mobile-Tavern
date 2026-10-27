@@ -91,6 +91,11 @@ export interface CompatibilityWorldInfoResolverRequest {
   readonly entries: readonly LorebookEntry[];
   readonly maxRecursionDepth?: number;
   readonly recursive?: boolean;
+  /**
+   * 世界书注入预算（字符）。缺省时解析器按 SillyTavern 的 `world_info_budget`（上下文 25%）折算，
+   * 调用方（PromptService）应传入按当前模型上下文窗口推导的值。
+   */
+  readonly budgetChars?: number;
   readonly timedState?: WorldInfoTimedState;
   readonly onUpdateTimedState?: (nextState: WorldInfoTimedState) => void;
   readonly conditionContext?: {

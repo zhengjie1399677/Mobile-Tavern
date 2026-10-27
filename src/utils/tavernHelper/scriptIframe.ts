@@ -108,6 +108,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
   // Expose global TavernHelper mock APIs immediately to prevent ReferenceErrors in Step 1.5
   window.z = window.parent.z || null;
   window.YAML = window.parent.YAML || null;
+  window.jsyaml = window.parent.jsyaml || window.parent.YAML || null;
   window.showdown = window.parent.showdown || null;
   window.toastr = window.parent.toastr || null;
   window.EjsTemplate = window.parent.EjsTemplate || null;
@@ -269,7 +270,7 @@ export function createScriptIframeSrcDoc(scriptContent: string, scriptId: string
     window.name = iframeId;
 
     // Dynamic getters to resolve parent libraries on demand
-    var parentLibs = ['_', 'lodash', 'z', 'YAML', 'showdown', 'toastr', 'EjsTemplate', 'TavernHelper', 'tavern_events', 'appendInexistentScriptButtons', 'getScriptButtons', 'replaceScriptButtons', 'getButtonEvent'];
+    var parentLibs = ['_', 'lodash', 'z', 'YAML', 'jsyaml', 'showdown', 'toastr', 'EjsTemplate', 'TavernHelper', 'tavern_events', 'appendInexistentScriptButtons', 'getScriptButtons', 'replaceScriptButtons', 'getButtonEvent'];
     parentLibs.forEach(function(p) {
       Object.defineProperty(window, p, {
         get: function() {
@@ -803,7 +804,7 @@ export function createMessageIframeSrcDoc(htmlContent: string, messageIndex?: nu
   // ─── TavernHelper predefine for message iframe ───
   (function() {
     // Dynamic getters to resolve parent libraries on demand (including Vue)
-    var parentLibs = ['_', 'lodash', 'z', 'YAML', 'showdown', 'toastr', 'EjsTemplate', 'TavernHelper', 'tavern_events', 'appendInexistentScriptButtons', 'getScriptButtons', 'replaceScriptButtons', 'getButtonEvent', 'Vue'];
+    var parentLibs = ['_', 'lodash', 'z', 'YAML', 'jsyaml', 'showdown', 'toastr', 'EjsTemplate', 'TavernHelper', 'tavern_events', 'appendInexistentScriptButtons', 'getScriptButtons', 'replaceScriptButtons', 'getButtonEvent', 'Vue'];
     parentLibs.forEach(function(p) {
       Object.defineProperty(window, p, {
         get: function() {

@@ -7,9 +7,11 @@ import {
   type VariableConditionContext,
 } from "../../domain/conditions";
 import { normalizeSelectiveLogic } from "../../utils/cardParser";
+import { resolveWorldInfoBudgetChars } from "../../domain/lorebookBudget";
 import { isPotentiallyCatastrophicRegex } from "./regexEngine";
 
-const DEFAULT_PROMPT_BUDGET_CHARS = 6000;
+/** 上下文窗口未知时的默认预算；调用方按真实上下文传入 `budgetChars` 时会覆盖它。 */
+const DEFAULT_PROMPT_BUDGET_CHARS = resolveWorldInfoBudgetChars();
 const DEFAULT_SCAN_CHARS = 8000;
 /** 与 SillyTavern `world_info_depth` 默认值一致：未声明 scan_depth 时只扫最近 2 条消息。 */
 const DEFAULT_SCAN_DEPTH = 2;
@@ -106,6 +108,23 @@ function contributesToRecursion(entry: LorebookEntry): boolean {
     sourceBoolean(entry, "prevent_recursion", "preventRecursion") === true);
 }
 
+function readKeyList(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.filter((key): key is string => typeof key === "string").map((key) => key.trim()).filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    return raw.split(",").map((key) => key.trim()).filter(Boolean);
+  }
+  if (raw && typeof raw === "object") {
+    // 历史数据里出现过把关键词存成对象（索引 → 字符串）的写法。
+    return Object.values(raw as Record<string, unknown>)
+      .filter((key): key is string => typeof key === "string")
+      .map((key) => key.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
 function readSecondaryKeys(entry: LorebookEntry): string[] {
   // 字段声明是 string[]，但编辑器历史上会把逗号分隔字符串直接写进来，两边都要兼容。
   const own: unknown = entry.secondary_keys;
@@ -117,11 +136,19 @@ function readSecondaryKeys(entry: LorebookEntry): string[] {
   if (normalized.length > 0) return normalized;
   // 早期导入只把 ST 原生命名字段留在了 sourceMetadata 里。
   const fromSource = sourceValue(entry, "keysecondary");
-  return Array.isArray(fromSource)
-    ? fromSource.filter((key): key is string => typeof key === "string").map((key) => key.trim()).filter(Boolean)
-    : typeof fromSource === "string"
-      ? fromSource.split(",").map((key) => key.trim()).filter(Boolean)
-      : [];
+  return readKeyList(fromSource);
+}
+
+/**
+ * 主关键词归一到字符串数组。
+ * 字段声明是 string[]，但编辑器历史上会把逗号分隔字符串直接写进来（`InlineEntryForm` 的输入框），
+ * 旧数据与第三方导入也可能留下对象；不归一就会在 `keys.some` 处抛 TypeError 让整轮世界书解析失败。
+ */
+function readPrimaryKeys(entry: LorebookEntry): string[] {
+  const own = readKeyList(entry.keys);
+  if (own.length > 0) return own;
+  const fromSource = sourceValue(entry, "key") ?? sourceValue(entry, "keys");
+  return readKeyList(fromSource);
 }
 
 function passesSecondaryKeys(entry: LorebookEntry, match: (key: string) => boolean): boolean {
@@ -233,7 +260,7 @@ export function resolveSillyTavernWorldInfo(
         const scanDepth = sourceNumber(entry, "scan_depth", "scanDepth") ?? entry.scanDepth ?? DEFAULT_SCAN_DEPTH;
         const scanText = getScanText(scanDepth);
         const match = (key: string) => matchesKey(key, entry, scanText);
-        const hasMatch = scanDepth > 0 && entry.keys.some(match) && passesSecondaryKeys(entry, match);
+        const hasMatch = scanDepth > 0 && readPrimaryKeys(entry).some(match) && passesSecondaryKeys(entry, match);
 
         if (hasMatch) {
           const delayReq = sourceNumber(entry, "delay") ?? entry.delay ?? 0;
@@ -282,12 +309,17 @@ export function resolveSillyTavernWorldInfo(
     (request.conditionContext.session as Record<string, unknown>).timedWorldInfo = timedState;
   }
 
+  // 预算按 SillyTavern 的 `world_info_budget`（上下文 25%）折算；调用方给出更精确的
+  // 上下文窗口时以调用方为准，避免小预算把命中条目整批丢弃。
+  const budgetChars = typeof request.budgetChars === "number" && Number.isFinite(request.budgetChars) && request.budgetChars > 0
+    ? request.budgetChars
+    : DEFAULT_PROMPT_BUDGET_CHARS;
   let budgetUsed = 0;
   return activeEntries.filter((entry) => {
     const ignoreBudget = sourceBoolean(entry, "ignore_budget", "ignoreBudget") === true;
     if (ignoreBudget) return true;
     const length = entry.content.length;
-    if (length > DEFAULT_PROMPT_BUDGET_CHARS || budgetUsed + length > DEFAULT_PROMPT_BUDGET_CHARS) return false;
+    if (length > budgetChars || budgetUsed + length > budgetChars) return false;
     budgetUsed += length;
     return true;
   });

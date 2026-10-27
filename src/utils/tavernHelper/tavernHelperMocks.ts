@@ -24,6 +24,8 @@ import lodashCloneDeep from "lodash/cloneDeep";
 import lodashGet from "lodash/get";
 import lodashSet from "lodash/set";
 import lodashIsEqual from "lodash/isEqual";
+import yaml from "js-yaml";
+import type { DumpOptions, LoadOptions } from "js-yaml";
 import { registerMvuSchema } from "../mvu_zod";
 import {
   getBridgeParams,
@@ -63,6 +65,21 @@ interface TavernHelperLike {
 }
 
 /**
+ * js-yaml 暴露给兼容脚本的方法面。
+ * SillyTavern 侧同时存在 `YAML` 与 `jsyaml` 两个全局名，且历史脚本仍会调用 v3 的
+ * `safeLoad` / `safeDump`，因此这里一并提供，内部都转发到 js-yaml v4。
+ */
+interface YamlLike {
+  load: (source: string, options?: LoadOptions) => unknown;
+  loadAll: (source: string, options?: LoadOptions) => unknown[];
+  dump: (value: unknown, options?: DumpOptions) => string;
+  safeLoad: (source: string, options?: LoadOptions) => unknown;
+  safeDump: (value: unknown, options?: DumpOptions) => string;
+  parse: (source: string) => unknown;
+  stringify: (value: unknown) => string;
+}
+
+/**
  * TavernHelper 桥接所需的 Window 全局 Mock 字段。
  * 全部声明为可选，因 initTavernHelperMocks() 采用惰性初始化（X = X || default）。
  */
@@ -71,7 +88,8 @@ interface TavernHelperWindow extends Window {
   tavern_events?: Record<string, string>;
   $?: jQueryLike;
   jQuery?: jQueryLike;
-  YAML?: { parse: (s: string) => unknown; stringify: (o: unknown) => string };
+  YAML?: YamlLike;
+  jsyaml?: YamlLike;
   z?: ReturnType<typeof createZodProxy>;
   toastr?: ToastrMock;
   showdown?: { Converter: () => { makeHtml: (text: string) => string } };
@@ -213,43 +231,20 @@ export function initTavernHelperMocks(): void {
     };
   });
 
-  // 3. Enhanced YAML parser (lightweight inline implementation without external dependency)
-  parentWin.YAML = parentWin.YAML || {
-    parse: (str: string) => {
-      if (!str || typeof str !== 'string') return {};
-      const trimmed = str.trim();
-      try { return JSON.parse(trimmed); } catch {}
-      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-        try { return JSON.parse(trimmed.replace(/'/g, '"')); } catch {}
-      }
-      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-        try { return JSON.parse(trimmed.replace(/'/g, '"').replace(/(\w+):/g, '"$1":')); } catch {}
-      }
-      const result: Record<string, any> = {};
-      const lines = trimmed.split('\n');
-      let hasParsed = false;
-      for (const line of lines) {
-        const t = line.trim();
-        if (!t || t.startsWith('#')) continue;
-        const colonIdx = t.indexOf(':');
-        if (colonIdx > 0) {
-          const key = t.slice(0, colonIdx).trim().replace(/^["']|["']$/g, '');
-          let val: any = t.slice(colonIdx + 1).trim();
-          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-            val = val.slice(1, -1);
-          } else if (val === 'true') { val = true; }
-          else if (val === 'false') { val = false; }
-          else if (val === 'null' || val === '~') { val = null; }
-          else if (/^-?\d+(\.\d+)?$/.test(val)) { val = Number(val); }
-          else if (val === '') { val = null; }
-          result[key] = val;
-          hasParsed = true;
-        }
-      }
-      return hasParsed ? result : {};
-    },
-    stringify: (obj: any) => JSON.stringify(obj),
+  // 3. YAML：SillyTavern 把 js-yaml 同时挂成 `YAML` 与 `jsyaml` 两个全局名。
+  // 下载卡的状态栏脚本普遍直接调用 `jsyaml.load(...)`，只提供 `YAML` 会抛 `jsyaml is not defined`。
+  // 这里改用真实 js-yaml（支持嵌套 / 多行块 / 锚点），不再用只认平铺 `key: value` 的自研 mock。
+  const yamlLib: YamlLike = {
+    load: (source, options) => yaml.load(source, options),
+    loadAll: (source, options) => yaml.loadAll(source, null, options),
+    dump: (value, options) => yaml.dump(value, options),
+    safeLoad: (source, options) => yaml.load(source, options),
+    safeDump: (value, options) => yaml.dump(value, options),
+    parse: (source) => yaml.load(source) ?? {},
+    stringify: (value) => yaml.dump(value),
   };
+  parentWin.YAML = parentWin.YAML || yamlLib;
+  parentWin.jsyaml = parentWin.jsyaml || yamlLib;
 
   // 4. Mock Zod schema validator
   parentWin.z = createZodProxy();

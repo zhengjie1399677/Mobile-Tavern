@@ -1,10 +1,12 @@
 import type { LorebookEntry, Message } from "../../../types";
 import { Logger } from "../../../utils/logger";
 import { evaluateVariableCondition, type VariableConditionContext } from "../../../domain/conditions";
+import { resolveWorldInfoBudgetChars } from "../../../domain/lorebookBudget";
 
 const logger = Logger.create("LorebookResolver");
 
-const PROMPT_BUDGET_CHARS = 6000;
+/** 预算按 SillyTavern `world_info_budget` 折算；调用方传入真实上下文窗口时以调用方为准。 */
+const PROMPT_BUDGET_CHARS = resolveWorldInfoBudgetChars();
 const MAX_SCAN_CHARS = 8000;
 /** 与 SillyTavern `world_info_depth` 默认值一致：未声明 scanDepth 时只扫最近 2 条消息。 */
 const DEFAULT_SCAN_DEPTH = 2;
@@ -15,6 +17,13 @@ function normalizeKeys(raw: unknown): string[] {
   }
   if (typeof raw === "string") {
     return raw.split(",").map((key) => key.trim()).filter(Boolean);
+  }
+  if (raw && typeof raw === "object") {
+    // 历史数据里出现过把关键词存成对象（索引 → 字符串）的写法。
+    return Object.values(raw as Record<string, unknown>)
+      .filter((key): key is string => typeof key === "string")
+      .map((key) => key.trim())
+      .filter(Boolean);
   }
   return [];
 }
@@ -66,6 +75,7 @@ export function resolveTriggeredLorebookEntries(
   entries: LorebookEntry[],
   maxRecursionDepth = 3,
   conditionContext: VariableConditionContext = {},
+  budgetChars: number = PROMPT_BUDGET_CHARS,
 ): LorebookEntry[] {
   if (!entries?.length) return [];
 
@@ -108,7 +118,7 @@ export function resolveTriggeredLorebookEntries(
       const scanText = getScanText(scanDepth);
       const match = (key: string) =>
         matchesKey(key, !!entry.useRegex, !!entry.caseSensitive, scanText);
-      if (!(entry.keys || []).some(match)) continue;
+      if (!normalizeKeys(entry.keys).some(match)) continue;
 
       const secondaryKeys = normalizeKeys(entry.secondary_keys);
       if (secondaryKeys.length > 0) {
@@ -138,17 +148,17 @@ export function resolveTriggeredLorebookEntries(
   let currentLength = 0;
   return activeEntries.filter((entry) => {
     const length = entry.content?.length ?? 0;
-    if (length > PROMPT_BUDGET_CHARS) {
+    if (length > budgetChars) {
       logger.warn(
         `Lorebook entry alone exceeds prompt budget limit, skipped`,
-        { entryId: entry.id, length, budget: PROMPT_BUDGET_CHARS }
+        { entryId: entry.id, length, budget: budgetChars }
       );
       return false;
     }
-    if (currentLength + length > PROMPT_BUDGET_CHARS) {
+    if (currentLength + length > budgetChars) {
       logger.warn(
         `Lorebook entry skipped due to prompt budget limit`,
-        { entryId: entry.id, budget: PROMPT_BUDGET_CHARS }
+        { entryId: entry.id, budget: budgetChars }
       );
       return false;
     }

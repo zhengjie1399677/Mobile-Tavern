@@ -516,7 +516,9 @@ export interface IPromptService<TCharacter = unknown, TSession = unknown, TSetti
     conditionContext?: {
       variables?: Record<string, unknown>;
       session?: Record<string, unknown>;
-    }
+    },
+    /** 世界书注入预算（字符）；缺省按 ST `world_info_budget` 语义折算。 */
+    budgetChars?: number,
   ): TLorebook[];
   replaceMacros(
     text: string,

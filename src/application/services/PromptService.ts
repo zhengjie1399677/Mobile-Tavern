@@ -35,6 +35,8 @@ import { Logger } from "../../utils/logger";
 import { isDirectApiCharacter } from "../../domain/agents/directApiMode";
 import { buildDirectApiPromptAssembly } from "./prompt/DirectApiPromptAssembly";
 import { formatTriggeredLorebookEntries } from "./prompt/PromptLorebookFormatter";
+import { resolveWorldInfoBudgetChars } from "../../domain/lorebookBudget";
+import { resolveWorldInfoBudgetForSettings } from "./prompt/worldInfoBudget";
 import {
   cleanPromptNameForApi,
   estimatePromptTokens,
@@ -105,6 +107,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     entries: LorebookEntry[],
     maxRecursionDepth: number = 3,
     conditionContext: { variables?: Record<string, unknown>; session?: Record<string, unknown> } = {},
+    budgetChars: number = resolveWorldInfoBudgetChars(),
   ): LorebookEntry[] {
     const compatibilityResolver = this.getCompatibilityRuntime()?.getWorldInfoResolver();
     if (compatibilityResolver) {
@@ -113,6 +116,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         userInput,
         entries,
         maxRecursionDepth,
+        budgetChars,
         conditionContext,
       })];
     }
@@ -122,6 +126,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       entries,
       maxRecursionDepth,
       conditionContext,
+      budgetChars,
     );
   }
 
@@ -313,6 +318,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         allEntries,
         3,
         { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
+        resolveWorldInfoBudgetForSettings(settings),
       );
       const compatibilityRuntime = this.getCompatibilityRuntime();
       const hasCompatibilityWorldInfo = Boolean(compatibilityRuntime?.getWorldInfoResolver());
@@ -537,6 +543,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       allEntries,
       3,
       { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
+      resolveWorldInfoBudgetForSettings(settings),
     );
     const compatibilityRuntime = this.getCompatibilityRuntime();
     const hasCompatibilityWorldInfo = Boolean(compatibilityRuntime?.getWorldInfoResolver());
