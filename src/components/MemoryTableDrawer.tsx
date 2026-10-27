@@ -136,9 +136,14 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
         </div>
 
         {/* Inner Content Area */}
-        <div className={`min-h-0 flex-1 ${activeTab === 'timeline'
+        <div
+          className={`min-h-0 flex-1 ${activeTab === 'timeline'
             ? 'flex flex-col overflow-hidden'
-            : 'overflow-y-auto p-4 pb-[calc(1rem+var(--safe-area-bottom,0px))]'}`}>
+            : 'overflow-y-auto p-4'}`}
+          // 底部留白叠加系统安全区：三键/手势条会盖住滚动内容的最后一行。
+          // 内联样式而非 Tailwind 任意值——任意值里的 calc 漏掉空格会被整条丢弃。
+          style={activeTab === 'timeline' ? undefined : { paddingBottom: 'calc(1rem + var(--safe-area-bottom, 0px))' }}
+        >
           <React.Suspense fallback={<MemoryTabFallback />}>
 
           {/* 故事年表面板 */}
