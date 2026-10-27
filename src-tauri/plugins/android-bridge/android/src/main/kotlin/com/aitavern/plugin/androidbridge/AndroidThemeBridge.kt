@@ -543,6 +543,8 @@ class AndroidThemeBridge(
 
     companion object {
         private const val TAG = "TavernThemeBridge"
+        /** 键盘「吸底」判定容差：部分 OEM 在收起动画期间 inset 仍保留，用一段余量兜住中间态。 */
+        private const val IME_DOCK_TOLERANCE_DP = 40f
         private const val MAX_SCAN_DEPTH = 12
         private const val MAX_SCANNED_FILES = 5_000
         private const val MAX_SCANNED_DIRECTORIES = 20_000
@@ -583,6 +585,41 @@ class AndroidThemeBridge(
     // ---------------------------------------------------------------------
 
     /**
+     * 软键盘是否真正吸底显示。
+     *
+     * 悬浮/分体键盘不占底部空间，不能当作「键盘顶起页面」处理；部分 OEM 在收起动画期间
+     * `isVisible(ime)` 会先变 false 而 inset 仍保留，故用 [IME_DOCK_TOLERANCE_DP] 兜住中间状态。
+     */
+    private fun isImeDocked(
+        imeBottomPx: Int,
+        navigationBottomPx: Int,
+        imeVisible: Boolean,
+        density: Float,
+    ): Boolean {
+        if (imeBottomPx <= navigationBottomPx) return false
+        return imeVisible || imeBottomPx > navigationBottomPx + IME_DOCK_TOLERANCE_DP * density
+    }
+
+    /**
+     * 顶部安全区的唯一口径。
+     *
+     * 优先使用系统栏 / 挖孔 inset；只有在拿不到 inset（早期布局阶段返回 0）时才回退到
+     * `status_bar_height` 资源值。同步取值 [getSafeAreas] 与推送 [dispatchSafeAreasChanged]
+     * 必须共用这里，否则会出现「首次取值与后续推送不一致」的顶栏跳动。
+     */
+    private fun resolveTopInsetPx(systemBarsTopPx: Int): Int {
+        if (systemBarsTopPx > 0) return systemBarsTopPx
+        val statusResourceId = activity.resources.getIdentifier(
+            "status_bar_height", "dimen", "android"
+        )
+        return if (statusResourceId > 0) {
+            activity.resources.getDimensionPixelSize(statusResourceId)
+        } else {
+            0
+        }
+    }
+
+    /**
      * 以设备独立像素（dp）返回当前系统栏（状态栏与导航栏）安全区域内边距。
      * 返回 JSON 格式：`{ "top": <dp>, "bottom": <dp>, "left": <dp>, "right": <dp> }`
      *
@@ -601,15 +638,8 @@ class AndroidThemeBridge(
             return json.toString()
         }
 
-        // 1. 读取系统官方资源 dimen 获取状态栏高度
-        val statusResourceId = activity.resources.getIdentifier(
-            "status_bar_height", "dimen", "android"
-        )
-        val topPx = if (statusResourceId > 0) {
-            activity.resources.getDimensionPixelSize(statusResourceId)
-        } else {
-            0
-        }
+        // 1. 顶部安全区与 dispatchSafeAreasChanged 共用同一口径，避免两条入口给出不同高度。
+        var topPx = 0
 
         // 2. 通过 WindowInsetsCompat 获取导航栏与系统手势内边距
         var bottomPx = 0
@@ -631,12 +661,17 @@ class AndroidThemeBridge(
             val navigationBars = compatInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
             val imeInsets = compatInsets.getInsets(WindowInsetsCompat.Type.ime())
             imeVisible = compatInsets.isVisible(WindowInsetsCompat.Type.ime())
-            val isImeDocked = imeInsets.bottom > navigationBars.bottom &&
-                (imeVisible || imeInsets.bottom > (navigationBars.bottom + 40 * density))
-            bottomPx = if (isImeDocked) 0 else navigationBars.bottom
+            val imeDocked = isImeDocked(imeInsets.bottom, navigationBars.bottom, imeVisible, density)
+            topPx = resolveTopInsetPx(systemBars.top)
+            bottomPx = if (imeDocked) 0 else navigationBars.bottom
             leftPx = systemBars.left
             rightPx = systemBars.right
             insetsResolved = bottomPx != 0 || leftPx != 0 || rightPx != 0
+        }
+
+        // 2b. 拿不到 WindowInsets（早期布局）时，顶部回退到资源值，与推送口径保持一致。
+        if (topPx == 0) {
+            topPx = resolveTopInsetPx(0)
         }
 
         // 3. 早期布局阶段 WindowInsets 尚未就绪时的底部安全区兜底计算
@@ -689,25 +724,16 @@ class AndroidThemeBridge(
         val imeInsets = compatInsets.getInsets(WindowInsetsCompat.Type.ime())
         val imeVisible = compatInsets.isVisible(WindowInsetsCompat.Type.ime())
 
-        val statusResourceId = activity.resources.getIdentifier(
-            "status_bar_height", "dimen", "android"
-        )
-        val resourceTopPx = if (statusResourceId > 0) {
-            activity.resources.getDimensionPixelSize(statusResourceId)
-        } else {
-            0
-        }
-        // 取系统栏与相机挖孔/刘海的最大高度，确保异形屏和普通屏均不被遮挡
-        val topPx = Math.max(systemBars.top, resourceTopPx)
+        // 顶部与同步入口 getSafeAreas 共用同一口径（systemBars 已包含 displayCutout）。
+        val topPx = resolveTopInsetPx(systemBars.top)
 
-        // 判定软键盘是否真正附着在屏幕底部（排除悬浮键盘/分体键盘等不占底部的形态，并包容某些 OEM 收起动画的中间状态）
-        val isImeDocked = imeInsets.bottom > navigationBars.bottom &&
-            (imeVisible || imeInsets.bottom > (navigationBars.bottom + 40 * density))
-        val imeBottomPx = if (isImeDocked) imeInsets.bottom else 0
+        // 判定软键盘是否真正附着在屏幕底部（悬浮/分体键盘不占底部；OEM 收起动画的中间态由容差兜住）
+        val imeDocked = isImeDocked(imeInsets.bottom, navigationBars.bottom, imeVisible, density)
+        val imeBottomPx = if (imeDocked) imeInsets.bottom else 0
 
         val topDp = (topPx / density).toInt()
         // 软键盘弹起吸底时，底部导航栏安全区传 0，避免底部元素在被 WebView 垫起后又叠加一层导航栏留白
-        val bottomDp = if (isImeDocked) 0 else (navigationBars.bottom / density).toInt()
+        val bottomDp = if (imeDocked) 0 else (navigationBars.bottom / density).toInt()
         val leftDp = (systemBars.left / density).toInt()
         val rightDp = (systemBars.right / density).toInt()
 
