@@ -2,6 +2,11 @@ import type { LorebookEntry, Message } from "../../../types";
 import { Logger } from "../../../utils/logger";
 import { evaluateVariableCondition, type VariableConditionContext } from "../../../domain/conditions";
 import { resolveWorldInfoBudgetChars } from "../../../domain/lorebookBudget";
+import {
+  recordLorebookBudgetDrop,
+  recordLorebookHit,
+  type LorebookAuditReport,
+} from "../../../domain/lorebookAudit";
 
 const logger = Logger.create("LorebookResolver");
 
@@ -76,6 +81,8 @@ export function resolveTriggeredLorebookEntries(
   maxRecursionDepth = 3,
   conditionContext: VariableConditionContext = {},
   budgetChars: number = PROMPT_BUDGET_CHARS,
+  /** 传入时顺手记录触发原因与预算裁剪明细，供提示词审计面板展示。 */
+  audit?: LorebookAuditReport,
 ): LorebookEntry[] {
   if (!entries?.length) return [];
 
@@ -108,6 +115,7 @@ export function resolveTriggeredLorebookEntries(
       if (entry.constant) {
         activeEntries.push(entry);
         activeIds.add(entry.id);
+        if (audit) recordLorebookHit(audit, { entryId: entry.id, trigger: "constant" });
         recursionTextAppend += `\n${entry.content}`;
         newTriggeredInLastPass = true;
         continue;
@@ -118,7 +126,8 @@ export function resolveTriggeredLorebookEntries(
       const scanText = getScanText(scanDepth);
       const match = (key: string) =>
         matchesKey(key, !!entry.useRegex, !!entry.caseSensitive, scanText);
-      if (!normalizeKeys(entry.keys).some(match)) continue;
+      const matchedKey = normalizeKeys(entry.keys).find(match);
+      if (matchedKey === undefined) continue;
 
       const secondaryKeys = normalizeKeys(entry.secondary_keys);
       if (secondaryKeys.length > 0) {
@@ -140,6 +149,7 @@ export function resolveTriggeredLorebookEntries(
 
       activeEntries.push(entry);
       activeIds.add(entry.id);
+      if (audit) recordLorebookHit(audit, { entryId: entry.id, trigger: "keyword", matchedKey });
       recursionTextAppend += `\n${entry.content}`;
       newTriggeredInLastPass = true;
     }
@@ -149,6 +159,7 @@ export function resolveTriggeredLorebookEntries(
   return activeEntries.filter((entry) => {
     const length = entry.content?.length ?? 0;
     if (length > budgetChars) {
+      if (audit) recordLorebookBudgetDrop(audit, entry.id, length);
       logger.warn(
         `Lorebook entry alone exceeds prompt budget limit, skipped`,
         { entryId: entry.id, length, budget: budgetChars }
@@ -156,6 +167,7 @@ export function resolveTriggeredLorebookEntries(
       return false;
     }
     if (currentLength + length > budgetChars) {
+      if (audit) recordLorebookBudgetDrop(audit, entry.id, length);
       logger.warn(
         `Lorebook entry skipped due to prompt budget limit`,
         { entryId: entry.id, budget: budgetChars }

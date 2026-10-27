@@ -8,6 +8,7 @@ import {
 } from "../../domain/conditions";
 import { normalizeSelectiveLogic } from "../../utils/cardParser";
 import { resolveWorldInfoBudgetChars } from "../../domain/lorebookBudget";
+import { recordLorebookBudgetDrop, recordLorebookHit } from "../../domain/lorebookAudit";
 import { isPotentiallyCatastrophicRegex } from "./regexEngine";
 
 /** 上下文窗口未知时的默认预算；调用方按真实上下文传入 `budgetChars` 时会覆盖它。 */
@@ -215,6 +216,7 @@ export function resolveSillyTavernWorldInfo(
 
   const activeEntries: LorebookEntry[] = [];
   const activeIds = new Set<string>();
+  const audit = request.audit;
   const scanCache = new Map<number, string>();
   let recursionText = "";
   let pass = 0;
@@ -255,12 +257,14 @@ export function resolveSillyTavernWorldInfo(
 
       const isConstant = entry.constant || sourceBoolean(entry, "constant_active") === true;
       let isTriggered = isConstant || isSticky;
+      let matchedKey: string | undefined;
 
       if (!isTriggered) {
         const scanDepth = sourceNumber(entry, "scan_depth", "scanDepth") ?? entry.scanDepth ?? DEFAULT_SCAN_DEPTH;
         const scanText = getScanText(scanDepth);
         const match = (key: string) => matchesKey(key, entry, scanText);
-        const hasMatch = scanDepth > 0 && readPrimaryKeys(entry).some(match) && passesSecondaryKeys(entry, match);
+        const primaryMatch = scanDepth > 0 ? readPrimaryKeys(entry).find(match) : undefined;
+        const hasMatch = primaryMatch !== undefined && passesSecondaryKeys(entry, match);
 
         if (hasMatch) {
           const delayReq = sourceNumber(entry, "delay") ?? entry.delay ?? 0;
@@ -271,6 +275,7 @@ export function resolveSillyTavernWorldInfo(
           const probability = sourceNumber(entry, "probability") ?? entry.probability ?? 100;
           if (!useProbability || probability >= 100 || Math.random() * 100 <= probability) {
             isTriggered = true;
+            matchedKey = primaryMatch;
           }
         }
       }
@@ -278,6 +283,13 @@ export function resolveSillyTavernWorldInfo(
       if (isTriggered) {
         activeEntries.push(entry);
         activeIds.add(entry.id);
+        if (audit) {
+          recordLorebookHit(audit, {
+            entryId: entry.id,
+            trigger: isSticky ? "sticky" : isConstant ? "constant" : "keyword",
+            ...(matchedKey ? { matchedKey } : {}),
+          });
+        }
         newEntriesInPass.push(entry);
 
         // 如果新触发且具有 sticky 或 cooldown，设置时效
@@ -319,7 +331,10 @@ export function resolveSillyTavernWorldInfo(
     const ignoreBudget = sourceBoolean(entry, "ignore_budget", "ignoreBudget") === true;
     if (ignoreBudget) return true;
     const length = entry.content.length;
-    if (length > budgetChars || budgetUsed + length > budgetChars) return false;
+    if (length > budgetChars || budgetUsed + length > budgetChars) {
+      if (audit) recordLorebookBudgetDrop(audit, entry.id, length);
+      return false;
+    }
     budgetUsed += length;
     return true;
   });

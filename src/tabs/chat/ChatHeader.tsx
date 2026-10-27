@@ -15,6 +15,7 @@ import {
   BookOpen,
   BrainCircuit,
   Braces,
+  ScrollText,
   ChevronRight,
   UserRound,
   Plus,
@@ -34,7 +35,7 @@ import AgentHostDiagnosticsModal from "../../components/plugins/AgentHostDiagnos
 import UserPersonaModal from "../../components/UserPersonaModal";
 
 interface ChatHeaderProps {
-  openTableDrawer: (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu') => void;
+  openTableDrawer: (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'prompt' | 'mvu') => void;
   setIsDetailDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>;
   enableRecall: boolean;
   enableMvuVariables: boolean;
@@ -405,6 +406,19 @@ const ChatHeader = ({
                 >
                   <BookOpen className="size-3.5 text-muted-foreground" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate">{t("chat_header.dict")}</span>
+                  <ChevronRight className="size-3.5 text-muted-foreground/60" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowSessionMenu(false);
+                    openTableDrawer('prompt');
+                  }}
+                  className="flex min-h-8.5 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-xs transition-colors hover:bg-muted"
+                >
+                  <ScrollText className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">{t("memory_drawer.tab_prompt")}</span>
                   <ChevronRight className="size-3.5 text-muted-foreground/60" aria-hidden="true" />
                 </button>
                 {enableRecall && (

@@ -4,6 +4,7 @@ import type {
   PromptDiagnostic,
 } from "../../../domain/prompts/promptAssemblyTypes";
 import type { PromptRequestShapingReport } from "./PromptRequestShaper";
+import type { PromptAuditSnapshot } from "../../../domain/promptAudit";
 
 /** Provider 投影前唯一权威的 Prompt 消息包。 */
 export interface PromptEnvelope {
@@ -34,4 +35,9 @@ export interface PromptAssemblyResult {
   traces: PromptEnvelope["traces"];
   stopSequences?: string[];
   requestShaping: PromptRequestShapingReport;
+  /**
+   * 本轮组装审计：世界书命中原因、预算裁剪与各分区尺寸。
+   * 仅供「本轮提示词」面板展示，不参与请求投影，也不写入会话持久化数据。
+   */
+  audit?: PromptAuditSnapshot;
 }

@@ -10,6 +10,7 @@ import type {
 } from "../../types";
 import type { PromptNode } from "../services/prompt/types";
 import type { PromptMacroVariableScope } from "../services/prompt/PromptMacroFormatter";
+import type { LorebookAuditReport } from "../../domain/lorebookAudit";
 
 export const SILLY_TAVERN_COMPATIBILITY_PLUGIN_ID = "mobile-tavern.sillytavern-compat";
 
@@ -102,6 +103,11 @@ export interface CompatibilityWorldInfoResolverRequest {
     readonly variables?: Record<string, unknown>;
     readonly session?: Record<string, unknown>;
   };
+  /**
+   * 可选审计收集器：传入时解析器把命中原因与被预算裁掉的条目写入其中，
+   * 用于「本轮提示词」面板展示；不传入时解析行为完全不变。
+   */
+  readonly audit?: LorebookAuditReport;
 }
 
 /** 由兼容插件解释来源格式的 World Info 语义，通用 Prompt 层只消费结果。 */

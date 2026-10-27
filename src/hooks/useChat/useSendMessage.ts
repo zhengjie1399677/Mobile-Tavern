@@ -37,6 +37,7 @@ import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipel
 import type { MemoryAuditSnapshot } from "../../application/services/memory/types";
 import { Logger, generateTraceId } from "../../utils/logger";
 import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
+import type { PromptAuditSnapshot } from "../../domain/promptAudit";
 import { recallMemoriesForTurn } from "./helpers/recallForTurn";
 import { resolveTurnContextContributions } from "../../application/contextSources/resolveTurnContextContributions";
 import { publishTurnMemoryAudit } from "./helpers/publishMemoryAudit";
@@ -94,6 +95,8 @@ interface SendMessageParams {
   setIsBisonLocking: React.Dispatch<React.SetStateAction<boolean>>;
   setReplySuggestions: React.Dispatch<React.SetStateAction<ReplyChoice[]>>;
   publishMemoryAudit?: (snapshot: MemoryAuditSnapshot) => void;
+  /** 发布本轮 Prompt 组装审计（世界书命中与提示词分区），仅保留在运行时。 */
+  publishPromptAudit?: (snapshot: PromptAuditSnapshot) => void;
   /** 迁移期兼容旧消费方；新代码应使用 publishMemoryAudit。 */
   publishRecalledMemories?: (sessionId: string, items: MemoryAuditSnapshot["recalled"]) => void;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
@@ -431,6 +434,7 @@ export function useSendMessage(p: SendMessageParams) {
         traceId,
         generationType: "normal",
       });
+      if (promptPayload.audit) p.publishPromptAudit?.(promptPayload.audit);
 
       const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages;
 

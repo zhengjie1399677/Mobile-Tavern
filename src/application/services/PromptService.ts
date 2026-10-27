@@ -10,7 +10,6 @@ import { PromptCompiler } from "./prompt/PromptCompiler";
 import { RuntimeContext } from "./prompt/types";
 import { ModelCapabilityRegistry } from "./llmCompatibility";
 import type { ICompatibilityRuntimeService } from "../compatibility/contracts";
-import { resolveTriggeredLorebookEntries } from "./prompt/LorebookResolver";
 import {
   createPromptMacroVariableScope,
   replacePromptMacros,
@@ -30,13 +29,16 @@ import type { ContextContribution } from "../../domain/contextSources/contracts"
 import { formatRecalledMemoriesSection } from "./prompt/PromptMemorySection";
 import { readRecalledMemoriesFromContributions } from "../contextSources/memoryContextContribution";
 import { applyInChatPromptNodes, buildPromptRequestMessages, shapePromptRequest } from "./prompt/PromptRequestShaper";
-import { checkPromptAssemblyAborted, createLorebookSessionContext } from "./prompt/PromptAssemblySupport";
+import { checkPromptAssemblyAborted } from "./prompt/PromptAssemblySupport";
 import { Logger } from "../../utils/logger";
 import { isDirectApiCharacter } from "../../domain/agents/directApiMode";
 import { buildDirectApiPromptAssembly } from "./prompt/DirectApiPromptAssembly";
 import { formatTriggeredLorebookEntries } from "./prompt/PromptLorebookFormatter";
 import { resolveWorldInfoBudgetChars } from "../../domain/lorebookBudget";
-import { resolveWorldInfoBudgetForSettings } from "./prompt/worldInfoBudget";
+import type { LorebookAuditReport } from "../../domain/lorebookAudit";
+import { matchWorldInfoEntries, resolveTurnWorldInfo } from "./prompt/promptWorldInfo";
+import { withTurnAudit } from "./prompt/PromptAuditAssembly";
+import { collectPromptAuditSections } from "./prompt/PromptAuditSections";
 import {
   cleanPromptNameForApi,
   estimatePromptTokens,
@@ -108,25 +110,14 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
     maxRecursionDepth: number = 3,
     conditionContext: { variables?: Record<string, unknown>; session?: Record<string, unknown> } = {},
     budgetChars: number = resolveWorldInfoBudgetChars(),
+    audit?: LorebookAuditReport,
   ): LorebookEntry[] {
-    const compatibilityResolver = this.getCompatibilityRuntime()?.getWorldInfoResolver();
-    if (compatibilityResolver) {
-      return [...compatibilityResolver.resolve({
-        messages,
-        userInput,
-        entries,
-        maxRecursionDepth,
-        budgetChars,
-        conditionContext,
-      })];
-    }
-    return resolveTriggeredLorebookEntries(
+    return matchWorldInfoEntries(
       messages,
       userInput,
       entries,
-      maxRecursionDepth,
-      conditionContext,
-      budgetChars,
+      { maxRecursionDepth, conditionContext, budgetChars, ...(audit ? { audit } : {}) },
+      this.getCompatibilityRuntime()?.getWorldInfoResolver() ?? null,
     );
   }
 
@@ -311,15 +302,11 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         cleanSystem += `=== User Persona ===\n${this.replaceMacros(settings.userInfo, macroParams)}\n\n`;
       }
 
-      const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
-      const activeEntries = this.getTriggeredLorebookEntries(
-        chat.messages || [],
-        userInput,
-        allEntries,
-        3,
-        { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
-        resolveWorldInfoBudgetForSettings(settings),
-      );
+      const { entries: activeEntries, allEntries, report: lorebookAudit } = resolveTurnWorldInfo({
+        character, chat, userInput, settings, globalLorebook,
+        resolver: this.getCompatibilityRuntime()?.getWorldInfoResolver() ?? null,
+        variables: this.getCompatibilityState(chat),
+      });
       const compatibilityRuntime = this.getCompatibilityRuntime();
       const hasCompatibilityWorldInfo = Boolean(compatibilityRuntime?.getWorldInfoResolver());
       const hasVariableListEntry = activeEntries.some(e =>
@@ -382,7 +369,7 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         promptMessages,
         settings.promptConfig.requestShaping,
       );
-      return {
+      return withTurnAudit({
         version: 1,
         systemInstruction,
         dynamicInstruction: "",
@@ -393,7 +380,14 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
         traces: [],
         stopSequences: shaped.stopSequences,
         requestShaping: shaped.report,
-      };
+      }, {
+        sessionId: chat.id,
+        generationType,
+        report: lorebookAudit,
+        allEntries,
+        characterEntries: character.lorebookEntries,
+        sections: [],
+      });
     }
 
     // 角色扮演模式 = True（默认）
@@ -536,15 +530,11 @@ export class PromptService implements IPromptService<CharacterCard, ChatSession,
       }),
     });
 
-    const allEntries = [...(character.lorebookEntries || []), ...globalLorebook];
-    const activeEntries = this.getTriggeredLorebookEntries(
-      chat.messages || [],
-      userInput,
-      allEntries,
-      3,
-      { variables: this.getCompatibilityState(chat), session: createLorebookSessionContext(chat) },
-      resolveWorldInfoBudgetForSettings(settings),
-    );
+    const { entries: activeEntries, allEntries, report: lorebookAudit } = resolveTurnWorldInfo({
+      character, chat, userInput, settings, globalLorebook,
+      resolver: this.getCompatibilityRuntime()?.getWorldInfoResolver() ?? null,
+      variables: this.getCompatibilityState(chat),
+    });
     const compatibilityRuntime = this.getCompatibilityRuntime();
     const hasCompatibilityWorldInfo = Boolean(compatibilityRuntime?.getWorldInfoResolver());
     // 检测是否有世界书条目使用了 {{format_message_variable::}} 宏，
@@ -967,7 +957,7 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
       ),
       settings.promptConfig.requestShaping,
     );
-    return {
+    return withTurnAudit({
       version: 1,
       systemInstruction: compiledSystemPrompt,
       dynamicInstruction: "",
@@ -978,7 +968,14 @@ relations 项只记录当前明确成立、未来可能变化的事实，使用 
       traces: [],
       stopSequences: shaped.stopSequences,
       requestShaping: shaped.report,
-    };
+    }, {
+      sessionId: chat.id,
+      generationType,
+      report: lorebookAudit,
+      allEntries,
+      characterEntries: character.lorebookEntries,
+      sections: collectPromptAuditSections(builder.getSections(), context),
+    });
   }
 
   private getCompatibilityState(chat: ChatSession): Record<string, unknown> {

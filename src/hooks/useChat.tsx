@@ -25,6 +25,8 @@ import {
 } from "@/src/application/serviceContracts";
 import type { MemoryServiceTyped } from "../application/services/memory";
 import type { MemoryAuditSnapshot } from "../application/services/memory/types";
+import type { PromptAuditSnapshot } from "../domain/promptAudit";
+import { publishPromptAuditSnapshot, resetPromptAuditSnapshot } from "../application/services/prompt/promptAuditStore";
 import type { InstalledFullscreenPlugin } from "../domain/plugins";
 import { setCompatibilityGenerationState } from "../application/useCases/compatibilityGenerationState";
 import { Logger } from "../utils/logger";
@@ -76,6 +78,7 @@ export const useChat = (
   // 召回结果属于当前聊天运行时快照，不写入 ChatSession；切换会话时立即清空防止串话。
   useEffect(() => {
     setMemoryAuditSnapshot(null);
+    resetPromptAuditSnapshot();
   }, [activeSessionId]);
 
   // ── 稳定 Ref 镜像（供异步回调安全读取最新值） ─────────────────────────────────
@@ -114,6 +117,13 @@ export const useChat = (
   const lastRecalledMemories = lastMemoryAudit
     ? lastMemoryAudit.recalled
     : [];
+
+  // 本轮提示词审计同样属于运行时瞬态：写入独立 Store，由面板用 useSyncExternalStore 订阅，
+  // 不进入会话数据，也不扩张 UnifiedAppContext 的字段。
+  const publishPromptAudit = useCallback((snapshot: PromptAuditSnapshot) => {
+    if (activeSessionIdRef.current !== snapshot.sessionId) return;
+    publishPromptAuditSnapshot(snapshot);
+  }, []);
 
   // ── 子 Hook 装配 ──────────────────────────────────────────────────────────────
   const ui = useChatUI({
@@ -194,6 +204,7 @@ export const useChat = (
     databaseService, promptService, telemetryService, chatStreamService, multiMessageService,
     memoryService,
     publishMemoryAudit,
+    publishPromptAudit,
     showCustomAlert, draftsRef: ui.draftsRef,
   });
 
@@ -211,6 +222,7 @@ export const useChat = (
     triggerScroll: ui.triggerScroll,
     databaseService, promptService, telemetryService, chatStreamService,
     publishMemoryAudit,
+    publishPromptAudit,
     showCustomAlert, showCustomConfirm,
   });
 

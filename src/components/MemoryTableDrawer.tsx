@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useMobileBackHandler } from "../hooks/useMobileBackHandler";
+import { usePromptAuditSnapshot } from "../hooks/usePromptAuditSnapshot";
 
 const MvuVariablesTabContent = React.lazy(() =>
   import("./MvuVariablesTabContent").then((module) => ({ default: module.MvuVariablesTabContent }))
@@ -22,6 +23,9 @@ const MvuVariablesTabContent = React.lazy(() =>
 const TableMemoryTab = React.lazy(() => import("./memory-drawer/TableMemoryTab"));
 const DictTab = React.lazy(() => import("./memory-drawer/DictTab"));
 const RecallTab = React.lazy(() => import("./memory-drawer/RecallTab"));
+const PromptAuditTab = React.lazy(() =>
+  import("./memory-drawer/PromptAuditTab").then((module) => ({ default: module.PromptAuditTab }))
+);
 
 interface MemoryTableDrawerProps {
   isOpen: boolean;
@@ -36,13 +40,14 @@ interface MemoryTableDrawerProps {
   initialTab?: MemoryDrawerPanel;
 }
 
-type MemoryDrawerPanel = 'timeline' | 'table' | 'dict' | 'recall' | 'mvu';
+type MemoryDrawerPanel = 'timeline' | 'table' | 'dict' | 'recall' | 'prompt' | 'mvu';
 
 const PANEL_LABEL_KEYS: Record<MemoryDrawerPanel, string> = {
   timeline: "memory_drawer.tab_timeline",
   table: "memory_drawer.tab_table",
   dict: "memory_drawer.tab_dict",
   recall: "memory_drawer.tab_recall",
+  prompt: "memory_drawer.tab_prompt",
   mvu: "memory_drawer.tab_mvu",
 };
 
@@ -68,19 +73,25 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
   initialTab
 }) => {
   const kernel = useOptionalKernel();
-  const { setSessionViews, showCustomAlert, showCustomConfirm, lastRecalledMemories, lastMemoryAudit } = useUnifiedApp((state) => ({
+  const {
+    setSessionViews, showCustomAlert, showCustomConfirm,
+    lastRecalledMemories, lastMemoryAudit,
+  } = useUnifiedApp((state) => ({
     setSessionViews: state.setSessionViews,
     showCustomAlert: state.showCustomAlert,
     showCustomConfirm: state.showCustomConfirm,
     lastRecalledMemories: state.lastRecalledMemories,
     lastMemoryAudit: state.lastMemoryAudit,
   }));
+  // 本轮提示词审计走独立 Store（见 promptAuditStore），不进 UnifiedAppContext。
+  const lastPromptAudit = usePromptAuditSnapshot(activeSession.id);
   const { t } = useTranslation();
   const availability: Readonly<Record<MemoryDrawerPanel, boolean>> = {
     timeline: enableAutoSummary,
     table: enableTableMemory,
     dict: true,
     recall: enableRecall,
+    prompt: true,
     mvu: enableMvuVariables,
   };
   const activeTab = resolvePanel(initialTab, availability);
@@ -161,6 +172,11 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
               lastRecalledMemories={lastRecalledMemories}
               lastMemoryAudit={lastMemoryAudit}
             />
+          )}
+
+          {/* 本轮提示词面板 */}
+          {activeTab === 'prompt' && (
+            <PromptAuditTab audit={lastPromptAudit} />
           )}
 
           {/* 角色变量面板 */}

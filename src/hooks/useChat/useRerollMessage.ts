@@ -24,6 +24,7 @@ import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/ser
 import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
 import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
+import type { PromptAuditSnapshot } from "../../domain/promptAudit";
 import { resolveTurnContextContributions } from "../../application/contextSources/resolveTurnContextContributions";
 import { createFreshnessPort, createTurnToken, isStale } from "../../application/useCases/turnToken";
 import type { MemoryServiceTyped } from "../../application/services/memory";
@@ -102,6 +103,8 @@ interface RerollMessageParams {
   setIsSending: (v: boolean) => void;
   setReplySuggestions: React.Dispatch<React.SetStateAction<ReplyChoice[]>>;
   publishMemoryAudit?: (snapshot: MemoryAuditSnapshot) => void;
+  /** 发布本轮 Prompt 组装审计（世界书命中与提示词分区），仅保留在运行时。 */
+  publishPromptAudit?: (snapshot: PromptAuditSnapshot) => void;
   /** 迁移期兼容旧消费方；新代码应使用 publishMemoryAudit。 */
   publishRecalledMemories?: (sessionId: string, items: MemoryAuditSnapshot["recalled"]) => void;
   triggerScroll: (behavior?: "smooth" | "instant" | "auto") => void;
@@ -405,6 +408,7 @@ export function useRerollMessage(p: RerollMessageParams) {
         traceId,
         generationType: "regenerate",
       });
+      if (promptPayload.audit) p.publishPromptAudit?.(promptPayload.audit);
       const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages;
       const baseProviderMessages = preserveAssistantReasoning(
         assembledProviderMessages,

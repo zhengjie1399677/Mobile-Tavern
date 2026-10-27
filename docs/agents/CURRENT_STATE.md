@@ -46,6 +46,8 @@
 
 - 写入队列与聊天并发治理（P1）已落地：写队列从全局单链改为**按聚合分片**，并把合并语义显式拆成 `coalesceable`（幂等覆盖可共享结果）与 `must-complete`（提交类写入各自独立完成），修掉"提交被合并顶掉"的数据丢失路径，整库迁移（`replace-all` / `merge`）显式独占 `data-migration` 分片；聊天侧新鲜度判断统一收敛为 `TurnToken.isStale`；状态权威三类（authoritative / derived / ephemeral）写死在 [状态权威规范](state_authority.md) 并由守卫禁止视图层直连存储；四项数据路径性能预算（切会话 / ≈20MB 导入 / 记忆召回 P95 / SSE 首字节）随 `npm test` 断言，见 [WebView 界面与性能验收规范](ui_webview_performance.md)。
 
+- 提示词审计面板已落地：Prompt 组装在返回 `PromptAssemblyResult` 的同时产出瞬态审计快照（`domain/promptAudit`），记录本轮世界书命中条目（来源 = 角色 / 全局，触发原因 = 常驻 / 粘性 / 关键词，命中关键词、字符数）、被预算挤掉的条目，以及 System Prompt 各分区的标题、阶段与正文字符数；快照只存在 `useChat` 运行时状态，随会话切换清空，不写入 `ChatSession`，分区正文超长按 `PROMPT_AUDIT_SECTION_MAX_CHARS` 截断。世界书命中的审计收集由解析器顺手写入 `LorebookAuditReport`，不额外二次匹配；消费者从聊天头部菜单的「本轮提示词」打开，与记忆抽屉同一层级。
+
 ## 当前未完成事项
 
 1. **External Tool Plugin 生态发布**：仓库内 SDK 尚未独立发布，也未开放公开第三方目录。签名者登记/轮换、SDK 私钥签名命令、远程版本撤回、后台服务和生态审核暂不实现，仅在公开分发规模产生真实治理需求时重新评估。任意 Runtime Plugin 安装仍关闭，External Tool 也不开放后台常驻和原生能力。

@@ -170,9 +170,9 @@ export default function ChatTab() {
   const [isPortraitCollapsed, setIsPortraitCollapsed] = React.useState(false);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = React.useState(false);
   const [isTableDrawerOpen, setIsTableDrawerOpen] = React.useState(false);
-  const [tableDrawerTab, setTableDrawerTab] = React.useState<'timeline' | 'table' | 'dict' | 'recall' | 'mvu'>('timeline');
+  const [tableDrawerTab, setTableDrawerTab] = React.useState<'timeline' | 'table' | 'dict' | 'recall' | 'prompt' | 'mvu'>('timeline');
 
-  const openTableDrawer = (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'mvu') => {
+  const openTableDrawer = (tab: 'timeline' | 'table' | 'dict' | 'recall' | 'prompt' | 'mvu') => {
     setTableDrawerTab(tab);
     setIsTableDrawerOpen(true);
   };
