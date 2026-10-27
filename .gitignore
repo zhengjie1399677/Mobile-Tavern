@@ -86,3 +86,6 @@ telemetry_logs/
 
 # 本地下载的安装包/旁载产物（体积大且可由构建复现，不入库）
 apk_download/
+
+# archify 生成的架构图产物（本地查看用，不入库）
+.archify/
