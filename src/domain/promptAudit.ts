@@ -11,6 +11,9 @@ import type { LorebookAuditReport } from "./lorebookAudit";
 /** 单个分区正文的展示上限，超出部分截断，避免快照撑爆内存与渲染。 */
 export const PROMPT_AUDIT_SECTION_MAX_CHARS = 120_000;
 
+/** 单条世界书正文的可展开展示上限；命中条目数量多时避免快照无限膨胀。 */
+export const PROMPT_AUDIT_LOREBOOK_MAX_CHARS = 8_000;
+
 export type PromptAuditLorebookSource = "character" | "global";
 
 export interface PromptAuditLorebookEntry {
@@ -21,6 +24,8 @@ export interface PromptAuditLorebookEntry {
   matchedKey?: string;
   keys: string[];
   chars: number;
+  /** 条目正文（已按 PROMPT_AUDIT_LOREBOOK_MAX_CHARS 截断），供面板展开查看。 */
+  content: string;
   position?: string;
 }
 
@@ -91,9 +96,12 @@ function entryTitle(entry: LorebookEntry): string {
   return entry.id;
 }
 
-export function truncatePromptAuditText(text: string): string {
-  if (text.length <= PROMPT_AUDIT_SECTION_MAX_CHARS) return text;
-  return `${text.slice(0, PROMPT_AUDIT_SECTION_MAX_CHARS)}\n…（已截断，共 ${text.length} 字符）`;
+export function truncatePromptAuditText(
+  text: string,
+  maxChars: number = PROMPT_AUDIT_SECTION_MAX_CHARS,
+): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}\n…（已截断，共 ${text.length} 字符）`;
 }
 
 export function buildPromptAuditSnapshot(input: BuildPromptAuditSnapshotInput): PromptAuditSnapshot {
@@ -112,6 +120,7 @@ export function buildPromptAuditSnapshot(input: BuildPromptAuditSnapshotInput): 
       ...(hit.matchedKey ? { matchedKey: hit.matchedKey } : {}),
       keys: readKeyList(entry.keys),
       chars: entry.content?.length ?? 0,
+      content: truncatePromptAuditText(entry.content ?? "", PROMPT_AUDIT_LOREBOOK_MAX_CHARS),
       ...(entry.position ? { position: entry.position } : {}),
     });
   }

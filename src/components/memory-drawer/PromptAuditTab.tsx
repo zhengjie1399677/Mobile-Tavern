@@ -23,6 +23,17 @@ function formatTime(timestamp: number): string {
 export const PromptAuditTab: React.FC<PromptAuditTabProps> = ({ audit }) => {
   const { t } = useTranslation();
   const [openSectionId, setOpenSectionId] = React.useState<string | null>(null);
+  // 世界书条目允许多条同时展开：对比「命中了什么、为什么命中」时需要同时看几条正文。
+  const [openEntryIds, setOpenEntryIds] = React.useState<ReadonlySet<string>>(() => new Set());
+
+  const toggleEntry = React.useCallback((entryId: string) => {
+    setOpenEntryIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(entryId)) next.delete(entryId);
+      else next.add(entryId);
+      return next;
+    });
+  }, []);
 
   if (!audit) {
     return (
@@ -71,31 +82,53 @@ export const PromptAuditTab: React.FC<PromptAuditTabProps> = ({ audit }) => {
           </p>
         ) : (
           <ul className="flex flex-col gap-1.5">
-            {audit.lorebook.entries.map((entry) => (
-              <li
-                key={entry.id}
-                className="rounded-lg border border-border/60 bg-muted/30 px-2.5 py-2"
-                data-trigger={entry.trigger}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="min-w-0 break-words text-[11px] font-medium text-foreground">
-                    {entry.title}
-                  </span>
-                  <span className="shrink-0 rounded bg-background/80 px-1.5 py-0.5 text-[9px] text-muted-foreground">
-                    {t(entry.source === "character"
-                      ? "prompt_audit.source_character"
-                      : "prompt_audit.source_global")}
-                  </span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-                  <span>{triggerLabel(entry)}</span>
-                  {entry.keys.length > 0 && (
-                    <span className="min-w-0 break-words">{entry.keys.join(" / ")}</span>
+            {audit.lorebook.entries.map((entry) => {
+              const expanded = openEntryIds.has(entry.id);
+              return (
+                <li
+                  key={entry.id}
+                  className="overflow-hidden rounded-lg border border-border/60 bg-muted/30"
+                  data-trigger={entry.trigger}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleEntry(entry.id)}
+                    aria-expanded={expanded}
+                    aria-label={entry.title}
+                    className="flex w-full flex-col gap-1 px-2.5 py-2 text-left"
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 break-words text-[11px] font-medium text-foreground">
+                        {entry.title}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <span className="rounded bg-background/80 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                          {t(entry.source === "character"
+                            ? "prompt_audit.source_character"
+                            : "prompt_audit.source_global")}
+                        </span>
+                        <ChevronDown
+                          className={`size-3 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
+                          aria-hidden="true"
+                        />
+                      </span>
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                      <span>{triggerLabel(entry)}</span>
+                      {entry.keys.length > 0 && (
+                        <span className="min-w-0 break-words">{entry.keys.join(" / ")}</span>
+                      )}
+                      <span>{t("prompt_audit.chars").replace("{chars}", String(entry.chars))}</span>
+                    </span>
+                  </button>
+                  {expanded && (
+                    <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words border-t border-border/50 bg-background/70 px-2.5 py-2 text-[10px] leading-relaxed text-foreground/90">
+                      {entry.content || t("prompt_audit.section_empty")}
+                    </pre>
                   )}
-                  <span>{t("prompt_audit.chars").replace("{chars}", String(entry.chars))}</span>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
 

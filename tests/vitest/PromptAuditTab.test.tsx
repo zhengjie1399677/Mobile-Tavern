@@ -25,6 +25,7 @@ function snapshot(overrides: Partial<PromptAuditSnapshot> = {}): PromptAuditSnap
           trigger: "constant",
           keys: [],
           chars: 120,
+          content: "世界背景正文：艾尔德兰大陆常年被雾气笼罩。",
         },
         {
           id: "城门",
@@ -34,6 +35,7 @@ function snapshot(overrides: Partial<PromptAuditSnapshot> = {}): PromptAuditSnap
           matchedKey: "城门",
           keys: ["城门", "守卫"],
           chars: 80,
+          content: "城门正文：暮色里守卫换岗。",
         },
       ],
       budgetDropped: [{ id: "长文", title: "长文", chars: 9000 }],
@@ -67,6 +69,21 @@ describe("PromptAuditTab", () => {
     expect(screen.getByText(/^(全局|Global)$/)).toBeInTheDocument();
     expect(screen.getByText(/预算不足，1 条未注入|Over budget: 1/)).toBeInTheDocument();
     expect(screen.getByText(/命中 2 \/ 候选 3|2 of 3 candidates/)).toBeInTheDocument();
+  });
+
+  it("世界书条目默认收起，点击后展开正文，可同时展开多条", () => {
+    renderWithI18n(<PromptAuditTab audit={snapshot()} />);
+
+    expect(screen.queryByText(/艾尔德兰大陆常年被雾气笼罩/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "世界背景" }));
+    fireEvent.click(screen.getByRole("button", { name: "城门" }));
+    expect(screen.getByText(/艾尔德兰大陆常年被雾气笼罩/)).toBeInTheDocument();
+    expect(screen.getByText(/暮色里守卫换岗/)).toBeInTheDocument();
+
+    // 再点一次收起，且不影响另一条
+    fireEvent.click(screen.getByRole("button", { name: "世界背景" }));
+    expect(screen.queryByText(/艾尔德兰大陆常年被雾气笼罩/)).not.toBeInTheDocument();
+    expect(screen.getByText(/暮色里守卫换岗/)).toBeInTheDocument();
   });
 
   it("分区默认收起，点击后展开正文", () => {

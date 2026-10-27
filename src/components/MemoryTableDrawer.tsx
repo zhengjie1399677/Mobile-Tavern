@@ -136,7 +136,9 @@ export const MemoryTableDrawer: React.FC<MemoryTableDrawerProps> = ({
         </div>
 
         {/* Inner Content Area */}
-        <div className={`min-h-0 flex-1 ${activeTab === 'timeline' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto p-4'}`}>
+        <div className={`min-h-0 flex-1 ${activeTab === 'timeline'
+            ? 'flex flex-col overflow-hidden'
+            : 'overflow-y-auto p-4 pb-[calc(1rem+var(--safe-area-bottom,0px))]'}`}>
           <React.Suspense fallback={<MemoryTabFallback />}>
 
           {/* 故事年表面板 */}
