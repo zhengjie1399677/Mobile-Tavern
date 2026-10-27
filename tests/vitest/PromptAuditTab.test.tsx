@@ -64,7 +64,9 @@ describe("PromptAuditTab", () => {
     expect(screen.getByText("世界背景")).toBeInTheDocument();
     // 断言走翻译后的文案，兼容默认语言为英文的测试环境
     expect(screen.getByText(/^(常驻|Constant)$/)).toBeInTheDocument();
-    expect(screen.getByText(/关键词：城门|Keyword: 城门/)).toBeInTheDocument();
+    // 命中方式徽章把关键词单独放进等宽字体节点，按前缀断言再单独核对关键词。
+    expect(screen.getByText(/^(关键词：|Keyword:)$/)).toBeInTheDocument();
+    expect(screen.getAllByText("城门")).toHaveLength(2);
     expect(screen.getByText(/^(角色|Character)$/)).toBeInTheDocument();
     expect(screen.getByText(/^(全局|Global)$/)).toBeInTheDocument();
     expect(screen.getByText(/预算不足，1 条未注入|Over budget: 1/)).toBeInTheDocument();

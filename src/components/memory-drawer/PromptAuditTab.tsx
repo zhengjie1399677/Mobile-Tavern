@@ -1,11 +1,70 @@
 import React from "react";
-import { BookOpen, ChevronDown, Layers } from "lucide-react";
+import { BookOpen, ChevronDown, KeyRound, Layers, Link2, Pin } from "lucide-react";
 import type { PromptAuditSnapshot } from "../../domain/promptAudit";
 import { useTranslation } from "../../contexts/LanguageContext";
 
 interface PromptAuditTabProps {
   audit: PromptAuditSnapshot | null;
 }
+
+type LorebookEntry = PromptAuditSnapshot["lorebook"]["entries"][number];
+
+/**
+ * 三种命中方式的视觉编码：常驻保持中性灰（它永远在那儿，不需要被注意），
+ * 粘性延续用琥珀色，关键词命中用绿色（本轮真正被打亮的条目）。
+ * 颜色只做辅助，徽章里始终带文字，色弱用户也能读懂。
+ */
+const TRIGGER_STYLES: Record<
+  LorebookEntry["trigger"],
+  { Icon: typeof Pin; badge: string; accent: string; row: string }
+> = {
+  constant: {
+    Icon: Pin,
+    badge: "border-border/70 bg-background/80 text-muted-foreground",
+    accent: "border-l-border",
+    row: "bg-muted/30",
+  },
+  sticky: {
+    Icon: Link2,
+    badge: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    accent: "border-l-amber-500/60",
+    row: "bg-amber-500/[0.04]",
+  },
+  keyword: {
+    Icon: KeyRound,
+    badge: "border-emerald-500/35 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    accent: "border-l-emerald-500/70",
+    row: "bg-emerald-500/[0.05]",
+  },
+};
+
+const TriggerBadge: React.FC<{ entry: LorebookEntry }> = ({ entry }) => {
+  const { t } = useTranslation();
+  const { Icon, badge } = TRIGGER_STYLES[entry.trigger];
+  // 标签文案统一是「前缀{key}」的形状，按占位符切开，让关键词本身用等宽字体突出。
+  const [prefix] = t("prompt_audit.trigger_keyword").split("{key}");
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-medium leading-none ${badge}`}
+    >
+      <Icon className="size-2.5" aria-hidden="true" />
+      {entry.trigger === "keyword" ? (
+        <>
+          <span>{prefix.trim()}</span>
+          <span className="font-mono">{entry.matchedKey ?? "—"}</span>
+        </>
+      ) : (
+        <span>
+          {t(
+            entry.trigger === "sticky"
+              ? "prompt_audit.trigger_sticky"
+              : "prompt_audit.trigger_constant",
+          )}
+        </span>
+      )}
+    </span>
+  );
+};
 
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
@@ -44,15 +103,6 @@ export const PromptAuditTab: React.FC<PromptAuditTabProps> = ({ audit }) => {
     );
   }
 
-  const triggerLabel = (entry: PromptAuditSnapshot["lorebook"]["entries"][number]) => {
-    if (entry.trigger === "keyword") {
-      return t("prompt_audit.trigger_keyword").replace("{key}", entry.matchedKey ?? "—");
-    }
-    return entry.trigger === "sticky"
-      ? t("prompt_audit.trigger_sticky")
-      : t("prompt_audit.trigger_constant");
-  };
-
   return (
     <div className="flex flex-col gap-4" data-ui="prompt-audit">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
@@ -84,10 +134,16 @@ export const PromptAuditTab: React.FC<PromptAuditTabProps> = ({ audit }) => {
           <ul className="flex flex-col gap-1.5">
             {audit.lorebook.entries.map((entry) => {
               const expanded = openEntryIds.has(entry.id);
+              const style = TRIGGER_STYLES[entry.trigger];
+              // 关键词命中的行已经写了命中的那个词，这里只补「其余备选关键词」，避免同一串词出现两次。
+              const listedKeys =
+                entry.trigger === "keyword"
+                  ? entry.keys.filter((key) => key !== entry.matchedKey)
+                  : entry.keys;
               return (
                 <li
                   key={entry.id}
-                  className="overflow-hidden rounded-lg border border-border/60 bg-muted/30"
+                  className={`overflow-hidden rounded-lg border border-l-2 border-border/60 ${style.accent} ${style.row}`}
                   data-trigger={entry.trigger}
                 >
                   <button
@@ -95,7 +151,7 @@ export const PromptAuditTab: React.FC<PromptAuditTabProps> = ({ audit }) => {
                     onClick={() => toggleEntry(entry.id)}
                     aria-expanded={expanded}
                     aria-label={entry.title}
-                    className="flex w-full flex-col gap-1 px-2.5 py-2 text-left"
+                    className="flex w-full flex-col gap-1 px-2.5 py-2 text-left transition-colors hover:bg-background/40"
                   >
                     <span className="flex items-start justify-between gap-2">
                       <span className="min-w-0 break-words text-[11px] font-medium text-foreground">
@@ -113,12 +169,16 @@ export const PromptAuditTab: React.FC<PromptAuditTabProps> = ({ audit }) => {
                         />
                       </span>
                     </span>
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-                      <span>{triggerLabel(entry)}</span>
-                      {entry.keys.length > 0 && (
-                        <span className="min-w-0 break-words">{entry.keys.join(" / ")}</span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+                      <TriggerBadge entry={entry} />
+                      {listedKeys.length > 0 && (
+                        <span className="min-w-0 truncate font-mono text-muted-foreground/80">
+                          {listedKeys.join(" / ")}
+                        </span>
                       )}
-                      <span>{t("prompt_audit.chars").replace("{chars}", String(entry.chars))}</span>
+                      <span className="ml-auto shrink-0 tabular-nums">
+                        {t("prompt_audit.chars").replace("{chars}", String(entry.chars))}
+                      </span>
                     </span>
                   </button>
                   {expanded && (
