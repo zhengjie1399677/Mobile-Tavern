@@ -55,3 +55,20 @@ chore(release): bump version to 1.9.0
 ```
 
 GitHub 的 `v*` 标签仍会触发 Android 构建与 Release 发布；轻量本地门禁不替代远端打包。
+
+## 四、发布说明与线上分发的同步
+
+每次发版除版本号外，还要把「更新说明」送到三个位置，避免用户升级后不知道改了什么：
+
+1. **标签与 GitHub Release**：用同一份说明写入附注标签（`git tag -a v<version> -F notes-<version>.md`），Release 建好后执行
+   `gh release edit v<version> --notes-file notes-<version>.md`。
+2. **应用内更新弹窗**：原生客户端读取自有服务器的 `/version.json`，弹窗正文取自其 `message` 字段（多行纯文本）。
+   下载统计服务（服务器 `download-tracker`）会在 `notes/<version>.md` 存在时把该文件内容并入 `message`；
+   文件不存在则回退为 `Mobile Tavern v<version> · <日期>`。因此发版时把说明文件放到服务器
+   `/root/download-tracker/notes/<version>.md` 即可，无需改代码。
+3. **线上宣传页**（`/var/www/neural/tavern/index.html`）：这是服务器上单独维护的版本，不由 `bump-version.cjs` 覆盖。
+   发版后需手工替换其中的版本文案（下载按钮、hero 徽章、步骤说明、`softwareVersion` 结构化数据），
+   并把 `main-<旧版本>.js` 复制为 `main-<新版本>.js` 后修改脚本引用。
+
+固定下载入口始终是 `https://neural-node.xyz/dl/latest`，历史版本保留
+`https://neural-node.xyz/dl/mobile-tavern-<version>-release.apk`。
