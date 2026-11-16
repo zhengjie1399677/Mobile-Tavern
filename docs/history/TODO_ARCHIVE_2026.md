@@ -4,6 +4,7 @@
 
 | 日期 | 已完成事项 | 主要入口 |
 |---|---|---|
+| 2026-11-13 | 收敛聊天发送与重生成模型执行流水线并接入共享 `mobile-tavern.chat.driver`、`AgentHandle` 与 `executeOpenAiToolLoop`，同步修复预设导入/重投/脏改检查与 `Agent Profile` 绑定 6 项一致性缺陷 | `src/application/useCases/chatTurnExecution.ts`、`src/application/useCases/chatTurnDriver.ts`、`src/application/useCases/presetBundleLifecycle.ts`、`tests/vitest/chatTurnExecutionAndDriver.test.ts` |
 | 2026-10-20 | 完成自定义主题工作室体验升级：起点选择、聊天/角色/设置三场景预览、WCAG 对比度检查、CSS 行列诊断与片段库，以及 Theme 1.1 媒体/状态/规则可视化编辑和静态预览 | `src/components/theme-studio/`、`src/domain/themes/themeColor.ts`、`themeCssDiagnostics.ts`、`themeInteractionDraft.ts` |
 | 2026-09-12 | 完成统一推理强度档位与厂商方言映射：旧布尔开关迁移、不支持的档位收敛、运行时自愈联动和设置页选择器 | `src/application/services/llmCompatibility/reasoningControl.ts`、`src/tabs/settings/ReasoningStrengthRow.tsx` |
 | 2026-09-02 | 将 Tool Plugin 来源等级收敛为提示性策略：未验证包可安装，确认前明确告知代码与授权风险；远程撤回和动态信任治理转为公开生态的条件性事项 | `src/components/plugins/ToolPluginManagerSection.tsx`、`docs/agents/module_contracts.md` |

@@ -13,7 +13,7 @@
 
 - [x] **语音输入（按住 说话）可用性修复与实时听写下线（P0）**：2026-10-12 完成。原生录音改为 `AudioRecord` 直录 16 kHz 单声道 WAV，修掉「原生录音被附件签名检测拒收」与「`input_audio.format` 只认 wav|mp3」两条断链；`stopCapture()` 幂等，松手发送与三分钟上限自动发送共用同一份录音；补上等待授权轮询、幂等非破坏停止、持握中切后台取消、上滑取消现算坐标等；实时听写（Web Speech）与 `IAsrService` 听写方法、8 份 locale 的相关键、设置页 provider 选项一并下线。真机验收（录音/上限/权限/切后台）待设备执行。
 
-- [x] **语音链路遗留债务（记录，未做）**：① 原生停止仍以同步 base64 回传（3 分钟约 5.76MB → 7.68M 字符）并在 WebView 线程 `atob`，深层改造需改走异步命令或传文件路径；② `detectIsoMedia` 的轨道探测覆盖 faststart 与 moov 置尾，moov 居中的非 faststart 文件仍回落到 brand 判定；③ 原生录音的合成 WAV 与权限流程只能在真机验证。三者都留到设备实测后再决定是否跟进。
+- [x] **语音链路遗留债务（①已改造，②③待设备/按需）**：① **已于 2026-11-16 改造**：新增 Tauri 异步命令 `plugin:AndroidBridge|stop_record_native`（返回缓存目录 WAV 路径，后台单线程池停止录音，不阻塞 JS 线程）与 Rust 原始二进制 IPC 命令 `read_voice_capture_file`（返回 `tauri::ipc::Response`，路径严格限在 `cache_dir/tavern_voice_*.wav`），主路径彻底消除 Base64 编码与 WebView `atob()`，保留同步 `@JavascriptInterface` 仅作旧安装包兼容回退；② `detectIsoMedia` 的轨道探测覆盖 faststart 与 moov 置尾，moov 居中的非 faststart 文件仍回落到 brand 判定；③ 原生录音的异步停录/文件读取/权限流程只能在真机验证。
 
 - [ ] **能力积木层扩充（P1，方向①）**：内置 Tool 从 2 个补齐联网、记忆写入、图像、TTS、日历等外部能力实例，media processor 从 2 个同步扩充；优先联网与记忆写入，其余按需。全部走 External Tool Plugin 框架，不进 Kernel。
   - 2026-09-02：已加入首个官方预置能力实例 `official.brave-search`。它通过 External Tool Plugin 的固定 HTTPS Origin、加密凭据注入、单次审批和流量配额提供网页搜索，默认未安装、未授权且未启用；下一步补 `memory.write`。
@@ -41,13 +41,15 @@
 
 ## 中期排期
 
-- [ ] **预设与聊天闭环一致性缺陷修复（P1，质量治理）**：
-  - ①【已复现】导入预设立即被判脏：`preparePresetBundleImport` 产生 `topA: undefined` / `seed: undefined` 键，而激活态由 `projectSamplerPreset` 补齐默认值（`topA: 0, seed: -1`），展开对象时 undefined 覆盖了默认值导致比对失败，聊天栏切预设频繁触发「未保存丢弃确认」。
-  - ②【已复现】重启后预设再次判脏：启动引导 `presetBootstrap` 重新归一化活跃 `promptConfig`（空 `mainPrompt` 时赋 `useMainPrompt: false`、重写 headers、重排 customPrompts id），与切换预设 `projectPresetActivation` 的投影规则口径不一致。
-  - ③【已复现】导出再导入丢失 `requestShaping.enabled=false`：`presetRuntimeNamespace` 未收录该状态。
-  - ④【UX 缺陷】聊天快捷面板关闭主/规则提示词后条目消失：`PresetQuickPopover` 条件逻辑将 `useMainPrompt === false` 判为不渲染。
-  - ⑤【Agent Profile 绑定】`AppContextAssembler` 启动 Agent 时静默覆盖未保存预设编辑且吞掉 `preset-missing` 诊断；`usePresetBundles` 删除提示文案过时。
-  - ⑥【孤儿预设降级保护】`useSettingsLoader` 发现未找到预设 ID 时仅替换采样身份却未重载 Prompt 内容，导致用户保存时存在覆盖兜底预设风险。
+- [x] **预设与聊天闭环一致性缺陷修复（P1，质量治理）**（2026-11-13 已完成）：
+  - ①【已完成】导入预设省略 `undefined` 采样键（`topA`/`seed`），`isPresetBundleInSync` 合并已有值时过滤 `undefined` 键，消除导入即判脏。
+  - ②【已完成】重启引导 `presetBootstrap` 对已存在 `storedPromptConfig` 按 `projectPresetActivation` 口径经 `toPresetPromptConfig` 投影，不再重建默认值或重排 `customPrompts` ID，与运行态激活完全一致。
+  - ③【已完成】`presetRuntimeNamespace` 与 `preparePresetBundleImport` 序列化并恢复 `requestShaping.enabled`，导出再导入不丢开关状态。
+  - ④【已完成】`PresetQuickPopover` 与 `PromptsConfigSection` 在开关关闭且存在预设内容时保持条目原位可见，仅切换启用态。
+  - ⑤【已完成】`AppContextAssembler` 等待设置装载就绪、存在未保存编辑时通过 `hasUnsavedPresetEditsForBinding` 先弹窗确认再覆盖，并消费 `preset-missing` 诊断弹窗提示；更新 `usePresetBundles` 过期文案。
+  - ⑥【已完成】`useSettingsLoader` 在真实孤儿预设降级路径执行 `projectPresetActivation` 完整重投影并标注 `findDirectPresetBundleMatch`，避免孤儿 Prompt 覆盖 `savedPresets[0]`。
+
+- [x] **聊天发送与重生成模型执行及 Agent Driver 收口（2026-11-13 已完成）**：将 `useSendMessage` 与 `useRerollMessage` 中重复的世界书合并、轮次计算、记忆审计快照、`AgentHandle` 复用/释放与模型流式/工具循环抽离至 `src/application/useCases/chatTurnExecution.ts`，并将内置 `mobile-tavern.chat.driver` 的真实 `driver.orchestration` 编排与 Journal 记录收口至 `src/application/useCases/chatTurnDriver.ts`；重生成路径同步获得 `AgentHandle` / `executeOpenAiToolLoop` / 绝对 `turnIndex` 对齐与上下文贡献审计，双 Hook 体积分别压至 781 行与 671 行，由 `architectureBoundaries.test.ts` 与 `chatTurnExecutionAndDriver.test.ts` 回归守卫。
 
 - [ ] **写入队列与聊天并发治理（P1）**：解决「2 个隐患 + 3 个结构性缺口」——合并语义、队列吞吐、新鲜度判断散落、状态权威未写死、性能无预算。
   - ①【已完成】`enqueueWrite` 增加显式 `mode`：`coalesceable`（默认，保持 P1-11 以来的既有语义）与 `must-complete`（绝不合并、各自拿到自己的结果）分开，`idbWriteQueue.test.ts` 钉住两种语义。翻转 4 处提交类写入：`commitSessionTurn`（**红检实证：退回合并后 m1 永久丢失**）、`deleteSessionMessage`（key 只到会话级，删不同消息会互相顶掉）、`updateSessionMessage`（调用方消费返回的 ChatSession）、`upsertDictEntry`（返回 boolean 会被另一次调用顶掉）。`character:${id}` / `session:${id}:cascade` / `settings:user_settings` 有注释表明是故意合并，保持不动。
@@ -85,6 +87,7 @@
 
 ## 已完成摘要
 
+- 2026-11-13：修复预设与聊天/Agent Profile 绑定 6 项一致性缺陷，并完成 `useSendMessage` 与 `useRerollMessage` 的 Application 层共享流水线收敛（`chatTurnExecution.ts`、`chatTurnDriver.ts`），重生成同步接入 `AgentHandle`、`driver.orchestration`、`executeOpenAiToolLoop` 与绝对 `turnIndex` 对齐。
 - 2026-09-02：External Tool Plugin 来源信任收敛为提示性策略；未验证包仍可安装，导入入口与确认页明确告知作者、代码和后续授权风险，远程撤回与动态信任治理改为公开生态的条件性事项。
 - 2026-09-02：完成 Tool Plugin 来源证明与包验签基线，严格绑定插件身份、内容哈希和签名者公钥，区分未知有效签名、可信指纹与官方内置来源；旧记录降级且版本历史不丢失。
 - 2026-09-02：完成仓库内 Tool Plugin 作者 SDK 与官方文本工具箱示例，覆盖 v2 Manifest/Worker 类型、确定性打包、可安装产物和运行时契约一致性测试；后续按需评估独立发布与更多扩展模板。
