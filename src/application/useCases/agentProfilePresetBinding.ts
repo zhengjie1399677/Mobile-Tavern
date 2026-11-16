@@ -1,5 +1,6 @@
 import type { SamplerPreset, UserSettings } from "../../types";
 import type { RuntimeProfileSamplingSettings } from "../runtimeProfiles/contracts";
+import { isPresetBundleInSync, resolveActivePresetBundle } from "./presetBundleLifecycle";
 import { projectPresetActivation } from "./presetProjection";
 
 /**
@@ -66,4 +67,26 @@ export function applyAgentProfilePresetBinding(
   }
 
   return { outcome: "applied", settings: withSampling(settings) };
+}
+
+/**
+ * 判断启动 Agent Profile 套用预设/采样绑定前，当前预设是否已有未保存的修改。
+ * 只有在"确实会覆盖设置"（存在绑定采样，或能命中目标预设）且当前预设处于脏态时返回 `true`。
+ */
+export function hasUnsavedPresetEditsForBinding(
+  settings: UserSettings,
+  binding: AgentProfilePresetBinding | undefined,
+  presetDefaults: SamplerPreset,
+): boolean {
+  if (!binding) return false;
+  const presetId = binding.promptPresetId;
+  const willSwitchPreset = Boolean(
+    presetId && (settings.savedPresets ?? []).some((candidate) => candidate.id === presetId),
+  );
+  const willOverrideSampling = Boolean(binding.sampling);
+  if (!willSwitchPreset && !willOverrideSampling) return false;
+
+  const activeBundle = resolveActivePresetBundle(settings.savedPresets, settings.preset);
+  if (!activeBundle) return false;
+  return !isPresetBundleInSync(activeBundle, settings, presetDefaults);
 }

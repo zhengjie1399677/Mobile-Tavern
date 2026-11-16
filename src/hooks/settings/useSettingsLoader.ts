@@ -9,7 +9,7 @@ import {
   type PresetBootstrapFactoryDefaults,
 } from "../../application/useCases/presetBootstrap";
 import { withoutPresetOwnedSettings } from "../../application/useCases/presetSettingsBoundary";
-import { resolveActivePresetBundle } from "../../application/useCases/presetBundleLifecycle";
+import { resolveStartupPresetSelection } from "../../application/useCases/presetProjection";
 import { useKernel } from "../../contexts/KernelContext";
 import {
   ISettingsService,
@@ -165,26 +165,21 @@ export const useSettingsLoader = ({
             needSave = true;
           }
 
-          const resolvedPreset = { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) };
-          const activeBundleCandidate = resolveActivePresetBundle(bootstrap.savedPresets, resolvedPreset);
-          if (
-            activeBundleCandidate &&
-            (resolvedPreset.id === "custom" || !bootstrap.savedPresets.some((b) => b.sampler.id === resolvedPreset.id))
-          ) {
-            resolvedPreset.id = activeBundleCandidate.sampler.id;
-            resolvedPreset.name = activeBundleCandidate.sampler.name;
-            needSave = true;
+          const startupPresetSelection = resolveStartupPresetSelection({
+            savedPresets: bootstrap.savedPresets,
+            storedPreset: storedSet.preset,
+            resolvedPreset: { ...DEFAULT_SETTINGS.preset, ...(storedSet.preset || {}) },
+            storedPromptConfig: bootstrap.promptConfig,
+            storedPresetRegexScripts: storedSet.presetRegexScripts,
+            presetDefaults: DEFAULT_SETTINGS.preset,
+          });
+          if (startupPresetSelection.fellBackFromOrphanPreset) {
+            console.warn(
+              "[useSettingsLoader] 原活跃预设已不存在，已重载兜底预设以防止保存时误覆盖",
+              storedSet.preset,
+            );
           }
-
-          // CHANGE-SAFE：预设正则字段在旧版本设置里根本不存在（老预设导入早于该字段）。
-          // 只在字段缺失时从活跃预设包回填，用户主动清空的空数组不会被复活。
-          const storedPresetRegexScripts = storedSet.presetRegexScripts;
-          const resolvedPresetRegexScripts = Array.isArray(storedPresetRegexScripts)
-            ? storedPresetRegexScripts
-            : activeBundleCandidate?.regexScripts?.length
-              ? [...activeBundleCandidate.regexScripts]
-              : DEFAULT_SETTINGS.presetRegexScripts || [];
-          if (!Array.isArray(storedPresetRegexScripts) && activeBundleCandidate?.regexScripts?.length) {
+          if (startupPresetSelection.needsSave) {
             needSave = true;
           }
 
@@ -200,7 +195,7 @@ export const useSettingsLoader = ({
               reasoningStrength: storedReasoningStrength,
               forceBasicParams: storedSet.api?.forceBasicParams ?? DEFAULT_SETTINGS.api.forceBasicParams,
             },
-            preset: resolvedPreset,
+            preset: startupPresetSelection.preset,
             memory: {
               ...defaultMemory,
               ...(storedSet.memory || {}),
@@ -216,7 +211,7 @@ export const useSettingsLoader = ({
             },
             // 活跃 Prompt 配置由预设引导用例给出：外部文件收口、旧出厂提示词升级、
             // 出厂区块迁移与内置预设回填都在那里完成（`COMPAT-DATA`：只作用于内置预设）。
-            promptConfig: bootstrap.promptConfig,
+            promptConfig: startupPresetSelection.promptConfig,
             userName: finalUserName,
             userInfo: finalUserInfo,
             userAvatar: finalUserAvatar,
@@ -258,7 +253,7 @@ export const useSettingsLoader = ({
             ),
             currentApiProfileId: storedSet.currentApiProfileId || DEFAULT_SETTINGS.currentApiProfileId,
             globalRegexScripts: storedSet.globalRegexScripts || DEFAULT_SETTINGS.globalRegexScripts || [],
-            presetRegexScripts: resolvedPresetRegexScripts,
+            presetRegexScripts: startupPresetSelection.presetRegexScripts,
             enableEmotionAmbientGlow: storedSet.enableEmotionAmbientGlow ?? DEFAULT_SETTINGS.enableEmotionAmbientGlow,
             enableReplySuggestions: storedSet.enableReplySuggestions ?? DEFAULT_SETTINGS.enableReplySuggestions,
             replySuggestionsClickMode: storedSet.replySuggestionsClickMode ?? DEFAULT_SETTINGS.replySuggestionsClickMode,

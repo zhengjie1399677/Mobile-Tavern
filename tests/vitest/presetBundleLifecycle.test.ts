@@ -4,6 +4,9 @@ import {
   isPresetBundleInSync,
   resolveActivePresetBundle,
 } from "../../src/application/useCases/presetBundleLifecycle";
+import { projectPresetActivation } from "../../src/application/useCases/presetProjection";
+import { preparePresetBundleImport } from "../../src/application/useCases/preparePresetBundleImport";
+import { DEFAULT_PROMPT_CONFIG, DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
 import type { PromptConfig, SamplerPreset } from "../../src/types";
 
@@ -147,5 +150,34 @@ describe("resolveActivePresetBundle", () => {
     expect(resolveActivePresetBundle(list, { id: "missing", name: "第二" })?.id).toBe("bundle_2");
     expect(resolveActivePresetBundle(list, { id: "missing", name: "missing" })?.id).toBe("bundle_1");
     expect(resolveActivePresetBundle([], { id: "preset_1", name: "我的预设" })).toBeUndefined();
+  });
+
+  it("导入省略 top_a/seed 的预设并激活后立即保持干净，兼容旧数据里的 undefined 键", () => {
+    const imported = preparePresetBundleImport({
+      input: {
+        name: "极简采样导入",
+        temperature: 0.7,
+        top_p: 0.9,
+        top_k: 40,
+        repetition_penalty: 1.05,
+        max_tokens: 1024,
+      },
+      fallbackName: "极简采样导入",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      neutralPromptConfig: DEFAULT_PROMPT_CONFIG,
+    });
+
+    expect("topA" in imported.bundle.sampler).toBe(false);
+    expect("seed" in imported.bundle.sampler).toBe(false);
+
+    const activated = projectPresetActivation(imported.bundle, DEFAULT_SETTINGS.preset);
+    expect(isPresetBundleInSync(imported.bundle, activated, DEFAULT_SETTINGS.preset)).toBe(true);
+
+    // 即使历史存储的 sampler 对象上已有 topA: undefined / seed: undefined 键，仍不得判脏。
+    const legacyWithUndefined = {
+      ...imported.bundle,
+      sampler: { ...imported.bundle.sampler, topA: undefined, seed: undefined },
+    };
+    expect(isPresetBundleInSync(legacyWithUndefined, activated, DEFAULT_SETTINGS.preset)).toBe(true);
   });
 });

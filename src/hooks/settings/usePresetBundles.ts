@@ -160,7 +160,7 @@ export const usePresetBundles = ({
     const preview = referencedNames.slice(0, 3).join("、");
     const suffix = referencedNames.length > 3 ? " 等" : "";
     return `${baseMessage}\n\n该预设正被 ${referencedNames.length} 个 Agent Profile 引用（${preview}${suffix}）。`
-      + "删除后这些 Profile 无法启动，已冻结该预设的会话也将无法继续发送；历史消息保留，但只能新建会话恢复对话。"
+      + "删除后这些 Profile 下次启动时将无法自动套用该绑定预设，届时需要重新绑定（已有会话可继续使用当前活跃设置发送消息）。"
       + "\n\n确定仍要删除吗？";
   }, [kernel]);
 

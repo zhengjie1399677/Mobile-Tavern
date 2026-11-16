@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyAgentProfilePresetBinding } from "../../src/application/useCases/agentProfilePresetBinding";
+import {
+  applyAgentProfilePresetBinding,
+  hasUnsavedPresetEditsForBinding,
+} from "../../src/application/useCases/agentProfilePresetBinding";
 import { DEFAULT_SETTINGS } from "../../src/hooks/settings/defaults";
 import type { UserSettings } from "../../src/types";
 import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
@@ -108,5 +111,40 @@ describe("applyAgentProfilePresetBinding", () => {
     expect(result.outcome).toBe("applied");
     expect(result.settings.preset.temperature).toBe(0.55);
     expect(result.settings.promptConfig).toBe(originalPromptConfig);
+  });
+
+  it("仅在当前预设存在未保存修改且绑定会覆盖设置时提示确认", () => {
+    const bundleA = createBundle("bundle-a");
+    const bundleB = {
+      ...createBundle("bundle-b"),
+      sampler: { ...bundleA.sampler, id: "sampler-b", name: "行为 B" },
+    };
+    const syncedSettings: UserSettings = {
+      ...createSettings(),
+      savedPresets: [bundleA, bundleB],
+      preset: { ...createSettings().preset, ...bundleA.sampler },
+      promptConfig: { ...bundleA.promptConfig },
+      presetRegexScripts: [...bundleA.regexScripts],
+    };
+
+    expect(
+      hasUnsavedPresetEditsForBinding(syncedSettings, { promptPresetId: "bundle-b" }, PRESET_DEFAULTS),
+    ).toBe(false);
+
+    const dirtySettings: UserSettings = {
+      ...syncedSettings,
+      promptConfig: { ...syncedSettings.promptConfig, mainPrompt: "用户尚未保存的编辑" },
+    };
+
+    expect(
+      hasUnsavedPresetEditsForBinding(dirtySettings, { promptPresetId: "bundle-b" }, PRESET_DEFAULTS),
+    ).toBe(true);
+    expect(
+      hasUnsavedPresetEditsForBinding(dirtySettings, { sampling: SAMPLING }, PRESET_DEFAULTS),
+    ).toBe(true);
+    // 绑定预设缺失且未设采样时不会覆盖用户配置，不应误触发"确认丢弃修改"提示。
+    expect(
+      hasUnsavedPresetEditsForBinding(dirtySettings, { promptPresetId: "missing-id" }, PRESET_DEFAULTS),
+    ).toBe(false);
   });
 });

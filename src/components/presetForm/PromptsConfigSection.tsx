@@ -130,10 +130,9 @@ export default function PromptsConfigSection({
   const unifiedPrompts = useMemo<UnifiedPromptItem[]>(() => {
     const list: UnifiedPromptItem[] = [];
 
-    // 1. 系统扮演指令（仅在明确启用或存在非空内容且未显式关闭时展示）
+    // 1. 系统扮演指令（关闭时原地保留，仅在内容为空且未显式开启时省略）
     const hasMainPromptContent = Boolean(settings.promptConfig.mainPrompt && settings.promptConfig.mainPrompt.trim().length > 0);
-    const shouldShowMainPrompt = settings.promptConfig.useMainPrompt === true
-      || (settings.promptConfig.useMainPrompt !== false && hasMainPromptContent);
+    const shouldShowMainPrompt = settings.promptConfig.useMainPrompt === true || hasMainPromptContent;
     const seenIds = new Set<string>();
     if (shouldShowMainPrompt) {
       seenIds.add("built-in-main-prompt");
@@ -148,10 +147,9 @@ export default function PromptsConfigSection({
       });
     }
 
-    // 2. 规则提示词（仅在明确启用或存在非空内容且未显式关闭时展示）
+    // 2. 规则提示词（关闭时原地保留，仅在内容为空且未显式开启时省略）
     const hasJailbreakContent = Boolean(settings.promptConfig.jailbreakPrompt && settings.promptConfig.jailbreakPrompt.trim().length > 0);
-    const shouldShowJailbreak = settings.promptConfig.useJailbreak === true
-      || (settings.promptConfig.useJailbreak !== false && hasJailbreakContent);
+    const shouldShowJailbreak = settings.promptConfig.useJailbreak === true || hasJailbreakContent;
     if (shouldShowJailbreak) {
       seenIds.add("built-in-jailbreak-prompt");
       list.push({

@@ -315,4 +315,35 @@ describe("SillyTavern 预设参数补全", () => {
     );
     expect(shaped.messages.map((message) => message.role)).toEqual(["system", "user", "user"]);
   });
+
+  it("导出后再导入完整保留 requestShaping.enabled=false 与其配置详情", () => {
+    const exported = preparePresetBundleExport({
+      preset: DEFAULT_SETTINGS.preset,
+      promptConfig: {
+        ...DEFAULT_PROMPT_CONFIG,
+        requestShaping: {
+          enabled: false,
+          mergeAdjacentMessages: true,
+          squashSystemMessages: true,
+          assistantPrefill: "好的：",
+          stopSequences: ["STOP"],
+        },
+      },
+    });
+    const imported = preparePresetBundleImport({
+      input: exported.data,
+      fallbackName: "关闭整形",
+      currentPromptConfig: DEFAULT_PROMPT_CONFIG,
+      neutralPromptConfig: DEFAULT_PROMPT_CONFIG,
+      compatibilityCodec: sillyTavernPromptPresetCodec,
+    });
+
+    expect(imported.bundle.promptConfig.requestShaping).toMatchObject({
+      enabled: false,
+      mergeAdjacentMessages: true,
+      squashSystemMessages: true,
+      assistantPrefill: "好的：",
+      stopSequences: ["STOP"],
+    });
+  });
 });

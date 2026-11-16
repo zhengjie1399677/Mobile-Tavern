@@ -57,6 +57,8 @@ export function preparePresetBundleImport(
     || readString(data.presetName)
     || options.fallbackName;
   const name = rawName.length > 60 ? `${rawName.slice(0, 57)}...` : rawName;
+  const topA = readFirstNumber(data.top_a, data.topA);
+  const seed = readFirstNumber(data.seed);
   const preset: SamplerPreset = {
     id: createId("preset"),
     name,
@@ -67,21 +69,23 @@ export function preparePresetBundleImport(
     frequencyPenalty: readFirstNumber(data.frequency_penalty, data.frequencyPenalty) ?? 0,
     presencePenalty: readFirstNumber(data.presence_penalty, data.presencePenalty) ?? 0,
     minP: readFirstNumber(data.min_p, data.minP) ?? 0,
-    topA: readFirstNumber(data.top_a, data.topA),
-    seed: readFirstNumber(data.seed),
+    // 未声明可选采样参数时省略自有键，避免展开默认值时用 undefined 覆盖出厂补齐值。
+    ...(topA !== undefined ? { topA } : {}),
+    ...(seed !== undefined ? { seed } : {}),
     maxTokens: readFirstNumber(data.max_tokens, data.openai_max_tokens, data.maxTokens) ?? 600,
   };
 
   // 来源格式的 Prompt 语义只由 Compatibility Codec 解释，故先取出注入的 Codec 再收口 Prompt 字段。
   const codec = options.compatibilityCodec;
+  const presetExtension = parseMobileTavernPresetExtension(
+    isRecord(data.extensions) ? data.extensions : undefined,
+  );
   const promptConfigBase = preparePromptConfig(
     data,
     options.currentPromptConfig,
     options.neutralPromptConfig ?? options.currentPromptConfig,
     codec,
-  );
-  const presetExtension = parseMobileTavernPresetExtension(
-    isRecord(data.extensions) ? data.extensions : undefined,
+    presetExtension.requestShapingEnabled,
   );
   const promptConfig = presetExtension.promptRuntime
     ? toPresetPromptConfig({ ...promptConfigBase, ...presetExtension.promptRuntime })
@@ -156,6 +160,7 @@ function preparePromptConfig(
   current: PromptConfig,
   neutral: PromptConfig,
   codec: CompatibilityCodecDefinition | null | undefined,
+  requestShapingEnabled?: boolean,
 ): PresetPromptConfig {
   const mainPrompt = readString(data.system_prompt) ?? readString(data.mainPrompt) ?? "";
   const jailbreakPrompt = readString(data.jailbreak_prompt) ?? readString(data.jailbreakPrompt) ?? "";
@@ -221,7 +226,7 @@ function preparePromptConfig(
     } : {}),
     requestShaping: hasRequestShaping
       ? {
-          enabled: true,
+          enabled: requestShapingEnabled ?? true,
           mergeAdjacentMessages,
           squashSystemMessages,
           roleWrappers,
@@ -229,7 +234,12 @@ function preparePromptConfig(
           stopSequences,
           customPromptPostProcessing,
         }
-      : base.requestShaping,
+      : requestShapingEnabled !== undefined
+        ? {
+            ...(base.requestShaping ?? {}),
+            enabled: requestShapingEnabled,
+          }
+        : base.requestShaping,
   };
 
   if (!hasPromptFields) {

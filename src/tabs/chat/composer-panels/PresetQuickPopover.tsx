@@ -78,9 +78,9 @@ export function PresetQuickPopover({
     const cfg = settings.promptConfig;
     if (!cfg) return list;
 
-    // 1. 系统提示词
+    // 1. 系统提示词（关闭时原地保留，仅在内容为空且未显式开启时省略）
     const hasMainContent = Boolean(cfg.mainPrompt && cfg.mainPrompt.trim().length > 0);
-    if (cfg.useMainPrompt === true || (cfg.useMainPrompt !== false && hasMainContent)) {
+    if (cfg.useMainPrompt === true || hasMainContent) {
       list.push({
         id: "built-in-main-prompt",
         name: cfg.mainPromptName?.trim() || t("prompts.system_prompt") || "系统提示词",
@@ -90,9 +90,9 @@ export function PresetQuickPopover({
       });
     }
 
-    // 2. 规则提示词
+    // 2. 规则提示词（关闭时原地保留，仅在内容为空且未显式开启时省略）
     const hasJailbreakContent = Boolean(cfg.jailbreakPrompt && cfg.jailbreakPrompt.trim().length > 0);
-    if (cfg.useJailbreak === true || (cfg.useJailbreak !== false && hasJailbreakContent)) {
+    if (cfg.useJailbreak === true || hasJailbreakContent) {
       list.push({
         id: "built-in-jailbreak-prompt",
         name: cfg.jailbreakPromptName?.trim() || t("prompts.jailbreak") || "规则提示词",

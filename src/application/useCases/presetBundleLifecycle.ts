@@ -43,6 +43,24 @@ export interface PresetBundleReferenceSummary {
 }
 
 /**
+ * 按显式身份定位活跃预设包（不做首个预设兜底）。
+ * 返回 `undefined` 表示存储记录为"孤儿预设"（原预设已被删或从未存在）。
+ */
+export function findDirectPresetBundleMatch(
+  savedPresets: readonly PresetBundle[] | undefined,
+  preset: Partial<Pick<SamplerPreset, "id" | "name">> | undefined,
+): PresetBundle | undefined {
+  if (!savedPresets || savedPresets.length === 0 || !preset) return undefined;
+  const id = preset.id?.trim();
+  const name = preset.name?.trim();
+  return (
+    (id ? savedPresets.find((b) => b.sampler.id === id) : undefined) ??
+    (id ? savedPresets.find((b) => b.id === id) : undefined) ??
+    (name ? savedPresets.find((b) => b.sampler.name === name) : undefined)
+  );
+}
+
+/**
  * 权威定位活跃预设包。
  * 1. 优先按 sampler.id 匹配（标准运行形态）
  * 2. 其次按 bundle.id 匹配（防 ID 错位）
@@ -51,17 +69,11 @@ export interface PresetBundleReferenceSummary {
  */
 export function resolveActivePresetBundle(
   savedPresets: readonly PresetBundle[] | undefined,
-  preset: Pick<SamplerPreset, "id" | "name"> | undefined,
+  preset: Partial<Pick<SamplerPreset, "id" | "name">> | undefined,
 ): PresetBundle | undefined {
   if (!savedPresets || savedPresets.length === 0) return undefined;
   if (!preset) return savedPresets[0];
-
-  return (
-    savedPresets.find((b) => b.sampler.id === preset.id) ??
-    savedPresets.find((b) => b.id === preset.id) ??
-    savedPresets.find((b) => b.sampler.name === preset.name) ??
-    savedPresets[0]
-  );
+  return findDirectPresetBundleMatch(savedPresets, preset) ?? savedPresets[0];
 }
 
 /** 用当前设置生成可持久化的预设快照（与切换时的激活规则保持镜像关系）。 */
@@ -99,7 +111,7 @@ const PROMPT_FLAGS_DEFAULT_ON: readonly string[] = ["useMainPrompt", "useJailbre
 export function isPresetBundleInSync(
   bundle: PresetBundle,
   selection: PresetBundleSelection,
-  presetDefaults?: SamplerPreset,
+  presetDefaults?: Partial<SamplerPreset>,
 ): boolean {
   const livePromptConfig = toPresetPromptConfig(selection.promptConfig) as unknown as Record<string, unknown>;
   const storedPromptConfig = (bundle.promptConfig ?? {}) as unknown as Record<string, unknown>;
@@ -110,16 +122,26 @@ export function isPresetBundleInSync(
     return false;
   }
 
-  const livePreset = presetDefaults ? { ...presetDefaults, ...selection.preset } : selection.preset;
-  const storedPreset = presetDefaults ? { ...presetDefaults, ...bundle.sampler } : bundle.sampler;
-  if (!hasOwnedKeysEqual(
-    livePreset as unknown as Record<string, unknown>,
-    storedPreset as unknown as Record<string, unknown>,
-  )) {
+  const livePreset = mergeDefinedValues(presetDefaults, selection.preset);
+  const storedPreset = mergeDefinedValues(presetDefaults, bundle.sampler);
+  if (!hasOwnedKeysEqual(livePreset, storedPreset)) {
     return false;
   }
 
   return isDeepEqual(selection.presetRegexScripts ?? [], bundle.regexScripts ?? []);
+}
+
+function mergeDefinedValues(
+  defaults: Partial<SamplerPreset> | undefined,
+  source: PresetBundle["sampler"] | SamplerPreset,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = defaults ? { ...defaults } : {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value !== undefined) {
+      merged[key] = value;
+    }
+  }
+  return merged;
 }
 
 /** 汇总引用指定预设包的 Runtime Profile，供删除前提示使用。 */

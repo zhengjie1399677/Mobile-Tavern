@@ -7,6 +7,7 @@ import {
   resolveActivePresetBundle,
   buildPresetBundleSnapshot,
 } from "../../src/application/useCases/presetBundleLifecycle";
+import { resolveStartupPresetSelection } from "../../src/application/useCases/presetProjection";
 import { resolveAgentSessionSettings } from "../../src/application/useCases/resolveAgentSessionSettings";
 import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
 import type { PresetBundle } from "../../src/domain/presets/contracts";
@@ -148,5 +149,112 @@ describe("预设修改与生效闭环 (Preset Save Effectiveness)", () => {
     const matched = resolveActivePresetBundle(savedPresets, corruptedPreset);
     expect(matched?.id).toBe("bundle_migrated");
     expect(matched?.sampler.id).toBe("preset_migrated");
+  });
+
+  it("孤儿预设回落到兜底预设时同步投影其 Prompt 与正则，防止误覆盖兜底预设", () => {
+    const fallbackBundle = requirePresetBundle({
+      id: "bundle_fallback",
+      preset: { ...DEFAULT_SETTINGS.preset, id: "preset_fallback", name: "默认兜底", temperature: 0.7 },
+      promptConfig: { ...DEFAULT_SETTINGS.promptConfig, mainPrompt: "FALLBACK_MAIN" },
+      presetRegexScripts: [],
+    });
+    const orphanPromptConfig = {
+      ...DEFAULT_SETTINGS.promptConfig,
+      mainPrompt: "ORPHAN_DELETED_PRESET_MAIN",
+    };
+
+    const result = resolveStartupPresetSelection({
+      savedPresets: [fallbackBundle],
+      storedPreset: { id: "deleted_preset_id", name: "已删除的预设" },
+      resolvedPreset: { ...DEFAULT_SETTINGS.preset, id: "deleted_preset_id", name: "已删除的预设", temperature: 1.4 },
+      storedPromptConfig: orphanPromptConfig,
+      storedPresetRegexScripts: [],
+      presetDefaults: DEFAULT_SETTINGS.preset,
+    });
+
+    expect(result.fellBackFromOrphanPreset).toBe(true);
+    expect(result.needsSave).toBe(true);
+    expect(result.preset.id).toBe("preset_fallback");
+    expect(result.preset.temperature).toBe(0.7);
+    expect(result.promptConfig.mainPrompt).toBe("FALLBACK_MAIN");
+    expect(
+      isPresetBundleInSync(fallbackBundle, result, DEFAULT_SETTINGS.preset),
+    ).toBe(true);
+  });
+
+  it("仅存缺失 id 且未存 name 时不因默认预设名基本预设而跳过孤儿检测", () => {
+    const basicBundle = requirePresetBundle({
+      id: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.id,
+      preset: {
+        ...DEFAULT_SETTINGS.preset,
+        id: DEFAULT_SETTINGS.preset.id,
+        name: DEFAULT_SETTINGS.preset.name,
+        temperature: 0.7,
+      },
+      promptConfig: { ...DEFAULT_SETTINGS.promptConfig, mainPrompt: "BASIC_MAIN" },
+      presetRegexScripts: [],
+    });
+    const orphanPromptConfig = {
+      ...DEFAULT_SETTINGS.promptConfig,
+      mainPrompt: "ORPHAN_DELETED_MAIN",
+    };
+
+    const result = resolveStartupPresetSelection({
+      savedPresets: [basicBundle],
+      storedPreset: { id: "deleted_id" },
+      resolvedPreset: {
+        ...DEFAULT_SETTINGS.preset,
+        id: "deleted_id",
+        temperature: 1.4,
+      },
+      storedPromptConfig: orphanPromptConfig,
+      storedPresetRegexScripts: [],
+      presetDefaults: DEFAULT_SETTINGS.preset,
+    });
+
+    expect(result.fellBackFromOrphanPreset).toBe(true);
+    expect(result.needsSave).toBe(true);
+    expect(result.preset.id).toBe(DEFAULT_SETTINGS.preset.id);
+    expect(result.preset.temperature).toBe(0.7);
+    expect(result.promptConfig.mainPrompt).toBe("BASIC_MAIN");
+  });
+
+  it("旧版 preset.id === 'custom' 即使名称未知也只做 id 自愈，不清空用户提示词与采样参数", () => {
+    const basicBundle = requirePresetBundle({
+      id: MOBILE_TAVERN_BASIC_PRESET_BUNDLE.id,
+      preset: {
+        ...DEFAULT_SETTINGS.preset,
+        id: DEFAULT_SETTINGS.preset.id,
+        name: DEFAULT_SETTINGS.preset.name,
+        temperature: 0.7,
+      },
+      promptConfig: { ...DEFAULT_SETTINGS.promptConfig, mainPrompt: "BASIC_MAIN" },
+      presetRegexScripts: [],
+    });
+    const customPromptConfig = {
+      ...DEFAULT_SETTINGS.promptConfig,
+      mainPrompt: "MY_CUSTOM_MAIN",
+    };
+
+    const result = resolveStartupPresetSelection({
+      savedPresets: [basicBundle],
+      storedPreset: { id: "custom", name: "未知历史名" },
+      resolvedPreset: {
+        ...DEFAULT_SETTINGS.preset,
+        id: "custom",
+        name: "未知历史名",
+        temperature: 1.35,
+      },
+      storedPromptConfig: customPromptConfig,
+      storedPresetRegexScripts: [],
+      presetDefaults: DEFAULT_SETTINGS.preset,
+    });
+
+    expect(result.fellBackFromOrphanPreset).toBe(false);
+    expect(result.needsSave).toBe(true);
+    expect(result.preset.id).toBe(basicBundle.sampler.id);
+    expect(result.preset.name).toBe(basicBundle.sampler.name);
+    expect(result.preset.temperature).toBe(1.35);
+    expect(result.promptConfig.mainPrompt).toBe("MY_CUSTOM_MAIN");
   });
 });

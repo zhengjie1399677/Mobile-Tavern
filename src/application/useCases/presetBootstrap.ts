@@ -237,24 +237,27 @@ function resolveStoredSettings(
 
   // ── 活跃 Prompt 配置 ────────────────────────────────────────────────────────
   const storedPromptConfig = stored.promptConfig;
-  const working: Partial<PromptConfig> = { ...(storedPromptConfig ?? {}) };
+  let promptConfig: PromptConfig;
+  if (storedPromptConfig) {
+    // 已有设置与切换预设（projectPresetActivation）保持同一投影口径：
+    // 不再用内置预设字段、sectionHeaders、useMainPrompt 或 customPrompts id 改写已落库形状，
+    // 否则切换时干净的预设重启后会立即被判脏。
+    promptConfig = toPresetPromptConfig(storedPromptConfig) as PromptConfig;
+  } else {
+    const defaultPromptConfig: Partial<PromptConfig> = input.externalDefaults
+      ? { ...input.factory.promptConfig, ...(input.externalDefaults.promptConfig ?? {}) }
+      : (builtinEntry.promptConfig ?? {});
 
-  const defaultPromptConfig: Partial<PromptConfig> = input.externalDefaults
-    ? { ...input.factory.promptConfig, ...(input.externalDefaults.promptConfig ?? {}) }
-    : (builtinEntry.promptConfig ?? {});
-
-  const promptConfig = {
-    ...defaultPromptConfig,
-    ...working,
-    mainPrompt: working.mainPrompt ?? "",
-    useMainPrompt: working.useMainPrompt ?? Boolean(working.mainPrompt && working.mainPrompt.trim().length > 0),
-    // 身份归一：重复 identifier 的条目必须各自可寻址，否则改名/开关/删除会互相牵连。
-    customPrompts: ensureUniquePromptBlockIds(working.customPrompts ?? []),
-    sectionHeaders: {
-      ...defaultPromptConfig.sectionHeaders,
-      ...(working.sectionHeaders ?? {}),
-    },
-  } as PromptConfig;
+    promptConfig = toPresetPromptConfig({
+      ...defaultPromptConfig,
+      mainPrompt: defaultPromptConfig.mainPrompt ?? "",
+      // 身份归一仅用于缺失/出厂补齐，避免与已激活自定义预设的 customPrompts id 产生分歧。
+      customPrompts: ensureUniquePromptBlockIds(defaultPromptConfig.customPrompts ?? []),
+      ...(defaultPromptConfig.sectionHeaders
+        ? { sectionHeaders: { ...defaultPromptConfig.sectionHeaders } }
+        : {}),
+    } as PromptConfig) as PromptConfig;
+  }
 
   const promptConfigChanged = !isSameJson(promptConfig, storedPromptConfig ?? null);
 

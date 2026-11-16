@@ -18,7 +18,10 @@ import {
   type IRuntimeProfileService,
   type ITelemetryService,
 } from "../application/serviceContracts";
-import { applyAgentProfilePresetBinding } from "../application/useCases/agentProfilePresetBinding";
+import {
+  applyAgentProfilePresetBinding,
+  hasUnsavedPresetEditsForBinding,
+} from "../application/useCases/agentProfilePresetBinding";
 import { DEFAULT_SETTINGS } from "../hooks/settings/defaults";
 import {
   clearRuntimeProfileSessionResumeIntent,
@@ -155,6 +158,7 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
       resumeAttemptedRef.current = true;
       return;
     }
+    if (launchIntent && !settingsHook.isReady) return;
     resumeAttemptedRef.current = true;
     let active = true;
     void (async () => {
@@ -202,9 +206,32 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
                 profile.id === launchIntent.profileId
                 && profile.version === launchIntent.profileVersion,
               )?.agent;
-            settingsHook.updateSettings((prev) =>
-              applyAgentProfilePresetBinding(prev, binding, DEFAULT_SETTINGS.preset).settings,
+            const preview = applyAgentProfilePresetBinding(
+              settingsHook.settings,
+              binding,
+              DEFAULT_SETTINGS.preset,
             );
+            if (preview.outcome !== "none") {
+              let shouldApply = true;
+              if (hasUnsavedPresetEditsForBinding(settingsHook.settings, binding, DEFAULT_SETTINGS.preset)) {
+                shouldApply = await appState.showCustomConfirm(
+                  "当前预设存在未保存的修改，启动该 Agent Profile 时套用绑定预设或采样会覆盖这些未保存修改。\n\n确定覆盖并套用吗？（选择「取消」将保留您当前未保存的预设修改）",
+                );
+              }
+              if (shouldApply && active) {
+                if (preview.outcome !== "preset-missing" || binding?.sampling) {
+                  settingsHook.updateSettings((prev) =>
+                    applyAgentProfilePresetBinding(prev, binding, DEFAULT_SETTINGS.preset).settings,
+                  );
+                }
+                if (preview.outcome === "preset-missing") {
+                  console.warn("[AppContextAssembler] Agent Profile 绑定的预设不存在", preview.missingPresetId);
+                  await appState.showCustomAlert(
+                    `该 Agent Profile 绑定的预设（${preview.missingPresetId}）不存在或已被删除，无法自动切换其提示词预设。\n\n系统已保留您当前的提示词配置；如需固定预设，请前往 Agent Profile 设置重新绑定。`,
+                  );
+                }
+              }
+            }
           } catch (error: unknown) {
             console.warn("[AppContextAssembler] 套用 Agent 绑定预设失败", error);
           }
@@ -225,7 +252,7 @@ function AppContextAssemblerInner({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [charState.isDBReady, kernel]);
+  }, [charState.isDBReady, settingsHook.isReady, kernel]);
 
   // 刷新恢复 effect：在 chatHook 装配后首次挂载触发，借 selectCharacter 的插件分支解析并启动。
   useEffect(() => {

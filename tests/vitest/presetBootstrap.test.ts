@@ -11,6 +11,8 @@ import {
 } from "../../src/application/useCases/presetBootstrap";
 import type { PromptConfig, SamplerPreset } from "../../src/types";
 import type { PresetBundle } from "../../src/domain/presets/contracts";
+import { isPresetBundleInSync } from "../../src/application/useCases/presetBundleLifecycle";
+import { projectPresetActivation } from "../../src/application/useCases/presetProjection";
 import { requirePresetBundle } from "../../src/domain/presets/bundleMigration";
 
 function makePromptConfig(overrides: Partial<PromptConfig> = {}): PromptConfig {
@@ -354,7 +356,53 @@ describe("resolvePresetBootstrap 出厂内容迁移边界", () => {
     });
 
     expect(result.promptConfig.mainPrompt).toBe("");
-    expect(result.promptConfig.useMainPrompt).toBe(false);
+    // 未声明 useMainPrompt 时保持 undefined，避免与 projectPresetActivation / 脏检查口径分歧。
+    expect(result.promptConfig.useMainPrompt).toBeUndefined();
+  });
+
+  it("切换到非内置预设后重启引导不引入脏状态（空 mainPrompt、自定义 headers 与 customPrompts）", () => {
+    const customBundle = requirePresetBundle({
+      id: "bundle_empty_main_roundtrip",
+      preset: makeSampler("preset_empty_main_roundtrip", "无主提示词预设"),
+      promptConfig: {
+        ...makePromptConfig({
+          mainPrompt: "",
+          sectionHeaders: { worldInfo: "=== WI ===" },
+          customPrompts: [
+            { id: "block_dup", identifier: "block_dup", name: "片段 A", role: "system", content: "A", enabled: true },
+            { id: "block_b", identifier: "block_b", name: "片段 B", role: "system", content: "B", enabled: false },
+          ],
+        }),
+        useMainPrompt: undefined,
+      },
+    });
+    const samplerDefaults: SamplerPreset = {
+      ...makeSampler("preset_empty_main_roundtrip", "无主提示词预设"),
+      ...COMPILED_BUILTIN.sampler,
+    };
+    const activation = projectPresetActivation(customBundle, samplerDefaults);
+
+    const booted = boot({
+      storedSettings: {
+        preset: activation.preset,
+        promptConfig: activation.promptConfig,
+        presetFactoryRevision: CURRENT_PRESET_FACTORY_REVISION,
+      },
+      storedPresets: [COMPILED_BUILTIN, customBundle],
+    });
+
+    expect(
+      isPresetBundleInSync(
+        customBundle,
+        {
+          preset: activation.preset,
+          promptConfig: booted.promptConfig,
+          presetRegexScripts: activation.presetRegexScripts,
+        },
+        samplerDefaults,
+      ),
+    ).toBe(true);
+    expect(booted.promptConfig.sectionHeaders).toEqual({ worldInfo: "=== WI ===" });
   });
 
   it("自带预设缺失出厂区块时不强行补齐注入，保持用户设定纯粹", () => {

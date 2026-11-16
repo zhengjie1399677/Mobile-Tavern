@@ -19,7 +19,7 @@ function Harness({
 }: {
   initial: UserSettings;
   onToggleCustomPrompt?: (id: string, enabled: boolean) => void;
-  onUpdateCustomPrompt?: (id: string, name: string, role: any, content: string) => void;
+  onUpdateCustomPrompt?: (id: string, name: string, role: "system" | "user" | "assistant", content: string) => void;
   onAddNewCustomPrompt?: () => void;
   onDeleteCustomPrompt?: (id: string) => Promise<void>;
   onDeleteBuiltinPrompt?: (kind: "main" | "jailbreak") => Promise<void>;
@@ -309,5 +309,26 @@ describe("PromptsConfigSection 所有预设一视同仁统一列表", () => {
 
     // 展开中的条目不参与搜索过滤，输入框还在，名字可以继续改。
     expect(screen.getByDisplayValue("完全无关的名字")).toBeInTheDocument();
+  });
+
+  it("关闭系统提示词或规则提示词时条目仍在原地保留并显示未启用态", () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.promptConfig.mainPrompt = "系统核心设定";
+    settings.promptConfig.useMainPrompt = true;
+    settings.promptConfig.jailbreakPrompt = "越狱规则设定";
+    settings.promptConfig.useJailbreak = true;
+
+    render(<Harness initial={settings} />);
+
+    const mainSwitch = screen.getByRole("switch", { name: /启用提示词 .*系统提示词/ });
+    const jailSwitch = screen.getByRole("switch", { name: /启用提示词 .*规则提示词/ });
+    expect(mainSwitch).toBeChecked();
+    expect(jailSwitch).toBeChecked();
+
+    fireEvent.click(mainSwitch);
+    fireEvent.click(jailSwitch);
+
+    expect(screen.getByRole("switch", { name: /启用提示词 .*系统提示词/ })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: /启用提示词 .*规则提示词/ })).not.toBeChecked();
   });
 });

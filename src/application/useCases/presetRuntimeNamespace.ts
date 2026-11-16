@@ -30,6 +30,8 @@ export type MobileTavernPromptRuntime = Partial<Pick<
 
 export interface ParsedMobileTavernPresetExtension {
   promptRuntime?: MobileTavernPromptRuntime;
+  /** `PromptRequestShapingConfig.enabled` 在 ST 格式无对应字段，随 MT 命名空间往返。 */
+  requestShapingEnabled?: boolean;
   diagnostics: PromptDiagnostic[];
 }
 
@@ -49,6 +51,9 @@ export function buildMobileTavernPresetExtension(promptConfig: PromptConfig): Re
       tableMemoryPrompt: promptConfig.tableMemoryPrompt,
       sectionHeaders: promptConfig.sectionHeaders,
       renderingFormat: promptConfig.renderingFormat,
+      ...(typeof promptConfig.requestShaping?.enabled === "boolean"
+        ? { requestShapingEnabled: promptConfig.requestShaping.enabled }
+        : {}),
     },
   };
 }
@@ -72,7 +77,15 @@ export function parseMobileTavernPresetExtension(
       )],
     };
   }
-  return { promptRuntime: parsePromptRuntime(raw.promptRuntime), diagnostics: [] };
+  const requestShapingEnabled =
+    isRecord(raw.promptRuntime) && typeof raw.promptRuntime.requestShapingEnabled === "boolean"
+      ? raw.promptRuntime.requestShapingEnabled
+      : undefined;
+  return {
+    promptRuntime: parsePromptRuntime(raw.promptRuntime),
+    ...(requestShapingEnabled !== undefined ? { requestShapingEnabled } : {}),
+    diagnostics: [],
+  };
 }
 
 function parsePromptRuntime(value: unknown): MobileTavernPromptRuntime | undefined {
