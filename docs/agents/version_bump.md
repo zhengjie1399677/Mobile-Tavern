@@ -46,15 +46,14 @@ npm run check:version
 
 ## 三、发布门禁
 
-普通代码推送继续运行 `npm run quality:push`。只有 Git Hook 能证明待推送提交与 `bump-version.cjs` 从其父提交生成的结果完全一致时，才降级为 `npm run quality:release`；若同时或单独推送标签，标签还必须是对应的 `v<version>`。这可避免在同一份已验证代码上重复执行完整测试与 Web 构建。
-
-任何新分支、混合提交、强制推送、非标准提交标题或无法确认的引用都会自动回退到完整门禁。标准版本提交标题为：
+仓库已移除自动拦截 `git push` 的 `pre-push` Hook；日常提交由 `.githooks/pre-commit` 执行暂存区 ESLint 与类型检查。
+版本提交仍可使用 `npm run quality:release` 校验多处版本号一致性，完整回归测试可按需手工运行 `npm run quality:push` 或交由 PR CI 执行。标准版本提交标题为：
 
 ```text
 chore(release): bump version to 1.9.0
 ```
 
-GitHub 的 `v*` 标签仍会触发 Android 构建与 Release 发布；轻量本地门禁不替代远端打包。
+GitHub 的 `v*` 标签仍会触发 Android 构建与 Release 发布；本地版本校验不替代远端打包。
 
 ## 四、发布说明与线上分发的同步
 

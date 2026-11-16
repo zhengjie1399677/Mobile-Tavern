@@ -94,8 +94,8 @@
 
 | 层级 | 机制 | 判定内容 | 何时触发 |
 |---|---|---|---|
-| 提交前 | `.githooks/pre-commit`、`pre-push` | 暂存 TS/TSX ESLint、类型检查；推送内容分类与门禁选择 | 每次 commit / push |
-| 推送前 | `npm run quality:push` / `quality:release` | 普通改动执行完整门禁；可证明的纯版本提交只检查版本一致性 | 每次准备推送 |
+| 提交前 | `.githooks/pre-commit` | 暂存 TS/TSX ESLint、类型检查 | 每次 commit |
+| 按需自检 | `npm run quality:push` / `quality:release` | 完整全量质量门禁 / 纯版本一致性检查（不自动阻塞 `git push`） | 大改后按需手动执行 |
 | CI | `.github/workflows/quality.yml` | PR 标题、**全仓 ESLint（`npm run lint:all`）**、改动文件 ESLint、`lint`、`test`、`build` 与 Playwright E2E | 每次 PR 到 `main` |
 | 按范围 | `check:i18n`、`verify:preset-samples`、`check:mobile-assets`、`cargo test`（云端） | 专项完整性 | 改动涉及对应领域时 |
 | 人工 | 本节清单 + 第四节专项清单 | 设计合理性、边界、可维护性、测试质量、自动化覆盖不到的 | 每次 PR 合入前 |
@@ -109,11 +109,11 @@ GitHub `main` 分支保护应把 `Quality Gate / 类型、单元、构建与受�
 ## 六、PR 审查流程
 
 ```
-分支创建 → 本地验证（hooks + quality:push）→ 开 PR（模板）→ CI 门禁 → 人工审查（多轮收敛）→ 合入 → 收尾
+分支创建 → 本地验证（pre-commit + 命中测试）→ 开 PR（模板）→ CI 门禁 → 人工审查（多轮收敛）→ 合入 → 收尾
 ```
 
 1. **分支规范**：从最新 `main` 拉取；AI 工具分支带 `codex/` 前缀，人工分支用 `feature/`、`fix/`、`chore/` 前缀；分支名含 Issue 号（如 `fix/142-retry-storm`）。
-2. **本地验证**：按 `development_workflow.md` 测试选择矩阵完成最低验证；推送前跑 `quality:push`（或与改动范围相称的等价命令）。
+2. **本地验证**：按 `development_workflow.md` 测试选择矩阵完成最低验证；大范围改动可按需手动跑 `npm run quality:push`（或与改动范围相称的等价命令）。
 3. **开 PR**：使用 `.github/PULL_REQUEST_TEMPLATE.md`；标题用语义化前缀（`feat:`/`fix:`/`refactor:`/`chore:`）；关联 Issue 与 Milestone。
 4. **CI 门禁**：等待 `Quality Gate` 绿；失败先自修，不理解的失败在 PR 里提问而不是重试碰运气。
 5. **人工审查**：

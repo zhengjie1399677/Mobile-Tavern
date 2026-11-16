@@ -5,7 +5,7 @@ if (process.env.CI || !existsSync(".git")) {
   process.exit(0);
 }
 
-for (const hook of [".githooks/pre-commit", ".githooks/pre-push"]) {
+for (const hook of [".githooks/pre-commit"]) {
   if (existsSync(hook)) {
     chmodSync(hook, 0o755);
   }
