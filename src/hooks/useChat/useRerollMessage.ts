@@ -4,8 +4,9 @@ import { ChatSession, ChatSessionMetadataPatch, UserSettings, CharacterCard, Lor
 import {
   IDatabaseService, IPromptService,
   ITelemetryService, IChatStreamService,
-  IKernel, IAttachmentService, IAgentRuntimeService, KernelServices,
+  IKernel, IAgentRuntimeService, KernelServices,
 } from "@/src/application/serviceContracts";
+import type { AgentHandle, AgentTurnExecutionContext } from "../../domain/agents/contracts";
 import { FALLBACK_MODEL } from "../../utils/apiClient";
 import {
   resolveApiCredentials,
@@ -21,21 +22,11 @@ import {
 } from "./helpers";
 import { CONNECTION_INTERRUPTED_SUFFIX, runOutputPipelineAndSave } from "./pipelineHelpers";
 import type { MemoryAuditSnapshot, RecalledMessage } from "../../application/services/memory/types";
-import { buildMemoryAuditSnapshot } from "../../application/services/memory/MemoryAudit";
 import { Logger, generateTraceId } from "../../utils/logger";
-import { assembleAuthoritativePromptEnvelope } from "../../application/useCases/assemblePromptEnvelopeUseCase";
 import type { PromptAuditSnapshot } from "../../domain/promptAudit";
-import { resolveTurnContextContributions } from "../../application/contextSources/resolveTurnContextContributions";
 import { createFreshnessPort, createTurnToken, isStale } from "../../application/useCases/turnToken";
 import type { MemoryServiceTyped } from "../../application/services/memory";
 import { attachSessionStateSnapshot } from "../../domain/chat/sessionStateSnapshot";
-import {
-  projectMessagePartsForProvider,
-  type OpenAiProviderMessage,
-} from "../../application/useCases/multimodalProviderProjection";
-import { preserveAssistantReasoning } from "../../application/services/llmCompatibility";
-import { resolveBuiltinProviderId } from "../../application/runtimePlugins/agentSpineRuntimePlugin";
-import type { AgentProviderCapabilities } from "../../domain/agents/contracts";
 import {
   describeMultimodalSendRefusal,
   resolveMultimodalSendRefusal,
@@ -43,47 +34,17 @@ import {
 import { setCompatibilityGenerationState } from "../../application/useCases/compatibilityGenerationState";
 import { canRunSessionWithProfile, getSessionRuntimeProfileId } from "../../application/useCases/runtimeProfileSession";
 import { resolveAgentSessionSettings } from "../../application/useCases/resolveAgentSessionSettings";
+import {
+  ensureChatAgentHandle,
+  executeChatTurnModelPhase,
+  resolveTurnIndexForContext,
+  resolveTurnProvider,
+} from "../../application/useCases/chatTurnExecution";
 import { appendSwipeCandidate, readSwipeCandidates } from "../../domain/chat/messageSwipes";
 
 
 import { getErrorMessage, getErrorName } from '../../utils/errorUtils';
 const logger = Logger.create("useRerollMessage");
-
-/**
- * 重发生成时解析 Provider 能力（与发送链路同源）。
- * 降级容器（未提供 `getProvider`）按同源声明回落，保证两条路径不会对同一份设置得出不同结论。
- */
-function resolveRerollProvider(
-  p: RerollMessageParams,
-): { id: string; capabilities: AgentProviderCapabilities } {
-  const providerId = resolveBuiltinProviderId(p.settings.api.type);
-  const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
-  if (typeof runtime.getProvider === "function") {
-    const provider = runtime.getProvider(providerId);
-    return { id: provider.id, capabilities: provider.capabilities };
-  }
-  return {
-    id: providerId,
-    capabilities: {
-      inputModalities: [
-        "text",
-        "image",
-        ...(p.settings.api.supportsAudioInput === true ? ["audio" as const] : []),
-      ],
-      supportedMimeTypes: [
-        "image/png",
-        "image/jpeg",
-        "image/gif",
-        "image/webp",
-        "audio/wav",
-        "audio/mpeg",
-        "audio/mp3",
-      ],
-      supportsStreaming: true,
-      supportsTools: false,
-    },
-  };
-}
 
 interface RerollMessageParams {
   kernel: IKernel;
@@ -122,9 +83,36 @@ interface RerollMessageParams {
  */
 export function useRerollMessage(p: RerollMessageParams) {
   const pRef = React.useRef<RerollMessageParams>(p);
+  const agentHandleRef = React.useRef<AgentHandle | null>(null);
+  const agentHandleKeyRef = React.useRef<string | null>(null);
+  const runLegacyRerollRef = React.useRef<((context?: AgentTurnExecutionContext) => Promise<void>) | null>(null);
   React.useLayoutEffect(() => {
     pRef.current = p;
   }, [p]);
+
+  React.useEffect(() => () => {
+    if (agentHandleRef.current) {
+      void agentHandleRef.current.dispose();
+      agentHandleRef.current = null;
+      agentHandleKeyRef.current = null;
+    }
+  }, []);
+
+  const ensureAgentHandle = useCallback((session: ChatSession | null): AgentHandle | null => {
+    const current = pRef.current;
+    return ensureChatAgentHandle({
+      kernel: current.kernel,
+      settings: current.settings,
+      activeCharacter: current.activeCharacter,
+      session,
+      sessionIdOverride: current.activeSessionIdRef.current ?? session?.id,
+      handleRef: agentHandleRef,
+      handleKeyRef: agentHandleKeyRef,
+      executeLegacy: (context) => (
+        runLegacyRerollRef.current ? runLegacyRerollRef.current(context) : Promise.resolve()
+      ),
+    });
+  }, []);
 
   const handleRerollFromMessage = useCallback(async (targetMsg: Message) => {
     const p = pRef.current;
@@ -189,6 +177,9 @@ export function useRerollMessage(p: RerollMessageParams) {
         setCompatibilityGenerationState(p.kernel, { isSending: false });
         return;
       }
+      p.isSendingRef.current = false;
+      p.setIsSending(false);
+      setCompatibilityGenerationState(p.kernel, { isSending: false });
       throw e;
     }
     const { apiKey: finalApiKey, baseUrl: finalBaseUrl, model: finalModel, chatPath: finalChatPath, isTrial: isTrialMode } = creds;
@@ -292,7 +283,7 @@ export function useRerollMessage(p: RerollMessageParams) {
       // 与发送链路共用同一条判定：两条路径对同一份设置必须给出一致的结论。
       const refusal = resolveMultimodalSendRefusal({
         parts: rerollParts,
-        providerCapabilities: resolveRerollProvider(p).capabilities,
+        providerCapabilities: resolveTurnProvider(p.kernel, effectiveSettings).capabilities,
         plainAudioProcessorMissing: false,
         // 重发不跑媒体降级：缺转写的音频只能靠「重新发送」补齐，
         // 这里若提示「去设置开启 ASR」会误导（开关打开也补不出这份转写）。
@@ -325,206 +316,130 @@ export function useRerollMessage(p: RerollMessageParams) {
       );
     };
 
-    // 这里只更新 UI 工作副本；旧分支在生成成功前继续完整保留于数据库。
-    p.setSessionViews((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
-    p.triggerScroll();
+    const runPreparedRerollTurn = async (agentTurn?: AgentTurnExecutionContext) => {
+      // 这里只更新 UI 工作副本；旧分支在生成成功前继续完整保留于数据库。
+      p.setSessionViews((prev) => prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)));
+      p.triggerScroll();
 
-    const controller = new AbortController();
-    // 本轮新鲜度：唯一判断入口，替代散落的 activeSessionIdRef 比较（STATE-AUTHORITY:R3）。
-    const freshnessPort = createFreshnessPort(p.activeSessionIdRef, p.sessionsRef);
-    const turnToken = createTurnToken({
-      sessionId: updatedSession.id, signal: controller.signal, baseRevision: updatedSession.contentRevision,
-    });
-    p.abortControllerRef.current = controller;
-
-    const responseChunks: string[] = [];
-    const reasoningChunks: string[] = [];
-    const aiMsgId = generateUniqueId("msg_ai_");
-    const startTime = performance.now();
-    let tokenUsage = { prompt: 0, completion: 0 };
-    let isFirstTokenForSpeed = true;
-    let ttftMs = 0;
-
-    const { throttledUpdate, isStreamActiveRef } = buildThrottledUpdater(
-      p.setSessionViews, updatedSession.id, aiMsgId,
-      responseChunks, reasoningChunks, p.pendingUpdateTimeoutRef
-    );
-
-    try {
-      // 世界书组合必须与 useSendMessage 的同名组合逐字一致：重发是对同一轮请求的重放，
-      // 若这里再给条目加来源前缀，同一份世界书在首次发送与重发时会产出不同正文。
-      const otherCharGlobals = p.characters
-        .filter((c) => c.isWorldbookGlobal && c.id !== p.activeCharacter!.id)
-        .flatMap((c) => c.lorebookEntries || []);
-      const customWorldbookGlobals = (Object.values(p.customWorldbooks || {}) as CustomWorldbook[])
-        .filter((wb) => wb.enabled)
-        .flatMap((wb) => wb.entries || []);
-      const combinedGlobals = [...(p.globalLorebook || []), ...otherCharGlobals, ...customWorldbookGlobals];
-
-      // 1. 异步执行记忆召回
-      let recalledMemories: RecalledMessage[] = [];
-      try {
-        const memoryService = p.kernel.getService<MemoryServiceTyped>("memory");
-        if (memoryService && effectiveSettings.memory?.enableRecall !== false) {
-          const recallTopK = effectiveSettings.memory?.recallTopK ?? 3;
-          recalledMemories = await recallWithTimeout(
-            memoryService.getRecall().recall(
-              updatedSession.id,
-              lastUserText,
-              {
-                topK: recallTopK,
-                // 召回视野必须与首次发送同一口径：
-                //   - 目标是助手消息：召回截止到该助手轮次本身，避免重生成时召回自己的旧回复；
-                //   - 目标是用户消息：重发等价于重放"以该用户消息结尾"的那次发送，而发送链路的
-                //     轮次由权威最新消息推导（turnIndex + 1）。turnIndex 未知时交给召回层自行推导，
-                //     与发送链路同源，避免用数组下标冒充绝对轮次。
-                currentTurnIndex: targetMsg.sender === "user"
-                  ? (typeof targetMsg.turnIndex === "number" ? targetMsg.turnIndex + 1 : undefined)
-                  : (targetMsg.turnIndex ?? nextMsgsIdx),
-              }
-            ),
-            effectiveSettings.memory?.recallTimeoutMs,
-            "useRerollMessage"
-          );
-        }
-      } catch (err) {
-        log.warn("Memory recall failed", err);
-      }
-
-      const { promptSession, promptEnvelope: promptPayload } = await assembleAuthoritativePromptEnvelope({
-        databaseService: p.databaseService,
-        promptService: p.promptService,
-        character: p.activeCharacter!,
-        session: updatedSession,
-        userInput: lastUserText,
-        settings: effectiveSettings,
-        globalLorebook: combinedGlobals,
-        contextContributions: await resolveTurnContextContributions(
-          p.kernel, recalledMemories,
-          { sessionId: updatedSession.id, userInput: lastUserText, signal: controller.signal },
-        ),
-        beforeMessageId: historyBoundaryMessageId,
-        signal: controller.signal,
-        traceId,
-        generationType: "regenerate",
+      const controller = new AbortController();
+      // 本轮新鲜度：唯一判断入口，替代散落的 activeSessionIdRef 比较（STATE-AUTHORITY:R3）。
+      const freshnessPort = createFreshnessPort(p.activeSessionIdRef, p.sessionsRef);
+      const turnToken = createTurnToken({
+        sessionId: updatedSession.id, signal: controller.signal, baseRevision: updatedSession.contentRevision,
       });
-      if (promptPayload.audit) p.publishPromptAudit?.(promptPayload.audit);
-      const assembledProviderMessages: OpenAiProviderMessage[] = promptPayload.messages;
-      const baseProviderMessages = preserveAssistantReasoning(
-        assembledProviderMessages,
-        promptSession.messages,
-        finalBaseUrl,
-        finalModel,
-      );
-      const latestMultimodalUserMessage = [...promptSession.messages]
-        .reverse()
-        .find(message => message.sender === "user" && message.parts?.some(part => part.type !== "text"));
-      const runtime = p.kernel.getService<IAgentRuntimeService>(KernelServices.AgentRuntime);
-      const provider = resolveRerollProvider(p);
-      const providerMessages = latestMultimodalUserMessage
-        ? (await projectMessagePartsForProvider(
-            baseProviderMessages,
-            latestMultimodalUserMessage,
-            p.kernel.getService<IAttachmentService>(KernelServices.Attachments),
-            { providerId: provider.id, capabilities: provider.capabilities },
-          )).messages
-        : baseProviderMessages;
-
-      const memoryAudit = buildMemoryAuditSnapshot({
-        session: updatedSession,
-        query: lastUserText,
-        recalled: recalledMemories,
-        settings: effectiveSettings,
-        estimateTokens: (content) => p.promptService.estimateTokens(content),
-      });
-      if (p.publishMemoryAudit) p.publishMemoryAudit(memoryAudit);
-      else p.publishRecalledMemories?.(updatedSession.id, recalledMemories);
-
-      if (publicEnvironment.isDevelopment) {
-        log.info("AI 发言重新生成流式开始");
-      }
-      // 关键修复：同步设置 streamingMessageId，与 useSendMessage 保持一致，避免 iframe 抢跑
-      setCompatibilityGenerationState(p.kernel, { streamingMessageId: aiMsgId });
-      const placeholderAiMsg = { id: aiMsgId, sender: "assistant" as const, content: "💭...", timestamp: Date.now() };
-      p.setSessionViews((prev) =>
-        prev.map((s) => s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)
-      );
-      const commonRequestBody: Record<string, unknown> = {
-        model: finalModel,
-        stream: true,
-        ...(p.settings.api.type !== "anthropic" && !p.settings.api.forceBasicParams && {
-          stream_options: { include_usage: true }
-        }),
-        messages: providerMessages,
-        ...(promptPayload.stopSequences?.length ? { stop: promptPayload.stopSequences } : {}),
-        temperature: effectiveSettings.preset.temperature,
-        top_p: effectiveSettings.preset.topP,
-        top_k: effectiveSettings.preset.topK,
-        top_a: effectiveSettings.preset.topA,
-        min_p: effectiveSettings.preset.minP,
-        max_tokens: effectiveSettings.preset.maxTokens,
-        presence_penalty: effectiveSettings.preset.presencePenalty ?? 0.0,
-        frequency_penalty: effectiveSettings.preset.frequencyPenalty ?? 0.0,
-        repetition_penalty: effectiveSettings.preset.repetitionPenalty ?? 1.0,
-        // ST 约定 seed < 0 为随机；不发送才能让服务端每次重新采样。
-        ...(typeof effectiveSettings.preset.seed === "number" && effectiveSettings.preset.seed >= 0
-          ? { seed: effectiveSettings.preset.seed }
-          : {}),
+      p.abortControllerRef.current = controller;
+      const relayAgentAbort = () => {
+        if (!controller.signal.aborted) controller.abort(agentTurn?.signal.reason);
       };
-      const providerInstance = typeof runtime?.getProvider === "function" ? runtime.getProvider(provider.id) : null;
-      const providerRequestBody = providerInstance?.buildRequestBody
-        ? providerInstance.buildRequestBody(commonRequestBody)
-        : commonRequestBody;
+      if (agentTurn?.signal.aborted) relayAgentAbort();
+      else agentTurn?.signal.addEventListener("abort", relayAgentAbort, { once: true });
 
-      const stream = p.chatStreamService.streamLlmResponse({
-        baseUrl: finalBaseUrl,
-        apiKey: finalApiKey,
-        chatPath: finalChatPath,
-        bypassProxy: p.settings.api.bypassProxy,
-        disableReasoning: p.settings.api.disableReasoning,
-        reasoningStrength: p.settings.api.reasoningStrength,
-        forceBasicParams: p.settings.api.forceBasicParams,
-        reqBody: providerRequestBody,
-        signal: controller.signal,
-        traceId,
-      });
+      const responseChunks: string[] = [];
+      const reasoningChunks: string[] = [];
+      const aiMsgId = generateUniqueId("msg_ai_");
+      let startTime = performance.now();
+      let tokenUsage = { prompt: 0, completion: 0 };
+      let ttftMs = 0;
 
-      for await (const chunk of stream) {
-        if (chunk.error) {
-          const errMsg = typeof chunk.error === "string"
-            ? chunk.error
-            : ((chunk.error as { message?: string }).message || JSON.stringify(chunk.error));
-          throw new Error(`[API Error] ${errMsg}`);
-        }
-        if (chunk.__rescuedContent) {
-          responseChunks.push(chunk.__rescuedContent);
-        } else {
-          const reasoning = chunk.choices?.[0]?.delta?.reasoning_content;
-          const delta = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || chunk.choices?.[0]?.text;
-          const finishReason = chunk.choices?.[0]?.finish_reason;
+      const { throttledUpdate, isStreamActiveRef } = buildThrottledUpdater(
+        p.setSessionViews, updatedSession.id, aiMsgId,
+        responseChunks, reasoningChunks, p.pendingUpdateTimeoutRef
+      );
 
-          if (finishReason && finishReason === "content_filter") {
-            throw new Error("内容被服务商的安全过滤（Content Filter）拦截，生成终止。");
+      try {
+        const recallTurnMemories = async (): Promise<RecalledMessage[]> => {
+          let recalledMemories: RecalledMessage[] = [];
+          try {
+            const memoryService = p.kernel.getService<MemoryServiceTyped>("memory");
+            if (memoryService && effectiveSettings.memory?.enableRecall !== false) {
+              const recallTopK = effectiveSettings.memory?.recallTopK ?? 3;
+              recalledMemories = await recallWithTimeout(
+                memoryService.getRecall().recall(
+                  updatedSession.id,
+                  lastUserText,
+                  {
+                    topK: recallTopK,
+                    // 召回视野必须与首次发送同一口径：
+                    //   - 目标是助手消息：召回截止到该助手轮次本身，避免重生成时召回自己的旧回复；
+                    //   - 目标是用户消息：重发等价于重放"以该用户消息结尾"的那次发送，而发送链路的
+                    //     轮次由权威最新消息推导（turnIndex + 1）。turnIndex 未知时交给召回层自行推导，
+                    //     与发送链路同源，避免用数组下标冒充绝对轮次。
+                    currentTurnIndex: targetMsg.sender === "user"
+                      ? (typeof targetMsg.turnIndex === "number" ? targetMsg.turnIndex + 1 : undefined)
+                      : (targetMsg.turnIndex ?? nextMsgsIdx),
+                  },
+                ),
+                effectiveSettings.memory?.recallTimeoutMs,
+                "useRerollMessage",
+              );
+            }
+          } catch (err) {
+            log.warn("Memory recall failed", err);
           }
+          return recalledMemories;
+        };
 
-          if (reasoning) reasoningChunks.push(reasoning);
-          if (delta) {
-            responseChunks.push(delta);
-            if (isFirstTokenForSpeed) { isFirstTokenForSpeed = false; ttftMs = performance.now() - startTime; }
-          }
-          if (chunk.usage) {
-            tokenUsage = { prompt: chunk.usage.prompt_tokens || 0, completion: chunk.usage.completion_tokens || 0 };
-          }
-        }
-        throttledUpdate(responseChunks.join(""), reasoningChunks.join(""));
-      }
-
-      if (publicEnvironment.isDevelopment) {
-        log.debug("RAW AI RESPONSE", {
-          content: responseChunks.join(""),
-          reasoning: reasoningChunks.length > 0 ? reasoningChunks.join("") : undefined,
+        const modelPhaseResult = await executeChatTurnModelPhase({
+          kernel: p.kernel,
+          agentTurn,
+          session: updatedSession,
+          character: p.activeCharacter!,
+          effectiveSettings,
+          rawApiSettings: p.settings.api,
+          characters: p.characters,
+          globalLorebook: p.globalLorebook,
+          customWorldbooks: p.customWorldbooks,
+          queryText: lastUserText,
+          generationType: "regenerate",
+          ...(historyBoundaryMessageId ? { beforeMessageId: historyBoundaryMessageId } : {}),
+          turnIndex: resolveTurnIndexForContext(nextMsgs, targetMsg),
+          credentials: {
+            apiKey: finalApiKey,
+            baseUrl: finalBaseUrl,
+            model: finalModel,
+            chatPath: finalChatPath,
+          },
+          signal: controller.signal,
+          traceId,
+          responseChunks,
+          reasoningChunks,
+          databaseService: p.databaseService,
+          promptService: p.promptService,
+          chatStreamService: p.chatStreamService,
+          recallMemories: recallTurnMemories,
+          onPromptAudit: p.publishPromptAudit,
+          onMemoryAudit: p.publishMemoryAudit,
+          onRecalledMemories: p.publishRecalledMemories,
+          onStartStreamingLog: () => {
+            if (publicEnvironment.isDevelopment) {
+              log.info("AI 发言重新生成流式开始");
+            }
+          },
+          onPlacePlaceholder: () => {
+            // 关键修复：同步设置 streamingMessageId，与 useSendMessage 保持一致，避免 iframe 抢跑
+            setCompatibilityGenerationState(p.kernel, { streamingMessageId: aiMsgId });
+            const placeholderAiMsg = {
+              id: aiMsgId,
+              sender: "assistant" as const,
+              content: "💭...",
+              timestamp: Date.now(),
+            };
+            p.setSessionViews((prev) =>
+              prev.map((s) => (s.id === updatedSession.id ? { ...s, messages: [...s.messages, placeholderAiMsg] } : s)),
+            );
+          },
+          onStreamDelta: throttledUpdate,
         });
-      }
+        tokenUsage = modelPhaseResult.tokenUsage;
+        ttftMs = modelPhaseResult.ttftMs;
+        startTime = modelPhaseResult.startTime;
+
+        if (publicEnvironment.isDevelopment) {
+          log.debug("RAW AI RESPONSE", {
+            content: responseChunks.join(""),
+            reasoning: reasoningChunks.length > 0 ? reasoningChunks.join("") : undefined,
+          });
+        }
 
       isStreamActiveRef.current = false;
       if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
@@ -690,19 +605,42 @@ export function useRerollMessage(p: RerollMessageParams) {
         }
         if (isStillActive) p.triggerScroll();
       }
+      } finally {
+        agentTurn?.signal.removeEventListener("abort", relayAgentAbort);
+        isStreamActiveRef.current = false;
+        if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
+        // finally 兜底：确保 streamingMessageId 被清除，避免任何未捕获路径残留导致 FormattedText 卡死
+        setCompatibilityGenerationState(p.kernel, { streamingMessageId: null });
+        if (p.abortControllerRef.current === controller) p.abortControllerRef.current = null;
+        if (requestId === p.activeRequestIdRef.current) {
+          p.isSendingRef.current = false;
+          p.setIsSending(false);
+          setCompatibilityGenerationState(p.kernel, { isSending: false });
+        }
+      }
+    };
+
+    try {
+      const handle = ensureAgentHandle(currentSession);
+      if (!handle) {
+        await runPreparedRerollTurn();
+        return;
+      }
+      runLegacyRerollRef.current = runPreparedRerollTurn;
+      await handle.send({
+        text: lastUserText,
+        attachmentIds: [],
+        continuation: false,
+      });
     } finally {
-      isStreamActiveRef.current = false;
-      if (p.pendingUpdateTimeoutRef.current) { clearTimeout(p.pendingUpdateTimeoutRef.current); p.pendingUpdateTimeoutRef.current = null; }
-      // finally 兜底：确保 streamingMessageId 被清除，避免任何未捕获路径残留导致 FormattedText 卡死
-      setCompatibilityGenerationState(p.kernel, { streamingMessageId: null });
-      if (p.abortControllerRef.current === controller) p.abortControllerRef.current = null;
-      if (requestId === p.activeRequestIdRef.current) {
+      runLegacyRerollRef.current = null;
+      if (requestId === p.activeRequestIdRef.current && p.isSendingRef.current) {
         p.isSendingRef.current = false;
         p.setIsSending(false);
         setCompatibilityGenerationState(p.kernel, { isSending: false });
       }
     }
-  }, []);
+  }, [ensureAgentHandle]);
 
   const handleRerollLast = useCallback(async () => {
     const p = pRef.current;

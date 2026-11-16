@@ -10,6 +10,10 @@ import type {
 import { KernelServices } from "../serviceContracts";
 import { extractVideoKeyframes } from "../../infrastructure/media/browserVideoFrameExtractor";
 import { AUDIO_TRANSCRIPT_PREFIX } from "../useCases/multimodalSendGuards";
+import {
+  MOBILE_TAVERN_CHAT_DRIVER_VERSION,
+  runMobileTavernChatDriver,
+} from "../useCases/chatTurnDriver";
 import { defineRuntimePlugin } from "./contracts";
 import {
   AGENT_DRIVER_CAPABILITY,
@@ -122,8 +126,8 @@ export const agentSpineRuntimePlugin = defineRuntimePlugin({
     }));
     scope.add(runtime.registerDriver({
       id: MOBILE_TAVERN_CHAT_DRIVER_ID,
-      version: "1.0.0",
-      run: ({ executeLegacy }) => executeLegacy(),
+      version: MOBILE_TAVERN_CHAT_DRIVER_VERSION,
+      run: (context) => runMobileTavernChatDriver(kernel, context),
     }));
     scope.add(runtime.registerProvider(openAiCompatibleProvider));
     scope.add(runtime.registerProvider(anthropicCompatibleProvider));
