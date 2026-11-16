@@ -17,30 +17,30 @@
 /* Provide global defaults or fallback */
 :root {
   color-scheme: dark;
-  --background: oklch(0.12 0.01 250); /* 黑曜石极暗背景 */
-  --foreground: oklch(0.88 0.01 250);  /* 高对比度明亮冷灰 */
-  --card: oklch(0.16 0.01 250);
-  --card-foreground: oklch(0.88 0.01 250);
-  --popover: oklch(0.16 0.01 250);
-  --popover-foreground: oklch(0.88 0.01 250);
-  --primary: oklch(0.65 0.12 250);       /* 霓虹紫罗兰主色 */
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.2 0.01 250);     /* 辅助暗背景 */
-  --secondary-foreground: oklch(0.88 0.01 250);
-  --muted: oklch(0.18 0.01 250);
-  --muted-foreground: oklch(0.73 0.01 250);
-  --accent: oklch(0.22 0.02 250);
-  --accent-foreground: oklch(0.88 0.01 250);
-  --destructive: oklch(0.48 0.15 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.22 0.01 250);       /* 微蓝紫极暗边框线 */
-  --input: oklch(0.22 0.01 250);
-  --ring: oklch(0.65 0.12 250);
+  --background: oklch(0.165 0.014 260); /* 深邃黑曜石底色 */
+  --foreground: oklch(0.93 0.01 260);   /* 清晰柔和亮灰 */
+  --card: oklch(0.215 0.018 260);       /* 明显浮起的卡片表面 */
+  --card-foreground: oklch(0.93 0.01 260);
+  --popover: oklch(0.23 0.018 260);
+  --popover-foreground: oklch(0.93 0.01 260);
+  --primary: oklch(0.56 0.175 272);     /* 靛紫罗兰主色 */
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.255 0.018 260);  /* 次级表面 */
+  --secondary-foreground: oklch(0.93 0.01 260);
+  --muted: oklch(0.235 0.015 260);
+  --muted-foreground: oklch(0.74 0.015 260);
+  --accent: oklch(0.27 0.028 268);
+  --accent-foreground: oklch(0.93 0.01 260);
+  --destructive: oklch(0.54 0.17 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.30 0.02 260);       /* 清晰可辨的细边框 */
+  --input: oklch(0.27 0.018 260);
+  --ring: oklch(0.56 0.175 272);
 
-  --radius: 0.6rem;
+  --radius: 0.75rem;
 
   --dialogue-color: #f1f5f9;            /* 舒适的明亮白字 */
-  --prose-color: #a78bfa;               /* 科技感的柔紫副色 */
+  --prose-color: #a78bfa;               /* 与主色呼应的柔紫副色 */
 
   --safe-area-top: var(--android-safe-area-top, env(safe-area-inset-top, 0px));
   --safe-area-bottom: var(--android-safe-area-bottom, env(safe-area-inset-bottom, 0px));
@@ -48,30 +48,30 @@
   --safe-area-right: var(--android-safe-area-right, env(safe-area-inset-right, 0px));
 }
 
-/* Theme 1: 冰川冷白毛玻璃 (Sleek Glassmorphic Light) */
+/* Theme 1: 冰川冷白 (Crisp Glacier Light) */
 [data-theme="snow"] {
   color-scheme: light;
-  --background: oklch(0.985 0.005 240);
-  --foreground: oklch(0.18 0.015 240);
+  --background: oklch(0.968 0.006 245);
+  --foreground: oklch(0.18 0.015 245);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.015 240);
+  --card-foreground: oklch(0.18 0.015 245);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.015 240);
-  --primary: oklch(0.6 0.12 250);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.95 0.01 240);
-  --secondary-foreground: oklch(0.18 0.015 240);
-  --muted: oklch(0.95 0.01 240);
-  --muted-foreground: oklch(0.43 0.015 240);
-  --accent: oklch(0.93 0.02 250);
-  --accent-foreground: oklch(0.6 0.12 250);
+  --popover-foreground: oklch(0.18 0.015 245);
+  --primary: oklch(0.54 0.16 258);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.935 0.01 245);
+  --secondary-foreground: oklch(0.18 0.015 245);
+  --muted: oklch(0.94 0.008 245);
+  --muted-foreground: oklch(0.44 0.015 245);
+  --accent: oklch(0.92 0.02 255);
+  --accent-foreground: oklch(0.45 0.15 258);
   --destructive: oklch(0.55 0.18 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.91 0.01 240);
-  --input: oklch(0.94 0.01 240);
-  --ring: oklch(0.6 0.12 250);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.885 0.01 245);
+  --input: oklch(0.905 0.01 245);
+  --ring: oklch(0.54 0.16 258);
 
-  --radius: 0.6rem;
+  --radius: 0.75rem;
 
   --dialogue-color: #1e293b;
   --prose-color: #475569;
@@ -80,25 +80,25 @@
 /* Theme 2: 浅沙暮色 (Warm Dusk / Ancient Parchment) */
 [data-theme="sand"] {
   color-scheme: light;
-  --background: oklch(0.96 0.01 90);
-  --foreground: oklch(0.2 0.02 90);
-  --card: oklch(0.99 0 0);
-  --card-foreground: oklch(0.2 0.02 90);
-  --popover: oklch(0.99 0 0);
-  --popover-foreground: oklch(0.2 0.02 90);
-  --primary: oklch(0.55 0.15 50);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.9 0.02 90);
-  --secondary-foreground: oklch(0.2 0.02 90);
-  --muted: oklch(0.92 0.01 90);
-  --muted-foreground: oklch(0.42 0.02 90);
-  --accent: oklch(0.9 0.02 90);
-  --accent-foreground: oklch(0.2 0.02 90);
-  --destructive: oklch(0.5 0.15 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.85 0.02 90);
-  --input: oklch(0.85 0.02 90);
-  --ring: oklch(0.5 0.15 50);
+  --background: oklch(0.955 0.012 88);
+  --foreground: oklch(0.2 0.02 88);
+  --card: oklch(0.992 0.004 90);
+  --card-foreground: oklch(0.2 0.02 88);
+  --popover: oklch(0.992 0.004 90);
+  --popover-foreground: oklch(0.2 0.02 88);
+  --primary: oklch(0.54 0.15 48);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.9 0.018 88);
+  --secondary-foreground: oklch(0.2 0.02 88);
+  --muted: oklch(0.92 0.012 88);
+  --muted-foreground: oklch(0.43 0.02 88);
+  --accent: oklch(0.9 0.02 88);
+  --accent-foreground: oklch(0.2 0.02 88);
+  --destructive: oklch(0.52 0.16 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.84 0.02 88);
+  --input: oklch(0.85 0.02 88);
+  --ring: oklch(0.54 0.15 48);
 
   --dialogue-color: #221a14;
   --prose-color: #7c2d12;
@@ -107,25 +107,25 @@
 /* Theme 3: 荧光深海 (Active Ocean / Cyber Abyss) */
 [data-theme="ocean"] {
   color-scheme: dark;
-  --background: oklch(0.15 0.03 260);
-  --foreground: oklch(0.95 0.02 260);
-  --card: oklch(0.21 0.04 260);
-  --card-foreground: oklch(0.95 0.02 260);
-  --popover: oklch(0.21 0.04 260);
-  --popover-foreground: oklch(0.95 0.02 260);
-  --primary: oklch(0.7 0.15 220);
-  --primary-foreground: oklch(0.15 0.03 260);
-  --secondary: oklch(0.26 0.04 260);
-  --secondary-foreground: oklch(0.95 0.02 260);
-  --muted: oklch(0.23 0.04 260);
-  --muted-foreground: oklch(0.73 0.03 260);
-  --accent: oklch(0.26 0.04 260);
-  --accent-foreground: oklch(0.95 0.02 260);
-  --destructive: oklch(0.5 0.15 25);
-  --destructive-foreground: oklch(0.95 0.02 260);
-  --border: oklch(0.25 0.04 260);
-  --input: oklch(0.25 0.04 260);
-  --ring: oklch(0.7 0.15 220);
+  --background: oklch(0.145 0.03 258);
+  --foreground: oklch(0.94 0.018 255);
+  --card: oklch(0.215 0.04 258);
+  --card-foreground: oklch(0.94 0.018 255);
+  --popover: oklch(0.225 0.04 258);
+  --popover-foreground: oklch(0.94 0.018 255);
+  --primary: oklch(0.71 0.145 215);
+  --primary-foreground: oklch(0.145 0.03 258);
+  --secondary: oklch(0.26 0.04 258);
+  --secondary-foreground: oklch(0.94 0.018 255);
+  --muted: oklch(0.23 0.038 258);
+  --muted-foreground: oklch(0.74 0.028 255);
+  --accent: oklch(0.265 0.042 255);
+  --accent-foreground: oklch(0.94 0.018 255);
+  --destructive: oklch(0.54 0.17 25);
+  --destructive-foreground: oklch(0.94 0.018 255);
+  --border: oklch(0.29 0.04 258);
+  --input: oklch(0.26 0.04 258);
+  --ring: oklch(0.71 0.145 215);
 
   --dialogue-color: #f0f4f8;
   --prose-color: #22d3ee;
@@ -134,25 +134,25 @@
 /* Theme 4: 黑曜石暗黑 (Obsidian Cyber Dark) */
 [data-theme="obsidian"] {
   color-scheme: dark;
-  --background: oklch(0.12 0.01 250);
-  --foreground: oklch(0.88 0.01 250);
-  --card: oklch(0.16 0.01 250);
-  --card-foreground: oklch(0.88 0.01 250);
-  --popover: oklch(0.16 0.01 250);
-  --popover-foreground: oklch(0.88 0.01 250);
-  --primary: oklch(0.65 0.12 250);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.2 0.01 250);
-  --secondary-foreground: oklch(0.88 0.01 250);
-  --muted: oklch(0.18 0.01 250);
-  --muted-foreground: oklch(0.73 0.01 250);
-  --accent: oklch(0.22 0.02 250);
-  --accent-foreground: oklch(0.88 0.01 250);
-  --destructive: oklch(0.48 0.15 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.22 0.01 250);
-  --input: oklch(0.22 0.01 250);
-  --ring: oklch(0.65 0.12 250);
+  --background: oklch(0.165 0.014 260);
+  --foreground: oklch(0.93 0.01 260);
+  --card: oklch(0.215 0.018 260);
+  --card-foreground: oklch(0.93 0.01 260);
+  --popover: oklch(0.23 0.018 260);
+  --popover-foreground: oklch(0.93 0.01 260);
+  --primary: oklch(0.56 0.175 272);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.255 0.018 260);
+  --secondary-foreground: oklch(0.93 0.01 260);
+  --muted: oklch(0.235 0.015 260);
+  --muted-foreground: oklch(0.74 0.015 260);
+  --accent: oklch(0.27 0.028 268);
+  --accent-foreground: oklch(0.93 0.01 260);
+  --destructive: oklch(0.54 0.17 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.30 0.02 260);
+  --input: oklch(0.27 0.018 260);
+  --ring: oklch(0.56 0.175 272);
 
   --dialogue-color: #f1f5f9;
   --prose-color: #a78bfa;
@@ -183,19 +183,19 @@
   letter-spacing: 0.01em;
 }
 
-/* Glassmorphism Panel styles */
+/* Glassmorphism Panel styles (保留高不透明度与语义边框，触屏禁模糊时仍保持清晰实体层级) */
 .glass-panel {
-  background: color-mix(in oklch, var(--card) 75%, transparent);
+  background: color-mix(in oklch, var(--card) 92%, var(--background));
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid color-mix(in oklch, var(--border) 40%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 75%, transparent);
 }
 
 .glass-panel-light {
-  background: color-mix(in oklch, var(--card) 50%, transparent);
+  background: color-mix(in oklch, var(--card) 86%, var(--background));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in oklch, var(--border) 20%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
 }
 
 /* 设置页：不额外铺不透明底色，让应用根背景/环境光晕像其他页签一样透出。 */
@@ -204,7 +204,7 @@
 }
 
 .settings-header {
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 38%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
 }
 
 .settings-header-icon {
@@ -212,16 +212,16 @@
   place-items: center;
   width: 1.85rem;
   height: 1.85rem;
-  border: 1px solid color-mix(in oklch, var(--primary) 24%, transparent);
+  border: 1px solid color-mix(in oklch, var(--primary) 28%, transparent);
   border-radius: 0.6rem;
-  background: color-mix(in oklch, var(--primary) 10%, transparent);
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
 }
 
 .settings-category-list {
   border-radius: 1rem;
-  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
-  background: color-mix(in oklch, var(--card) 60%, transparent);
-  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
+  background: color-mix(in oklch, var(--card) 94%, var(--background));
+  box-shadow: 0 10px 26px -18px rgba(0, 0, 0, 0.32);
   overflow: hidden;
 }
 
@@ -263,9 +263,9 @@
 .settings-connection-stack {
   gap: 0;
   border-radius: 1rem;
-  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
-  background: color-mix(in oklch, var(--card) 60%, transparent);
-  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
+  background: color-mix(in oklch, var(--card) 94%, var(--background));
+  box-shadow: 0 10px 26px -18px rgba(0, 0, 0, 0.32);
   overflow: hidden;
 }
 
@@ -548,23 +548,21 @@
 }
 
 .chat-header-shell {
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 42%, transparent);
-  background: var(--card);
-  box-shadow: 0 12px 28px -24px color-mix(in oklch, var(--foreground) 38%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 68%, transparent);
+  background: color-mix(in oklch, var(--card) 94%, var(--background));
+  box-shadow: 0 8px 24px -18px rgba(0, 0, 0, 0.36);
 }
 
 .chat-header-action {
-  border: 1px solid color-mix(in oklch, var(--border) 45%, transparent);
-  background: color-mix(in oklch, var(--card) 72%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in oklch, white 7%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+  background: color-mix(in oklch, var(--secondary) 72%, var(--card));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .chat-header-avatar,
 .chat-message-avatar {
-  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
-  box-shadow:
-    0 8px 20px -14px color-mix(in oklch, var(--foreground) 42%, transparent),
-    inset 0 1px 0 color-mix(in oklch, white 14%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
+  box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.42);
 }
 
 .chat-dialogue-stage {
@@ -572,43 +570,55 @@
 }
 
 .chat-message-assistant {
-  background: color-mix(in oklch, var(--card) 82%, var(--background));
+  background: var(--card);
+  border-color: color-mix(in oklch, var(--border) 78%, transparent);
   box-shadow:
-    0 12px 28px -24px color-mix(in oklch, var(--foreground) 46%, transparent),
-    inset 0 1px 0 color-mix(in oklch, white 5%, transparent);
+    0 8px 22px -16px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .chat-message-user {
-  background: var(--primary);
+  background: linear-gradient(
+    165deg,
+    color-mix(in oklch, var(--primary) 88%, white) 0%,
+    var(--primary) 100%
+  );
   box-shadow:
-    0 14px 30px -22px color-mix(in oklch, var(--primary) 72%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    0 12px 26px -16px color-mix(in oklch, var(--primary) 65%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .chat-message-bubble {
   text-wrap: pretty;
   overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.chat-message-bubble pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0.75rem;
 }
 
 .chat-composer-shell {
-  border-top: 1px solid color-mix(in oklch, var(--border) 26%, transparent);
-  background: var(--background);
+  border-top: 1px solid color-mix(in oklch, var(--border) 48%, transparent);
+  background: color-mix(in oklch, var(--background) 96%, var(--card));
 }
 
 .chat-composer-row,
 .chat-composer-popover {
-  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
-  background: color-mix(in oklch, var(--card) 92%, var(--background));
+  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+  background: var(--card);
   box-shadow:
-    0 16px 38px -26px color-mix(in oklch, var(--foreground) 52%, transparent),
-    inset 0 1px 0 color-mix(in oklch, white 7%, transparent);
+    0 10px 28px -18px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .chat-composer-row:focus-within {
-  border-color: color-mix(in oklch, var(--primary) 48%, var(--border));
+  border-color: color-mix(in oklch, var(--primary) 62%, var(--border));
   box-shadow:
-    0 0 0 3px color-mix(in oklch, var(--primary) 10%, transparent),
-    0 18px 42px -28px color-mix(in oklch, var(--primary) 58%, transparent);
+    0 0 0 3px color-mix(in oklch, var(--primary) 14%, transparent),
+    0 14px 32px -20px color-mix(in oklch, var(--primary) 52%, transparent);
 }
 
 #chat-input-area-container .chat-composer-row [data-ui="attachment-picker"] > button {
@@ -1164,117 +1174,117 @@ iframe[id^="TH-msg-iframe-"] {
 @supports not (color: oklch(0% 0 0)) {
   /* 主题 0：默认主题（黑曜石暗黑，与下方 obsidian 同值） */
   :root {
-    --background: #040609;
-    --foreground: #d3d8de;
-    --card: #0a0e11;
-    --card-foreground: #d3d8de;
-    --popover: #0a0e11;
-    --popover-foreground: #d3d8de;
-    --primary: #5194d5;
-    --primary-foreground: #f8f8f8;
-    --secondary: #13161a;
-    --secondary-foreground: #d3d8de;
-    --muted: #0e1216;
-    --muted-foreground: #a3a8ae;
-    --accent: #141b24;
-    --accent-foreground: #d3d8de;
-    --destructive: #a12f2f;
-    --destructive-foreground: #f8f8f8;
-    --border: #171b1f;
-    --input: #171b1f;
-    --ring: #5194d5;
+    --background: #0b0e14;
+    --foreground: #e4e8ef;
+    --card: #151a22;
+    --card-foreground: #e4e8ef;
+    --popover: #181d26;
+    --popover-foreground: #e4e8ef;
+    --primary: #5367d9;
+    --primary-foreground: #fafafa;
+    --secondary: #1e232c;
+    --secondary-foreground: #e4e8ef;
+    --muted: #1a1e25;
+    --muted-foreground: #a5abb5;
+    --accent: #202634;
+    --accent-foreground: #e4e8ef;
+    --destructive: #bd3838;
+    --destructive-foreground: #fafafa;
+    --border: #282e38;
+    --input: #21272f;
+    --ring: #5367d9;
   }
 
   /* 主题 1：冰川冷白 */
   [data-theme="snow"] {
-    --background: #f7fbfd;
-    --foreground: #0c1318;
+    --background: #f1f5f8;
+    --foreground: #0c1218;
     --card: #ffffff;
-    --card-foreground: #0c1318;
+    --card-foreground: #0c1218;
     --popover: #ffffff;
-    --popover-foreground: #0c1318;
-    --primary: #4284c5;
-    --primary-foreground: #f8f8f8;
-    --secondary: #e9f0f5;
-    --secondary-foreground: #0c1318;
-    --muted: #e9f0f5;
-    --muted-foreground: #495157;
-    --accent: #dee9f5;
-    --accent-foreground: #4284c5;
+    --popover-foreground: #0c1218;
+    --primary: #2a6cc9;
+    --primary-foreground: #fafafa;
+    --secondary: #e4eaf0;
+    --secondary-foreground: #0c1218;
+    --muted: #e7ecf0;
+    --muted-foreground: #4c545a;
+    --accent: #dce6f2;
+    --accent-foreground: #1351a6;
     --destructive: #c53637;
-    --destructive-foreground: #f8f8f8;
-    --border: #dce2e7;
-    --input: #e5ecf1;
-    --ring: #4284c5;
+    --destructive-foreground: #fafafa;
+    --border: #d4dadf;
+    --input: #dae0e6;
+    --ring: #2a6cc9;
   }
 
   /* 主题 2：浅沙暮色 */
   [data-theme="sand"] {
-    --background: #f4f2ea;
+    --background: #f3f0e7;
     --foreground: #1a160b;
-    --card: #fcfcfc;
+    --card: #fdfcf9;
     --card-foreground: #1a160b;
-    --popover: #fcfcfc;
+    --popover: #fdfcf9;
     --popover-foreground: #1a160b;
-    --primary: #b45000;
-    --primary-foreground: #f8f8f8;
-    --secondary: #e3decf;
+    --primary: #b14c00;
+    --primary-foreground: #fafafa;
+    --secondary: #e3ded1;
     --secondary-foreground: #1a160b;
-    --muted: #e7e4dd;
-    --muted-foreground: #514d41;
+    --muted: #e8e4dc;
+    --muted-foreground: #544f43;
     --accent: #e3decf;
     --accent-foreground: #1a160b;
-    --destructive: #a83634;
-    --destructive-foreground: #f8f8f8;
-    --border: #d3cdbf;
+    --destructive: #b33736;
+    --destructive-foreground: #fafafa;
+    --border: #d0cabc;
     --input: #d3cdbf;
-    --ring: #a34100;
+    --ring: #b14c00;
   }
 
   /* 主题 3：荧光深海 */
   [data-theme="ocean"] {
-    --background: #050b18;
-    --foreground: #e7effc;
-    --card: #0d182b;
-    --card-foreground: #e7effc;
-    --popover: #0d182b;
-    --popover-foreground: #e7effc;
-    --primary: #00b2de;
-    --primary-foreground: #050b18;
+    --background: #040a16;
+    --foreground: #e3ecf7;
+    --card: #0d1a2c;
+    --card-foreground: #e3ecf7;
+    --popover: #101c2e;
+    --popover-foreground: #e3ecf7;
+    --primary: #00b7d9;
+    --primary-foreground: #040a16;
     --secondary: #182437;
-    --secondary-foreground: #e7effc;
-    --muted: #121d30;
-    --muted-foreground: #9da8bb;
-    --accent: #182437;
-    --accent-foreground: #e7effc;
-    --destructive: #a83634;
-    --destructive-foreground: #e7effc;
-    --border: #162235;
-    --input: #162235;
-    --ring: #00b2de;
+    --secondary-foreground: #e3ecf7;
+    --muted: #111d2f;
+    --muted-foreground: #9facbd;
+    --accent: #172639;
+    --accent-foreground: #e3ecf7;
+    --destructive: #bd3838;
+    --destructive-foreground: #e3ecf7;
+    --border: #1f2c3f;
+    --input: #182437;
+    --ring: #00b7d9;
   }
 
   /* 主题 4：黑曜石暗黑 */
   [data-theme="obsidian"] {
-    --background: #040609;
-    --foreground: #d3d8de;
-    --card: #0a0e11;
-    --card-foreground: #d3d8de;
-    --popover: #0a0e11;
-    --popover-foreground: #d3d8de;
-    --primary: #5194d5;
-    --primary-foreground: #f8f8f8;
-    --secondary: #13161a;
-    --secondary-foreground: #d3d8de;
-    --muted: #0e1216;
-    --muted-foreground: #a3a8ae;
-    --accent: #141b24;
-    --accent-foreground: #d3d8de;
-    --destructive: #a12f2f;
-    --destructive-foreground: #f8f8f8;
-    --border: #171b1f;
-    --input: #171b1f;
-    --ring: #5194d5;
+    --background: #0b0e14;
+    --foreground: #e4e8ef;
+    --card: #151a22;
+    --card-foreground: #e4e8ef;
+    --popover: #181d26;
+    --popover-foreground: #e4e8ef;
+    --primary: #5367d9;
+    --primary-foreground: #fafafa;
+    --secondary: #1e232c;
+    --secondary-foreground: #e4e8ef;
+    --muted: #1a1e25;
+    --muted-foreground: #a5abb5;
+    --accent: #202634;
+    --accent-foreground: #e4e8ef;
+    --destructive: #bd3838;
+    --destructive-foreground: #fafafa;
+    --border: #282e38;
+    --input: #21272f;
+    --ring: #5367d9;
   }
 
   /* Tailwind 默认调色板：非半透明用法（bg-zinc-950 / text-cyan-600 等）

@@ -230,8 +230,8 @@ export default function MainLayout() {
             role="tablist"
             aria-label="底栏导航页签"
             data-ui="main-tab-bar"
-            style={{ bottom: `${2 + (safeAreas?.bottom ?? 0)}px` }}
-            className="absolute left-2.5 right-2.5 h-12 rounded-2xl border border-white/12 flex items-center justify-around z-20 bg-card/25 backdrop-blur-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_1px_1px_0_rgba(255,255,255,0.15)] transition-all"
+            style={{ bottom: `${6 + (safeAreas?.bottom ?? 0)}px` }}
+            className="absolute left-3 right-3 h-12 rounded-2xl border border-border/80 flex items-center justify-around gap-0.5 px-1 z-20 bg-card/95 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.42)] transition-colors"
           >
             {bottomBarTabs.map((tab, index) => {
               const IconComp = ((tab.meta?.icon && ICON_MAP[tab.meta.icon as keyof typeof ICON_MAP]) || HelpCircle) as LucideIcon;
@@ -248,17 +248,14 @@ export default function MainLayout() {
                   aria-label={`${localizedName}${selected ? " (selected)" : ""}`}
                   tabIndex={selected ? 0 : -1}
                   onKeyDown={(event) => handleBottomTabKeyDown(event, index)}
-                  className={`relative flex h-full flex-1 flex-col items-center justify-center rounded-xl tap-scale transition-colors duration-200 ${
+                  className={`relative flex h-10 flex-1 flex-col items-center justify-center rounded-xl tap-scale transition-colors duration-200 ${
                     selected
-                      ? "text-primary font-semibold"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-primary/12 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                   }`}
                 >
-                  <IconComp className={`w-4 h-4 mb-0.5 transition-[filter] ${selected ? "drop-shadow-[0_0_4px_var(--primary)]" : ""}`} aria-hidden="true" />
+                  <IconComp className="w-4 h-4 mb-0.5" aria-hidden="true" />
                   <span className="text-[10px] font-medium leading-none landscape:hidden">{localizedName}</span>
-                  {selected && (
-                    <span className="absolute bottom-0.5 h-0.5 w-4 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />
-                  )}
                 </button>
               );
             })}

@@ -185,10 +185,8 @@ export default function CharactersTab() {
   }, [characters, getKernelService, openCharacter]);
 
   return (
-    <div className="relative min-h-screen space-y-2.5 px-4 pb-8 pt-2.5">
-      <section className="relative overflow-hidden rounded-2xl border border-white/12 bg-card/45 backdrop-blur-2xl px-3.5 py-3 shadow-[0_8px_32px_0_rgba(0,0,0,0.25),inset_0_1px_1px_0_rgba(255,255,255,0.15)]">
-        <div className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-primary/15 blur-2xl" />
-
+    <div className="relative min-h-screen space-y-3 px-4 pb-8 pt-3">
+      <section className="relative overflow-hidden rounded-2xl border border-border/75 bg-card px-4 py-3.5 shadow-[0_10px_28px_-16px_rgba(0,0,0,0.32)]">
         <div className="relative flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="flex items-center gap-1.5 text-base font-bold tracking-tight text-foreground">
@@ -238,25 +236,25 @@ export default function CharactersTab() {
       <button
         type="button"
         onClick={handleOpenPureAgent}
-        className="group relative flex w-full items-center justify-between gap-2.5 overflow-hidden rounded-2xl border border-primary/25 bg-card/45 backdrop-blur-xl px-3 py-2 text-left shadow-[0_4px_16px_0_rgba(0,0,0,0.15),inset_0_1px_1px_0_rgba(255,255,255,0.1)] transition-all hover:border-primary/45 hover:bg-card/60 focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
+        className="group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border border-primary/25 bg-card px-3.5 py-2.5 text-left shadow-[0_8px_22px_-16px_rgba(0,0,0,0.3)] transition-colors hover:border-primary/45 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
       >
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
             <Bot className="size-4" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h2 className="text-xs font-bold text-foreground truncate">通用 AI 助手</h2>
-              <span className="rounded bg-primary/20 px-1 py-0.2 font-mono text-[9px] font-semibold text-primary">
+              <h2 className="text-[13px] font-semibold text-foreground truncate">通用 AI 助手</h2>
+              <span className="rounded-md bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-primary">
                 Base Agent
               </span>
             </div>
-            <p className="truncate text-[11px] font-light text-muted-foreground">
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
               直连大模型问答 · 无预设角色人设
             </p>
           </div>
         </div>
-        <div className="flex h-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 px-2 text-[11px] font-medium text-primary transition-all group-hover:bg-primary group-hover:text-primary-foreground">
+        <div className="flex h-7 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 px-2.5 text-[11px] font-medium text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
           开启对话
         </div>
       </button>
@@ -315,14 +313,14 @@ export default function CharactersTab() {
               tabIndex={0}
               aria-busy={isOpening}
               style={{ "--card-index": Math.min(index, 6) } as React.CSSProperties}
-              className={`mobile-list-item relative flex h-auto cursor-pointer select-none rounded-2xl border border-white/10 bg-card/45 backdrop-blur-xl shadow-[0_8px_24px_0_rgba(0,0,0,0.2),inset_0_1px_1px_0_rgba(255,255,255,0.1)] spring-press-effect outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-white/20 hover:bg-card/60 transition-all ${index < 8 ? "animate-card-fade-in" : ""} ${characterLayout === "list"
-                  ? "items-center gap-3 min-h-[84px] p-2.5"
+              className={`mobile-list-item relative flex h-auto cursor-pointer select-none rounded-2xl border border-border/75 bg-card shadow-[0_8px_22px_-16px_rgba(0,0,0,0.32)] spring-press-effect outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-border hover:bg-accent/40 transition-colors ${index < 8 ? "animate-card-fade-in" : ""} ${characterLayout === "list"
+                  ? "items-center gap-3 min-h-[84px] p-3"
                   : characterLayout === "shelf"
                     ? "flex-col items-stretch gap-1.5 p-1.5 min-h-[140px]"
-                    : "flex-col items-stretch gap-2 p-2 min-h-[200px]"
+                    : "flex-col items-stretch gap-2 p-2.5 min-h-[200px]"
                 } ${isActive
-                  ? "border-primary/50 ring-1 ring-primary/20 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.25)] bg-primary/[0.08]"
-                  : "hover:shadow-[0_10px_28px_-5px_rgba(0,0,0,0.25)] hover:-translate-y-0.5"
+                  ? "border-primary/55 ring-1 ring-primary/25 bg-primary/[0.06]"
+                  : ""
                 }`}
             >
               {isOpening && (

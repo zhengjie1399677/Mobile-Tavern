@@ -708,7 +708,7 @@ const ChatInputArea = ({
           }}
         />
       )}
-      <div className="chat-composer-row relative flex w-full max-w-3xl items-end gap-1.5 rounded-2xl p-1">
+      <div className="chat-composer-row relative flex w-full max-w-3xl items-end gap-1.5 rounded-[22px] p-1.5">
         <VoiceModeToggle
           isVoiceMode={isVoiceMode}
           disabled={isSending || isBisonLocking || isHolding}

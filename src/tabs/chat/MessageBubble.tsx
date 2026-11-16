@@ -768,10 +768,10 @@ const MessageBubble = ({
                     isUser
                       ? activeCharacter?.visualSettings?.userBubbleColor
                         ? "border-transparent bubble-user"
-                        : "chat-message-user bubble-user border-primary/15 text-primary-foreground"
+                        : "chat-message-user bubble-user border-primary/25 text-primary-foreground"
                       : activeCharacter?.visualSettings?.bubbleColor
                         ? "border-transparent bubble-ai"
-                        : "chat-message-assistant bubble-ai border-border/40 text-foreground"
+                        : "chat-message-assistant bubble-ai border-border/75 text-foreground"
                   }`}
                   style={{
                     backgroundColor: isUser
