@@ -139,6 +139,62 @@ describe("VoiceCaptureService", () => {
     expect(service.isCapturing()).toBe(false);
   });
 
+  it("原生异步原始字节路径直接生成 audio/wav File，不触发 atob 解码", async () => {
+    const raw = new Uint8Array(48);
+    raw.set([0x52, 0x49, 0x46, 0x46], 0); // RIFF
+    raw.set([0x57, 0x41, 0x56, 0x45], 8); // WAVE
+    const atobSpy = vi.spyOn(globalThis, "atob");
+    const recorder = createRecorder({
+      stopAsync: async () => ({
+        status: "ok",
+        bytes: raw,
+        mimeType: "audio/wav",
+        format: "wav",
+        sizeBytes: raw.length,
+        durationMs: 1_500,
+      }),
+    });
+    const service = new VoiceCaptureService(() => recorder);
+
+    await service.startCapture({ maxDurationMs: 180_000 });
+    const file = await service.stopCapture();
+    const outBytes = new Uint8Array(await file.arrayBuffer());
+
+    expect(atobSpy).not.toHaveBeenCalled();
+    expect(file.type).toBe("audio/wav");
+    expect(outBytes.length).toBe(48);
+    expect(new TextDecoder().decode(outBytes.slice(0, 4))).toBe("RIFF");
+    atobSpy.mockRestore();
+  });
+
+  it("原生 stopAsync 期间被取消时判废，不复活录音", async () => {
+    let resolveStop!: (value: AndroidVoiceRecorderStopResult) => void;
+    const raw = new Uint8Array(48);
+    raw.set([0x52, 0x49, 0x46, 0x46], 0);
+    raw.set([0x57, 0x41, 0x56, 0x45], 8);
+
+    const recorder = createRecorder({
+      stopAsync: () => new Promise<AndroidVoiceRecorderStopResult>((resolve) => {
+        resolveStop = resolve;
+      }),
+    });
+    const service = new VoiceCaptureService(() => recorder);
+
+    await service.startCapture({ maxDurationMs: 180_000 });
+    const stopping = service.stopCapture();
+    await service.cancelCapture();
+    resolveStop({
+      status: "ok",
+      bytes: raw,
+      mimeType: "audio/wav",
+      format: "wav",
+      sizeBytes: raw.length,
+    });
+
+    await expect(stopping).rejects.toThrow("VOICE_CAPTURE_SUPERSEDED");
+    await expect(service.stopCapture()).rejects.toThrow("VOICE_CAPTURE_NOT_ACTIVE");
+  });
+
   it("原生非 WAV 载荷被语音层拦下（不再流到附件签名检测）", async () => {
     const recorder = createRecorder({
       stop: () => ({ ...wavStopResult(), mimeType: "audio/mp4", format: "m4a" }),

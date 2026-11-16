@@ -2,8 +2,12 @@ package com.aitavern.plugin.androidbridge
 
 import android.app.Activity
 import android.webkit.WebView
+import app.tauri.annotation.Command
 import app.tauri.annotation.TauriPlugin
+import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import org.json.JSONObject
 
 /**
  * Tauri Android plugin entry point for the Mobile Tavern native bridge.
@@ -57,6 +61,38 @@ class AndroidBridgePlugin(private val activity: Activity) : Plugin(activity) {
                 view.onApplyWindowInsets(insets)
             }
             webView.requestApplyInsets()
+        }
+    }
+
+    /**
+     * 异步停止原生麦克风录音，返回 `{ success, filePath, mimeType, format, durationMs, sizeBytes }`。
+     * 不在 WebView JS 线程阻塞等待，也不做 Base64 编码。
+     */
+    @Command
+    fun stopRecordNative(invoke: Invoke) {
+        val bridge = themeBridge
+        if (bridge == null) {
+            invoke.reject("BRIDGE_NOT_READY")
+            return
+        }
+        bridge.stopRecordFileAsync { raw ->
+            if (raw.startsWith("error:")) {
+                invoke.reject(raw.removePrefix("error:"))
+                return@stopRecordFileAsync
+            }
+            try {
+                val parsed = JSONObject(raw)
+                val ret = JSObject()
+                ret.put("success", parsed.optBoolean("success", true))
+                ret.put("filePath", parsed.getString("filePath"))
+                ret.put("mimeType", parsed.getString("mimeType"))
+                ret.put("format", parsed.getString("format"))
+                ret.put("durationMs", parsed.optLong("durationMs", 0L))
+                ret.put("sizeBytes", parsed.getLong("sizeBytes"))
+                invoke.resolve(ret)
+            } catch (e: Exception) {
+                invoke.reject("PAYLOAD_MALFORMED")
+            }
         }
     }
 }

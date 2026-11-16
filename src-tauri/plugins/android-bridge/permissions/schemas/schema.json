@@ -295,10 +295,22 @@
       "type": "string",
       "oneOf": [
         {
-          "description": "Default permission set for the android-bridge plugin. The plugin exposes its capabilities through a @JavascriptInterface object injected into the WebView (window.AndroidThemeBridge) and does not register any Tauri IPC command, so no additional command-level permissions are required.",
+          "description": "Enables the stop_record_native command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-stop-record-native",
+          "markdownDescription": "Enables the stop_record_native command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_record_native command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-stop-record-native",
+          "markdownDescription": "Denies the stop_record_native command without any pre-configured scope."
+        },
+        {
+          "description": "Default permission set for the android-bridge plugin. Allows the frontend to invoke async native voice recording stop alongside the @JavascriptInterface bridge.\n#### This default permission set includes:\n\n- `allow-stop-record-native`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permission set for the android-bridge plugin. The plugin exposes its capabilities through a @JavascriptInterface object injected into the WebView (window.AndroidThemeBridge) and does not register any Tauri IPC command, so no additional command-level permissions are required."
+          "markdownDescription": "Default permission set for the android-bridge plugin. Allows the frontend to invoke async native voice recording stop alongside the @JavascriptInterface bridge.\n#### This default permission set includes:\n\n- `allow-stop-record-native`"
         }
       ]
     }

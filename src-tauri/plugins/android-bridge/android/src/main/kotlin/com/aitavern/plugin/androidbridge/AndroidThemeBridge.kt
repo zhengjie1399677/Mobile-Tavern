@@ -42,6 +42,7 @@ import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
+import java.util.concurrent.Executors
 
 /**
  * 注入到 WebView 的 Android 原生桥接类 (`window.AndroidThemeBridge`)。
@@ -172,12 +173,18 @@ class AndroidThemeBridge(
     // ---------------------------------------------------------------------
 
     private val recordLock = Any()
+    private val recordStopExecutor = Executors.newSingleThreadExecutor()
     private var audioRecord: AudioRecord? = null
     private var recordThread: Thread? = null
     private var currentRecordFile: File? = null
+    private var cachedRecordFile: File? = null
+    private var cachedRecordDataBytes = 0L
     private var recordMaxDataBytes = 0L
     /** 完成结果缓存：使 stopRecordNative 幂等，并在下一次 start / cancel 时清除。 */
     private var cachedRecordResult: String? = null
+    /** 异步文件路径结果缓存：供 Tauri @Command 零 Base64 返回，直到下一次 start / cancel 才删文件。 */
+    private var cachedRecordFileResult: String? = null
+    private var cachedRecordError: String? = null
     /** 每次采集自增：让仍在收尾的旧循环无法把结果写回新一次采集的状态。 */
     private var recordGeneration = 0
     @Volatile
@@ -328,7 +335,44 @@ class AndroidThemeBridge(
     }
 
     /**
-     * 停止录音并把结果打包成 Base64 JSON 返回。
+     * 异步停止录音并直接返回 WAV 文件路径 JSON（零 Base64 / 零主线程阻塞）。
+     *
+     * 幂等：重复调用返回同一份结果，直到下一次 start 或 cancel；停止失败**不会**删除已录到的音频。
+     */
+    fun stopRecordFileAsync(callback: (String) -> Unit) {
+        val (claimed, targetGeneration) = synchronized(recordLock) {
+            cachedRecordFileResult?.let {
+                callback(it)
+                return
+            }
+            if (audioRecord == null && recordThread == null) {
+                callback("error:NOT_RECORDING")
+                return
+            }
+            stopRequested = true
+            (audioRecord to recordThread) to recordGeneration
+        }
+
+        recordStopExecutor.execute {
+            runCatching { claimed.first?.stop() }
+            val stopTarget = claimed.second
+            if (stopTarget != null && stopTarget !== Thread.currentThread()) {
+                runCatching { stopTarget.join(RECORD_JOIN_TIMEOUT_MS) }
+            }
+
+            val result = synchronized(recordLock) {
+                if (targetGeneration != recordGeneration) {
+                    "error:SUPERSEDED"
+                } else {
+                    cachedRecordFileResult ?: "error:STOP_INCOMPLETE"
+                }
+            }
+            callback(result)
+        }
+    }
+
+    /**
+     * 兼容兜底：同步停止录音并打包成 Base64 JSON 返回（仅无 Tauri 异步命令时使用）。
      *
      * 幂等：重复调用返回同一份结果，直到下一次 start 或 cancel；停止失败**不会**删除已录到的音频。
      * 三段式是为了避免死锁 —— 读取循环的收尾要拿同一把锁，持锁 join 会与它互等，
@@ -338,6 +382,7 @@ class AndroidThemeBridge(
     fun stopRecordNative(): String {
         val claimed = synchronized(recordLock) {
             cachedRecordResult?.let { return it }
+            cachedRecordError?.let { return it }
             if (audioRecord == null && recordThread == null) return "error:NOT_RECORDING"
             stopRequested = true
             audioRecord to recordThread
@@ -349,9 +394,19 @@ class AndroidThemeBridge(
             runCatching { stopTarget.join(RECORD_JOIN_TIMEOUT_MS) }
         }
 
-        synchronized(recordLock) {
+        val (file, dataBytes) = synchronized(recordLock) {
             cachedRecordResult?.let { return it }
-            return "error:STOP_INCOMPLETE"
+            cachedRecordError?.let { return it }
+            val readyFile = cachedRecordFile ?: return "error:STOP_INCOMPLETE"
+            readyFile to cachedRecordDataBytes
+        }
+
+        val legacyResult = buildRecordResult(file, dataBytes)
+        synchronized(recordLock) {
+            if (cachedRecordFile === file && cachedRecordResult == null) {
+                cachedRecordResult = legacyResult
+            }
+            return cachedRecordResult ?: legacyResult
         }
     }
 
@@ -381,6 +436,9 @@ class AndroidThemeBridge(
             isRecordingNative = false
             recordAmplitude = 0
             cachedRecordResult = null
+            cachedRecordFileResult = null
+            cachedRecordError = null
+            cachedRecordDataBytes = 0L
             snapshot
         }
 
@@ -393,13 +451,15 @@ class AndroidThemeBridge(
         synchronized(recordLock) {
             currentRecordFile?.let { file -> runCatching { if (file.exists()) file.delete() } }
             currentRecordFile = null
+            cachedRecordFile?.let { file -> runCatching { if (file.exists()) file.delete() } }
+            cachedRecordFile = null
         }
     }
 
     /**
      * 读取循环：写 PCM、更新峰值振幅、到点自行收尾。
      *
-     * 收尾（回填 WAV 头、打包 Base64、发布缓存）都在这里完成，`stopRecordNative` 只负责置位并等待。
+     * 收尾（回填 WAV 头、生成文件元数据并发布缓存）都在这里完成，不再默认编码 Base64。
      */
     private fun runRecordLoop(
         recorder: AudioRecord,
@@ -439,11 +499,19 @@ class AndroidThemeBridge(
             runCatching { recorder.release() }
             patchWavHeader(outputFile, RECORD_SAMPLE_RATE, dataBytes)
 
-            // 文件 I/O 放在锁外，避免拖住 stopRecordNative 的第三段。
-            val result = when {
-                dataBytes <= 0L -> "error:EMPTY_AUDIO"
-                else -> buildRecordResult(outputFile, dataBytes)
+            // 文件校验与 JSON 组装放在锁外，避免拖住 stopRecordNative。
+            val error = when {
+                dataBytes <= 0L -> {
+                    runCatching { if (outputFile.exists()) outputFile.delete() }
+                    "error:EMPTY_AUDIO"
+                }
+                dataBytes > MAX_RECORD_BYTES -> {
+                    runCatching { if (outputFile.exists()) outputFile.delete() }
+                    "error:AUDIO_TOO_LARGE"
+                }
+                else -> null
             }
+            val fileJson = if (error == null) buildRecordFileResult(outputFile, dataBytes) else null
 
             synchronized(recordLock) {
                 if (generation != recordGeneration) {
@@ -455,22 +523,53 @@ class AndroidThemeBridge(
                     recordThread = null
                     recordAmplitude = 0
                     if (currentRecordFile === outputFile) currentRecordFile = null
-                    cachedRecordResult = result
+                    if (error != null) {
+                        cachedRecordError = error
+                        cachedRecordFileResult = error
+                        cachedRecordResult = error
+                        cachedRecordFile = null
+                        cachedRecordDataBytes = 0L
+                    } else {
+                        cachedRecordFile = outputFile
+                        cachedRecordDataBytes = dataBytes
+                        cachedRecordFileResult = fileJson
+                        cachedRecordError = null
+                        cachedRecordResult = null
+                    }
                 }
             }
             triggerHapticFeedback()
         }
     }
 
-    /** 读取临时文件并打包成前端约定的 JSON，随后删除临时文件。 */
+    /** 组装文件路径元数据 JSON（不读取字节、不编码 Base64；文件保留到下一次 start / cancel）。 */
+    private fun buildRecordFileResult(file: File, dataBytes: Long): String {
+        return try {
+            val fileLength = file.length()
+            val sizeBytes = if (fileLength > 0L) fileLength else WAV_HEADER_BYTES.toLong() + dataBytes
+            val json = JSONObject().apply {
+                put("success", true)
+                put("filePath", file.absolutePath)
+                put("mimeType", "audio/wav")
+                put("format", "wav")
+                // 由实际字节数反算，保证与音频长度一致（循环可能略晚于 JS 定时器收尾）。
+                put("durationMs", dataBytes * 1000L / (RECORD_SAMPLE_RATE.toLong() * RECORD_BYTES_PER_SAMPLE))
+                put("sizeBytes", sizeBytes)
+            }
+            json.toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to package native recording metadata", e)
+            "error:${e.message ?: "UNKNOWN"}"
+        }
+    }
+
+    /** 兼容旧路径：按需读取文件并打包成 Base64 JSON（保留临时文件以维持幂等）。 */
     private fun buildRecordResult(file: File, dataBytes: Long): String {
         if (dataBytes > MAX_RECORD_BYTES) {
-            runCatching { if (file.exists()) file.delete() }
             return "error:AUDIO_TOO_LARGE"
         }
         return try {
             val bytes = file.readBytes()
-            runCatching { file.delete() }
             val json = JSONObject().apply {
                 put("success", true)
                 put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP))

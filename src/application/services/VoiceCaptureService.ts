@@ -264,7 +264,9 @@ export class VoiceCaptureService implements IVoiceCaptureService {
     this.capturing = false;
     this.mode = null;
 
-    const stop = recorder?.stop() ?? { status: "error" as const, code: "NOT_AVAILABLE" };
+    const stop = recorder?.stopAsync
+      ? await recorder.stopAsync()
+      : (recorder?.stop() ?? { status: "error" as const, code: "NOT_AVAILABLE" });
     if (stop.status !== "ok") {
       throw new Error(NATIVE_STOP_ERROR_CODES[stop.code] ?? `VOICE_CAPTURE_NATIVE_ERROR:${stop.code}`);
     }
@@ -272,8 +274,8 @@ export class VoiceCaptureService implements IVoiceCaptureService {
       throw new Error("VOICE_CAPTURE_FORMAT_UNSUPPORTED");
     }
 
-    const bytes = decodeBase64(stop.base64);
-    if (bytes.length !== stop.sizeBytes || bytes.length < WAV_HEADER_BYTES) {
+    const bytes = stop.bytes ?? (stop.base64 !== undefined ? decodeBase64(stop.base64) : null);
+    if (!bytes || bytes.length !== stop.sizeBytes || bytes.length < WAV_HEADER_BYTES) {
       throw new Error("VOICE_CAPTURE_PARSE_ERROR");
     }
     // 本地魔数断言：原生侧再改容器格式，会在语音层以语音错误码失败，

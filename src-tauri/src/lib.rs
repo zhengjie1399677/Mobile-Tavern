@@ -13,6 +13,50 @@ fn report_telemetry(
     telemetry::enqueue_log(&app_handle, log)
 }
 
+const MAX_VOICE_CAPTURE_FILE_BYTES: u64 = 24 * 1024 * 1024 + 44;
+
+/// 读取原生录音生成的临时 WAV 文件并以原始二进制 IPC 响应返回（零 Base64 / 零 `atob`）。
+/// 严格限制只能读取应用 cache 目录下的 `tavern_voice_*.wav` 常规文件，防止任意路径读取。
+#[tauri::command]
+async fn read_voice_capture_file(
+    app_handle: tauri::AppHandle,
+    path: String,
+) -> Result<tauri::ipc::Response, String> {
+    if path.trim().is_empty() {
+        return Err("VOICE_CAPTURE_PATH_INVALID".to_string());
+    }
+    let cache_dir = app_handle
+        .path()
+        .cache_dir()
+        .map_err(|e| format!("VOICE_CAPTURE_CACHE_DIR_ERROR:{e}"))?;
+    let canonical_cache = tokio::fs::canonicalize(&cache_dir)
+        .await
+        .map_err(|e| format!("VOICE_CAPTURE_CACHE_DIR_ERROR:{e}"))?;
+    let canonical_file = tokio::fs::canonicalize(&path)
+        .await
+        .map_err(|_| "VOICE_CAPTURE_FILE_NOT_FOUND".to_string())?;
+    if !canonical_file.starts_with(&canonical_cache) {
+        return Err("VOICE_CAPTURE_PATH_FORBIDDEN".to_string());
+    }
+    let file_name = canonical_file
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "VOICE_CAPTURE_PATH_INVALID".to_string())?;
+    if !file_name.starts_with("tavern_voice_") || !file_name.ends_with(".wav") {
+        return Err("VOICE_CAPTURE_PATH_FORBIDDEN".to_string());
+    }
+    let metadata = tokio::fs::metadata(&canonical_file)
+        .await
+        .map_err(|_| "VOICE_CAPTURE_FILE_NOT_FOUND".to_string())?;
+    if !metadata.is_file() || metadata.len() > MAX_VOICE_CAPTURE_FILE_BYTES {
+        return Err("VOICE_CAPTURE_FILE_INVALID".to_string());
+    }
+    let bytes = tokio::fs::read(&canonical_file)
+        .await
+        .map_err(|e| format!("VOICE_CAPTURE_READ_ERROR:{e}"))?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
@@ -84,6 +128,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             report_telemetry,
+            read_voice_capture_file,
             secrets::decrypt_trial_key
         ])
         .build(tauri::generate_context!())

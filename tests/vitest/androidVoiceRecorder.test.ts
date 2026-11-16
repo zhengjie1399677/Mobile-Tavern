@@ -174,4 +174,76 @@ describe("AndroidVoiceRecorder 适配层", () => {
     recorder?.requestPermission();
     expect(requestRecordAudioPermission).toHaveBeenCalledTimes(1);
   });
+
+  it("stopAsync 优先走 Tauri 异步文件路径命令与原始二进制读取（零 Base64）", async () => {
+    const syncStop = vi.fn(() => validStopJson());
+    installRecorder({ stopRecordNative: syncStop });
+    const rawBuffer = new Uint8Array([0x52, 0x49, 0x46, 0x46]).buffer;
+    const invokeMock = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "plugin:AndroidBridge|stop_record_native") {
+        return {
+          success: true,
+          filePath: "/data/user/0/com.aitavern.app/cache/tavern_voice_1.wav",
+          mimeType: "audio/wav",
+          format: "wav",
+          durationMs: 1_500,
+          sizeBytes: 4,
+        };
+      }
+      if (cmd === "read_voice_capture_file") {
+        expect(args).toEqual({ path: "/data/user/0/com.aitavern.app/cache/tavern_voice_1.wav" });
+        return rawBuffer;
+      }
+      throw new Error(`unexpected cmd: ${cmd}`);
+    });
+
+    const recorder = resolveAndroidVoiceRecorder({ invoke: invokeMock });
+    const result = await recorder?.stopAsync?.();
+    expect(syncStop).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      status: "ok",
+      bytes: new Uint8Array([0x52, 0x49, 0x46, 0x46]),
+      mimeType: "audio/wav",
+      format: "wav",
+      durationMs: 1_500,
+      sizeBytes: 4,
+    });
+  });
+
+  it("stopAsync 遇到已知原生错误码时直接返回错误且不回退旧同步接口", async () => {
+    const syncStop = vi.fn(() => validStopJson());
+    installRecorder({ stopRecordNative: syncStop });
+    const invokeMock = vi.fn(async () => {
+      throw new Error("EMPTY_AUDIO");
+    });
+
+    const recorder = resolveAndroidVoiceRecorder({ invoke: invokeMock });
+    await expect(recorder?.stopAsync?.()).resolves.toEqual({ status: "error", code: "EMPTY_AUDIO" });
+    expect(syncStop).not.toHaveBeenCalled();
+  });
+
+  it("stopAsync 在旧安装包缺少命令时回退同步接口，载荷异常时报错", async () => {
+    const syncStop = vi.fn(() => validStopJson());
+    installRecorder({ stopRecordNative: syncStop });
+    const missingCmdInvoke = vi.fn(async () => {
+      throw new Error("Command stop_record_native not found");
+    });
+
+    const fallbackRecorder = resolveAndroidVoiceRecorder({ invoke: missingCmdInvoke });
+    await expect(fallbackRecorder?.stopAsync?.()).resolves.toMatchObject({
+      status: "ok",
+      base64: "UklGRg==",
+      sizeBytes: 4,
+    });
+    expect(syncStop).toHaveBeenCalledTimes(1);
+
+    const malformedInvoke = vi.fn(async (cmd: string) => {
+      if (cmd === "plugin:AndroidBridge|stop_record_native") {
+        return { filePath: "/cache/tavern_voice_1.wav", mimeType: "audio/wav", format: "wav", sizeBytes: 4 };
+      }
+      return "not-an-arraybuffer";
+    });
+    const badRecorder = resolveAndroidVoiceRecorder({ invoke: malformedInvoke });
+    await expect(badRecorder?.stopAsync?.()).resolves.toEqual({ status: "error", code: "PAYLOAD_MALFORMED" });
+  });
 });

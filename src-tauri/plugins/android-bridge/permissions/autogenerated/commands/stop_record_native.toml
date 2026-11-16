@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-stop-record-native"
+description = "Enables the stop_record_native command without any pre-configured scope."
+commands.allow = ["stop_record_native"]
+
+[[permission]]
+identifier = "deny-stop-record-native"
+description = "Denies the stop_record_native command without any pre-configured scope."
+commands.deny = ["stop_record_native"]

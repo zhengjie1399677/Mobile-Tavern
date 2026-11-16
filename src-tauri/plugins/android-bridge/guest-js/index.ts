@@ -67,7 +67,7 @@ export interface AndroidThemeBridge {
   requestRecordAudioPermission(): void;
   /** 启动原生麦克风录音（16 kHz 单声道 PCM16 WAV），返回 "OK" 或 "error:..."。 */
   startRecordNative(maxDurationMs?: number): string;
-  /** 停止原生麦克风录音，返回 `{base64, mimeType:"audio/wav", format:"wav", durationMs, sizeBytes}` 的 JSON 字符串或 "error:..."。幂等：重复调用返回同一份结果，直到下一次 start / cancel。 */
+  /** 停止原生麦克风录音的兼容同步接口，返回 `{base64, mimeType:"audio/wav", format:"wav", durationMs, sizeBytes}` 的 JSON 字符串或 "error:..."。异步首选 `invoke("plugin:AndroidBridge|stop_record_native")` 返回文件路径再经 `read_voice_capture_file` 读取原始字节。 */
   stopRecordNative(): string;
   /** 取消原生麦克风录音并安全删除临时缓存文件。 */
   cancelRecordNative(): boolean;

@@ -7,6 +7,7 @@
   ],
   "permissions": [
     "core:default",
+    "android-bridge:default",
     {
       "identifier": "http:default",
       "allow": [
