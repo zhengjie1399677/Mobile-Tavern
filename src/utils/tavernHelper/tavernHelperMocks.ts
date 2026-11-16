@@ -38,6 +38,10 @@ import {
 } from "./bridgeCore";
 import { createZodProxy } from "./zodMock";
 import { parseMvuMessage } from "./mvuParser";
+import {
+  createWorldbookBindMethods,
+  createWorldbookPublicMethods,
+} from "../../compatibility/sillytavern/worldbookBridge";
 import type { Message } from "../../types";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -735,12 +739,7 @@ export function initTavernHelperMocks(): void {
       }
       return Promise.resolve();
     },
-    _getCharLorebooks(): unknown[] { return []; },
-    _getCharWorldbookNames(): unknown[] { return []; },
-    _getCurrentCharPrimaryLorebook(): unknown { return null; },
-    _getLorebookEntries(): unknown[] { return []; },
-    _getLorebookSettings() { return {}; },
-    _setLorebookSettings() {},
+    ...createWorldbookBindMethods(),
     _setExtraAnalysisStates() {},
     _normalizeBaseURL(url: string) { return url; },
     _generate() { return Promise.resolve(""); },
@@ -877,6 +876,7 @@ export function initTavernHelperMocks(): void {
       const params = getBridgeParams();
       return text.replace(/\{\{char\}\}/gi, params?.activeCharacter?.name || "").replace(/\{\{user\}\}/gi, params?.settings?.userName || "user");
     },
+    ...createWorldbookPublicMethods(),
     playAudio: () => {},
     pauseAudio: () => {},
     getAudioList: (): unknown[] => [],

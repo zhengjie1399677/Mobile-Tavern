@@ -13,10 +13,11 @@ import { useKernel } from "../../contexts/KernelContext";
 import {
   IDatabaseService,
   ITtsService,
+  IWorldbookService,
   KernelServices,
   type ICompatibilityRuntimeService,
 } from "@/src/application/serviceContracts";
-import { ChatSession, CharacterCard, SummaryCard, Message } from "../../types";
+import { ChatSession, CharacterCard, CustomWorldbook, LorebookEntry, SummaryCard, Message } from "../../types";
 import { filterAsteriskActions } from "../../components/formattedTextUtils";
 import type { CompatibilityBridgeParams } from "../../application/compatibility/contracts";
 import {
@@ -26,8 +27,9 @@ import {
 } from "../../utils/viewportLayout";
 
 interface UseChatAccessibilityDeps
-  extends Omit<CompatibilityBridgeParams, "saveSession" | "setSessions"> {
+  extends Omit<CompatibilityBridgeParams, "saveSession" | "setSessions" | "saveGlobalLorebook"> {
   setSessionViews: CompatibilityBridgeParams["setSessions"];
+  setGlobalLorebook?: React.Dispatch<React.SetStateAction<LorebookEntry[]>>;
   isSending: boolean;
 }
 
@@ -38,6 +40,9 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
   );
   const compatibilityRenderer = compatibilityRuntime.getRenderer();
   const databaseService = kernel.getService<IDatabaseService<ChatSession, CharacterCard, SummaryCard, Message>>("database");
+  const worldbookService = kernel.hasService(KernelServices.Worldbook)
+    ? kernel.getService<IWorldbookService<LorebookEntry, CustomWorldbook>>(KernelServices.Worldbook)
+    : null;
   const saveSession = async (session: ChatSession): Promise<void> => {
     const current = compatibilityRenderer?.getBridgeParams()?.activeSession;
     const currentMessages = new Map((current?.messages ?? []).map((message) => [message.id, message]));
@@ -58,6 +63,11 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     activeCharacter,
     settings,
     activeSession,
+    characters,
+    globalLorebook,
+    setGlobalLorebook,
+    customWorldbooks,
+    updateCustomWorldbooks,
     setSessionViews,
     setCharacters,
     saveCharacter,
@@ -66,11 +76,25 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     isSending,
   } = deps;
 
+  const saveGlobalLorebook = async (entries: LorebookEntry[]): Promise<void> => {
+    setGlobalLorebook?.(entries);
+    if (worldbookService) {
+      await worldbookService.saveGlobalLorebook(entries);
+    }
+  };
+
   // Render-phase sync: 强行在渲染阶段将最新的会话与配置同步给 bridge params。
   // 这能确保在任何子组件（如 FormattedText）挂载、iframe 加载及 _onIframeReady() 触发时，
   // 它们都能够直接、同步且无时序滞后地通过 getBridgeParams() 拿到最新的 activeSession。
   if (settings.enableScriptExecution && compatibilityRenderer) {
-    compatibilityRenderer.updateBridge({ activeCharacter, activeSession, settings });
+    compatibilityRenderer.updateBridge({
+      activeCharacter,
+      activeSession,
+      characters,
+      globalLorebook,
+      customWorldbooks,
+      settings,
+    });
   }
 
   // a11y Live Announcer state and effect
@@ -116,10 +140,15 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     compatibilityRenderer?.initializeBridge({
       activeCharacter,
       activeSession,
+      characters,
       setSessions: setSessionViews,
       saveSession,
       setCharacters,
       saveCharacter,
+      globalLorebook,
+      saveGlobalLorebook,
+      customWorldbooks,
+      updateCustomWorldbooks,
       settings,
       updateSettings,
       handleSendMessage,
@@ -139,6 +168,9 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
     if (params) {
       params.activeCharacter = activeCharacter;
       params.activeSession = activeSession;
+      params.characters = characters;
+      params.globalLorebook = globalLorebook;
+      params.customWorldbooks = customWorldbooks;
       params.settings = settings;
 
       // 仅更新内存引用比对，不进行事件广播，避免在 React 渲染过程中因竞态引发未自愈的空变量覆盖
@@ -149,7 +181,7 @@ export function useChatAccessibility(deps: UseChatAccessibilityDeps) {
         prevVarsRef.current = lodashCloneDeep(currentVars);
       }
     }
-  }, [activeCharacter, activeSession, settings]);
+  }, [activeCharacter, activeSession, characters, globalLorebook, customWorldbooks, settings]);
 
   // 仅在脚本关闭时清理 bridge
   React.useEffect(() => {

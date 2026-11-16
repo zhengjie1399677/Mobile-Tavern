@@ -15,7 +15,7 @@
  * 遵循 AGENTS.md 准则一.1：向微内核沙盒架构预留平滑抽离通道。
  */
 
-import { CharacterCard, ChatSession, UserSettings } from "../../types";
+import { CharacterCard, ChatSession, CustomWorldbook, LorebookEntry, UserSettings } from "../../types";
 import React from "react";
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -25,10 +25,17 @@ import React from "react";
 export interface CardRuntimeBridgeParams {
   activeCharacter: CharacterCard | null;
   activeSession: ChatSession | null;
+  characters?: CharacterCard[];
   setSessions: React.Dispatch<React.SetStateAction<ChatSession[]>>;
   saveSession: (session: ChatSession) => Promise<void>;
   setCharacters: React.Dispatch<React.SetStateAction<CharacterCard[]>>;
   saveCharacter: (character: CharacterCard) => Promise<void>;
+  globalLorebook?: LorebookEntry[];
+  saveGlobalLorebook?: (entries: LorebookEntry[]) => Promise<void>;
+  customWorldbooks?: Record<string, CustomWorldbook>;
+  updateCustomWorldbooks?: (
+    update: Record<string, CustomWorldbook> | ((prev: Record<string, CustomWorldbook>) => Record<string, CustomWorldbook>),
+  ) => Promise<void> | void;
   settings: UserSettings;
   updateSettings: (settings: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
   /** 返回 false 表示被宿主前置校验拒绝（消息未落库）。 */

@@ -4,6 +4,7 @@ import type {
   ChatSession,
   CompatibilityScriptSecurityMode,
   CustomPromptBlock,
+  CustomWorldbook,
   LorebookEntry,
   Message,
   UserSettings,
@@ -160,10 +161,17 @@ export type CompatibilityStateUpdater<TValue> =
 export interface CompatibilityBridgeParams {
   activeCharacter: CharacterCard | null;
   activeSession: ChatSession | null;
+  characters?: CharacterCard[];
   setSessions(update: CompatibilityStateUpdater<ChatSession[]>): void;
   saveSession(session: ChatSession): Promise<void>;
   setCharacters(update: CompatibilityStateUpdater<CharacterCard[]>): void;
   saveCharacter(character: CharacterCard): Promise<void>;
+  globalLorebook?: LorebookEntry[];
+  saveGlobalLorebook?: (entries: LorebookEntry[]) => Promise<void>;
+  customWorldbooks?: Record<string, CustomWorldbook>;
+  updateCustomWorldbooks?: (
+    update: CompatibilityStateUpdater<Record<string, CustomWorldbook>>,
+  ) => Promise<void> | void;
   settings: UserSettings;
   updateSettings(update: CompatibilityStateUpdater<UserSettings>): void;
   /** 返回 false 表示被前置校验拒绝（消息未落库）。 */
@@ -203,7 +211,14 @@ export interface CompatibilityRendererDefinition {
     securityMode: CompatibilityScriptSecurityMode,
   ): string;
   initializeBridge(params: CompatibilityBridgeParams): void;
-  updateBridge(params: Partial<Pick<CompatibilityBridgeParams, "activeCharacter" | "activeSession" | "settings">>): void;
+  updateBridge(
+    params: Partial<
+      Pick<
+        CompatibilityBridgeParams,
+        "activeCharacter" | "activeSession" | "characters" | "globalLorebook" | "customWorldbooks" | "settings"
+      >
+    >,
+  ): void;
   getBridgeParams(): CompatibilityBridgeParams | null;
   getGenerationState(): CompatibilityGenerationState;
   setGenerationState(update: CompatibilityGenerationStateUpdate): void;

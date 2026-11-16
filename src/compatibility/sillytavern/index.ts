@@ -7,3 +7,4 @@
 export * from "../../utils/tavernHelper";
 export * from "./isolatedBridgeHost";
 export * from "./isolatedScriptRuntime";
+export * from "./worldbookBridge";
